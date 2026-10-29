@@ -1,0 +1,39 @@
+import AppKit
+
+/// Right-click menu on the notch or shelf.
+@MainActor
+enum NotchMenu {
+    static func show(at location: CGPoint, customiseHome: @escaping @MainActor () -> Void, services: AppServices) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.addItem(item("Customise Home", symbol: "square.grid.2x2", action: customiseHome))
+        menu.addItem(item("Clipboard History", symbol: "doc.on.clipboard", action: services.openClipboard))
+        menu.addItem(item("Transform Files…", symbol: "wand.and.stars") { services.openTransform([]) })
+        menu.addItem(.separator())
+        menu.addItem(item("Settings…", symbol: "gearshape", action: services.openSettings))
+        menu.addItem(item("Quit Wisp", symbol: "power") { NSApp.terminate(nil) })
+        menu.popUp(positioning: nil, at: location, in: nil)
+    }
+
+    private static func item(_ title: String, symbol: String, action: @escaping @MainActor () -> Void) -> NSMenuItem {
+        let target = MenuAction(action)
+        let item = NSMenuItem(title: title, action: #selector(MenuAction.run), keyEquivalent: "")
+        item.target = target
+        // NSMenuItem holds its target weakly; keep the closure box alive with the item.
+        item.representedObject = target
+        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        return item
+    }
+}
+
+/// Bridges a Swift closure to a target/action pair.
+@MainActor
+final class MenuAction: NSObject {
+    private let action: @MainActor () -> Void
+
+    init(_ action: @escaping @MainActor () -> Void) {
+        self.action = action
+    }
+
+    @objc func run() { action() }
+}

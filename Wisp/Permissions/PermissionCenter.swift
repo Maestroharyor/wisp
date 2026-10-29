@@ -1,0 +1,84 @@
+import AppKit
+import Contacts
+import CoreGraphics
+import EventKit
+
+/// Every macOS permission Wisp can use, with a status check and a deep link.
+enum Permission: String, CaseIterable, Identifiable {
+    case accessibility
+    case fullDiskAccess
+    case screenRecording
+    case contacts
+    case automation
+    case calendars
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .accessibility: "Accessibility"
+        case .fullDiskAccess: "Full Disk Access"
+        case .screenRecording: "Screen Recording"
+        case .contacts: "Contacts"
+        case .automation: "Automation"
+        case .calendars: "Calendars"
+        }
+    }
+
+    var purpose: String {
+        switch self {
+        case .accessibility: "Caps Lock shortcut, volume and brightness keys, pasting, hiding system banners"
+        case .fullDiskAccess: "Reading notifications, Messages chats and Focus status"
+        case .screenRecording: "Recording the screen from the notch"
+        case .contacts: "Photos and names on notifications"
+        case .automation: "Replying in Messages, meeting controls, Music fallback"
+        case .calendars: "Calendar widget"
+        }
+    }
+
+    /// Nil when macOS offers no way to check (Automation is granted per target app).
+    @MainActor var isGranted: Bool? {
+        switch self {
+        case .accessibility: AccessibilityPermission.isTrusted
+        case .fullDiskAccess: Self.hasFullDiskAccess
+        case .screenRecording: CGPreflightScreenCaptureAccess()
+        case .contacts: CNContactStore.authorizationStatus(for: .contacts) == .authorized
+        case .automation: nil
+        case .calendars: EKEventStore.authorizationStatus(for: .event) == .fullAccess
+        }
+    }
+
+    private var settingsAnchor: String {
+        switch self {
+        case .accessibility: "Privacy_Accessibility"
+        case .fullDiskAccess: "Privacy_AllFiles"
+        case .screenRecording: "Privacy_ScreenCapture"
+        case .contacts: "Privacy_Contacts"
+        case .automation: "Privacy_Automation"
+        case .calendars: "Privacy_Calendars"
+        }
+    }
+
+    @MainActor func request() {
+        switch self {
+        case .accessibility: AccessibilityPermission.requestAccess()
+        case .screenRecording: CGRequestScreenCaptureAccess()
+        case .contacts: Task { _ = try? await CNContactStore().requestAccess(for: .contacts) }
+        case .fullDiskAccess, .automation, .calendars: openSettings()
+        }
+    }
+
+    func openSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(settingsAnchor)") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// The notification store's group container is readable only with Full Disk Access.
+    static var hasFullDiskAccess: Bool {
+        let path = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Group Containers/group.com.apple.usernoted").path
+        return (try? FileManager.default.contentsOfDirectory(atPath: path)) != nil
+    }
+}

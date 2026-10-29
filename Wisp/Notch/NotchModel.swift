@@ -1,0 +1,110 @@
+import Observation
+import SwiftUI
+import WispCore
+
+enum ShelfPage: Hashable {
+    case home
+    case tray
+    case media
+    case widgets
+}
+
+/// What the SwiftUI notch view renders for one display.
+@MainActor
+@Observable
+final class NotchModel {
+    var phase: NotchPhase = .closed
+    var layout: NotchLayout
+    var speed: AnimationSpeed = .standard
+    var framesPerSecond = 60
+    var reduceMotion = false
+    /// Choosing any tab, including Widgets again, returns the Widgets page to its grid.
+    var page: ShelfPage = .home {
+        didSet { soloWidget = nil }
+    }
+    /// The widget opened on its own from the Widgets page grid.
+    var soloWidget: WidgetKind?
+    var editingHome = false
+    /// Widget order when customising began, restored on cancel.
+    var homeSnapshot: (layout: HomeLayout, enabled: [WidgetKind])?
+    /// A file drag is over the notch: show the quick-action tiles.
+    var dragging = false
+    /// Whether this display shows live activities.
+    var showsActivities = true
+    /// Set while the user types a reply to a notification card.
+    var replyingTo: NotificationItem?
+    /// Called by the card when a reply is sent or abandoned.
+    var onReplyEnded: () -> Void = {}
+
+    let services: AppServices
+
+    init(layout: NotchLayout, services: AppServices) {
+        self.layout = layout
+        self.services = services
+    }
+
+    var preferences: Preferences { services.preferences }
+
+    var activity: Activity? {
+        guard showsActivities, let current = services.activities.current else { return nil }
+        if current == .media, !preferences.mediaActivity { return nil }
+        return current
+    }
+
+    var spec: SurfaceSpec {
+        switch phase {
+        case .open:
+            if dragging { return .dropTiles }
+            switch page {
+            case .home:
+                return .home(contentWidth: preferences.homeLayout.contentWidth, editing: editingHome)
+            case .media: return .media
+            case .widgets:
+                if soloWidget != nil { return .widgetSolo }
+                return .widgetGrid(count: preferences.gridWidgets.count, rows: preferences.widgetGridRows)
+            case .tray: return .tray(items: services.tray.count)
+            }
+        case .peek, .closed:
+            if let activity {
+                if case .notification = activity { return .notification(replying: replyingTo != nil) }
+                return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
+            }
+            return phase == .peek ? .peek : .closed
+        }
+    }
+
+    var surfaceRect: CGRect { SurfaceSizing.rect(for: spec, in: layout) }
+
+    var navPillRect: CGRect? {
+        phase == .open && !dragging ? SurfaceSizing.navPillRect(below: surfaceRect) : nil
+    }
+
+    /// Screen areas that count as "on the notch" for hover and clicks.
+    var hitRegions: [CGRect] {
+        [layout.hitRegion(for: surfaceRect)] + (navPillRect.map { [$0.insetBy(dx: -4, dy: -4)] } ?? [])
+    }
+
+    func contains(_ point: CGPoint) -> Bool { hitRegions.contains { $0.contains(point) } }
+
+    /// Converts a global rect to the panel's top-left coordinate space.
+    func local(_ rect: CGRect) -> CGRect {
+        CGRect(
+            x: rect.minX - layout.panelFrame.minX,
+            y: layout.panelFrame.maxY - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
+    }
+
+    var isNotchStyle: Bool { layout.style == .notch }
+    var notchHeight: CGFloat { layout.closedRect.height }
+
+    var motion: NotchMotion {
+        .preset(speed, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)
+    }
+
+    /// Bouncier when growing, damped when settling back to the plain notch.
+    var surfaceAnimation: Animation {
+        spec == .closed ? motion.surfaceClose : motion.surfaceOpen
+    }
+}

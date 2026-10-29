@@ -1,0 +1,221 @@
+import AppKit
+import CoreImage
+import Observation
+import SwiftUI
+import WispCore
+
+/// System-wide Now Playing (any app, including browsers) through the media bridge.
+/// Falls back to polling Music and Spotify through AppleScript if the bridge cannot
+/// run. Never launches a player that is not running.
+@MainActor
+@Observable
+final class NowPlayingMonitor {
+    private(set) var info: NowPlayingInfo?
+    private(set) var artwork: NSImage?
+    /// Dominant artwork colour, for the waveform and progress tint.
+    private(set) var tint: Color = .white
+    /// When `info.position` was read, to extrapolate the playhead between polls.
+    private(set) var readAt = Date.now
+
+    @ObservationIgnored var onChange: (NowPlayingInfo?) -> Void = { _ in }
+    @ObservationIgnored private var pollTask: Task<Void, Never>?
+    @ObservationIgnored private var scripts: [String: NSAppleScript] = [:]
+    @ObservationIgnored private var artworkTrackID: String?
+    @ObservationIgnored private let bridge = MediaBridge()
+    @ObservationIgnored private var usingBridge = false
+
+    func start() {
+        bridge.onEvent = { [weak self] event in self?.handle(event) }
+        bridge.onUnavailable = { [weak self] in
+            self?.usingBridge = false
+            self?.startPolling()
+        }
+        usingBridge = bridge.start()
+        if !usingBridge { startPolling() }
+    }
+
+    func stop() {
+        bridge.stop()
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    private func startPolling() {
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                self?.poll()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    private func handle(_ event: MediaBridgeEvent) {
+        readAt = .now
+        switch event {
+        case .nowPlaying(let next, let artworkData):
+            let changedTrack = next.trackID != info?.trackID
+            if let artworkData {
+                artworkTrackID = next.trackID
+                setArtwork(NSImage(data: artworkData))
+            } else if changedTrack {
+                artworkTrackID = next.trackID
+                setArtwork(nil)
+            }
+            guard next != info else { return }
+            info = next
+            onChange(next)
+        case .cleared:
+            guard info != nil else { return }
+            info = nil
+            setArtwork(nil)
+            onChange(nil)
+        case .invalid:
+            break
+        }
+    }
+
+    func position(at date: Date) -> Double {
+        guard let info else { return 0 }
+        let elapsed = info.isPlaying ? date.timeIntervalSince(readAt) : 0
+        return min(info.position + elapsed, info.duration)
+    }
+
+    func togglePlayPause() { command(.togglePlayPause, script: "playpause") }
+    func next() { command(.next, script: "next track") }
+    func previous() { command(.previous, script: "previous track") }
+
+    func seek(to seconds: Double) {
+        guard let info else { return }
+        if usingBridge {
+            bridge.send(.seek(seconds))
+            return
+        }
+        run("tell application id \"\(info.source.bundleID)\" to set player position to \(Int(seconds))")
+        poll()
+    }
+
+    func openPlayer() {
+        guard let id = info?.appBundleID, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
+        else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    private func command(_ bridgeCommand: MediaBridgeCommand, script verb: String) {
+        if usingBridge {
+            bridge.send(bridgeCommand)
+            return
+        }
+        guard let info else { return }
+        run("tell application id \"\(info.source.bundleID)\" to \(verb)")
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            self?.poll()
+        }
+    }
+
+    private func poll() {
+        let readings = NowPlayingSource.scriptable.compactMap { source -> NowPlayingInfo? in
+            guard isRunning(source), let raw = run(Self.statusScript(for: source)) else { return nil }
+            return NowPlayingParser.parse(raw, source: source)
+        }
+        // Prefer whichever player is actually playing.
+        let next = readings.first(where: \.isPlaying) ?? readings.first
+        readAt = .now
+        if next != info {
+            let changedTrack = next?.trackID != info?.trackID
+            info = next
+            if changedTrack { loadArtwork(for: next) }
+            onChange(next)
+        }
+    }
+
+    private func isRunning(_ source: NowPlayingSource) -> Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: source.bundleID).isEmpty
+    }
+
+    @discardableResult
+    private func run(_ source: String) -> String? {
+        runDescriptor(source)?.stringValue
+    }
+
+    private func runDescriptor(_ source: String) -> NSAppleEventDescriptor? {
+        let script = scripts[source] ?? NSAppleScript(source: source)
+        scripts[source] = script
+        var error: NSDictionary?
+        let result = script?.executeAndReturnError(&error)
+        return error == nil ? result : nil
+    }
+
+    private func loadArtwork(for info: NowPlayingInfo?) {
+        artworkTrackID = info?.trackID
+        guard let info else {
+            setArtwork(nil)
+            return
+        }
+        switch info.source {
+        case .system:
+            setArtwork(nil)
+        case .music:
+            let data = runDescriptor(
+                "tell application id \"com.apple.Music\" to get raw data of artwork 1 of current track")?.data
+            setArtwork(data.flatMap(NSImage.init(data:)))
+        case .spotify:
+            guard let url = info.artworkURL else {
+                setArtwork(nil)
+                return
+            }
+            let trackID = info.trackID
+            Task { [weak self] in
+                let data = try? await URLSession.shared.data(from: url).0
+                guard let self, self.artworkTrackID == trackID else { return }
+                self.setArtwork(data.flatMap(NSImage.init(data:)))
+            }
+        }
+    }
+
+    private func setArtwork(_ image: NSImage?) {
+        artwork = image
+        tint = image.flatMap(Self.averageColor) ?? .white
+    }
+
+    private static func averageColor(of image: NSImage) -> Color? {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        let input = CIImage(cgImage: cgImage)
+        guard
+            let filter = CIFilter(
+                name: "CIAreaAverage",
+                parameters: [kCIInputImageKey: input, kCIInputExtentKey: CIVector(cgRect: input.extent)]),
+            let output = filter.outputImage
+        else { return nil }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        CIContext(options: [.workingColorSpace: NSNull()])
+            .render(
+                output, toBitmap: &pixel, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                format: .RGBA8, colorSpace: nil)
+        // Lift dark averages so the tint stays visible on black.
+        let color = NSColor(
+            red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255, blue: CGFloat(pixel[2]) / 255, alpha: 1)
+        let hsb = color.usingColorSpace(.deviceRGB)
+        let brightened = NSColor(
+            hue: hsb?.hueComponent ?? 0,
+            saturation: min((hsb?.saturationComponent ?? 0) * 1.2, 1),
+            brightness: max(hsb?.brightnessComponent ?? 1, 0.75),
+            alpha: 1
+        )
+        return Color(nsColor: brightened)
+    }
+
+    private static func statusScript(for source: NowPlayingSource) -> String {
+        let artwork = source == .spotify ? " & d & (artwork url of t)" : ""
+        return """
+            tell application id "\(source.bundleID)"
+                set s to player state as string
+                if s is "stopped" then return "stopped"
+                set t to current track
+                set d to character id 31
+                return s & d & (name of t) & d & (artist of t) & d & (album of t) & d & (duration of t) & d & (player position)\(artwork)
+            end tell
+            """
+    }
+}

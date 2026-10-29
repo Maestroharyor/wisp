@@ -1,0 +1,78 @@
+import CoreGraphics
+
+/// Shell proportions measured from the reference app (droppy-analysis/features/design.md §16).
+public enum ShellMetrics {
+    /// Concave flare where a closed notch meets the menu bar.
+    public static func closedTopRadius(height: CGFloat) -> CGFloat { clamp(height * 0.24, 8, 10) }
+    public static func closedBottomRadius(height: CGFloat) -> CGFloat { clamp(height * 0.32, 11, 13) }
+
+    public static let expandedTopRadius: CGFloat = 32
+    public static let expandedShelfBottomRadius: CGFloat = 40
+    public static let expandedIslandRadius: CGFloat = 44
+    public static let expandedHUDBottomRadius: CGFloat = 28
+    public static let closedIslandRadius: CGFloat = 18
+    public static let widgetCornerRadius: CGFloat = 18
+    public static let cardSpacing: CGFloat = 18
+    public static let widgetContentHeight: CGFloat = 93
+    /// The media widget needs room for artwork, a progress row and controls.
+    /// One media widget then gives a shelf of about 180 pt, as in the reference.
+    public static let mediaWidgetContentHeight: CGFloat = 122
+
+    public static func shelfMinimumWidth(notchStyle: Bool) -> CGFloat { notchStyle ? 451 : 405 }
+    public static func soloCardWidth(notchStyle: Bool) -> CGFloat { notchStyle ? 352 : 370 }
+
+    /// Insets around shelf content; notch style clears the camera housing and the flares.
+    public static func shelfInsets(notchStyle: Bool, notchHeight: CGFloat) -> EdgeInsetsValue {
+        notchStyle
+            ? EdgeInsetsValue(top: notchHeight + 10, leading: 48, bottom: 16, trailing: 48)
+            : EdgeInsetsValue(top: 16, leading: 16, bottom: 16, trailing: 16)
+    }
+
+    public static func hudInsets(notchStyle: Bool, notchHeight: CGFloat) -> EdgeInsetsValue {
+        notchStyle
+            ? EdgeInsetsValue(top: notchHeight, leading: 48, bottom: 16, trailing: 48)
+            : EdgeInsetsValue(top: 16, leading: 16, bottom: 16, trailing: 16)
+    }
+
+    private static func clamp(_ value: CGFloat, _ low: CGFloat, _ high: CGFloat) -> CGFloat {
+        min(max(value, low), high)
+    }
+}
+
+/// Live-activity proportions measured from the reference app.
+public enum ActivityMetrics {
+    public static let compactNotchWing: CGFloat = 70
+    public static let compactIslandWidth: CGFloat = 150
+    public static let interactiveNotchWing: CGFloat = 120
+    public static let interactiveIslandWidth: CGFloat = 240
+    public static let rowHeight: CGFloat = 37
+    public static let cardContentHeight: CGFloat = 59
+    public static let iconSize: CGFloat = 13
+    public static let labelFontSize: CGFloat = 12
+    public static let contentSpacing: CGFloat = 6
+    public static let islandContentInset: CGFloat = 12
+    public static let progressRingSize: CGFloat = 20
+    public static let progressRingLineWidth: CGFloat = 2
+    public static let controlSize: CGFloat = 24
+
+    /// Horizontal padding that centres an icon vertically in the wing.
+    public static func symmetricPadding(iconSize: CGFloat, notchHeight: CGFloat, notchStyle: Bool) -> CGFloat {
+        let padding = max((notchHeight - iconSize) / 2, 6)
+        return notchStyle ? padding + 10 : padding
+    }
+}
+
+/// A platform-neutral copy of SwiftUI's `EdgeInsets`, so WispCore stays UI-free.
+public struct EdgeInsetsValue: Sendable, Equatable {
+    public var top: CGFloat
+    public var leading: CGFloat
+    public var bottom: CGFloat
+    public var trailing: CGFloat
+
+    public init(top: CGFloat, leading: CGFloat, bottom: CGFloat, trailing: CGFloat) {
+        self.top = top
+        self.leading = leading
+        self.bottom = bottom
+        self.trailing = trailing
+    }
+}
