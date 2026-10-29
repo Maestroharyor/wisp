@@ -55,6 +55,9 @@ enum Activity: Sendable, Equatable {
     /// Confirmation after a reply was sent.
     case sent(text: String)
     case focus(FocusModeState)
+    case agent(AgentStatus)
+    /// A Claude Code permission prompt answered from the notch.
+    case agentApproval(AgentApproval)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -67,7 +70,7 @@ enum Activity: Sendable, Equatable {
     /// Level bars need room for the bar and the number.
     var usesWideWings: Bool {
         switch self {
-        case .level, .sent, .focus: true
+        case .level, .sent, .focus, .agent: true
         default: false
         }
     }
@@ -90,6 +93,8 @@ enum Activity: Sendable, Equatable {
         case .notification(let item): "notification-\(item.id)"
         case .sent: "sent"
         case .focus: "focus"
+        case .agent: "agent"
+        case .agentApproval(let approval): "agentApproval-\(approval.id)"
         }
     }
 }
@@ -105,10 +110,14 @@ enum ActivitySlot: String {
     case focus
     case capsLock
     case level
+    case agent
+    case agentApproval
 
     var priority: Int {
         switch self {
         case .media: 10
+        case .agent: 15
+        case .agentApproval: 55
         case .timer: 20
         case .tray: 30
         case .battery: 40

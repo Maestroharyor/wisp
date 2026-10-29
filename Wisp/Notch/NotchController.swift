@@ -31,6 +31,28 @@ final class NotchController {
         panel.orderFrontRegardless()
         syncSettings()
         model.onReplyEnded = { [weak self] in self?.endReply() }
+        observeActivity()
+    }
+
+    /// An approval card has buttons, so the closed panel stops being click-through while it shows.
+    private var showsApproval: Bool {
+        if case .agentApproval = model.activity { return true }
+        return false
+    }
+
+    private func observeActivity() {
+        withObservationTracking {
+            _ = model.activity
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.updateClickThrough()
+                self?.observeActivity()
+            }
+        }
+    }
+
+    private func updateClickThrough() {
+        panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !isReplying && !showsApproval
     }
 
     var isReplying: Bool { model.replyingTo != nil }
@@ -58,6 +80,8 @@ final class NotchController {
 
     func leftMouseDown(at location: CGPoint) {
         if handleNotificationClick(at: location) { return }
+        // The approval card's own buttons take the click.
+        if machine.phase != .open, showsApproval, model.contains(location) { return }
         if model.contains(location) {
             if machine.phase == .open {
                 // Let text fields (notes, search) take keyboard input without activating Wisp.
@@ -149,7 +173,7 @@ final class NotchController {
     private func endReply() {
         model.replyingTo = nil
         panel.resignKey()
-        panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !isReplying
+        updateClickThrough()
     }
 
     /// Esc on a solo widget goes back to the grid rather than closing the shelf.
@@ -157,6 +181,12 @@ final class NotchController {
         guard machine.phase == .open, model.soloWidget != nil else { return false }
         model.soloWidget = nil
         return true
+    }
+
+    /// A profile switch picks the page the shelf opens on; an open shelf stays put.
+    func setRestingPage(_ page: ShelfPage) {
+        guard machine.phase != .open else { return }
+        model.page = page
     }
 
     func open(page: ShelfPage) {
@@ -227,7 +257,7 @@ final class NotchController {
     private func render(wasOpen: Bool) {
         model.phase = machine.phase
         // Click-through while closed, so the menu bar under the panel keeps working.
-        panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging
+        updateClickThrough()
 
         if machine.phase == .open, machine.pinned {
             // Keyboard-opened: take key status (without activating the app) so Esc reaches us.

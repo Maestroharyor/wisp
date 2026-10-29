@@ -61,8 +61,12 @@ private struct SurfaceView: View {
         let shape = ShellShape(notchStyle: model.isNotchStyle, topRadius: radii.top, bottomRadius: radii.bottom)
 
         ZStack(alignment: .top) {
-            SurfaceBackground(glass: isOpen ? model.preferences.glassEdge : .off)
-                .clipShape(shape)
+            SurfaceBackground(
+                style: isOpen ? model.preferences.surfaceStyle : .black,
+                glass: isOpen ? model.preferences.glassEdge : .off,
+                accent: model.accent
+            )
+            .clipShape(shape)
             content
                 .padding(.horizontal, model.isNotchStyle ? radii.top : 0)
                 .clipShape(shape)
@@ -96,6 +100,11 @@ private struct SurfaceView: View {
                     .transition(.notchEnlarge(motion, fromScale: revealScale))
             }
         case .notification:
+            if case .agentApproval(let approval) = model.activity {
+                AgentApprovalCard(approval: approval, model: model)
+                    .id(approval.id)
+                    .transition(.notchEnlarge(motion, fromScale: revealScale))
+            }
             if case .notification(let item) = model.activity {
                 NotificationCardView(item: item, model: model)
                     .id(item.id)
@@ -131,11 +140,48 @@ private struct ShellShape: Shape {
     }
 }
 
-/// Black surface with an optional translucent "melt" at the bottom edge.
-private struct SurfaceBackground: View {
+/// The open surface: black (with an optional translucent "melt" at the bottom edge),
+/// Liquid Glass, or black with a soft accent glow.
+struct SurfaceBackground: View {
+    let style: SurfaceStyle
     let glass: GlassEdge
+    let accent: Color
 
     var body: some View {
+        switch style {
+        case .black: black
+        case .glass: liquidGlass
+        case .tinted: tinted
+        }
+    }
+
+    @ViewBuilder private var liquidGlass: some View {
+        if #available(macOS 26.0, *) {
+            // A dark wash keeps white text readable over bright wallpapers.
+            Rectangle()
+                .fill(.clear)
+                .glassEffect(.regular.tint(accent.opacity(0.18)), in: Rectangle())
+                .overlay(Color.black.opacity(0.42))
+        } else {
+            ZStack {
+                VisualEffectBlur()
+                Color.black.opacity(0.55)
+                accent.opacity(0.08)
+            }
+        }
+    }
+
+    private var tinted: some View {
+        ZStack {
+            Color.black
+            RadialGradient(
+                colors: [accent.opacity(0.38), accent.opacity(0.08), .clear],
+                center: .bottom, startRadius: 0, endRadius: 260)
+            LinearGradient(colors: [.clear, accent.opacity(0.12)], startPoint: .top, endPoint: .bottom)
+        }
+    }
+
+    @ViewBuilder private var black: some View {
         if glass == .off {
             Color.black
         } else {
@@ -156,7 +202,7 @@ private struct SurfaceBackground: View {
 }
 
 /// Behind-window blur so the melt picks up the wallpaper colour.
-private struct VisualEffectBlur: NSViewRepresentable {
+struct VisualEffectBlur: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .hudWindow

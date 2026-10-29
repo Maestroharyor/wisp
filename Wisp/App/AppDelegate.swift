@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.start()
         hotkeys.onToggle = { [weak self] in self?.toggleShelf() }
         hotkeys.onClipboard = { [weak self] in self?.toggleClipboard() }
+        hotkeys.onProfileDigit = { [weak self] digit in self?.services.context.choose(digit: digit) }
         hotkeys.start()
         handleTerminationSignal()
     }

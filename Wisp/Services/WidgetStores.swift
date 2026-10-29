@@ -97,6 +97,8 @@ final class CalendarStore {
     }
 
     private(set) var events: [Event] = []
+    /// Every timed event today, including finished ones, for the Day Progress widget.
+    private(set) var dayEvents: [ClosedRange<Date>] = []
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
 
     @ObservationIgnored private let store = EKEventStore()
@@ -121,10 +123,14 @@ final class CalendarStore {
             }
         }
         let now = Date.now
-        let end = Calendar.current.startOfDay(for: now).addingTimeInterval(86400)
-        let predicate = store.predicateForEvents(withStart: now, end: end, calendars: nil)
-        events = store.events(matching: predicate)
+        let dayStart = Calendar.current.startOfDay(for: now)
+        let end = dayStart.addingTimeInterval(86400)
+        let today = store.events(matching: store.predicateForEvents(withStart: dayStart, end: end, calendars: nil))
             .sorted { $0.startDate < $1.startDate }
+        dayEvents = today.filter { !$0.isAllDay && $0.startDate <= $0.endDate }.map { $0.startDate...$0.endDate }
+        events =
+            today
+            .filter { $0.endDate > now }
             .prefix(3)
             .map {
                 Event(

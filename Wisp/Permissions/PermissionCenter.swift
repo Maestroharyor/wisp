@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import Contacts
 import CoreGraphics
@@ -11,6 +12,7 @@ enum Permission: String, CaseIterable, Identifiable {
     case contacts
     case automation
     case calendars
+    case camera
 
     var id: Self { self }
 
@@ -22,6 +24,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .contacts: "Contacts"
         case .automation: "Automation"
         case .calendars: "Calendars"
+        case .camera: "Camera"
         }
     }
 
@@ -32,7 +35,8 @@ enum Permission: String, CaseIterable, Identifiable {
         case .screenRecording: "Recording the screen from the notch"
         case .contacts: "Photos and names on notifications"
         case .automation: "Replying in Messages, meeting controls, Music fallback"
-        case .calendars: "Calendar widget"
+        case .calendars: "Calendar and Day Progress widgets"
+        case .camera: "Mirror widget"
         }
     }
 
@@ -45,6 +49,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .contacts: CNContactStore.authorizationStatus(for: .contacts) == .authorized
         case .automation: nil
         case .calendars: EKEventStore.authorizationStatus(for: .event) == .fullAccess
+        case .camera: AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         }
     }
 
@@ -56,6 +61,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .contacts: "Privacy_Contacts"
         case .automation: "Privacy_Automation"
         case .calendars: "Privacy_Calendars"
+        case .camera: "Privacy_Camera"
         }
     }
 
@@ -64,6 +70,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .accessibility: AccessibilityPermission.requestAccess()
         case .screenRecording: CGRequestScreenCaptureAccess()
         case .contacts: Task { _ = try? await CNContactStore().requestAccess(for: .contacts) }
+        case .camera: Task { _ = await AVCaptureDevice.requestAccess(for: .video) }
         case .fullDiskAccess, .automation, .calendars: openSettings()
         }
     }

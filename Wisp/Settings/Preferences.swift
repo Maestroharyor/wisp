@@ -46,6 +46,17 @@ enum BasketTrigger: String, CaseIterable, Identifiable {
     }
 }
 
+/// What the open surface is made of. The closed notch is always black so it
+/// blends with the camera housing.
+enum SurfaceStyle: String, CaseIterable, Identifiable {
+    case black
+    case glass
+    case tinted
+
+    var id: Self { self }
+    var title: String { rawValue.capitalized }
+}
+
 /// Translucent fade at the bottom edge of the open surface.
 enum GlassEdge: String, CaseIterable, Identifiable {
     case off
@@ -74,6 +85,13 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
     case systemStats
     case weather
     case notes
+    case quickToggles
+    case shortcuts
+    case clipboard
+    case mirror
+    case dayProgress
+    case worldClocks
+    case agents
 
     var id: Self { self }
 
@@ -87,6 +105,13 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         case .systemStats: "System Stats"
         case .weather: "Weather"
         case .notes: "Notes"
+        case .quickToggles: "Quick Toggles"
+        case .shortcuts: "Shortcuts"
+        case .clipboard: "Clipboard"
+        case .mirror: "Mirror"
+        case .dayProgress: "Day Progress"
+        case .worldClocks: "World Clocks"
+        case .agents: "Claude Code"
         }
     }
 
@@ -97,8 +122,8 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
     var defaultSize: WidgetSize {
         switch self {
         case .nowPlaying: .large
-        case .calendar, .systemStats, .notes: .medium
-        case .timer, .pomodoro, .battery, .weather: .small
+        case .calendar, .systemStats, .notes, .quickToggles, .shortcuts, .clipboard, .dayProgress, .agents: .medium
+        case .timer, .pomodoro, .battery, .weather, .mirror, .worldClocks: .small
         }
     }
 
@@ -112,6 +137,13 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         case .systemStats: "cpu"
         case .weather: "cloud.sun.fill"
         case .notes: "note.text"
+        case .quickToggles: "switch.2"
+        case .shortcuts: "square.stack.3d.up.fill"
+        case .clipboard: "doc.on.clipboard"
+        case .mirror: "person.crop.square"
+        case .dayProgress: "sun.horizon.fill"
+        case .worldClocks: "globe"
+        case .agents: "sparkle"
         }
     }
 }
@@ -131,6 +163,13 @@ final class Preferences {
         static let animationSpeed = "animationSpeed"
         static let externalStyle = "externalStyle"
         static let glassEdge = "glassEdge"
+        static let surfaceStyle = "surfaceStyle"
+        static let lastSettingsPane = "lastSettingsPane"
+        static let profiles = "profiles"
+        static let activeProfile = "activeProfile"
+        static let contextRules = "contextRules"
+        static let contextAware = "contextAware"
+        static let adaptiveAccent = "adaptiveAccent"
         static let homeWidgets = "homeWidgets"
         static let homeLayout = "homeLayout"
         static let enabledWidgets = "enabledWidgets"
@@ -152,6 +191,12 @@ final class Preferences {
         static let scrubberSounds = "scrubberSounds"
         static let widgetGridOrder = "widgetGridOrder"
         static let widgetGridRows = "widgetGridRows"
+        static let introducedWidgets = "introducedWidgets"
+        static let favouriteShortcuts = "favouriteShortcuts"
+        static let doNotDisturbShortcut = "doNotDisturbShortcut"
+        static let workdayStart = "workdayStart"
+        static let workdayEnd = "workdayEnd"
+        static let worldClockZones = "worldClockZones"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -183,10 +228,92 @@ final class Preferences {
     }
 
     var glassEdge: GlassEdge { didSet { defaults.set(glassEdge.rawValue, forKey: Key.glassEdge) } }
+    var surfaceStyle: SurfaceStyle {
+        didSet {
+            defaults.set(surfaceStyle.rawValue, forKey: Key.surfaceStyle)
+            updateActiveProfile { $0.surface = surfaceStyle.rawValue }
+        }
+    }
+
+    /// The Settings pane shown last, reopened next time.
+    var lastSettingsPane: SettingsPaneID {
+        didSet { defaults.set(lastSettingsPane.rawValue, forKey: Key.lastSettingsPane) }
+    }
+
+    /// Keys that hold the user's content rather than settings; a reset keeps them.
+    private static let contentKeys: Set<String> = [
+        "trayPaths", "notesText", "webChatStore.whatsApp", "webChatStore.telegram",
+    ]
+
+    /// Clears every Wisp setting but keeps content (tray, notes, chat logins). The caller
+    /// relaunches Wisp so everything reloads.
+    func resetAll() {
+        guard let domain = Bundle.main.bundleIdentifier, let stored = defaults.persistentDomain(forName: domain)
+        else { return }
+        defaults.setPersistentDomain(stored.filter { Self.contentKeys.contains($0.key) }, forName: domain)
+    }
+
+    /// Saved setups. Editing Home or the surface updates the active one.
+    var profiles: [Profile] {
+        didSet { defaults.set(try? JSONEncoder().encode(profiles), forKey: Key.profiles) }
+    }
+
+    var activeProfile: String {
+        didSet { defaults.set(activeProfile, forKey: Key.activeProfile) }
+    }
+
+    var contextRules: [ContextRule] {
+        didSet { defaults.set(try? JSONEncoder().encode(contextRules), forKey: Key.contextRules) }
+    }
+
+    /// Switch profiles automatically from the front app, music, Focus and agents.
+    var contextAware: Bool {
+        didSet { defaults.set(contextAware, forKey: Key.contextAware) }
+    }
+
+    func profile(named name: String) -> Profile? { profiles.first { $0.name == name } }
+
+    /// Makes `profile` active: its Home widgets (switched on if needed) and surface.
+    func apply(_ profile: Profile) {
+        activeProfile = profile.name
+        for kind in profile.home.ids.compactMap(WidgetKind.init(rawValue:)) { enable(kind) }
+        homeLayout = profile.home
+        surfaceStyle = SurfaceStyle(rawValue: profile.surface) ?? surfaceStyle
+    }
+
+    /// Saves the current Home and surface as a new profile and makes it active.
+    func saveCurrentAsProfile(named name: String) {
+        let unique = Profile.uniqueName(name, existing: profiles.map(\.name))
+        profiles.append(Profile(name: unique, home: homeLayout, defaultPage: "home", surface: surfaceStyle.rawValue))
+        activeProfile = unique
+    }
+
+    func deleteProfile(named name: String) {
+        guard name != ContextEngineState.baseProfile else { return }
+        profiles.removeAll { $0.name == name }
+        if activeProfile == name, let base = profile(named: ContextEngineState.baseProfile) { apply(base) }
+    }
+
+    func setDefaultPage(_ page: String, for name: String) {
+        guard let index = profiles.firstIndex(where: { $0.name == name }) else { return }
+        profiles[index].defaultPage = page
+    }
+
+    private func updateActiveProfile(_ change: (inout Profile) -> Void) {
+        guard let index = profiles.firstIndex(where: { $0.name == activeProfile }) else { return }
+        var profile = profiles[index]
+        change(&profile)
+        if profile != profiles[index] { profiles[index] = profile }
+    }
+    /// Tint the glow and glass with the playing album's colour.
+    var adaptiveAccent: Bool { didSet { defaults.set(adaptiveAccent, forKey: Key.adaptiveAccent) } }
 
     /// Up to four widgets on Home, with sizes and order.
     var homeLayout: HomeLayout {
-        didSet { defaults.set(try? JSONEncoder().encode(homeLayout), forKey: Key.homeLayout) }
+        didSet {
+            defaults.set(try? JSONEncoder().encode(homeLayout), forKey: Key.homeLayout)
+            updateActiveProfile { $0.home = homeLayout }
+        }
     }
 
     /// Every switched-on widget; the Widgets page shows them all.
@@ -202,6 +329,29 @@ final class Preferences {
     /// Rows in the Widgets page grid: 1 or 2.
     var widgetGridRows: Int {
         didSet { defaults.set(WidgetGrid.clampedRows(widgetGridRows), forKey: Key.widgetGridRows) }
+    }
+
+    /// Shortcuts shown in the Shortcuts widget, in order.
+    var favouriteShortcuts: [String] {
+        didSet { defaults.set(favouriteShortcuts, forKey: Key.favouriteShortcuts) }
+    }
+
+    /// The Shortcut the Do Not Disturb toggle runs (macOS has no public Focus API).
+    var doNotDisturbShortcut: String {
+        didSet { defaults.set(doNotDisturbShortcut, forKey: Key.doNotDisturbShortcut) }
+    }
+
+    var workdayStart: Int {
+        didSet { defaults.set(workdayStart, forKey: Key.workdayStart) }
+    }
+
+    var workdayEnd: Int {
+        didSet { defaults.set(workdayEnd, forKey: Key.workdayEnd) }
+    }
+
+    /// Time zone identifiers for the World Clocks widget, at most three.
+    var worldClockZones: [String] {
+        didSet { defaults.set(Array(worldClockZones.prefix(3)), forKey: Key.worldClockZones) }
     }
 
     /// Switched-on widgets in the grid's saved order.
@@ -226,6 +376,20 @@ final class Preferences {
     func enable(_ kind: WidgetKind) {
         if !enabledWidgets.contains(kind) { enabledWidgets.append(kind) }
         homeLayout.add(kind.rawValue, size: kind.defaultSize)
+    }
+
+    /// Switches on widgets added in an update once, so they show up on the Widgets page
+    /// (not on Home, which stays as the user arranged it). The camera mirror stays off.
+    private func introduceNewWidgets() {
+        // Builds before this key existed shipped the first eight widgets.
+        let original: [WidgetKind] = [
+            .nowPlaying, .calendar, .timer, .pomodoro, .battery, .systemStats, .weather, .notes,
+        ]
+        let seen = Set(defaults.stringArray(forKey: Key.introducedWidgets) ?? original.map(\.rawValue))
+        for kind in WidgetKind.allCases where !seen.contains(kind.rawValue) && kind != .mirror {
+            if !enabledWidgets.contains(kind) { enabledWidgets.append(kind) }
+        }
+        defaults.set(WidgetKind.allCases.map(\.rawValue), forKey: Key.introducedWidgets)
     }
 
     /// Switches a widget off everywhere.
@@ -276,6 +440,9 @@ final class Preferences {
             Key.animationSpeed: AnimationSpeed.standard.rawValue,
             Key.externalStyle: ExternalStyle.notch.rawValue,
             Key.glassEdge: GlassEdge.subtle.rawValue,
+            Key.surfaceStyle: SurfaceStyle.black.rawValue,
+            Key.adaptiveAccent: true,
+            Key.contextAware: true,
             Key.volumeHUD: true,
             Key.brightnessHUD: true,
             Key.batteryHUD: true,
@@ -292,6 +459,9 @@ final class Preferences {
             Key.basketTrigger: BasketTrigger.shake.rawValue,
             Key.scrubberSounds: true,
             Key.widgetGridRows: 2,
+            Key.workdayStart: 9,
+            Key.workdayEnd: 18,
+            Key.worldClockZones: ["America/New_York", "Europe/London", "Asia/Tokyo"],
         ])
         hotkey = defaults.string(forKey: Key.hotkey).flatMap(Hotkey.init(string:)) ?? .hyperSpace
         quickPressTogglesCapsLock = defaults.bool(forKey: Key.quickPressTogglesCapsLock)
@@ -302,6 +472,16 @@ final class Preferences {
             defaults.string(forKey: Key.animationSpeed).flatMap(AnimationSpeed.init(rawValue:)) ?? .standard
         externalStyle = defaults.string(forKey: Key.externalStyle).flatMap(ExternalStyle.init(rawValue:)) ?? .notch
         glassEdge = defaults.string(forKey: Key.glassEdge).flatMap(GlassEdge.init(rawValue:)) ?? .subtle
+        surfaceStyle = defaults.string(forKey: Key.surfaceStyle).flatMap(SurfaceStyle.init(rawValue:)) ?? .black
+        adaptiveAccent = defaults.bool(forKey: Key.adaptiveAccent)
+        contextAware = defaults.bool(forKey: Key.contextAware)
+        lastSettingsPane =
+            defaults.string(forKey: Key.lastSettingsPane).flatMap(SettingsPaneID.init(rawValue:)) ?? .general
+        contextRules =
+            defaults.data(forKey: Key.contextRules).flatMap { try? JSONDecoder().decode([ContextRule].self, from: $0) }
+            ?? ContextRules.defaults
+        activeProfile = defaults.string(forKey: Key.activeProfile) ?? ContextEngineState.baseProfile
+        profiles = []
         // Earlier builds stored a plain list of Home widgets; carry it over once.
         let legacy = (defaults.stringArray(forKey: Key.homeWidgets) ?? []).compactMap(WidgetKind.init(rawValue:))
         let starting = legacy.isEmpty ? [WidgetKind.nowPlaying, .calendar] : legacy
@@ -329,6 +509,21 @@ final class Preferences {
         widgetGridOrder =
             (defaults.stringArray(forKey: Key.widgetGridOrder) ?? []).compactMap(WidgetKind.init(rawValue:))
         widgetGridRows = WidgetGrid.clampedRows(defaults.integer(forKey: Key.widgetGridRows))
+        favouriteShortcuts = defaults.stringArray(forKey: Key.favouriteShortcuts) ?? []
+        doNotDisturbShortcut = defaults.string(forKey: Key.doNotDisturbShortcut) ?? ""
+        workdayStart = defaults.integer(forKey: Key.workdayStart)
+        workdayEnd = defaults.integer(forKey: Key.workdayEnd)
+        worldClockZones = defaults.stringArray(forKey: Key.worldClockZones) ?? []
         basketTrigger = defaults.string(forKey: Key.basketTrigger).flatMap(BasketTrigger.init(rawValue:)) ?? .shake
+        introduceNewWidgets()
+        // First run with profiles: the everyday profile starts as the user's current setup.
+        profiles =
+            defaults.data(forKey: Key.profiles).flatMap { try? JSONDecoder().decode([Profile].self, from: $0) }
+            ?? Profile.builtIns.map { builtIn in
+                guard builtIn.name == ContextEngineState.baseProfile else { return builtIn }
+                return Profile(
+                    name: builtIn.name, home: homeLayout, defaultPage: builtIn.defaultPage,
+                    surface: surfaceStyle.rawValue)
+            }
     }
 }

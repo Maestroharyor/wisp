@@ -77,6 +77,12 @@ public enum KeyCodes {
     public static let escape: UInt16 = 53
     public static let v: UInt16 = 9
 
+    /// 1–9 on the number row, for Hyper+digit shortcuts.
+    public static func digit(forKeyCode code: UInt16) -> Int? {
+        let digits: [UInt16: Int] = [18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9]
+        return digits[code]
+    }
+
     private static let table: [(name: String, code: UInt16, display: String)] = {
         let letters: [(String, UInt16)] = [
             ("a", 0), ("s", 1), ("d", 2), ("f", 3), ("h", 4), ("g", 5), ("z", 6), ("x", 7), ("c", 8), ("v", 9),

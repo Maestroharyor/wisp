@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import WispCore
 
 /// Long-lived stores and monitors shared by every notch and window.
@@ -14,6 +15,11 @@ final class AppServices {
     let calendar = CalendarStore()
     let weather = WeatherStore()
     let notes = NotesStore()
+    let shortcuts = ShortcutsRunner()
+    let camera = CameraMirror()
+    let agents = AgentHub()
+    let context: ContextEngine
+    let quickActions: QuickActions
     let clipboard: ClipboardStore
     let systemHUD: SystemHUD
     let notifications: NotificationMonitor
@@ -37,6 +43,43 @@ final class AppServices {
         clipboard = ClipboardStore(preferences: preferences)
         systemHUD = SystemHUD(preferences: preferences, activities: activities)
         notifications = NotificationMonitor(preferences: preferences)
+        quickActions = QuickActions(preferences: preferences, shortcuts: shortcuts)
+        context = ContextEngine(preferences: preferences)
+    }
+
+    /// Glow and glass tint: the playing album's colour when allowed, otherwise Wisp's violet.
+    var accent: Color {
+        if preferences.adaptiveAccent, nowPlaying.info?.isPlaying == true { return nowPlaying.tint }
+        return Color(red: 0.48, green: 0.42, blue: 1)
+    }
+
+    /// Set by the notch coordinator: the page closed shelves open on next.
+    var restingPage: @MainActor (ShelfPage) -> Void = { _ in }
+
+    private func applyProfile(_ profile: Profile, manual: Bool) {
+        guard profile.name != preferences.activeProfile || manual else { return }
+        preferences.apply(profile)
+        restingPage(ShelfPage(name: profile.defaultPage))
+        activities.post(.notice(symbol: "rectangle.stack.fill", text: profile.name), slot: .notice, duration: 1.8)
+    }
+
+    /// Set by the notch coordinator: closes every open shelf.
+    var closeShelves: @MainActor () -> Void = {}
+
+    /// Working shows until the turn ends; Done and Needs you show briefly.
+    private func agentStatusChanged(_ status: AgentStatus?) {
+        let needsUser = agents.sessions.anyNeedsUser
+        context.update { $0.agentWaiting = needsUser }
+        guard let status else {
+            activities.remove(.agent)
+            return
+        }
+        switch status.state {
+        case .running: activities.post(.agent(status), slot: .agent, duration: nil)
+        case .finished, .waiting: activities.post(.agent(status), slot: .agent, duration: 4)
+        case .idle: activities.remove(.agent)
+        case .needsApproval: break
+        }
     }
 
     /// How long a notification card stays when untouched.
@@ -74,6 +117,26 @@ final class AppServices {
             self?.activities.post(.timerDone(label: label), slot: .notice, duration: 5)
         }
 
+        let notice: (String, String) -> Void = { [weak self] symbol, text in
+            self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 2)
+        }
+        shortcuts.onNotice = notice
+        quickActions.onNotice = notice
+        quickActions.closeShelves = { [weak self] in self?.closeShelves() }
+
+        agents.onStatus = { [weak self] status in self?.agentStatusChanged(status) }
+        agents.onApproval = { [weak self] approval in
+            if let approval {
+                self?.activities.post(.agentApproval(approval), slot: .agentApproval, duration: nil)
+            } else {
+                self?.activities.remove(.agentApproval)
+            }
+        }
+        agents.start()
+
+        context.onSwitch = { [weak self] profile, manual in self?.applyProfile(profile, manual: manual) }
+        context.start()
+
         tray.onAdd = { [weak self] count in self?.activities.post(.tray(count: count), slot: .tray, duration: 2) }
         tray.onNotice = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 2)
@@ -81,6 +144,7 @@ final class AppServices {
 
         notifications.onNotification = { [weak self] item in self?.showNotification(item) }
         notifications.onFocus = { [weak self] state in
+            self?.context.update { $0.focus = state.isOn ? state.name : nil }
             self?.activities.post(.focus(state), slot: .focus, duration: 2.2)
         }
         notifications.start()
@@ -104,6 +168,7 @@ final class AppServices {
     }
 
     private func mediaChanged(_ info: NowPlayingInfo?) {
+        context.update { $0.mediaPlaying = info?.isPlaying ?? false }
         if preferences.mediaActivity, info?.isPlaying == true {
             activities.post(.media, slot: .media, duration: nil)
         } else {

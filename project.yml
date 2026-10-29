@@ -46,12 +46,28 @@ targets:
         SKIP_INSTALL: YES
         OTHER_LDFLAGS: ["-framework", "Foundation", "-framework", "AppKit"]
 
+  # Claude Code hook command that forwards hook events to Wisp (see WispAgent/main.swift).
+  WispAgent:
+    type: tool
+    platform: macOS
+    sources: [WispAgent]
+    settings:
+      base:
+        PRODUCT_NAME: wisp-agent
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+
   Wisp:
     type: application
     platform: macOS
     sources: [Wisp]
     dependencies:
       - target: WispCore
+      - target: WispAgent
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
       - target: WispMediaBridge
         link: false
         embed: true
@@ -73,6 +89,7 @@ targets:
         NSLocationUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSLocationWhenInUseUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSContactsUsageDescription: Wisp shows contact photos on notifications.
+        NSCameraUsageDescription: Wisp shows your camera in the Mirror widget so you can check yourself before a call.
     entitlements:
       path: Wisp/Resources/Wisp.entitlements
       properties:
@@ -83,6 +100,7 @@ targets:
         com.apple.security.personal-information.calendars: true
         com.apple.security.personal-information.location: true
         com.apple.security.personal-information.addressbook: true
+        com.apple.security.device.camera: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.maestro.wisp

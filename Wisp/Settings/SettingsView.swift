@@ -27,344 +27,99 @@ final class SettingsWindowController {
         let host = NSHostingController(rootView: SettingsView(services: services, hotkeys: hotkeys))
         let window = NSWindow(contentViewController: host)
         window.title = "Wisp Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable]
+        // The sidebar runs to the top edge, as in System Settings.
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.toolbarStyle = .unified
         window.isReleasedWhenClosed = false
-        window.setContentSize(CGSize(width: 560, height: 520))
+        window.setContentSize(CGSize(width: 820, height: 600))
+        window.contentMinSize = CGSize(width: 700, height: 480)
+        window.setFrameAutosaveName("WispSettings")
         return window
     }
 }
 
+/// Sidebar of panes (searchable, grouped, with a badge for missing permissions) and the
+/// selected pane beside it.
 struct SettingsView: View {
     let services: AppServices
     let hotkeys: HotkeyCenter
+    @State private var model: SettingsModel
 
-    var body: some View {
-        TabView {
-            GeneralSettings(preferences: services.preferences, hotkeys: hotkeys)
-                .tabItem { Label("General", systemImage: "gearshape") }
-            NotchSettings(preferences: services.preferences)
-                .tabItem { Label("Notch", systemImage: "capsule.portrait.inset.filled") }
-            ActivitySettings(preferences: services.preferences)
-                .tabItem { Label("Live Activities", systemImage: "waveform") }
-            WidgetSettings(preferences: services.preferences)
-                .tabItem { Label("Widgets", systemImage: "square.grid.2x2") }
-            ClipboardSettings(preferences: services.preferences, store: services.clipboard)
-                .tabItem { Label("Clipboard", systemImage: "doc.on.clipboard") }
-            NotificationSettings(preferences: services.preferences, monitor: services.notifications)
-                .tabItem { Label("Notifications", systemImage: "bell.badge") }
-            PermissionSettings()
-                .tabItem { Label("Permissions", systemImage: "lock.shield") }
-        }
-        .frame(width: 620, height: 560)
+    init(services: AppServices, hotkeys: HotkeyCenter) {
+        self.services = services
+        self.hotkeys = hotkeys
+        _model = State(initialValue: SettingsModel(preferences: services.preferences))
     }
-}
-
-private struct GeneralSettings: View {
-    @Bindable var preferences: Preferences
-    let hotkeys: HotkeyCenter
-
-    @State private var launchAtLogin = LaunchAtLogin.isEnabled
-    @State private var launchError: String?
 
     var body: some View {
-        Form {
-            Section("Shortcut") {
-                Toggle("Open the shelf with Caps Lock + Space", isOn: usesCapsLock)
-                if preferences.hotkey.usesHyper {
-                    Toggle(
-                        "Pressing Caps Lock on its own still turns Caps Lock on",
-                        isOn: $preferences.quickPressTogglesCapsLock)
-                } else {
-                    LabeledContent("Shortcut") {
-                        HotkeyRecorder(hotkey: $preferences.hotkey)
-                    }
-                }
-                LabeledContent("Clipboard history") {
-                    Text(
-                        preferences.hotkey.usesHyper
-                            ? Hotkey.clipboardHyper.description : Hotkey.clipboardFallback.description
-                    )
-                    .foregroundStyle(.secondary)
-                }
-                LabeledContent("Status") {
-                    HStack {
-                        Text(hotkeys.status.message).foregroundStyle(.secondary)
-                        if hotkeys.status == .needsAccessibility {
-                            Button("Open Accessibility Settings", action: AccessibilityPermission.openSettings)
+        @Bindable var model = model
+        NavigationSplitView {
+            List(selection: $model.selection) {
+                ForEach(SettingsSection.allCases) { section in
+                    let panes = section.panes.filter(model.visiblePanes.contains)
+                    if !panes.isEmpty {
+                        Section(section.title) {
+                            ForEach(panes) { pane in
+                                Label {
+                                    Text(pane.title)
+                                } icon: {
+                                    IconTile(symbol: pane.symbol, tint: pane.tint)
+                                }
+                                .badge(pane == .permissions ? model.missing.count : 0)
+                                .tag(pane)
+                            }
                         }
                     }
                 }
             }
-
-            Section("Startup") {
-                Toggle("Launch at login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
-                if let launchError {
-                    Text(launchError).font(.caption).foregroundStyle(.red)
-                }
+            .searchable(text: $model.query, placement: .sidebar, prompt: "Search")
+            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
+        } detail: {
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .frame(minWidth: 700, minHeight: 480)
+        .task {
+            // Grants happen in System Settings; keep the health badge current while open.
+            while !Task.isCancelled {
+                model.refreshHealth()
+                try? await Task.sleep(for: .seconds(2))
             }
         }
-        .formStyle(.grouped)
     }
 
-    private var usesCapsLock: Binding<Bool> {
-        Binding(
-            get: { preferences.hotkey.usesHyper },
-            set: { useCaps in
-                preferences.hotkey =
-                    useCaps ? .hyperSpace : Hotkey(keyCode: KeyCodes.space, modifiers: [.command, .shift])
+    @ViewBuilder private var detail: some View {
+        if let pane = model.selection {
+            VStack(spacing: 0) {
+                PaneHeader(pane: pane)
+                paneView(pane)
             }
-        )
-    }
-
-    private func setLaunchAtLogin(_ enabled: Bool) {
-        do {
-            try LaunchAtLogin.set(enabled)
-            launchError = nil
-            if LaunchAtLogin.needsApproval { LaunchAtLogin.openSystemSettings() }
-        } catch {
-            launchError = error.localizedDescription
-            launchAtLogin = LaunchAtLogin.isEnabled
+            .id(pane)
+        } else {
+            ContentUnavailableView.search(text: model.query)
         }
     }
-}
 
-private struct NotchSettings: View {
-    @Bindable var preferences: Preferences
-
-    var body: some View {
-        Form {
-            Section("Opening") {
-                Picker("Open the shelf on", selection: $preferences.openTrigger) {
-                    ForEach(OpenTrigger.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                if preferences.openTrigger == .hover {
-                    LabeledContent("Open after hovering for") {
-                        HStack {
-                            Slider(value: $preferences.hoverDelay, in: 0...0.6, step: 0.05).frame(width: 160)
-                            Text("\(Int(preferences.hoverDelay * 1000)) ms")
-                                .monospacedDigit()
-                                .frame(width: 56, alignment: .trailing)
-                        }
-                    }
-                }
+    @ViewBuilder private func paneView(_ pane: SettingsPaneID) -> some View {
+        let preferences = services.preferences
+        switch pane {
+        case .general:
+            GeneralSettings(
+                preferences: preferences, hotkeys: hotkeys, accent: services.accent, missing: model.missing
+            ) {
+                model.selection = .permissions
             }
-            Section("Look") {
-                Picker("Animation", selection: $preferences.animationSpeed) {
-                    ForEach(AnimationSpeed.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                Picker("Glass edge", selection: $preferences.glassEdge) {
-                    ForEach(GlassEdge.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-            }
-            Section("Dragging files") {
-                Picker("Show the drop basket", selection: $preferences.basketTrigger) {
-                    ForEach(BasketTrigger.allCases) { Text($0.title).tag($0) }
-                }
-                Text("The basket appears next to the pointer with Drop, Transform, Zip and AirDrop.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Displays without a notch") {
-                Toggle("Show on external displays", isOn: $preferences.showOnExternalDisplays)
-                Picker("Style", selection: $preferences.externalStyle) {
-                    ForEach(ExternalStyle.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .disabled(!preferences.showOnExternalDisplays)
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-private struct ActivitySettings: View {
-    @Bindable var preferences: Preferences
-
-    var body: some View {
-        Form {
-            Section("Replace system overlays") {
-                Toggle("Volume", isOn: $preferences.volumeHUD)
-                Toggle("Display brightness", isOn: $preferences.brightnessHUD)
-                Toggle("Caps Lock", isOn: $preferences.capsLockHUD)
-                Text("Volume and brightness need Accessibility access to intercept the keys.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Show beside the notch") {
-                Toggle("Now Playing (any app, including browsers)", isOn: $preferences.mediaActivity)
-                Toggle("Battery and charging", isOn: $preferences.batteryHUD)
-                Picker("Show on", selection: $preferences.activityDisplay) {
-                    Text("Display under the pointer").tag(ActivityDisplayTarget.pointer)
-                    Text("MacBook display").tag(ActivityDisplayTarget.builtIn)
-                    Text("All displays").tag(ActivityDisplayTarget.all)
-                }
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-private struct WidgetSettings: View {
-    @Bindable var preferences: Preferences
-
-    var body: some View {
-        Form {
-            Section("Widgets") {
-                ForEach(WidgetKind.allCases) { kind in
-                    Toggle(isOn: binding(for: kind)) {
-                        Label(kind.title, systemImage: kind.symbol)
-                    }
-                }
-                Text(
-                    "Switched-on widgets appear as icons on the Widgets page: click one to open it, drag one to reorder. Up to four also sit on Home: right-click the notch and choose Customise Home to add, resize or reorder them."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Widgets page") {
-                Picker("Rows", selection: $preferences.widgetGridRows) {
-                    Text("One").tag(1)
-                    Text("Two").tag(2)
-                }
-                .pickerStyle(.segmented)
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    private func binding(for kind: WidgetKind) -> Binding<Bool> {
-        Binding(
-            get: { preferences.enabledWidgets.contains(kind) },
-            set: { enabled in
-                if enabled { preferences.enable(kind) } else { preferences.disable(kind) }
-            }
-        )
-    }
-}
-
-private struct ClipboardSettings: View {
-    @Bindable var preferences: Preferences
-    let store: ClipboardStore
-
-    var body: some View {
-        Form {
-            Section("History") {
-                Toggle("Keep clipboard history", isOn: $preferences.clipboardEnabled)
-                Stepper(value: $preferences.clipboardLimit, in: 20...1000, step: 20) {
-                    LabeledContent("Keep up to", value: "\(preferences.clipboardLimit) items")
-                }
-                Button("Clear History (keeps pinned items)", role: .destructive) { store.clear() }
-            }
-            Section {
-                Text(
-                    "Passwords and other items that apps mark as concealed are never saved. History is stored only on this Mac."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-private struct NotificationSettings: View {
-    @Bindable var preferences: Preferences
-    let monitor: NotificationMonitor
-
-    var body: some View {
-        Form {
-            Section("Notifications") {
-                Toggle("Show notifications in the notch", isOn: $preferences.notificationsEnabled)
-                LabeledContent("Full Disk Access") {
-                    HStack {
-                        StatusDot(granted: monitor.hasAccess)
-                        if !monitor.hasAccess {
-                            Button("Open Settings") { Permission.fullDiskAccess.openSettings() }
-                        }
-                    }
-                }
-                Toggle("Hide the macOS banner", isOn: $preferences.hideSystemBanners)
-                Toggle("Show Focus changes", isOn: $preferences.focusActivity)
-                Text(
-                    "macOS has no public way to read other apps' notifications, so Wisp reads the system's notification store. It needs Full Disk Access and could break after a macOS update."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Replies") {
-                LabeledContent("iMessage and SMS", value: "Always on")
-                Toggle("WhatsApp (via WhatsApp Web)", isOn: $preferences.whatsAppReplies)
-                if preferences.whatsAppReplies {
-                    Button("Log in to WhatsApp Web…") { monitor.showLogin(for: .whatsApp) }
-                }
-                Toggle("Telegram (via Telegram Web)", isOn: $preferences.telegramReplies)
-                if preferences.telegramReplies {
-                    Button("Log in to Telegram Web…") { monitor.showLogin(for: .telegram) }
-                }
-                Text("WhatsApp and Telegram replies drive their web apps and can stop working when those sites change.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            if !monitor.seenApps.isEmpty {
-                Section("Apps") {
-                    ForEach(monitor.seenApps.sorted { $0.value < $1.value }, id: \.key) { bundleID, name in
-                        Toggle(name, isOn: allowed(bundleID))
-                    }
-                }
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    private func allowed(_ bundleID: String) -> Binding<Bool> {
-        Binding(
-            get: { !preferences.blockedNotificationApps.contains(bundleID) },
-            set: { allow in
-                if allow {
-                    preferences.blockedNotificationApps.removeAll { $0 == bundleID }
-                } else if !preferences.blockedNotificationApps.contains(bundleID) {
-                    preferences.blockedNotificationApps.append(bundleID)
-                }
-            }
-        )
-    }
-}
-
-private struct PermissionSettings: View {
-    @State private var refresh = 0
-
-    var body: some View {
-        Form {
-            Section {
-                ForEach(Permission.allCases) { permission in
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(permission.title)
-                            Text(permission.purpose).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if let granted = permission.isGranted {
-                            StatusDot(granted: granted)
-                            if !granted { Button("Allow") { permission.request() } }
-                        } else {
-                            Button("Open Settings") { permission.openSettings() }
-                        }
-                    }
-                    .id("\(permission.rawValue)-\(refresh)")
-                }
-            } footer: {
-                Button("Refresh") { refresh += 1 }
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-private struct StatusDot: View {
-    let granted: Bool
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Circle().fill(granted ? .green : .orange).frame(width: 8, height: 8)
-            Text(granted ? "Granted" : "Not granted").foregroundStyle(.secondary)
+        case .notch: NotchSettings(preferences: preferences, accent: services.accent)
+        case .activities: ActivitySettings(preferences: preferences)
+        case .widgets: WidgetSettings(preferences: preferences, shortcuts: services.shortcuts)
+        case .profiles: ProfileSettings(preferences: preferences, context: services.context)
+        case .clipboard: ClipboardSettings(preferences: preferences, store: services.clipboard)
+        case .notifications: NotificationSettings(preferences: preferences, monitor: services.notifications)
+        case .agents: AgentSettings(hub: services.agents)
+        case .permissions: PermissionSettings(onChange: model.refreshHealth)
+        case .about: AboutSettings(preferences: preferences)
         }
     }
 }

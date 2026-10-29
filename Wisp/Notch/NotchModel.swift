@@ -7,6 +7,16 @@ enum ShelfPage: Hashable {
     case tray
     case media
     case widgets
+
+    /// From a profile's stored page name; anything unknown is Home.
+    init(name: String) {
+        switch name {
+        case "tray": self = .tray
+        case "media": self = .media
+        case "widgets": self = .widgets
+        default: self = .home
+        }
+    }
 }
 
 /// What the SwiftUI notch view renders for one display.
@@ -61,12 +71,15 @@ final class NotchModel {
             case .media: return .media
             case .widgets:
                 if soloWidget != nil { return .widgetSolo }
-                return .widgetGrid(count: preferences.gridWidgets.count, rows: preferences.widgetGridRows)
+                let count = preferences.gridWidgets.count
+                return .widgetGrid(
+                    count: count, rows: WidgetGrid.rows(count: count, preferred: preferences.widgetGridRows))
             case .tray: return .tray(items: services.tray.count)
             }
         case .peek, .closed:
             if let activity {
                 if case .notification = activity { return .notification(replying: replyingTo != nil) }
+                if case .agentApproval = activity { return .notification(replying: false) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }
             return phase == .peek ? .peek : .closed
@@ -102,6 +115,9 @@ final class NotchModel {
     var motion: NotchMotion {
         .preset(speed, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)
     }
+
+    /// Glow and glass tint: the playing album's colour when allowed, otherwise Wisp's violet.
+    var accent: Color { services.accent }
 
     /// Bouncier when growing, damped when settling back to the plain notch.
     var surfaceAnimation: Animation {

@@ -22,6 +22,13 @@ struct WidgetCard: View {
             case .systemStats: SystemStatsWidget(store: services.stats)
             case .weather: WeatherWidget(store: services.weather)
             case .notes: NotesWidget(store: services.notes)
+            case .quickToggles: QuickTogglesWidget(actions: services.quickActions)
+            case .shortcuts: ShortcutsWidget(runner: services.shortcuts, preferences: services.preferences)
+            case .clipboard: ClipboardWidget(store: services.clipboard)
+            case .mirror: MirrorWidget(camera: services.camera)
+            case .dayProgress: DayProgressWidget(calendar: services.calendar, preferences: services.preferences)
+            case .worldClocks: WorldClocksWidget(preferences: services.preferences)
+            case .agents: AgentsWidget(hub: services.agents)
             }
         }
         .padding(.vertical, 4)

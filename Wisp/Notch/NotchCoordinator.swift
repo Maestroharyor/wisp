@@ -26,6 +26,12 @@ final class NotchCoordinator {
     }
 
     func start() {
+        services.restingPage = { [weak self] page in
+            self?.controllers.values.forEach { $0.setRestingPage(page) }
+        }
+        services.closeShelves = { [weak self] in
+            self?.controllers.values.filter { $0.phase == .open }.forEach { $0.dismiss() }
+        }
         rebuild()
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,

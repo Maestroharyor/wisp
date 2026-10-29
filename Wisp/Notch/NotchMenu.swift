@@ -9,10 +9,27 @@ enum NotchMenu {
         menu.addItem(item("Customise Home", symbol: "square.grid.2x2", action: customiseHome))
         menu.addItem(item("Clipboard History", symbol: "doc.on.clipboard", action: services.openClipboard))
         menu.addItem(item("Transform Files…", symbol: "wand.and.stars") { services.openTransform([]) })
+        menu.addItem(profilesItem(services: services))
         menu.addItem(.separator())
         menu.addItem(item("Settings…", symbol: "gearshape", action: services.openSettings))
         menu.addItem(item("Quit Wisp", symbol: "power") { NSApp.terminate(nil) })
         menu.popUp(positioning: nil, at: location, in: nil)
+    }
+
+    private static func profilesItem(services: AppServices) -> NSMenuItem {
+        let parent = NSMenuItem(title: "Profile", action: nil, keyEquivalent: "")
+        parent.image = NSImage(systemSymbolName: "rectangle.stack", accessibilityDescription: nil)
+        let submenu = NSMenu()
+        let preferences = services.preferences
+        for (index, profile) in preferences.profiles.enumerated() {
+            let entry = item(profile.name, symbol: "rectangle.stack") { services.context.choose(profile) }
+            entry.image = nil
+            entry.state = profile.name == preferences.activeProfile ? .on : .off
+            if index < 9 { entry.toolTip = "Hyper+\(index + 1)" }
+            submenu.addItem(entry)
+        }
+        parent.submenu = submenu
+        return parent
     }
 
     private static func item(_ title: String, symbol: String, action: @escaping @MainActor () -> Void) -> NSMenuItem {

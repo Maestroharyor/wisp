@@ -202,9 +202,10 @@ private struct WidgetGridView: View {
     var body: some View {
         let preferences = model.preferences
         let widgets = preferences.gridWidgets
-        let rows = Array(
-            repeating: GridItem(.fixed(WidgetGrid.cellHeight), spacing: WidgetGrid.rowSpacing),
-            count: WidgetGrid.clampedRows(preferences.widgetGridRows))
+        let rowCount = WidgetGrid.rows(count: widgets.count, preferred: preferences.widgetGridRows)
+        let metrics = WidgetGrid.metrics(rows: rowCount)
+        let columns = WidgetGrid.columns(count: widgets.count, rows: rowCount)
+        let rows = Array(repeating: GridItem(.fixed(metrics.cellHeight), spacing: metrics.rowSpacing), count: rowCount)
 
         if widgets.isEmpty {
             VStack(spacing: 6) {
@@ -214,20 +215,25 @@ private struct WidgetGridView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            LazyHGrid(rows: rows, spacing: WidgetGrid.columnSpacing) {
-                ForEach(widgets) { kind in
-                    WidgetIconCell(kind: kind) {
-                        model.soloWidget = kind
-                    }
-                    .draggable(kind.rawValue) { WidgetIconTile(kind: kind) }
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let id = items.first, let moved = WidgetKind(rawValue: id) else { return false }
-                        withAnimation(model.surfaceAnimation) { preferences.moveGridWidget(moved, before: kind) }
-                        return true
+            GeometryReader { proxy in
+                LazyHGrid(
+                    rows: rows,
+                    spacing: WidgetGrid.spreadSpacing(columns: columns, available: proxy.size.width)
+                ) {
+                    ForEach(widgets) { kind in
+                        WidgetIconCell(kind: kind, metrics: metrics) {
+                            model.soloWidget = kind
+                        }
+                        .draggable(kind.rawValue) { WidgetIconTile(kind: kind, size: metrics.tileSize) }
+                        .dropDestination(for: String.self) { items, _ in
+                            guard let id = items.first, let moved = WidgetKind(rawValue: id) else { return false }
+                            withAnimation(model.surfaceAnimation) { preferences.moveGridWidget(moved, before: kind) }
+                            return true
+                        }
                     }
                 }
+                .frame(width: proxy.size.width, height: proxy.size.height)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -235,20 +241,22 @@ private struct WidgetGridView: View {
 /// One grid entry: a tinted rounded tile and the widget's name.
 private struct WidgetIconCell: View {
     let kind: WidgetKind
+    let metrics: WidgetGrid.Metrics
     let open: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: open) {
-            VStack(spacing: 4) {
-                WidgetIconTile(kind: kind)
-                    .scaleEffect(hovering ? 1.04 : 1)
+            VStack(spacing: metrics.captionGap) {
+                WidgetIconTile(kind: kind, size: metrics.tileSize)
+                    .scaleEffect(hovering ? 1.05 : 1)
                 Text(kind.title)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Color.secondaryText)
+                    .font(.system(size: metrics.captionSize, weight: .semibold))
+                    .foregroundStyle(.white.opacity(hovering ? 0.9 : 0.7))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
-            .frame(width: WidgetGrid.cellWidth, height: WidgetGrid.cellHeight, alignment: .top)
+            .frame(width: WidgetGrid.cellWidth, height: metrics.cellHeight, alignment: .top)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -260,14 +268,15 @@ private struct WidgetIconCell: View {
 
 private struct WidgetIconTile: View {
     let kind: WidgetKind
+    let size: CGFloat
 
     var body: some View {
         Image(systemName: kind.symbol)
-            .font(.system(size: 19, weight: .semibold))
+            .font(.system(size: size * 0.42, weight: .semibold))
             .foregroundStyle(.white)
-            .frame(width: WidgetGrid.tileSize, height: WidgetGrid.tileSize)
+            .frame(width: size, height: size)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
                     .fill(kind.tint.gradient)
             )
     }
@@ -313,6 +322,13 @@ extension WidgetKind {
         case .systemStats: .cyan
         case .weather: .blue
         case .notes: .yellow
+        case .quickToggles: .indigo
+        case .shortcuts: .purple
+        case .clipboard: .gray
+        case .mirror: .teal
+        case .dayProgress: .orange
+        case .worldClocks: .cyan
+        case .agents: Color(red: 0.85, green: 0.47, blue: 0.34)
         }
     }
 }

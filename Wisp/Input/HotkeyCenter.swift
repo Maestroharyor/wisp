@@ -27,6 +27,8 @@ final class HotkeyCenter {
     private(set) var status: Status = .inactive
     @ObservationIgnored var onToggle: @MainActor () -> Void = {}
     @ObservationIgnored var onClipboard: @MainActor () -> Void = {}
+    /// Hyper+1…9 picks a profile.
+    @ObservationIgnored var onProfileDigit: @MainActor (Int) -> Void = { _ in }
 
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let remapper = CapsLockRemapper()
@@ -109,7 +111,9 @@ final class HotkeyCenter {
             switch keyCode {
             case hotkey.keyCode: self?.onToggle()
             case KeyCodes.v: self?.onClipboard()
-            default: return false
+            default:
+                guard let digit = KeyCodes.digit(forKeyCode: keyCode) else { return false }
+                self?.onProfileDigit(digit)
             }
             return true
         }

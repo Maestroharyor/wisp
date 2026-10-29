@@ -18,15 +18,45 @@ final class WidgetGridTests: XCTestCase {
         XCTAssertEqual(WidgetGrid.columns(count: 4, rows: 9), 2)
     }
 
-    func testTwoRowsFitTheSharedShelfHeight() {
-        XCTAssertLessThanOrEqual(2 * WidgetGrid.cellHeight + WidgetGrid.rowSpacing, SurfaceSizing.shelfContentHeight)
+    func testEveryRowCountFitsTheSharedShelfHeight() {
+        for rows in 1...2 {
+            let metrics = WidgetGrid.metrics(rows: rows)
+            let height = CGFloat(rows) * metrics.cellHeight + CGFloat(rows - 1) * metrics.rowSpacing
+            XCTAssertLessThanOrEqual(height, SurfaceSizing.shelfContentHeight, "\(rows) rows")
+        }
+    }
+
+    func testCaptionsNeverTouchTheNextRow() {
+        let metrics = WidgetGrid.metrics(rows: 2)
+        XCTAssertGreaterThanOrEqual(metrics.rowSpacing, 8)
+        XCTAssertGreaterThanOrEqual(metrics.cellHeight, metrics.tileSize + metrics.captionGap + 12)
+    }
+
+    func testOneRowUsesBiggerTiles() {
+        XCTAssertGreaterThan(WidgetGrid.metrics(rows: 1).tileSize, WidgetGrid.metrics(rows: 2).tileSize)
+    }
+
+    func testFewWidgetsUseOneRow() {
+        XCTAssertEqual(WidgetGrid.rows(count: 4, preferred: 2), 1)
+        XCTAssertEqual(WidgetGrid.rows(count: 5, preferred: 2), 1)
+        XCTAssertEqual(WidgetGrid.rows(count: 6, preferred: 2), 2)
+        XCTAssertEqual(WidgetGrid.rows(count: 9, preferred: 1), 1)
+        XCTAssertEqual(WidgetGrid.rows(count: 9, preferred: 7), 2)
+    }
+
+    func testSpacingSpreadsToFillButIsCapped() {
+        let base = WidgetGrid.minColumnSpacing
+        XCTAssertEqual(WidgetGrid.spreadSpacing(columns: 1, available: 400), base)
+        XCTAssertEqual(WidgetGrid.spreadSpacing(columns: 4, available: 4 * WidgetGrid.cellWidth + 3 * 20), 20)
+        XCTAssertEqual(WidgetGrid.spreadSpacing(columns: 2, available: 900), WidgetGrid.maxColumnSpacing)
+        XCTAssertEqual(WidgetGrid.spreadSpacing(columns: 8, available: 100), base, "never below the base")
     }
 
     func testContentWidth() {
         XCTAssertEqual(WidgetGrid.contentWidth(count: 0, rows: 2), 0)
         XCTAssertEqual(WidgetGrid.contentWidth(count: 1, rows: 2), WidgetGrid.cellWidth)
         XCTAssertEqual(
-            WidgetGrid.contentWidth(count: 5, rows: 2), 3 * WidgetGrid.cellWidth + 2 * WidgetGrid.columnSpacing)
+            WidgetGrid.contentWidth(count: 5, rows: 2), 3 * WidgetGrid.cellWidth + 2 * WidgetGrid.minColumnSpacing)
     }
 
     func testMove() {

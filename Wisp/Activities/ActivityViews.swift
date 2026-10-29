@@ -59,7 +59,12 @@ struct CompactActivityView: View {
             Image(systemName: "arrowshape.turn.up.left.fill").foregroundStyle(Color.accentColor)
         case .focus(let state):
             Image(systemName: state.symbol ?? "moon.fill").foregroundStyle(.indigo)
-        case .batteryFull, .timerDone, .notification:
+        case .agent(let status):
+            HStack(spacing: ActivityMetrics.contentSpacing) {
+                AgentGlyph(state: status.state)
+                Text(status.project).lineLimit(1)
+            }
+        case .batteryFull, .timerDone, .notification, .agentApproval:
             EmptyView()
         }
     }
@@ -98,7 +103,9 @@ struct CompactActivityView: View {
         case .focus(let state):
             Text(state.isOn ? (state.name ?? "On") : "Off").lineLimit(1)
                 .foregroundStyle(state.isOn ? .white : Color.secondaryText)
-        case .batteryFull, .timerDone, .notification:
+        case .agent(let status):
+            AgentStateLabel(status: status)
+        case .batteryFull, .timerDone, .notification, .agentApproval:
             EmptyView()
         }
     }

@@ -3,7 +3,7 @@
 PROJECT  := Wisp.xcodeproj
 DERIVED  := build
 APP      := $(DERIVED)/Build/Products/Debug/Wisp.app
-SOURCES  := Wisp WispCore WispTests
+SOURCES  := Wisp WispCore WispTests WispAgent
 
 # Sign with the stable self-signed "Wisp Dev" certificate when it exists, so the
 # Accessibility grant survives rebuilds. Falls back to ad-hoc ("-").
