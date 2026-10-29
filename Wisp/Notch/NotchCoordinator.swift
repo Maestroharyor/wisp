@@ -142,13 +142,13 @@ final class NotchCoordinator {
         case .dragged:
             if !fileDragActive {
                 fileDragActive = isFileDrag()
-                if fileDragActive, preferences.basketTrigger == .dragStart { services.basket.show(at: location) }
+                if fileDragActive, preferences.pocketTrigger == .dragStart { services.pocket.show(at: location) }
             }
             if fileDragActive {
-                if preferences.basketTrigger == .shake,
+                if preferences.pocketTrigger == .shake,
                     shake.add(location, at: Date.now.timeIntervalSince(dragStarted))
                 {
-                    services.basket.show(at: location)
+                    services.pocket.show(at: location)
                 }
                 controllers.values.forEach { $0.fileDragMoved(to: location) }
             } else {
@@ -157,7 +157,7 @@ final class NotchCoordinator {
         case .leftUp:
             if fileDragActive {
                 controllers.values.forEach { $0.fileDragEnded() }
-                services.basket.dragEnded()
+                services.pocket.dragEnded()
             }
             fileDragActive = false
         }

@@ -22,6 +22,15 @@ struct ShelfContent: View {
         }
         .padding(EdgeInsets(top: insets.top, leading: insets.leading, bottom: insets.bottom, trailing: insets.trailing))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .overlay(alignment: .bottom) {
+            let hub = model.services.agents
+            if let approval = hub.approvals.first {
+                ApprovalBar(approval: approval, hub: hub)
+                    .padding(.horizontal, insets.leading)
+                    .padding(.bottom, 10)
+            }
+        }
+        .animation(model.surfaceAnimation, value: model.services.agents.approvals.first?.id)
         .foregroundStyle(.white)
     }
 }

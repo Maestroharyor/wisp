@@ -51,10 +51,10 @@ struct NotchSettings: View {
                 .font(.caption).foregroundStyle(.secondary)
             }
             Section("Dragging files") {
-                Picker("Show the drop basket", selection: $preferences.basketTrigger) {
-                    ForEach(BasketTrigger.allCases) { Text($0.title).tag($0) }
+                Picker("Show the drop pocket", selection: $preferences.pocketTrigger) {
+                    ForEach(PocketTrigger.allCases) { Text($0.title).tag($0) }
                 }
-                Text("The basket appears next to the pointer with Drop, Transform, Zip and AirDrop.")
+                Text("The pocket appears next to the pointer with Drop, Transform, Zip and AirDrop.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Displays without a notch") {

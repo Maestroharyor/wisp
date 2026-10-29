@@ -30,8 +30,8 @@ enum ExternalStyle: String, CaseIterable, Identifiable {
     var title: String { self == .notch ? "Notch" : "Floating island" }
 }
 
-/// When the floating drop basket appears during a file drag.
-enum BasketTrigger: String, CaseIterable, Identifiable {
+/// When the floating drop pocket appears during a file drag.
+enum PocketTrigger: String, CaseIterable, Identifiable {
     case shake
     case dragStart
     case off
@@ -187,7 +187,9 @@ final class Preferences {
         static let whatsAppReplies = "whatsAppReplies"
         static let telegramReplies = "telegramReplies"
         static let focusActivity = "focusActivity"
-        static let basketTrigger = "basketTrigger"
+        static let pocketTrigger = "pocketTrigger"
+        /// Earlier builds' name for the pocket setting, read once to carry it over.
+        static let legacyPocketTrigger = "pocketTrigger"
         static let scrubberSounds = "scrubberSounds"
         static let widgetGridOrder = "widgetGridOrder"
         static let widgetGridRows = "widgetGridRows"
@@ -426,7 +428,7 @@ final class Preferences {
     var focusActivity: Bool { didSet { defaults.set(focusActivity, forKey: Key.focusActivity) } }
     /// Tick sounds and haptics when scrubbing the Pomodoro ruler.
     var scrubberSounds: Bool { didSet { defaults.set(scrubberSounds, forKey: Key.scrubberSounds) } }
-    var basketTrigger: BasketTrigger { didSet { defaults.set(basketTrigger.rawValue, forKey: Key.basketTrigger) } }
+    var pocketTrigger: PocketTrigger { didSet { defaults.set(pocketTrigger.rawValue, forKey: Key.pocketTrigger) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -456,7 +458,6 @@ final class Preferences {
             Key.whatsAppReplies: false,
             Key.telegramReplies: false,
             Key.focusActivity: true,
-            Key.basketTrigger: BasketTrigger.shake.rawValue,
             Key.scrubberSounds: true,
             Key.widgetGridRows: 2,
             Key.workdayStart: 9,
@@ -514,7 +515,9 @@ final class Preferences {
         workdayStart = defaults.integer(forKey: Key.workdayStart)
         workdayEnd = defaults.integer(forKey: Key.workdayEnd)
         worldClockZones = defaults.stringArray(forKey: Key.worldClockZones) ?? []
-        basketTrigger = defaults.string(forKey: Key.basketTrigger).flatMap(BasketTrigger.init(rawValue:)) ?? .shake
+        pocketTrigger =
+            (defaults.string(forKey: Key.pocketTrigger) ?? defaults.string(forKey: Key.legacyPocketTrigger))
+            .flatMap(PocketTrigger.init(rawValue:)) ?? .shake
         introduceNewWidgets()
         // First run with profiles: the everyday profile starts as the user's current setup.
         profiles =

@@ -85,16 +85,56 @@ struct AgentApprovalCard: View {
                         .truncationMode(.middle)
                 }
                 Spacer(minLength: 8)
-                Button("Deny") { hub.answer(approval.id, allow: false) }
-                    .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
-                Button("Allow") { hub.answer(approval.id, allow: true) }
-                    .buttonStyle(ApprovalButtonStyle(fill: .wispGreen, text: .black))
+                ApprovalButtons(approval: approval, hub: hub)
             }
             .padding(.horizontal, 18)
             .frame(height: SurfaceSizing.notificationCardHeight - 8)
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
+    }
+}
+
+/// Deny and Allow, shared by the card under the notch and the bar in an open shelf.
+struct ApprovalButtons: View {
+    let approval: AgentApproval
+    let hub: AgentHub
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button("Deny") { hub.answer(approval.id, allow: false) }
+                .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
+            Button("Allow") { hub.answer(approval.id, allow: true) }
+                .buttonStyle(ApprovalButtonStyle(fill: .wispGreen, text: .black))
+        }
+    }
+}
+
+/// A permission request while the shelf is open, where the card under the notch can't show.
+struct ApprovalBar: View {
+    let approval: AgentApproval
+    let hub: AgentHub
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkle").foregroundStyle(AgentSession.State.running.tint)
+            Text(approval.tool).font(.system(size: 12, weight: .bold))
+            Text(approval.summary.isEmpty ? approval.project : approval.summary)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.8))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 8)
+            ApprovalButtons(approval: approval, hub: hub)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 40)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(white: 0.12))
+                .shadow(color: .black.opacity(0.5), radius: 10, y: -2)
+        )
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
 

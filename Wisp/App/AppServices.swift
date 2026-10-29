@@ -27,10 +27,10 @@ final class AppServices {
     private(set) var replyingTo: NotificationItem?
 
     private(set) lazy var transform = TransformPanelController(services: self)
-    private(set) lazy var basket = QuickBasket(services: self)
+    private(set) lazy var pocket = QuickPocket(services: self)
 
     func openTransform(_ urls: [URL]) {
-        basket.hide()
+        pocket.hide()
         transform.open(urls)
     }
 

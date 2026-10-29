@@ -7,6 +7,7 @@ struct AboutSettings: View {
 
     private static let repository = URL(string: "https://github.com/Maestroharyor/wisp")
     private static let issues = URL(string: "https://github.com/Maestroharyor/wisp/issues/new")
+    private static let author = URL(string: "https://ayomideodewale.com")
 
     var body: some View {
         Form {
@@ -20,6 +21,14 @@ struct AboutSettings: View {
                         Text("Version \(Self.version)").foregroundStyle(.secondary)
                         Text("Live activities, a file tray and widgets for the Mac notch.")
                             .font(.caption).foregroundStyle(.secondary)
+                        if let author = Self.author {
+                            HStack(spacing: 4) {
+                                Text("Made by")
+                                Link("Ayomide Odewale", destination: author)
+                            }
+                            .font(.caption)
+                            .padding(.top, 2)
+                        }
                     }
                     Spacer()
                 }
@@ -28,6 +37,9 @@ struct AboutSettings: View {
                         Link(destination: repository) {
                             Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
                         }
+                    }
+                    if let author = Self.author {
+                        Link(destination: author) { Label("ayomideodewale.com", systemImage: "globe") }
                     }
                     if let issues = Self.issues {
                         Link(destination: issues) { Label("Report an issue", systemImage: "ladybug") }

@@ -5,7 +5,7 @@ import WispCore
 /// A 2×2 grid of drop targets that appears right where you are when you shake a file
 /// mid-drag (or as soon as a drag starts, if set), so you don't have to reach the notch.
 @MainActor
-final class QuickBasket {
+final class QuickPocket {
     private let services: AppServices
     private var panel: NSPanel?
     private var hideTask: Task<Void, Never>?
@@ -71,12 +71,12 @@ final class QuickBasket {
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(rootView: BasketView(services: services))
+        panel.contentView = NSHostingView(rootView: PocketView(services: services))
         return panel
     }
 }
 
-private struct BasketView: View {
+private struct PocketView: View {
     let services: AppServices
 
     var body: some View {

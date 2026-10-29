@@ -232,6 +232,8 @@ final class NotchController {
         switch effect {
         case .scheduleDwell:
             dwellTask?.cancel()
+            // Hovering onto an approval card is reaching for its buttons, not opening the shelf.
+            if showsApproval { break }
             let delay = Duration.milliseconds(Int(services.preferences.hoverDelay * 1000))
             dwellTask = schedule(after: delay, .dwellElapsed)
         case .cancelDwell:

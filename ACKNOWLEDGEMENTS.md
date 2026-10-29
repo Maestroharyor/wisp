@@ -1,5 +1,9 @@
 # Acknowledgements
 
+## Author
+
+Wisp is made by [Ayomide Odewale](https://ayomideodewale.com).
+
 Wisp is written from scratch and bundles no third-party code.
 
 ## Design reference

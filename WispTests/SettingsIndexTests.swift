@@ -11,6 +11,7 @@ final class SettingsIndexTests: XCTestCase {
     func testKeywordsFindTheirPane() {
         XCTAssertEqual(SettingsIndex.panes(matching: "glass"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "claude"), [.agents])
+        XCTAssertEqual(SettingsIndex.panes(matching: "pocket"), [.notch])
         XCTAssertTrue(SettingsIndex.panes(matching: "caps lock").contains(.general))
     }
 
