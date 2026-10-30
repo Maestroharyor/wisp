@@ -96,7 +96,7 @@ final class SurfaceSizingTests: XCTestCase {
             .home(contentWidth: 180, editing: false), .home(contentWidth: 800, editing: false),
             .tray(items: 0), .tray(items: 30), .media, .widgetGrid(count: 3, rows: 2), .widgetGrid(count: 30, rows: 1),
             .widgetSolo(wide: false), .widgetSolo(wide: true),
-            .dropTiles,
+            .dropTiles(extra: 0), .dropTiles(extra: 2),
         ]
         let heights = Set(pages.map { SurfaceSizing.rect(for: $0, in: notched).height })
         XCTAssertEqual(heights, [32 + 10 + SurfaceSizing.shelfContentHeight + 16])
@@ -129,5 +129,12 @@ final class SurfaceSizingTests: XCTestCase {
         let rects = SurfaceSizing.bubbleRects(beside: pill, count: 2, firstOnLeft: true)
         XCTAssertEqual(rects.first?.maxX, pill.minX - SurfaceSizing.bubbleGap)
         XCTAssertEqual(rects.last?.minX, pill.maxX + SurfaceSizing.bubbleGap)
+    }
+
+    func testDropActionTilesWidenTheShelfUpToTwo() {
+        let four = SurfaceSizing.rect(for: .dropTiles(extra: 0), in: notched).width
+        let six = SurfaceSizing.rect(for: .dropTiles(extra: 2), in: notched).width
+        XCTAssertEqual(six - four, 2 * (SurfaceSizing.tileSize + SurfaceSizing.tileSpacing))
+        XCTAssertEqual(SurfaceSizing.rect(for: .dropTiles(extra: 9), in: notched).width, six)
     }
 }

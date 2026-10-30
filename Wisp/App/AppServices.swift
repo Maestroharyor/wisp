@@ -26,6 +26,9 @@ final class AppServices {
     let lyrics: LyricsStore
     let microphone = MicrophoneMonitor()
     let wallpaper = WallpaperTint()
+    let dropActions = DropActionRunner()
+    let script = ScriptStore()
+    let headphones = HeadphoneMonitor()
     /// Calls already offered with a Join card, so each is offered once.
     @ObservationIgnored private var offeredMeetings: Set<String> = []
     @ObservationIgnored private var meetingTask: Task<Void, Never>?
@@ -198,6 +201,14 @@ final class AppServices {
         context.start()
 
         tray.onAdd = { [weak self] count in self?.activities.post(.tray(count: count), slot: .tray, duration: 2) }
+        headphones.onConnect = { [weak self] device in
+            guard let self, self.preferences.deviceActivity else { return }
+            self.activities.post(.device(device), slot: .device, duration: 4)
+        }
+        headphones.start()
+        dropActions.onNotice = { [weak self] symbol, text in
+            self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 2)
+        }
         tray.onNotice = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 2)
         }
@@ -231,6 +242,7 @@ final class AppServices {
 
     func stop() {
         wallpaper.stop()
+        headphones.stop()
         lockScreenPlayer.stop()
         microphone.stop()
         meetingTask?.cancel()

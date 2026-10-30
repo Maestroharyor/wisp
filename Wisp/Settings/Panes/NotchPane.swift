@@ -6,6 +6,7 @@ struct NotchSettings: View {
     @Bindable var preferences: Preferences
     let accent: Color
     let glow: Color
+    let shortcuts: ShortcutsRunner
 
     /// Re-read when displays are plugged in or removed while Settings is open.
     @State private var screens = NSScreen.screens
@@ -87,6 +88,9 @@ struct NotchSettings: View {
                 }
                 Text("The pocket appears next to the pointer with Drop, Transform, Zip and AirDrop.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Drop actions") {
+                DropActionsEditor(preferences: preferences, shortcuts: shortcuts)
             }
             Section("Displays without a notch") {
                 Toggle("Show on external displays", isOn: $preferences.showOnExternalDisplays)

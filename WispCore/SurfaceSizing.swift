@@ -16,7 +16,8 @@ public enum SurfaceSpec: Sendable, Equatable {
     /// The Media page: a large player.
     case media
     case tray(items: Int)
-    case dropTiles
+    /// Drop tiles: the four built-in ones plus up to two Drop Actions.
+    case dropTiles(extra: Int)
     /// A notification card under the notch; `replying` adds the reply bar.
     case notification(replying: Bool)
 }
@@ -32,6 +33,7 @@ public enum SurfaceSizing {
     public static let trayMinimumContentWidth: CGFloat = 5 * trayItemWidth
     public static let tileSize: CGFloat = 96
     public static let tileSpacing: CGFloat = 10
+    public static let maxDropActionTiles = 2
     public static let navPillSize = CGSize(width: 174, height: 34)
     public static let navPillGap: CGFloat = 12
     public static let notificationWidth: CGFloat = 480
@@ -80,8 +82,9 @@ public enum SurfaceSizing {
         case .notification(let replying):
             let height = closed.height + notificationCardHeight + (replying ? replyBarHeight : 0)
             return layout.surfaceRect(size: CGSize(width: notificationWidth, height: height))
-        case .dropTiles:
-            let content = 4 * tileSize + 3 * tileSpacing
+        case .dropTiles(let extra):
+            let count = CGFloat(4 + min(max(extra, 0), maxDropActionTiles))
+            let content = count * tileSize + (count - 1) * tileSpacing
             return shelf(contentWidth: content, contentHeight: shelfContentHeight, layout, sizes)
         }
     }

@@ -57,7 +57,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             [
                 "hover", "click", "open", "delay", "stay open", "auto close", "glass", "surface", "tinted", "black",
                 "accent", "album", "theme", "colour", "color", "gradient", "aurora", "midnight", "ember", "mono",
-                "wallpaper", "desktop picture", "outline", "swipe", "gesture", "trackpad", "hidden",
+                "wallpaper", "desktop picture", "outline", "swipe", "gesture", "trackpad", "hidden", "drop actions",
+                "command", "script",
                 "animation", "speed", "island", "external", "display", "pocket", "drag", "shake",
             ]
         case .activities:
@@ -65,13 +66,13 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "volume", "brightness", "battery", "hud", "overlay", "media", "music", "pointer", "display", "focus",
                 "lyrics", "lrclib", "album art", "artwork", "itunes", "lock screen", "meeting", "call", "microphone",
                 "zoom", "meet", "bubbles", "split", "volume steps", "duration", "low battery", "threshold",
-                "left", "right",
+                "left", "right", "airpods", "headphones", "bluetooth",
             ]
         case .widgets:
             [
                 "home", "grid", "rows", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
-                "timer length",
+                "timer length", "script", "command", "output",
             ]
         case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
         case .clipboard: ["history", "copy", "paste", "limit", "pinned"]

@@ -62,6 +62,8 @@ enum Activity: Sendable, Equatable {
     case meeting(MeetingStatus)
     /// A call with a link starts in a couple of minutes.
     case meetingSoon(MeetingInvite)
+    /// Headphones just connected, with their battery when they report it.
+    case device(BluetoothDevice)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -74,7 +76,7 @@ enum Activity: Sendable, Equatable {
     /// Level bars need room for the bar and the number.
     var usesWideWings: Bool {
         switch self {
-        case .level, .sent, .focus, .agent, .meeting: true
+        case .level, .sent, .focus, .agent, .meeting, .device: true
         default: false
         }
     }
@@ -101,6 +103,7 @@ enum Activity: Sendable, Equatable {
         case .agentApproval(let approval): "agentApproval-\(approval.id)"
         case .meeting: "meeting"
         case .meetingSoon(let invite): "meetingSoon-\(invite.id)"
+        case .device: "device"
         }
     }
 }
@@ -134,6 +137,7 @@ enum ActivitySlot: String {
     case agentApproval
     case meeting
     case meetingSoon
+    case device
 
     var priority: Int {
         switch self {
@@ -145,6 +149,7 @@ enum ActivitySlot: String {
         case .timer: 20
         case .tray: 30
         case .battery: 40
+        case .device: 41
         case .notice: 45
         case .focus: 42
         case .notification: 50

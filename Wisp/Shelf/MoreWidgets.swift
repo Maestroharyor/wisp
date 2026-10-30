@@ -391,3 +391,62 @@ private struct ClockRow: View {
         }
     }
 }
+
+// MARK: Script
+
+/// The latest output of a user command, refreshed while the widget is visible.
+struct ScriptWidget: View {
+    let store: ScriptStore
+    let preferences: Preferences
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if preferences.scriptCommand.isEmpty {
+                Text("Set a command in Settings › Widgets")
+                    .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ForEach(Array(store.lines.enumerated()), id: \.offset) { index, line in
+                    Text(line)
+                        .font(
+                            .system(
+                                size: index == 0 ? 15 : 12, weight: index == 0 ? .semibold : .regular,
+                                design: .monospaced)
+                        )
+                        .foregroundStyle(index == 0 ? Color.white : Color.secondaryText)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                HStack(spacing: 4) {
+                    if let problem = store.problem {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+                        Text(problem)
+                    } else if let ranAt = store.ranAt {
+                        Text(ranAt, style: .relative)
+                        Text("ago")
+                    }
+                    Spacer()
+                    Button {
+                        Task { await store.refresh(command: preferences.scriptCommand, interval: 0, force: true) }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Run again")
+                    .disabled(store.running)
+                }
+                .font(.system(size: 10))
+                .foregroundStyle(Color.secondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Restarts when the saved command or the interval changes.
+        .task(id: "\(preferences.scriptCommand)|\(preferences.scriptInterval)") {
+            let interval = ScriptOutput.clampedInterval(preferences.scriptInterval)
+            while !Task.isCancelled {
+                await store.refresh(command: preferences.scriptCommand, interval: interval)
+                try? await Task.sleep(for: .seconds(interval))
+            }
+        }
+    }
+}

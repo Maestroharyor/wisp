@@ -79,7 +79,7 @@ final class NotchModel {
     var spec: SurfaceSpec {
         switch phase {
         case .open:
-            if dragging { return .dropTiles }
+            if dragging { return .dropTiles(extra: preferences.dropActions.count) }
             switch page {
             case .home:
                 return .home(contentWidth: preferences.homeLayout.contentWidth, editing: editingHome)

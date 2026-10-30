@@ -6,6 +6,8 @@ struct WidgetSettings: View {
     @Bindable var preferences: Preferences
     let shortcuts: ShortcutsRunner
 
+    @State private var scriptDraft = ""
+
     var body: some View {
         Form {
             Section("Widgets") {
@@ -45,6 +47,27 @@ struct WidgetSettings: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Script") {
+                // A draft, saved only on Return or Save: a half-typed command must never run.
+                HStack {
+                    TextField("Command", text: $scriptDraft, prompt: Text("/usr/bin/uptime"))
+                        .font(.system(.body, design: .monospaced))
+                        .onSubmit(saveScript)
+                    Button("Save", action: saveScript)
+                        .disabled(scriptDraft == preferences.scriptCommand)
+                }
+                Picker("Run every", selection: $preferences.scriptInterval) {
+                    Text("10 seconds").tag(10.0)
+                    Text("30 seconds").tag(30.0)
+                    Text("1 minute").tag(60.0)
+                    Text("5 minutes").tag(300.0)
+                    Text("15 minutes").tag(900.0)
+                }
+                Text(
+                    "Shows the first lines the command prints, only while the widget is on screen. It runs directly, not in a shell; for pipes, write zsh -c \"…\" yourself."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Timer") {
                 DurationField(title: "New timers start at", seconds: $preferences.defaultTimerSeconds)
                 Text("Type a length such as 10, 1h30m or 90s.").font(.caption).foregroundStyle(.secondary)
@@ -67,6 +90,7 @@ struct WidgetSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { scriptDraft = preferences.scriptCommand }
         .onAppear { shortcuts.refresh() }
     }
 
@@ -104,5 +128,10 @@ struct WidgetSettings: View {
                 if enabled { preferences.enable(kind) } else { preferences.disable(kind) }
             }
         )
+    }
+
+    private func saveScript() {
+        preferences.scriptCommand = scriptDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        scriptDraft = preferences.scriptCommand
     }
 }

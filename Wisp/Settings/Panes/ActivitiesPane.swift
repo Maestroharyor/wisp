@@ -40,6 +40,7 @@ struct ActivitySettings: View {
                     ForEach([10, 15, 20, 25, 30], id: \.self) { Text("\($0)%").tag($0) }
                 }
                 .disabled(!preferences.batteryHUD)
+                Toggle("Headphones connecting, with their battery", isOn: $preferences.deviceActivity)
                 Toggle("Split extra activities into bubbles beside the notch", isOn: $preferences.activityBubbles)
                 Picker("First bubble", selection: $preferences.firstBubbleOnLeft) {
                     Text("Right").tag(false)

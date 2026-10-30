@@ -29,6 +29,7 @@ struct WidgetCard: View {
             case .dayProgress: DayProgressWidget(calendar: services.calendar, preferences: services.preferences)
             case .worldClocks: WorldClocksWidget(preferences: services.preferences)
             case .agents: AgentsWidget(hub: services.agents)
+            case .script: ScriptWidget(store: services.script, preferences: services.preferences)
             }
         }
         .padding(.vertical, 4)

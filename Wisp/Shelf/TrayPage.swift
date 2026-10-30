@@ -204,6 +204,11 @@ struct DropTiles: View {
             DropTile(symbol: "wand.and.stars", title: "Transform") { model.services.openTransform($0) }
             DropTile(symbol: "doc.zipper", title: "Zip") { tray.zip($0) }
             DropTile(symbol: "airplayaudio", title: "AirDrop") { tray.airDrop($0) }
+            ForEach(model.preferences.dropActions.prefix(SurfaceSizing.maxDropActionTiles)) { action in
+                DropTile(symbol: action.symbol, title: action.name) { urls in
+                    model.services.dropActions.run(action, on: urls)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -225,7 +230,7 @@ struct DropTile: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: symbol).font(.system(size: 24, weight: .medium))
-            Text(title).font(.system(size: 12, weight: .semibold))
+            Text(title).font(.system(size: 12, weight: .semibold)).lineLimit(1).padding(.horizontal, 6)
         }
         .frame(width: SurfaceSizing.tileSize, height: SurfaceSizing.tileSize)
         .background(

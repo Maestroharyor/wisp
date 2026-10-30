@@ -64,6 +64,11 @@ struct CompactActivityView: View {
                 AgentGlyph(state: status.state, source: status.source, project: status.project)
                 Text(status.project).lineLimit(1)
             }
+        case .device(let device):
+            HStack(spacing: ActivityMetrics.contentSpacing) {
+                Image(systemName: device.symbol).frame(width: 18)
+                Text(device.name).lineLimit(1)
+            }
         case .meeting(let status):
             HStack(spacing: ActivityMetrics.contentSpacing) {
                 Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
@@ -125,6 +130,18 @@ struct CompactActivityView: View {
                 Image(systemName: model.services.microphone.muted ? "mic.slash.circle.fill" : "mic.circle")
                     .foregroundStyle(.white.opacity(0.8))
                     .help(model.services.microphone.muted ? "Unmute the microphone" : "Mute the microphone")
+            }
+        case .device(let device):
+            if let level = device.headline {
+                HStack(spacing: 4) {
+                    if let caseLevel = device.battery[.case] {
+                        Image(systemName: "airpods.chargingcase.fill").foregroundStyle(Color.secondaryText)
+                        ValueText(text: "\(caseLevel)%", tint: Color.secondaryText)
+                    }
+                    ValueText(text: "\(level)%", tint: level <= 20 ? .red : .wispGreen)
+                }
+            } else {
+                Text("Connected").lineLimit(1).foregroundStyle(Color.secondaryText)
             }
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()

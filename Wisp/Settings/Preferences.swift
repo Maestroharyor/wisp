@@ -109,6 +109,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
     case dayProgress
     case worldClocks
     case agents
+    case script
 
     var id: Self { self }
 
@@ -129,6 +130,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         case .dayProgress: "Day Progress"
         case .worldClocks: "World Clocks"
         case .agents: "Agents"
+        case .script: "Script"
         }
     }
 
@@ -139,7 +141,8 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
     var defaultSize: WidgetSize {
         switch self {
         case .nowPlaying: .large
-        case .calendar, .systemStats, .notes, .quickToggles, .shortcuts, .clipboard, .dayProgress, .agents: .medium
+        case .calendar, .systemStats, .notes, .quickToggles, .shortcuts, .clipboard, .dayProgress, .agents, .script:
+            .medium
         case .timer, .pomodoro, .battery, .weather, .mirror, .worldClocks: .small
         }
     }
@@ -161,6 +164,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         case .dayProgress: "sun.horizon.fill"
         case .worldClocks: "globe"
         case .agents: "sparkle"
+        case .script: "terminal"
         }
     }
 }
@@ -238,6 +242,10 @@ final class Preferences {
         static let widgetGridRows = "widgetGridRows"
         static let introducedWidgets = "introducedWidgets"
         static let favouriteShortcuts = "favouriteShortcuts"
+        static let dropActions = "dropActions"
+        static let scriptCommand = "scriptCommand"
+        static let deviceActivity = "deviceActivity"
+        static let scriptInterval = "scriptInterval"
         static let doNotDisturbShortcut = "doNotDisturbShortcut"
         static let workdayStart = "workdayStart"
         static let workdayEnd = "workdayEnd"
@@ -403,6 +411,16 @@ final class Preferences {
         didSet { defaults.set(WidgetGrid.clampedRows(widgetGridRows), forKey: Key.widgetGridRows) }
     }
 
+    /// The user's own actions for dropped files; the first two also appear as drop tiles.
+    var dropActions: [DropAction] {
+        didSet { defaults.set(try? JSONEncoder().encode(dropActions), forKey: Key.dropActions) }
+    }
+
+    /// What the Script widget runs, split into arguments without a shell.
+    var scriptCommand: String { didSet { defaults.set(scriptCommand, forKey: Key.scriptCommand) } }
+    /// Seconds between runs while the widget is on screen.
+    var scriptInterval: Double { didSet { defaults.set(scriptInterval, forKey: Key.scriptInterval) } }
+
     /// Shortcuts shown in the Shortcuts widget, in order.
     var favouriteShortcuts: [String] {
         didSet { defaults.set(favouriteShortcuts, forKey: Key.favouriteShortcuts) }
@@ -458,7 +476,8 @@ final class Preferences {
             .nowPlaying, .calendar, .timer, .pomodoro, .battery, .systemStats, .weather, .notes,
         ]
         let seen = Set(defaults.stringArray(forKey: Key.introducedWidgets) ?? original.map(\.rawValue))
-        for kind in WidgetKind.allCases where !seen.contains(kind.rawValue) && kind != .mirror {
+        // Mirror needs the camera and Script needs a command, so both wait to be turned on.
+        for kind in WidgetKind.allCases where !seen.contains(kind.rawValue) && kind != .mirror && kind != .script {
             if !enabledWidgets.contains(kind) { enabledWidgets.append(kind) }
         }
         defaults.set(WidgetKind.allCases.map(\.rawValue), forKey: Key.introducedWidgets)
@@ -473,6 +492,8 @@ final class Preferences {
     var volumeHUD: Bool { didSet { defaults.set(volumeHUD, forKey: Key.volumeHUD) } }
     var brightnessHUD: Bool { didSet { defaults.set(brightnessHUD, forKey: Key.brightnessHUD) } }
     var batteryHUD: Bool { didSet { defaults.set(batteryHUD, forKey: Key.batteryHUD) } }
+    /// A pill when Bluetooth headphones connect, with their battery.
+    var deviceActivity: Bool { didSet { defaults.set(deviceActivity, forKey: Key.deviceActivity) } }
     var capsLockHUD: Bool { didSet { defaults.set(capsLockHUD, forKey: Key.capsLockHUD) } }
     var mediaActivity: Bool { didSet { defaults.set(mediaActivity, forKey: Key.mediaActivity) } }
     /// A short sound when an agent asks for permission.
@@ -599,6 +620,8 @@ final class Preferences {
             Key.hudUsesAccent: false,
             Key.batteryLowThreshold: 20,
             Key.defaultTimerSeconds: 300.0,
+            Key.scriptInterval: 60.0,
+            Key.deviceActivity: true,
             Key.activityDisplay: ActivityDisplayTarget.pointer.rawValue,
             Key.clipboardEnabled: true,
             Key.clipboardLimit: 200,
@@ -687,6 +710,12 @@ final class Preferences {
             (defaults.stringArray(forKey: Key.widgetGridOrder) ?? []).compactMap(WidgetKind.init(rawValue:))
         widgetGridRows = WidgetGrid.clampedRows(defaults.integer(forKey: Key.widgetGridRows))
         favouriteShortcuts = defaults.stringArray(forKey: Key.favouriteShortcuts) ?? []
+        scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
+        deviceActivity = defaults.bool(forKey: Key.deviceActivity)
+        scriptInterval = ScriptOutput.clampedInterval(defaults.double(forKey: Key.scriptInterval))
+        dropActions =
+            defaults.data(forKey: Key.dropActions).flatMap { try? JSONDecoder().decode([DropAction].self, from: $0) }
+            ?? []
         doNotDisturbShortcut = defaults.string(forKey: Key.doNotDisturbShortcut) ?? ""
         workdayStart = defaults.integer(forKey: Key.workdayStart)
         workdayEnd = defaults.integer(forKey: Key.workdayEnd)
