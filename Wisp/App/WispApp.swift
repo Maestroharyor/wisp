@@ -3,9 +3,11 @@ import SwiftUI
 @main
 struct WispApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @Bindable private var preferences = Preferences.shared
 
     var body: some Scene {
-        MenuBarExtra {
+        // When hidden, opening Wisp again from Finder or Spotlight shows Settings.
+        MenuBarExtra(isInserted: $preferences.showMenuBarIcon) {
             Button("Toggle Shelf") { appDelegate.toggleShelf() }
             Button("Clipboard History") { appDelegate.toggleClipboard() }
             Button("Settings…") { appDelegate.showSettings() }

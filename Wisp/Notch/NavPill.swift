@@ -27,7 +27,7 @@ struct NavPill: View {
                 .frame(width: 38, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 9, style: .continuous).fill(
-                        Color.wispViolet.opacity(selected ? 0.85 : 0))
+                        model.accent.opacity(selected ? 0.85 : 0))
                 )
                 .overlay(alignment: .topTrailing) {
                     if badge > 0 {

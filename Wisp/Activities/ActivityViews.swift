@@ -80,7 +80,11 @@ struct CompactActivityView: View {
         switch activity {
         case .level(let kind, let value, let muted):
             HStack(spacing: ActivityMetrics.contentSpacing) {
-                LevelBar(value: value, tint: kind.tint(muted: muted)).frame(width: 46)
+                LevelBar(
+                    value: value,
+                    tint: model.preferences.hudUsesAccent && !muted ? model.accent : kind.tint(muted: muted)
+                )
+                .frame(width: 46)
                 ValueText(text: "\(LevelStep.percent(value))").frame(width: 24, alignment: .trailing)
             }
         case .charging(let percent):

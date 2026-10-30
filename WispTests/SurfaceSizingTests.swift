@@ -123,4 +123,11 @@ final class SurfaceSizingTests: XCTestCase {
         XCTAssertTrue(SurfaceSizing.bubbleRects(beside: pill, count: 0).isEmpty)
         XCTAssertEqual(SurfaceSizing.bubbleRects(beside: pill, count: 5).count, 2)
     }
+
+    func testFirstBubbleCanSitOnTheLeft() {
+        let pill = CGRect(x: 100, y: 0, width: 200, height: 32)
+        let rects = SurfaceSizing.bubbleRects(beside: pill, count: 2, firstOnLeft: true)
+        XCTAssertEqual(rects.first?.maxX, pill.minX - SurfaceSizing.bubbleGap)
+        XCTAssertEqual(rects.last?.minX, pill.maxX + SurfaceSizing.bubbleGap)
+    }
 }

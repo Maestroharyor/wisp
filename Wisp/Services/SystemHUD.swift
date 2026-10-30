@@ -17,7 +17,7 @@ final class SystemHUD {
     private var lastHandledKey = Date.distantPast
 
     /// How long a level overlay stays after the last key press.
-    private let levelDuration: TimeInterval = 1.6
+    private var levelDuration: TimeInterval { preferences.hudDuration.seconds }
 
     init(preferences: Preferences, activities: ActivityCenter) {
         self.preferences = preferences
@@ -112,7 +112,8 @@ final class SystemHUD {
         if key == .mute {
             SystemVolume.setMuted(!SystemVolume.isMuted)
         } else {
-            let next = LevelStep.next(from: SystemVolume.isMuted ? 0 : current, up: key == .volumeUp, fine: fine)
+            let steps = fine ? preferences.volumeSteps * 4 : preferences.volumeSteps
+            let next = LevelStep.next(from: SystemVolume.isMuted ? 0 : current, up: key == .volumeUp, steps: steps)
             SystemVolume.setVolume(next)
             if next == 0 { SystemVolume.setMuted(true) }
         }
@@ -140,6 +141,7 @@ final class SystemHUD {
         guard on != capsLockOn else { return }
         capsLockOn = on
         guard preferences.capsLockHUD else { return }
-        activities.post(.capsLock(on: on), slot: .capsLock, duration: 1.4)
+        // A touch shorter than the level HUDs; it only confirms a state.
+        activities.post(.capsLock(on: on), slot: .capsLock, duration: levelDuration * 0.875)
     }
 }

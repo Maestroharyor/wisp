@@ -13,6 +13,8 @@ final class BatteryMonitor {
     private(set) var hasBattery = false
 
     @ObservationIgnored var onEvent: (BatteryEvent, BatteryState) -> Void = { _, _ in }
+    /// Low-battery levels to alert at, read on every change so Settings apply at once.
+    @ObservationIgnored var thresholds: () -> [Int] = { BatteryAlerts.lowThresholds }
     @ObservationIgnored private var source: CFRunLoopSource?
 
     func start() {
@@ -52,7 +54,7 @@ final class BatteryMonitor {
             let key = plugged ? kIOPSTimeToFullChargeKey : kIOPSTimeToEmptyKey
             minutesRemaining = (description[key] as? Int).flatMap { $0 > 0 ? $0 : nil }
 
-            let events = BatteryAlerts.events(from: state, to: next)
+            let events = BatteryAlerts.events(from: state, to: next, thresholds: thresholds())
             state = next
             events.forEach { onEvent($0, next) }
             return

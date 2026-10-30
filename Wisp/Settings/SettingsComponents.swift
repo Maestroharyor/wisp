@@ -136,14 +136,17 @@ struct HealthBanner: View {
 struct NotchPreview: View {
     let preferences: Preferences
     let accent: Color
+    var glow: Color?
     @State private var wallpaper: NSImage?
 
     var body: some View {
         ZStack(alignment: .top) {
             backdrop
             ZStack(alignment: .top) {
-                SurfaceBackground(style: preferences.surfaceStyle, glass: preferences.glassEdge, accent: accent)
-                    .clipShape(NotchShape(topRadius: 8, bottomRadius: 18))
+                SurfaceBackground(
+                    style: preferences.surfaceStyle, glass: preferences.glassEdge, accent: accent, glow: glow
+                )
+                .clipShape(NotchShape(topRadius: 8, bottomRadius: 18))
                 VStack(spacing: 6) {
                     Capsule().fill(.black).frame(width: 64, height: 12)
                     HStack(spacing: 14) {

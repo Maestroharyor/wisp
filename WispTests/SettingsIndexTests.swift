@@ -54,4 +54,13 @@ final class SetupHealthTests: XCTestCase {
             SetupHealth.needed(notifications: true, calendarWidgets: true, mirror: true),
             ["accessibility", "fullDiskAccess", "calendars", "camera"])
     }
+
+    func testFindsTheNewAppearanceAndHUDOptions() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "theme").first, .notch)
+        XCTAssertEqual(SettingsIndex.panes(matching: "wallpaper").first, .notch)
+        XCTAssertEqual(SettingsIndex.panes(matching: "swipe").first, .notch)
+        XCTAssertEqual(SettingsIndex.panes(matching: "volume steps").first, .activities)
+        XCTAssertEqual(SettingsIndex.panes(matching: "menu bar").first, .general)
+        XCTAssertTrue(SettingsIndex.panes(matching: "timer length").contains(.widgets))
+    }
 }

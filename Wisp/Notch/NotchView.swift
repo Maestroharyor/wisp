@@ -71,7 +71,8 @@ private struct SurfaceView: View {
             SurfaceBackground(
                 style: model.preferences.surfaceStyle,
                 glass: model.preferences.glassEdge,
-                accent: model.accent
+                accent: model.accent,
+                glow: model.glow
             )
             .opacity(isOpen ? 1 : 0)
             content
@@ -81,6 +82,18 @@ private struct SurfaceView: View {
         // One clip for every layer, so newly inserted content is cut by the growing shell
         // too rather than showing at its final size beyond it.
         .clipShape(shape)
+        .overlay {
+            if model.preferences.shellOutline {
+                // Fades in with the open style; the closed notch stays a plain black cutout.
+                shape.stroke(
+                    LinearGradient(
+                        colors: [model.accent.opacity(0.15), model.accent.opacity(0.55), model.glow.opacity(0.55)],
+                        startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1
+                )
+                .opacity(isOpen ? 1 : 0)
+            }
+        }
         .compositingGroup()
         .shadow(color: .black.opacity(model.spec == .closed ? 0 : 0.5), radius: isOpen ? 18 : 6, y: isOpen ? 8 : 2)
         // The shell rides the same spring as the frame, so closing visibly folds back
@@ -158,6 +171,8 @@ struct SurfaceBackground: View {
     let style: SurfaceStyle
     let glass: GlassEdge
     let accent: Color
+    /// The right-hand glow; equal to the accent for one-colour themes.
+    var glow: Color?
 
     var body: some View {
         switch style {
@@ -187,6 +202,8 @@ struct SurfaceBackground: View {
 
     /// Colour lives low and in the corners, away from the camera: two soft glows rise from
     /// the bottom corners with a faint wash between, so nothing points at the notch.
+    private var right: Color { glow ?? accent }
+
     private var tinted: some View {
         ZStack {
             Color.black
@@ -194,9 +211,15 @@ struct SurfaceBackground: View {
                 colors: [accent.opacity(0.34), accent.opacity(0.08), .clear],
                 center: UnitPoint(x: 0.12, y: 1.15), startRadius: 0, endRadius: 240)
             RadialGradient(
-                colors: [accent.opacity(0.3), accent.opacity(0.06), .clear],
+                colors: [right.opacity(0.3), right.opacity(0.06), .clear],
                 center: UnitPoint(x: 0.88, y: 1.15), startRadius: 0, endRadius: 240)
-            LinearGradient(colors: [.clear, accent.opacity(0.1)], startPoint: .center, endPoint: .bottom)
+            LinearGradient(
+                colors: [.clear, accent.opacity(0.1)], startPoint: .center, endPoint: .bottom
+            )
+            .overlay(
+                LinearGradient(
+                    colors: [accent.opacity(0.06), right.opacity(0.06)], startPoint: .leading, endPoint: .trailing)
+            )
             Self.notchShade
         }
     }

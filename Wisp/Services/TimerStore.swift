@@ -42,6 +42,12 @@ final class TimerStore {
         timer = Countdown(duration: min(max(timer.duration + minutes(delta), 60), minutes(180)))
     }
 
+    /// The length a fresh timer starts at; leaves a timer that is already going alone.
+    func applyDefaultLength(seconds: TimeInterval) {
+        guard !timer.hasStarted, seconds >= 60 else { return }
+        timer = Countdown(duration: min(seconds, minutes(180)))
+    }
+
     func setTimer(minutes value: Int) {
         timer = Countdown(duration: minutes(value))
     }

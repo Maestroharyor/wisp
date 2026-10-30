@@ -49,6 +49,11 @@ struct GeneralSettings: View {
             }
 
             Section("Startup") {
+                Toggle("Show Wisp in the menu bar", isOn: $preferences.showMenuBarIcon)
+                if !preferences.showMenuBarIcon {
+                    Text("Open Wisp again from Finder or Spotlight to get back to Settings.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
                 if let launchError {

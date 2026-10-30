@@ -5,11 +5,15 @@ import WispCore
 struct NotchSettings: View {
     @Bindable var preferences: Preferences
     let accent: Color
+    let glow: Color
+
+    /// Re-read when displays are plugged in or removed while Settings is open.
+    @State private var screens = NSScreen.screens
 
     var body: some View {
         Form {
             Section {
-                NotchPreview(preferences: preferences, accent: accent)
+                NotchPreview(preferences: preferences, accent: accent, glow: glow)
             }
             Section("Opening") {
                 Picker("Open the shelf on", selection: $preferences.openTrigger) {
@@ -34,6 +38,22 @@ struct NotchSettings: View {
                     Text("Close it by clicking outside the shelf, pressing Esc or the shortcut.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                Toggle("Trackpad swipes on the notch", isOn: $preferences.swipeGestures)
+                Text("Two fingers down on the closed notch opens the shelf. Sideways on the music pill skips tracks.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Theme") {
+                ThemePicker(preferences: preferences)
+                if preferences.theme == .custom {
+                    ColorPicker("Accent", selection: $preferences.customAccent.color, supportsOpacity: false)
+                    ColorPicker("Glow", selection: $preferences.customGlow.color, supportsOpacity: false)
+                }
+                Toggle("Match the desktop picture", isOn: $preferences.wallpaperTint)
+                Toggle("Outline the open shelf", isOn: $preferences.shellOutline)
+                Text(
+                    "The accent marks selection and progress. The glow shows on the Tinted surface and runs from the accent to the glow colour."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
             Section("Look") {
                 Picker("Animation", selection: $preferences.animationSpeed) {
@@ -73,7 +93,33 @@ struct NotchSettings: View {
                 .pickerStyle(.segmented)
                 .disabled(!preferences.showOnExternalDisplays)
             }
+            Section("Each display") {
+                ForEach(screens, id: \.displayUUID) { screen in
+                    if let uuid = screen.displayUUID {
+                        Picker(screen.localizedName, selection: displayStyle(uuid)) {
+                            Text("Automatic").tag(DisplayStyle.automatic)
+                            Text("Notch").tag(DisplayStyle.notch)
+                            if !screen.metrics.hasCameraHousing {
+                                Text("Floating island").tag(DisplayStyle.island)
+                            }
+                            Text("Hidden").tag(DisplayStyle.hidden)
+                        }
+                    }
+                }
+                Text("Automatic follows the settings above. Choices are remembered per display.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) {
+            _ in
+            screens = NSScreen.screens
+        }
+    }
+
+    private func displayStyle(_ uuid: String) -> Binding<DisplayStyle> {
+        Binding(
+            get: { preferences.displayStyle(for: uuid) },
+            set: { preferences.setDisplayStyle($0, for: uuid) })
     }
 }

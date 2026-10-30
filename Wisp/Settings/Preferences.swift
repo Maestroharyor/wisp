@@ -30,6 +30,23 @@ enum ExternalStyle: String, CaseIterable, Identifiable {
     var title: String { self == .notch ? "Notch" : "Floating island" }
 }
 
+/// How long the volume, brightness and Caps Lock overlays stay up.
+enum HUDDuration: String, CaseIterable, Identifiable {
+    case short
+    case standard
+    case long
+
+    var id: Self { self }
+    var title: String { rawValue.capitalized }
+    var seconds: TimeInterval {
+        switch self {
+        case .short: 1
+        case .standard: 1.6
+        case .long: 2.6
+        }
+    }
+}
+
 /// When the floating drop pocket appears during a file drag.
 enum PocketTrigger: String, CaseIterable, Identifiable {
     case shake
@@ -187,6 +204,20 @@ final class Preferences {
         static let meetingActivity = "meetingActivity"
         static let lockScreenPlayer = "lockScreenPlayer"
         static let activityBubbles = "activityBubbles"
+        static let theme = "theme"
+        static let customAccent = "customAccent"
+        static let customGlow = "customGlow"
+        static let wallpaperTint = "wallpaperTint"
+        static let shellOutline = "shellOutline"
+        static let hudDuration = "hudDuration"
+        static let volumeSteps = "volumeSteps"
+        static let hudUsesAccent = "hudUsesAccent"
+        static let batteryLowThreshold = "batteryLowThreshold"
+        static let defaultTimerSeconds = "defaultTimerSeconds"
+        static let firstBubbleOnLeft = "firstBubbleOnLeft"
+        static let showMenuBarIcon = "showMenuBarIcon"
+        static let swipeGestures = "swipeGestures"
+        static let displayStyles = "displayStyles"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let activityDisplay = "activityDisplay"
         static let clipboardEnabled = "clipboardEnabled"
@@ -454,6 +485,48 @@ final class Preferences {
     var lockScreenPlayer: Bool { didSet { defaults.set(lockScreenPlayer, forKey: Key.lockScreenPlayer) } }
     /// Extra live activities split off into round bubbles beside the pill.
     var activityBubbles: Bool { didSet { defaults.set(activityBubbles, forKey: Key.activityBubbles) } }
+    /// The first bubble splits off to the left instead of the right.
+    var firstBubbleOnLeft: Bool { didSet { defaults.set(firstBubbleOnLeft, forKey: Key.firstBubbleOnLeft) } }
+
+    // MARK: Appearance
+
+    var theme: ThemeID { didSet { defaults.set(theme.rawValue, forKey: Key.theme) } }
+    /// Colours for the Custom theme.
+    var customAccent: RGB { didSet { defaults.set(customAccent.hex, forKey: Key.customAccent) } }
+    var customGlow: RGB { didSet { defaults.set(customGlow.hex, forKey: Key.customGlow) } }
+    /// Take the glow from the desktop picture instead of the theme.
+    var wallpaperTint: Bool { didSet { defaults.set(wallpaperTint, forKey: Key.wallpaperTint) } }
+    /// A thin accent rim around the open shelf.
+    var shellOutline: Bool { didSet { defaults.set(shellOutline, forKey: Key.shellOutline) } }
+    var showMenuBarIcon: Bool { didSet { defaults.set(showMenuBarIcon, forKey: Key.showMenuBarIcon) } }
+    /// Two-finger swipes on the notch: down opens, sideways skips tracks.
+    var swipeGestures: Bool { didSet { defaults.set(swipeGestures, forKey: Key.swipeGestures) } }
+    /// Per-display choice by display UUID; missing means automatic.
+    var displayStyles: [String: String] { didSet { defaults.set(displayStyles, forKey: Key.displayStyles) } }
+
+    func displayStyle(for uuid: String) -> DisplayStyle {
+        displayStyles[uuid].flatMap(DisplayStyle.init(rawValue:)) ?? .automatic
+    }
+
+    func setDisplayStyle(_ style: DisplayStyle, for uuid: String) {
+        displayStyles[uuid] = style == .automatic ? nil : style.rawValue
+    }
+
+    // MARK: HUDs and alerts
+
+    var hudDuration: HUDDuration { didSet { defaults.set(hudDuration.rawValue, forKey: Key.hudDuration) } }
+    /// Notches on the volume scale per key press (macOS uses 16).
+    var volumeSteps: Int { didSet { defaults.set(volumeSteps, forKey: Key.volumeSteps) } }
+    /// Paint the volume and brightness bars in the accent instead of green and yellow.
+    var hudUsesAccent: Bool { didSet { defaults.set(hudUsesAccent, forKey: Key.hudUsesAccent) } }
+    var batteryLowThreshold: Int {
+        didSet { defaults.set(batteryLowThreshold, forKey: Key.batteryLowThreshold) }
+    }
+    /// Low-battery alerts: the chosen level, then 10% as a last call.
+    var batteryThresholds: [Int] { batteryLowThreshold > 10 ? [batteryLowThreshold, 10] : [batteryLowThreshold] }
+    var defaultTimerSeconds: Double {
+        didSet { defaults.set(defaultTimerSeconds, forKey: Key.defaultTimerSeconds) }
+    }
     /// Where the mini player was last left, as "x,y" (its top-left corner).
     var miniPlayerOrigin: String? { didSet { defaults.set(miniPlayerOrigin, forKey: Key.miniPlayerOrigin) } }
 
@@ -512,6 +585,19 @@ final class Preferences {
             Key.meetingActivity: true,
             Key.lockScreenPlayer: true,
             Key.activityBubbles: true,
+            Key.firstBubbleOnLeft: false,
+            Key.theme: ThemeID.default.rawValue,
+            Key.customAccent: ThemeCatalog.violet.hex,
+            Key.customGlow: "#2EC4B6",
+            Key.wallpaperTint: false,
+            Key.shellOutline: false,
+            Key.showMenuBarIcon: true,
+            Key.swipeGestures: true,
+            Key.hudDuration: HUDDuration.standard.rawValue,
+            Key.volumeSteps: 16,
+            Key.hudUsesAccent: false,
+            Key.batteryLowThreshold: 20,
+            Key.defaultTimerSeconds: 300.0,
             Key.activityDisplay: ActivityDisplayTarget.pointer.rawValue,
             Key.clipboardEnabled: true,
             Key.clipboardLimit: 200,
@@ -567,6 +653,20 @@ final class Preferences {
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)
         lockScreenPlayer = defaults.bool(forKey: Key.lockScreenPlayer)
         activityBubbles = defaults.bool(forKey: Key.activityBubbles)
+        firstBubbleOnLeft = defaults.bool(forKey: Key.firstBubbleOnLeft)
+        theme = defaults.string(forKey: Key.theme).flatMap(ThemeID.init(rawValue:)) ?? .default
+        customAccent = defaults.string(forKey: Key.customAccent).flatMap(RGB.init(hex:)) ?? ThemeCatalog.violet
+        customGlow = defaults.string(forKey: Key.customGlow).flatMap(RGB.init(hex:)) ?? ThemeCatalog.violet
+        wallpaperTint = defaults.bool(forKey: Key.wallpaperTint)
+        shellOutline = defaults.bool(forKey: Key.shellOutline)
+        showMenuBarIcon = defaults.bool(forKey: Key.showMenuBarIcon)
+        swipeGestures = defaults.bool(forKey: Key.swipeGestures)
+        displayStyles = (defaults.dictionary(forKey: Key.displayStyles) ?? [:]).compactMapValues { "\($0)" }
+        hudDuration = defaults.string(forKey: Key.hudDuration).flatMap(HUDDuration.init(rawValue:)) ?? .standard
+        volumeSteps = defaults.integer(forKey: Key.volumeSteps)
+        hudUsesAccent = defaults.bool(forKey: Key.hudUsesAccent)
+        batteryLowThreshold = defaults.integer(forKey: Key.batteryLowThreshold)
+        defaultTimerSeconds = defaults.double(forKey: Key.defaultTimerSeconds)
         miniPlayerOrigin = defaults.string(forKey: Key.miniPlayerOrigin)
         activityDisplay =
             defaults.string(forKey: Key.activityDisplay).flatMap(ActivityDisplayTarget.init(rawValue:)) ?? .pointer

@@ -43,6 +43,10 @@ final class NotchCoordinator {
         pointer.start { [weak self] action, location in
             self?.route(action, at: location)
         }
+        pointer.startScroll { [weak self] scroll, location in
+            guard let self, self.preferences.swipeGestures else { return }
+            self.controllers.values.forEach { $0.scrolled(scroll, at: location) }
+        }
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard event.keyCode == KeyCodes.escape else { return event }
             let handled = MainActor.assumeIsolated { self?.dismissOpenShelves() ?? false }
@@ -79,8 +83,12 @@ final class NotchCoordinator {
         for screen in screens {
             guard let uuid = screen.displayUUID else { continue }
             let metrics = screen.metrics
-            if !metrics.hasCameraHousing, !preferences.showOnExternalDisplays { continue }
-            let layout = NotchGeometry.layout(for: metrics, prefersIsland: preferences.externalStyle == .island)
+            let style = DisplayStyle.resolve(
+                preferences.displayStyle(for: uuid), hasNotch: metrics.hasCameraHousing,
+                showOnExternal: preferences.showOnExternalDisplays, externalIsland: preferences.externalStyle == .island
+            )
+            if style == .hidden { continue }
+            let layout = NotchGeometry.layout(for: metrics, prefersIsland: style == .island)
             current.insert(uuid)
             log.notice(
                 "display \(uuid, privacy: .public) style=\(String(describing: layout.style), privacy: .public) closed=\(String(describing: layout.closedRect), privacy: .public) panel=\(String(describing: layout.panelFrame), privacy: .public)"
@@ -182,6 +190,7 @@ final class NotchCoordinator {
         withObservationTracking {
             _ = preferences.showOnExternalDisplays
             _ = preferences.externalStyle
+            _ = preferences.displayStyles
             _ = preferences.activityDisplay
         } onChange: { [weak self] in
             Task { @MainActor in

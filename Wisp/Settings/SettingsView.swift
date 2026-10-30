@@ -111,7 +111,9 @@ struct SettingsView: View {
             ) {
                 model.selection = .permissions
             }
-        case .notch: NotchSettings(preferences: preferences, accent: services.accent)
+        case .notch:
+            NotchSettings(
+                preferences: preferences, accent: services.accent, glow: services.glow)
         case .activities: ActivitySettings(preferences: preferences)
         case .widgets: WidgetSettings(preferences: preferences, shortcuts: services.shortcuts)
         case .profiles: ProfileSettings(preferences: preferences, context: services.context)

@@ -16,6 +16,7 @@ final class NotchController {
     private var closeTask: Task<Void, Never>?
     private var dragEndTask: Task<Void, Never>?
     private var motionObserver: NSObjectProtocol?
+    private var swipe = SwipeDetector()
 
     /// Grace period before a shelf closes after the pointer leaves.
     private let closeDelay: Duration = .milliseconds(300)
@@ -111,6 +112,21 @@ final class NotchController {
             if machine.phase == .open { panel.makeKey() }
         } else if machine.phase == .open {
             send(.clickedOutside)
+        }
+    }
+
+    /// Two fingers on the closed notch: down opens the shelf, and sideways on the music
+    /// pill skips tracks. An open shelf ignores swipes, since its lists scroll.
+    func scrolled(_ scroll: PointerMonitor.Scroll, at location: CGPoint) {
+        if scroll.boundary { swipe.reset() }
+        guard machine.phase != .open, model.contains(location),
+            let direction = swipe.add(dx: scroll.dx, dy: scroll.dy)
+        else { return }
+        switch direction {
+        case .down: send(.clicked)
+        case .left where model.activity == .media: services.nowPlaying.previous()
+        case .right where model.activity == .media: services.nowPlaying.next()
+        default: break
         }
     }
 

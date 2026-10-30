@@ -45,6 +45,10 @@ struct WidgetSettings: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Timer") {
+                DurationField(title: "New timers start at", seconds: $preferences.defaultTimerSeconds)
+                Text("Type a length such as 10, 1h30m or 90s.").font(.caption).foregroundStyle(.secondary)
+            }
             Section("Day Progress") {
                 Stepper(
                     "Day starts at \(preferences.workdayStart):00", value: $preferences.workdayStart,

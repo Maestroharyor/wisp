@@ -25,6 +25,7 @@ final class AppServices {
     let notifications: NotificationMonitor
     let lyrics: LyricsStore
     let microphone = MicrophoneMonitor()
+    let wallpaper = WallpaperTint()
     /// Calls already offered with a Join card, so each is offered once.
     @ObservationIgnored private var offeredMeetings: Set<String> = []
     @ObservationIgnored private var meetingTask: Task<Void, Never>?
@@ -32,6 +33,8 @@ final class AppServices {
     private(set) var replyingTo: NotificationItem?
     /// The newest notification that arrived during a reply, shown when the reply ends.
     private var waitingNotification: NotificationItem?
+    /// The default timer length last given to the timer, so only a change resets it.
+    private var appliedTimerLength: Double?
 
     private(set) lazy var transform = TransformPanelController(services: self)
     private(set) lazy var pocket = QuickPocket(services: self)
@@ -59,13 +62,24 @@ final class AppServices {
     }
 
     /// Glow and glass tint: the playing album's colour when allowed, otherwise Wisp's violet.
-    var accent: Color {
-        // Without artwork the album tint is a plain white fallback, which turns the glow grey.
-        if preferences.adaptiveAccent, nowPlaying.info?.isPlaying == true, nowPlaying.artwork != nil {
-            return nowPlaying.tint
-        }
-        return .wispViolet
+    /// The theme's colours, or the wallpaper's when that is on.
+    var palette: ThemePalette {
+        let theme = ThemeCatalog.palette(
+            for: preferences.theme, custom: ThemePalette(accent: preferences.customAccent, glow: preferences.customGlow)
+        )
+        guard preferences.wallpaperTint, let sampled = wallpaper.color else { return theme }
+        return ThemePalette(accent: sampled, glow: sampled)
     }
+
+    /// Without artwork the album tint is a plain white fallback, which turns the glow grey.
+    private var albumTintActive: Bool {
+        preferences.adaptiveAccent && nowPlaying.info?.isPlaying == true && nowPlaying.artwork != nil
+    }
+
+    var accent: Color { albumTintActive ? nowPlaying.tint : Color(rgb: palette.accent) }
+
+    /// The second colour of the shelf glow; the same as the accent for one-colour themes.
+    var glow: Color { albumTintActive ? nowPlaying.tint : Color(rgb: palette.glow) }
 
     /// Set by the notch coordinator: the page closed shelves open on next.
     var restingPage: @MainActor (ShelfPage) -> Void = { _ in }
@@ -140,6 +154,8 @@ final class AppServices {
         }
 
         battery.onEvent = { [weak self] event, state in self?.batteryEvent(event, state) }
+        battery.thresholds = { [weak self] in self?.preferences.batteryThresholds ?? BatteryAlerts.lowThresholds }
+        syncPreferenceEffects()
         battery.start()
 
         timers.onActivity = { [weak self] activity in
@@ -197,7 +213,24 @@ final class AppServices {
         systemHUD.start()
     }
 
+    /// Applies settings that drive services: the desktop picture is sampled only while the
+    /// wallpaper glow is on, and an idle timer takes a newly chosen default length. Only the
+    /// settings are tracked; reading the timer here would undo every +/- in the widget.
+    private func syncPreferenceEffects() {
+        let (wallpaperOn, timerLength) = withObservationTracking {
+            (preferences.wallpaperTint, preferences.defaultTimerSeconds)
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.syncPreferenceEffects() }
+        }
+        if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
+        if timerLength != appliedTimerLength {
+            appliedTimerLength = timerLength
+            timers.applyDefaultLength(seconds: timerLength)
+        }
+    }
+
     func stop() {
+        wallpaper.stop()
         lockScreenPlayer.stop()
         microphone.stop()
         meetingTask?.cancel()

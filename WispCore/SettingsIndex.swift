@@ -49,23 +49,29 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     var keywords: [String] {
         switch self {
         case .general:
-            ["shortcut", "hotkey", "caps lock", "hyper", "space", "launch", "login", "startup", "accessibility"]
+            [
+                "shortcut", "hotkey", "caps lock", "hyper", "space", "launch", "login", "startup", "accessibility",
+                "menu bar", "icon",
+            ]
         case .notch:
             [
                 "hover", "click", "open", "delay", "stay open", "auto close", "glass", "surface", "tinted", "black",
-                "accent", "album",
+                "accent", "album", "theme", "colour", "color", "gradient", "aurora", "midnight", "ember", "mono",
+                "wallpaper", "desktop picture", "outline", "swipe", "gesture", "trackpad", "hidden",
                 "animation", "speed", "island", "external", "display", "pocket", "drag", "shake",
             ]
         case .activities:
             [
                 "volume", "brightness", "battery", "hud", "overlay", "media", "music", "pointer", "display", "focus",
                 "lyrics", "lrclib", "album art", "artwork", "itunes", "lock screen", "meeting", "call", "microphone",
-                "zoom", "meet", "bubbles", "split",
+                "zoom", "meet", "bubbles", "split", "volume steps", "duration", "low battery", "threshold",
+                "left", "right",
             ]
         case .widgets:
             [
                 "home", "grid", "rows", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
+                "timer length",
             ]
         case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
         case .clipboard: ["history", "copy", "paste", "limit", "pinned"]

@@ -29,4 +29,11 @@ final class BatteryAlertsTests: XCTestCase {
         XCTAssertEqual(BatteryAlerts.events(from: state(20, plugged: false), to: state(19, plugged: false)), [])
         XCTAssertEqual(BatteryAlerts.events(from: state(21, plugged: true), to: state(20, plugged: true)), [])
     }
+
+    func testCustomThresholds() {
+        let previous = BatteryState(percent: 31, isPluggedIn: false, isCharging: false)
+        let current = BatteryState(percent: 30, isPluggedIn: false, isCharging: false)
+        XCTAssertEqual(BatteryAlerts.events(from: previous, to: current, thresholds: [30, 15]), [.low(30)])
+        XCTAssertEqual(BatteryAlerts.events(from: previous, to: current, thresholds: [20, 10]), [])
+    }
 }

@@ -17,7 +17,8 @@ struct BubbleLayer: View {
 
     var body: some View {
         GooBubbles(
-            pill: pill, split: split, bubbles: shown, reduceMotion: model.reduceMotion, model: model
+            pill: pill, split: split, bubbles: shown, firstOnLeft: model.preferences.firstBubbleOnLeft,
+            reduceMotion: model.reduceMotion, model: model
         )
         .allowsHitTesting(false)
         .onAppear { sync(animated: false) }
@@ -67,7 +68,8 @@ struct BubbleLayer: View {
     }
 }
 
-/// Split progress for the right and left bubble.
+/// Split progress for the first bubble (`right`, unless Settings put it on the left)
+/// and the second.
 struct Sides: Equatable, Sendable {
     var right: Double
     var left: Double
@@ -79,6 +81,7 @@ private struct GooBubbles: View, Animatable {
     var pill: CGRect
     var split: Sides
     let bubbles: [ActivityBubble?]
+    let firstOnLeft: Bool
     let reduceMotion: Bool
     let model: NotchModel
 
@@ -91,7 +94,8 @@ private struct GooBubbles: View, Animatable {
     }
 
     var body: some View {
-        let drops = [drop(side: 1, progress: split.right), drop(side: -1, progress: split.left)]
+        let first: CGFloat = firstOnLeft ? -1 : 1
+        let drops = [drop(side: first, progress: split.right), drop(side: -first, progress: split.left)]
         ZStack(alignment: .topLeading) {
             if !reduceMotion {
                 goo(drops)

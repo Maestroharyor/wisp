@@ -47,4 +47,9 @@ final class MediaKeyTests: XCTestCase {
         XCTAssertEqual(LevelStep.percent(1.2), 100)
         XCTAssertEqual(LevelStep.percent(-1), 0)
     }
+
+    func testStepCountSetsTheVolumeGrid() {
+        XCTAssertEqual(LevelStep.next(from: 0.5, up: true, steps: 32), 0.5 + 1.0 / 32, accuracy: 1e-9)
+        XCTAssertEqual(LevelStep.next(from: 0.5, up: false, steps: 8), 0.375, accuracy: 1e-9)
+    }
 }

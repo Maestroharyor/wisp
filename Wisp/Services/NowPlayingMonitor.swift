@@ -1,5 +1,4 @@
 import AppKit
-import CoreImage
 import Observation
 import SwiftUI
 import WispCore
@@ -286,22 +285,9 @@ final class NowPlayingMonitor {
     }
 
     private static func averageColor(of image: NSImage) -> Color? {
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-        let input = CIImage(cgImage: cgImage)
-        guard
-            let filter = CIFilter(
-                name: "CIAreaAverage",
-                parameters: [kCIInputImageKey: input, kCIInputExtentKey: CIVector(cgRect: input.extent)]),
-            let output = filter.outputImage
-        else { return nil }
-        var pixel = [UInt8](repeating: 0, count: 4)
-        CIContext(options: [.workingColorSpace: NSNull()])
-            .render(
-                output, toBitmap: &pixel, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-                format: .RGBA8, colorSpace: nil)
+        guard let average = ImageColor.average(of: image) else { return nil }
         // Lift dark averages so the tint stays visible on black.
-        let color = NSColor(
-            red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255, blue: CGFloat(pixel[2]) / 255, alpha: 1)
+        let color = NSColor(red: average.red, green: average.green, blue: average.blue, alpha: 1)
         let hsb = color.usingColorSpace(.deviceRGB)
         let brightened = NSColor(
             hue: hsb?.hueComponent ?? 0,

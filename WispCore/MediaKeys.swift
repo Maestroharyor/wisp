@@ -29,7 +29,11 @@ public struct MediaKeyEvent: Sendable, Equatable {
 /// Volume and brightness stepping: 16 steps like the system, 64 with Option+Shift.
 public enum LevelStep {
     public static func next(from value: Double, up: Bool, fine: Bool) -> Double {
-        let steps: Double = fine ? 64 : 16
+        next(from: value, up: up, steps: fine ? 64 : 16)
+    }
+
+    public static func next(from value: Double, up: Bool, steps count: Int) -> Double {
+        let steps = Double(max(count, 1))
         let scaled = value * steps
         // Tolerance so values that are on the grid (give or take float noise) step a whole notch.
         let target = up ? (scaled + 1e-6).rounded(.down) + 1 : (scaled - 1e-6).rounded(.up) - 1

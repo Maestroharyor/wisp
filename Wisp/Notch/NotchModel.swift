@@ -111,7 +111,10 @@ final class NotchModel {
         return services.activities.bubbles.filter { $0.slot != .media || preferences.mediaActivity }
     }
 
-    var bubbleRects: [CGRect] { SurfaceSizing.bubbleRects(beside: surfaceRect, count: bubbles.count) }
+    var bubbleRects: [CGRect] {
+        SurfaceSizing.bubbleRects(
+            beside: surfaceRect, count: bubbles.count, firstOnLeft: preferences.firstBubbleOnLeft)
+    }
 
     /// The bubble under a click, if any. Bubbles take clicks but don't open the shelf on hover.
     func bubble(at point: CGPoint) -> ActivityBubble? {
@@ -148,6 +151,7 @@ final class NotchModel {
 
     /// Glow and glass tint: the playing album's colour when allowed, otherwise Wisp's violet.
     var accent: Color { services.accent }
+    var glow: Color { services.glow }
 
     /// Bouncier when growing, damped when settling back to the plain notch.
     var surfaceAnimation: Animation {
