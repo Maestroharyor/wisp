@@ -103,7 +103,7 @@ final class NotchMachineTests: XCTestCase {
 
     func testStaysOpenWhenPointerLeavesIfAutoCloseIsOff() {
         var machine = NotchMachine()
-        machine.closesOnPointerExit = false
+        machine.closing = .clickElsewhere
         _ = machine.handle(.pointerEntered)
         _ = machine.handle(.dwellElapsed)
         XCTAssertEqual(machine.handle(.pointerExited), [])
@@ -114,7 +114,7 @@ final class NotchMachineTests: XCTestCase {
 
     func testDragOpenedShelfStillClosesOnLeaveWhenAutoCloseIsOff() {
         var machine = NotchMachine()
-        machine.closesOnPointerExit = false
+        machine.closing = .clickElsewhere
         _ = machine.handle(.dragEntered)
         XCTAssertEqual(machine.handle(.pointerExited), [.scheduleClose])
         _ = machine.handle(.closeDelayElapsed)
@@ -122,5 +122,40 @@ final class NotchMachineTests: XCTestCase {
         _ = machine.handle(.pointerEntered)
         _ = machine.handle(.dwellElapsed)
         XCTAssertEqual(machine.handle(.pointerExited), [])
+    }
+
+    func testStayOpenIgnoresClicksElsewhere() {
+        var machine = NotchMachine()
+        machine.closing = .never
+        _ = machine.handle(.pointerEntered)
+        _ = machine.handle(.clicked)
+        XCTAssertEqual(machine.handle(.pointerExited), [])
+        XCTAssertEqual(machine.handle(.clickedOutside), [])
+        XCTAssertEqual(machine.phase, .open)
+        _ = machine.handle(.escape)
+        XCTAssertEqual(machine.phase, .closed)
+    }
+
+    func testStayOpenStillClosesWithTheShortcut() {
+        var machine = NotchMachine()
+        machine.closing = .never
+        _ = machine.handle(.pointerEntered)
+        _ = machine.handle(.clicked)
+        _ = machine.handle(.hotkey)
+        XCTAssertEqual(machine.phase, .closed)
+    }
+
+    func testDragOpenedShelfClosesOnLeaveEvenWhenStayingOpen() {
+        var machine = NotchMachine()
+        machine.closing = .never
+        _ = machine.handle(.dragEntered)
+        XCTAssertEqual(machine.handle(.pointerExited), [.scheduleClose])
+    }
+
+    func testClosingRulesFromStoredValues() {
+        XCTAssertEqual(ShelfClosing(storedValue: nil, legacyAutoClose: nil), .pointerLeaves)
+        XCTAssertEqual(ShelfClosing(storedValue: nil, legacyAutoClose: true), .pointerLeaves)
+        XCTAssertEqual(ShelfClosing(storedValue: nil, legacyAutoClose: false), .clickElsewhere)
+        XCTAssertEqual(ShelfClosing(storedValue: "never", legacyAutoClose: true), .never)
     }
 }

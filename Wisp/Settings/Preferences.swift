@@ -177,6 +177,8 @@ final class Preferences {
         static let showOnExternalDisplays = "showOnExternalDisplays"
         static let hoverDelay = "hoverDelay"
         static let openTrigger = "openTrigger"
+        static let shelfClosing = "shelfClosing"
+        /// The earlier on/off setting, read once to carry it over.
         static let shelfAutoCloses = "shelfAutoCloses"
         static let animationSpeed = "animationSpeed"
         static let externalStyle = "externalStyle"
@@ -261,9 +263,9 @@ final class Preferences {
     var hoverDelay: Double { didSet { defaults.set(hoverDelay, forKey: Key.hoverDelay) } }
 
     var openTrigger: OpenTrigger { didSet { defaults.set(openTrigger.rawValue, forKey: Key.openTrigger) } }
-    /// Close the shelf when the pointer leaves it. Off keeps it open until a click
-    /// outside, Esc or the shortcut.
-    var shelfAutoCloses: Bool { didSet { defaults.set(shelfAutoCloses, forKey: Key.shelfAutoCloses) } }
+    /// What closes an open shelf: the pointer leaving, a click elsewhere, or only Esc and
+    /// the shortcut.
+    var shelfClosing: ShelfClosing { didSet { defaults.set(shelfClosing.rawValue, forKey: Key.shelfClosing) } }
 
     var animationSpeed: AnimationSpeed {
         didSet { defaults.set(animationSpeed.rawValue, forKey: Key.animationSpeed) }
@@ -567,7 +569,6 @@ final class Preferences {
             Key.hoverDelay: 0.15,
             // Hover only peeks; a click opens, so the shelf never appears by accident.
             Key.openTrigger: OpenTrigger.click.rawValue,
-            Key.shelfAutoCloses: true,
             Key.animationSpeed: AnimationSpeed.standard.rawValue,
             Key.externalStyle: ExternalStyle.notch.rawValue,
             Key.glassEdge: GlassEdge.subtle.rawValue,
@@ -617,7 +618,10 @@ final class Preferences {
         showOnExternalDisplays = defaults.bool(forKey: Key.showOnExternalDisplays)
         hoverDelay = defaults.double(forKey: Key.hoverDelay)
         openTrigger = defaults.string(forKey: Key.openTrigger).flatMap(OpenTrigger.init(rawValue:)) ?? .click
-        shelfAutoCloses = defaults.bool(forKey: Key.shelfAutoCloses)
+        shelfClosing = ShelfClosing(
+            storedValue: defaults.string(forKey: Key.shelfClosing),
+            legacyAutoClose: defaults.object(forKey: Key.shelfAutoCloses) == nil
+                ? nil : defaults.bool(forKey: Key.shelfAutoCloses))
         animationSpeed =
             defaults.string(forKey: Key.animationSpeed).flatMap(AnimationSpeed.init(rawValue:)) ?? .standard
         externalStyle = defaults.string(forKey: Key.externalStyle).flatMap(ExternalStyle.init(rawValue:)) ?? .notch

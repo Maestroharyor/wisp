@@ -27,6 +27,26 @@ public enum NotchEffect: Sendable, Equatable {
     case cancelClose
 }
 
+/// What closes an open shelf besides Esc and the shortcut.
+public enum ShelfClosing: String, CaseIterable, Sendable {
+    /// Leaving the shelf with the pointer (after a short grace period), or clicking elsewhere.
+    case pointerLeaves
+    /// Only a click outside the shelf.
+    case clickElsewhere
+    /// Nothing but Esc, the shortcut or the menu.
+    case never
+
+    /// Reads the stored choice, carrying over the earlier on/off "close when the pointer
+    /// leaves" setting, whose off state closed on a click elsewhere.
+    public init(storedValue: String?, legacyAutoClose: Bool?) {
+        if let storedValue, let choice = ShelfClosing(rawValue: storedValue) {
+            self = choice
+        } else {
+            self = legacyAutoClose == false ? .clickElsewhere : .pointerLeaves
+        }
+    }
+}
+
 /// Pure state machine for open/close behaviour, kept free of timers and UI so it is testable.
 public struct NotchMachine: Sendable, Equatable {
     public private(set) var phase: NotchPhase = .closed
@@ -34,9 +54,8 @@ public struct NotchMachine: Sendable, Equatable {
     public private(set) var pinned = false
     /// When false, hovering only peeks; a click opens the shelf.
     public var opensOnHover: Bool
-    /// When false, an open shelf stays until a click outside, Esc or the hotkey.
-    public var closesOnPointerExit = true
-    /// Opened by a file drag: leaving closes it whatever `closesOnPointerExit` says.
+    public var closing = ShelfClosing.pointerLeaves
+    /// Opened by a file drag: leaving closes it whatever `closing` says.
     private var openedByDrag = false
 
     public init(opensOnHover: Bool = true) {
@@ -58,13 +77,16 @@ public struct NotchMachine: Sendable, Equatable {
             return [.cancelDwell]
 
         case (.open, .pointerExited):
-            return pinned || (!closesOnPointerExit && !openedByDrag) ? [] : [.scheduleClose]
+            return pinned || (closing != .pointerLeaves && !openedByDrag) ? [] : [.scheduleClose]
 
         case (.open, .pointerEntered):
             return [.cancelClose]
 
-        case (.open, .closeDelayElapsed), (.open, .clickedOutside):
+        case (.open, .closeDelayElapsed):
             return close()
+
+        case (.open, .clickedOutside):
+            return closing == .never && !openedByDrag ? [] : close()
 
         case (.closed, .hotkey), (.peek, .hotkey):
             phase = .open

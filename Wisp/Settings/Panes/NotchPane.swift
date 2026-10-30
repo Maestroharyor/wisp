@@ -30,13 +30,16 @@ struct NotchSettings: View {
                         }
                     }
                 }
-                Picker("Once open", selection: $preferences.shelfAutoCloses) {
-                    Text("Close when the pointer leaves").tag(true)
-                    Text("Stay open").tag(false)
+                Picker("Once open", selection: $preferences.shelfClosing) {
+                    Text("Close when the pointer leaves").tag(ShelfClosing.pointerLeaves)
+                    Text("Close when I click elsewhere").tag(ShelfClosing.clickElsewhere)
+                    Text("Stay open until I close it").tag(ShelfClosing.never)
                 }
-                if !preferences.shelfAutoCloses {
-                    Text("Close it by clicking outside the shelf, pressing Esc or the shortcut.")
-                        .font(.caption).foregroundStyle(.secondary)
+                if preferences.shelfClosing == .never {
+                    Text(
+                        "Close it with Esc or the shortcut. A shelf opened by dragging a file still closes when the drag leaves."
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
                 }
                 Toggle("Trackpad swipes on the notch", isOn: $preferences.swipeGestures)
                 Text("Two fingers down on the closed notch opens the shelf. Sideways on the music pill skips tracks.")
