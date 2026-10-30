@@ -15,7 +15,7 @@ final class LyricsStore {
 
     @ObservationIgnored private var cache: [String: Lyrics?] = [:]
     @ObservationIgnored private let preferences: Preferences
-    @ObservationIgnored private let log = Logger(subsystem: "com.maestro.wisp", category: "lyrics")
+    @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "lyrics")
 
     init(preferences: Preferences) {
         self.preferences = preferences

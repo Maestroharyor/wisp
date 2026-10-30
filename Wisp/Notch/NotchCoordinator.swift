@@ -17,7 +17,7 @@ final class NotchCoordinator {
     private var pointerDisplay: String?
     private var shake = ShakeDetector()
     private var dragStarted = Date.now
-    private let log = Logger(subsystem: "com.maestro.wisp", category: "notch")
+    private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "notch")
 
     private var preferences: Preferences { services.preferences }
 

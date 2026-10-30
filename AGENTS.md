@@ -46,8 +46,8 @@ Test results: `xcrun xcresulttool get test-results summary --path "$(/bin/ls -td
 - **No type casts and no force unwraps.** No `as!`, `as?` used to make code compile, `try!`, `!` unwraps or implicitly unwrapped optionals. If a cast seems needed, fix the type model. swift-format enforces part of this.
 - **Swift 6 strict concurrency.** UI and services are `@MainActor`; observable state uses `@Observable`. Don't silence concurrency errors with `nonisolated(unsafe)` or `@unchecked Sendable` without a comment explaining why it's safe.
 - **Match what's there.** Mirror the nearest existing feature (for example, new stores follow `WeatherStore` in `Services/WidgetStores.swift`, floating panels follow `MiniPlayer`/`ClipboardPanel`). Check for an existing helper before writing one.
-- **Logging:** `Logger(subsystem: "com.maestro.wisp", category: ...)`. Never log tokens, prompts, message bodies, file contents or other personal data.
-- **Debug-only hooks** (distributed notifications such as `com.maestro.wisp.debug.toggleShelf`) stay inside `#if DEBUG`.
+- **Logging:** `Logger(subsystem: "com.ayomideodewale.wisp", category: ...)`. Never log tokens, prompts, message bodies, file contents or other personal data.
+- **Debug-only hooks** (distributed notifications such as `com.ayomideodewale.wisp.debug.toggleShelf`) stay inside `#if DEBUG`.
 - **Settings** live in `Settings/Preferences.swift` and are backed by UserDefaults. New panes or options also get keywords in `WispCore/SettingsIndex.swift` so search finds them.
 - **Animation:** the shell and its content move on one shared spring (`model.surfaceAnimation`). The shelf expands out of the notch and folds back into it on both axes; don't replace that with fades or width-only transitions. Respect Reduce Motion.
 - **Accent:** Wisp violet (`Color.wispViolet`, `AccentColor` #7A6BFF) for selection, progress and active states.

@@ -25,7 +25,7 @@ final class NotificationMonitor {
     @ObservationIgnored private var ticks = 0
     @ObservationIgnored private lazy var whatsApp = WebChatSession(channel: .whatsApp)
     @ObservationIgnored private lazy var telegram = WebChatSession(channel: .telegram)
-    @ObservationIgnored private let log = Logger(subsystem: "com.maestro.wisp", category: "notifications")
+    @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "notifications")
 
     init(preferences: Preferences) {
         self.preferences = preferences

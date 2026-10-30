@@ -1,7 +1,7 @@
 name: Wisp
 
 options:
-  bundleIdPrefix: com.maestro
+  bundleIdPrefix: com.ayomideodewale
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -105,7 +105,7 @@ targets:
         com.apple.security.device.camera: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.maestro.wisp
+        PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp
         PRODUCT_NAME: Wisp
         ENABLE_HARDENED_RUNTIME: YES
         # A self-signed certificate has no Team ID, so hardened runtime's library
@@ -123,7 +123,7 @@ targets:
       - target: WispCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.maestro.wisp.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp.tests
         GENERATE_INFOPLIST_FILE: YES
 
 schemes:

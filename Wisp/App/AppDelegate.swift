@@ -40,19 +40,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
             // Lets scripts drive Wisp for visual checks without synthetic input.
             DistributedNotificationCenter.default().addObserver(
-                forName: Notification.Name("com.maestro.wisp.debug.toggleShelf"), object: nil, queue: .main
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.toggleShelf"), object: nil, queue: .main
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.toggleShelf() }
             }
             DistributedNotificationCenter.default().addObserver(
-                forName: Notification.Name("com.maestro.wisp.debug.miniPlayer"), object: nil, queue: .main
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.miniPlayer"), object: nil, queue: .main
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.services.miniPlayer.toggle() }
             }
             // Toggle stand-in activities, to film show, hide and bubble motion.
             for kind in ["timer", "agent"] {
                 DistributedNotificationCenter.default().addObserver(
-                    forName: Notification.Name("com.maestro.wisp.debug.\(kind)"), object: nil, queue: .main
+                    forName: Notification.Name("com.ayomideodewale.wisp.debug.\(kind)"), object: nil, queue: .main
                 ) { [weak self] _ in
                     MainActor.assumeIsolated { self?.toggleDebugActivity(kind) }
                 }

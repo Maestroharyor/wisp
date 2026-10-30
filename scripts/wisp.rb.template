@@ -14,6 +14,7 @@ cask "wisp" do
 
   zap trash: [
     "~/Library/Application Support/Wisp",
+    "~/Library/Preferences/com.ayomideodewale.wisp.plist",
     "~/Library/Preferences/com.maestro.wisp.plist",
   ]
 end

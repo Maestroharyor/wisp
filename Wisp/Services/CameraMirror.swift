@@ -66,7 +66,7 @@ final class CameraMirror {
 /// called on `queue`, and configuration happens before the first start.
 private final class CaptureQueue: @unchecked Sendable {
     let session = AVCaptureSession()
-    private let queue = DispatchQueue(label: "com.maestro.wisp.camera")
+    private let queue = DispatchQueue(label: "com.ayomideodewale.wisp.camera")
 
     func start() async {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
