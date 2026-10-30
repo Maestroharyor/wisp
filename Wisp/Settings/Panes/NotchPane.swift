@@ -26,6 +26,14 @@ struct NotchSettings: View {
                         }
                     }
                 }
+                Picker("Once open", selection: $preferences.shelfAutoCloses) {
+                    Text("Close when the pointer leaves").tag(true)
+                    Text("Stay open").tag(false)
+                }
+                if !preferences.shelfAutoCloses {
+                    Text("Close it by clicking outside the shelf, pressing Esc or the shortcut.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             Section("Look") {
                 Picker("Animation", selection: $preferences.animationSpeed) {

@@ -52,7 +52,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ["shortcut", "hotkey", "caps lock", "hyper", "space", "launch", "login", "startup", "accessibility"]
         case .notch:
             [
-                "hover", "click", "open", "delay", "glass", "surface", "tinted", "black", "accent", "album",
+                "hover", "click", "open", "delay", "stay open", "auto close", "glass", "surface", "tinted", "black",
+                "accent", "album",
                 "animation", "speed", "island", "external", "display", "pocket", "drag", "shake",
             ]
         case .activities:

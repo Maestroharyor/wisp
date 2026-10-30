@@ -34,6 +34,10 @@ public struct NotchMachine: Sendable, Equatable {
     public private(set) var pinned = false
     /// When false, hovering only peeks; a click opens the shelf.
     public var opensOnHover: Bool
+    /// When false, an open shelf stays until a click outside, Esc or the hotkey.
+    public var closesOnPointerExit = true
+    /// Opened by a file drag: leaving closes it whatever `closesOnPointerExit` says.
+    private var openedByDrag = false
 
     public init(opensOnHover: Bool = true) {
         self.opensOnHover = opensOnHover
@@ -54,7 +58,7 @@ public struct NotchMachine: Sendable, Equatable {
             return [.cancelDwell]
 
         case (.open, .pointerExited):
-            return pinned ? [] : [.scheduleClose]
+            return pinned || (!closesOnPointerExit && !openedByDrag) ? [] : [.scheduleClose]
 
         case (.open, .pointerEntered):
             return [.cancelClose]
@@ -69,6 +73,7 @@ public struct NotchMachine: Sendable, Equatable {
 
         case (.closed, .dragEntered), (.peek, .dragEntered):
             phase = .open
+            openedByDrag = true
             return [.cancelDwell, .cancelClose]
 
         case (.open, .dragEntered):
@@ -85,6 +90,7 @@ public struct NotchMachine: Sendable, Equatable {
     private mutating func close() -> [NotchEffect] {
         phase = .closed
         pinned = false
+        openedByDrag = false
         return [.cancelDwell, .cancelClose]
     }
 }

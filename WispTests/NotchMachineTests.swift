@@ -100,4 +100,27 @@ final class NotchMachineTests: XCTestCase {
         XCTAssertFalse(machine.pinned)
         XCTAssertEqual(machine.handle(.pointerExited), [.scheduleClose])
     }
+
+    func testStaysOpenWhenPointerLeavesIfAutoCloseIsOff() {
+        var machine = NotchMachine()
+        machine.closesOnPointerExit = false
+        _ = machine.handle(.pointerEntered)
+        _ = machine.handle(.dwellElapsed)
+        XCTAssertEqual(machine.handle(.pointerExited), [])
+        XCTAssertEqual(machine.phase, .open)
+        _ = machine.handle(.clickedOutside)
+        XCTAssertEqual(machine.phase, .closed)
+    }
+
+    func testDragOpenedShelfStillClosesOnLeaveWhenAutoCloseIsOff() {
+        var machine = NotchMachine()
+        machine.closesOnPointerExit = false
+        _ = machine.handle(.dragEntered)
+        XCTAssertEqual(machine.handle(.pointerExited), [.scheduleClose])
+        _ = machine.handle(.closeDelayElapsed)
+        // A later hover-open stays open again.
+        _ = machine.handle(.pointerEntered)
+        _ = machine.handle(.dwellElapsed)
+        XCTAssertEqual(machine.handle(.pointerExited), [])
+    }
 }

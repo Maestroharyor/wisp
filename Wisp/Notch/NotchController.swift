@@ -227,6 +227,7 @@ final class NotchController {
     private func syncSettings() {
         let preferences = services.preferences
         machine.opensOnHover = preferences.openTrigger == .hover
+        machine.closesOnPointerExit = preferences.shelfAutoCloses
         model.speed = preferences.animationSpeed
         model.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if let screen = NSScreen.screens.first(where: { $0.displayUUID == screenUUID }) {
