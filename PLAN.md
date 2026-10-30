@@ -1,6 +1,6 @@
 # Wisp plan and status
 
-The status below is as of 2026-10-29. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 250 tests. For what comes next, see `docs/REVIEW.md`.
+The status below is as of 2026-10-30. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 317 tests. For what comes next, see `docs/REVIEW.md`.
 
 ## Done
 
@@ -19,11 +19,15 @@ The status below is as of 2026-10-29. Testing approach: decision logic lives in 
 | Settings | Sidebar window with search, live preview, setup health and About |
 | Agents, media and meetings | Agent timeline, daily spend, Allow All, request sound, prompt drafts pasted into the terminal; approval queue; lyrics (LRCLIB) and a mini player; meeting pill and Join card; lock screen player; scrolling week calendar; CI and release workflows |
 | Identity (review A to I) | Flame icon and menu bar glyph; rounder corners (the expanding open and close stays); one violet accent; context rules keep Home; first-launch setup; Codex hooks, jump to terminal, tokens and cost, project colours; tray redesign; release script with DMG and cask |
+| Review fixes (2026-10-30) | Drag-opened shelf closes when the drag leaves; SIGPIPE ignored; media bridge pipes cleared and read in order; Caps Lock remap undone when the tap fails; AppleScript fallback and multi-file zip moved off the main thread; notifications held during a reply; lyrics and artwork retry rules; Esc on click-opened shelves; less idle polling; tray prunes moved files; VoiceOver labels on icon buttons |
+| Customisation and themes | Theme presets and custom colours, wallpaper-matched glow, outline; per-display style; HUD duration, volume steps, accent bars; battery threshold; typed default timer; bubble side; hide menu bar icon; trackpad swipes |
+| Extras | Drop actions (Shortcut or command, no shell); Script widget; headphones pill with battery from `system_profiler` |
 | Activity motion and bubbles | Compact content is clipped to the growing shell and resolves out of a blur after it, contracting toward the camera on the way out; extra live activities pinch off into up to two round bubbles (gooey split and merge), and clicking one swaps it into the pill |
 
 ## Not done
 
-- **HUD extras:** keyboard backlight (private CoreBrightness), DDC brightness and volume on external displays, AirPods card, VPN pill.
+- **HUD extras:** keyboard backlight (private CoreBrightness) and DDC brightness and volume on external displays both need private APIs, so they wait for a decision. VPN pill.
+- **Shelf size presets:** deferred; widget widths are fixed, so a size option needs a layout pass first.
 - **Screen recorder.**
 - **Lock screen player:** built with public APIs only; whether macOS shows it over the lock screen is untested.
 - **Distribution:** a GitHub Actions workflow that runs `scripts/release.sh` on each tag. Notarisation needs a Developer ID (the script already supports it). No Sparkle; updates go through Releases and Homebrew.
@@ -37,5 +41,9 @@ The status below is as of 2026-10-29. Testing approach: decision logic lives in 
 5. **Clipboard.** Copy a few texts, links and images, then press Caps Lock + V (or ⌥⇧⌘V).
 6. **Now Playing.** Play in a browser (YouTube Music) or Music: artwork and a waveform show beside the notch.
 7. **Closing.** The shelf content shrinks into the notch with the surface, and the nav pill rides up into it.
-9. **Bubbles.** Play music, then start a timer: the music pinches off into a bubble right of the pill. Start a Claude Code prompt too: it splits off on the left. Click a bubble: it swaps into the pill.
 8. **Clicks outside the shelf** reach the app underneath.
+9. **Bubbles.** Play music, then start a timer: the music pinches off into a bubble right of the pill. Start a Claude Code prompt too: it splits off on the left. Click a bubble: it swaps into the pill.
+10. **Drag out.** Drag a file over the notch, then away without dropping: the shelf closes.
+11. **Themes.** Settings › Notch › Theme: Aurora shows violet into teal on the Tinted surface; Outline draws a rim on the open shelf.
+12. **Swipes.** Two fingers down on the closed notch opens it; sideways on the music pill skips. Scrolling lists inside the open shelf never closes it.
+13. **Headphones.** Connect AirPods: a pill shows them with battery levels.

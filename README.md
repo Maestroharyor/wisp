@@ -26,28 +26,35 @@ Or run `xattr -dr com.apple.quarantine /Applications/Wisp.app` once. A first-lau
 - **Profiles that follow you**: saved Home layouts, start page and surface. Switch with Caps Lock + 1–9 or the notch menu. Rules switch the start page and surface automatically by front app, music or a waiting agent; a Focus rule can swap Home too.
 - **Notch shell**
   - One non-activating panel per display. The black shell grows out of the notch into the shelf, like a box resizing, and shrinks back into it when it closes.
-  - Opens on hover or click; Caps Lock + Space toggles it. It closes when the pointer leaves, or stays open until you click away (Settings › Notch).
-  - Surfaces: Black, Glass (Liquid Glass) or Tinted, in Wisp violet (or, if you turn it on, the playing album's colour).
+  - Opens on hover or click; Caps Lock + Space toggles it. Once open it closes when the pointer leaves, when you click elsewhere, or only with Esc and the shortcut; you choose in Settings › Notch.
+  - Surfaces: Black, Glass (Liquid Glass) or Tinted.
+  - **Themes:** Wisp violet (default), Midnight, Aurora (violet into teal), Ember, Mono or your own two colours. The glow can instead match the desktop picture or the playing album, and an optional thin outline traces the open shelf.
+  - Trackpad swipes on the notch: two fingers down opens the shelf, sideways on the music pill skips tracks.
+  - Per display: notch, floating island or hidden, remembered for each screen.
 - **Live activities beside the camera**
-  - Volume, brightness and Caps Lock overlays that replace the system ones.
-  - Battery: charging, unplugged, low and full.
+  - Volume, brightness and Caps Lock overlays that replace the system ones, with a choice of how long they stay, how many volume steps there are, and whether the bars use the theme accent.
+  - Headphones: when AirPods or other Bluetooth headphones take over the sound, a pill shows them with their battery and case levels.
+  - Battery: charging, unplugged, low (at a level you pick) and full.
   - Timers and Pomodoro; Now Playing from any app, including browsers. When a browser gives no album art, Wisp finds it on iTunes (only the title and artist are sent; switch it off in Settings › Live Activities).
   - Meetings: a pill while the microphone is on, named after the calendar event, with elapsed time and a mute button. A Join card appears two minutes before a call with a Zoom, Meet, Teams or Webex link.
   - Focus changes, tray count and file-action notices.
-  - **Bubbles:** with more than one live activity, the extras pinch off the pill into round bubbles, one on each side, as on iPhone. Click a bubble to swap it into the pill.
+  - **Bubbles:** with more than one live activity, the extras pinch off the pill into round bubbles, one on each side, as on iPhone. Click a bubble to swap it into the pill. The first bubble can sit on either side.
 - **Notifications** in the notch, with quick replies to iMessage, WhatsApp and Telegram, and the system banner hidden.
 - **Shelf**
   - **Home**: up to four widgets, resizable and reorderable.
   - **Widgets**: an icon grid of every widget; click one to open it on its own.
   - Calendar shows the coming week and scrolls.
-  - Widgets: Now Playing, Calendar, Timer, Pomodoro, Battery, System Stats, Weather, Notes, Quick Toggles, Shortcuts, Clipboard, Mirror, Day Progress, World Clocks and Agents.
+  - Widgets: Now Playing, Calendar, Timer, Pomodoro, Battery, System Stats, Weather, Notes, Quick Toggles, Shortcuts, Clipboard, Mirror, Day Progress, World Clocks, Agents and Script.
+  - **Script widget**: the first lines a command of yours prints, refreshed while the widget is on screen.
+  - New timers start at a length you type, such as 10, 1h30m or 90s.
   - **Tray**: drop files on the notch to keep them; each shows its type and size. Drag them out, AirDrop, transform or zip them.
+  - **Drop actions**: your own tiles that run a Shortcut or a command on dropped files. Commands run directly, not through a shell; `{file}` runs once per file and `{files}` passes them all.
   - **Pocket**: shake a file mid-drag and drop targets appear by the pointer.
   - **Transform**: convert, compress, resize and combine files.
   - **Media**: the player, with synced lyrics from LRCLIB (optional) and a floating mini player.
 - **Lock screen player**: while the screen is locked and music plays, a player shows where macOS allows it.
 - **Clipboard history**: a bottom panel with type tabs, search and pinning. Return pastes into the app in front; concealed (password) items are skipped.
-- **Settings**: a searchable sidebar with a live notch preview and a setup check that flags missing permissions.
+- **Settings**: a searchable sidebar with a live notch preview and a setup check that flags missing permissions. The menu bar icon can be hidden; open Wisp again to reach Settings.
 
 ## Requirements
 
