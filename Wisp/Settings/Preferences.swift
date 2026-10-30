@@ -335,7 +335,8 @@ final class Preferences {
         change(&profile)
         if profile != profiles[index] { profiles[index] = profile }
     }
-    /// Tint the glow and glass with the playing album's colour.
+    /// Tint the glow and glass with the playing album's colour. Off by default: the
+    /// surface stays Wisp violet, the brand colour.
     var adaptiveAccent: Bool { didSet { defaults.set(adaptiveAccent, forKey: Key.adaptiveAccent) } }
 
     /// Up to four widgets on Home, with sizes and order.
@@ -487,7 +488,7 @@ final class Preferences {
             Key.externalStyle: ExternalStyle.notch.rawValue,
             Key.glassEdge: GlassEdge.subtle.rawValue,
             Key.surfaceStyle: SurfaceStyle.black.rawValue,
-            Key.adaptiveAccent: true,
+            Key.adaptiveAccent: false,
             Key.contextAware: true,
             Key.volumeHUD: true,
             Key.brightnessHUD: true,

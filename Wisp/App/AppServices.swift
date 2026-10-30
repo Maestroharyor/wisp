@@ -58,7 +58,10 @@ final class AppServices {
 
     /// Glow and glass tint: the playing album's colour when allowed, otherwise Wisp's violet.
     var accent: Color {
-        if preferences.adaptiveAccent, nowPlaying.info?.isPlaying == true { return nowPlaying.tint }
+        // Without artwork the album tint is a plain white fallback, which turns the glow grey.
+        if preferences.adaptiveAccent, nowPlaying.info?.isPlaying == true, nowPlaying.artwork != nil {
+            return nowPlaying.tint
+        }
         return .wispViolet
     }
 
