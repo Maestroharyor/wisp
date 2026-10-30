@@ -86,14 +86,6 @@ public enum SurfaceSizing {
         }
     }
 
-    /// Scale the open content starts from so it unfolds out of the notch with the surface
-    /// (one spring drives both): the closed size relative to the open size, per axis.
-    public static func revealScale(from closed: CGRect, to open: CGRect) -> CGSize {
-        let width = open.width > 0 ? min(max(closed.width / open.width, 0.25), 1) : 1
-        let height = open.height > 0 ? min(max(closed.height / open.height, 0.1), 1) : 1
-        return CGSize(width: width, height: height)
-    }
-
     /// Content height shared by every shelf page, so switching tabs never changes
     /// the shelf's height. Tall enough for the media player.
     public static let shelfContentHeight: CGFloat = ShellMetrics.mediaWidgetContentHeight

@@ -61,27 +61,29 @@ private struct SurfaceView: View {
         let shape = ShellShape(notchStyle: model.isNotchStyle, topRadius: radii.top, bottomRadius: radii.bottom)
 
         ZStack(alignment: .top) {
+            // Solid black that grows and shrinks with the shell, so the morph is always
+            // visible. The open style (violet tint, glass) fades in over it rather than
+            // replacing it, which would leave the growing shell see-through.
+            Color.black
             SurfaceBackground(
-                style: isOpen ? model.preferences.surfaceStyle : .black,
-                glass: isOpen ? model.preferences.glassEdge : .off,
+                style: model.preferences.surfaceStyle,
+                glass: model.preferences.glassEdge,
                 accent: model.accent
             )
-            .clipShape(shape)
+            .opacity(isOpen ? 1 : 0)
             content
                 .padding(.horizontal, model.isNotchStyle ? radii.top : 0)
-                .clipShape(shape)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        // One clip for every layer, so newly inserted content is cut by the growing shell
+        // too rather than showing at its final size beyond it.
+        .clipShape(shape)
         .compositingGroup()
         .shadow(color: .black.opacity(model.spec == .closed ? 0 : 0.5), radius: isOpen ? 18 : 6, y: isOpen ? 8 : 2)
         // The shell rides the same spring as the frame, so closing visibly folds back
         // into the notch in both directions instead of snapping shut.
         .animation(model.surfaceAnimation, value: model.spec)
         .contentShape(shape)
-    }
-
-    /// Content starts at the closed notch's width relative to the open surface.
-    private var revealScale: CGSize {
-        SurfaceSizing.revealScale(from: model.layout.closedRect, to: model.surfaceRect)
     }
 
     @ViewBuilder private var content: some View {
@@ -99,27 +101,27 @@ private struct SurfaceView: View {
             if let activity = model.activity {
                 MediumActivityView(activity: activity, model: model)
                     .id(activity.kindKey)
-                    .transition(.expand(motion, fromScale: revealScale))
+                    .transition(.unfold(motion))
             }
         case .notification:
             if case .agentApproval(let approval) = model.activity {
                 AgentApprovalCard(approval: approval, model: model)
                     .id(approval.id)
-                    .transition(.expand(motion, fromScale: revealScale))
+                    .transition(.unfold(motion))
             }
             if case .meetingSoon(let invite) = model.activity {
                 MeetingSoonCard(invite: invite, model: model)
                     .id(invite.id)
-                    .transition(.expand(motion, fromScale: revealScale))
+                    .transition(.unfold(motion))
             }
             if case .notification(let item) = model.activity {
                 NotificationCardView(item: item, model: model)
                     .id(item.id)
-                    .transition(.expand(motion, fromScale: revealScale))
+                    .transition(.unfold(motion))
             }
         case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
             ShelfContent(model: model)
-                .transition(.expand(motion, fromScale: revealScale))
+                .transition(.unfold(motion))
         }
     }
 }

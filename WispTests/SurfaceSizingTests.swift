@@ -102,21 +102,6 @@ final class SurfaceSizingTests: XCTestCase {
         XCTAssertEqual(heights, [32 + 10 + SurfaceSizing.shelfContentHeight + 16])
     }
 
-    func testRevealScaleStartsAtTheNotchWidth() {
-        let closed = CGRect(x: 0, y: 0, width: 185, height: 32)
-        let open = CGRect(x: 0, y: 0, width: 600, height: 180)
-        let scale = SurfaceSizing.revealScale(from: closed, to: open)
-        XCTAssertEqual(scale.width, 185.0 / 600.0, accuracy: 1e-9)
-        XCTAssertEqual(scale.height, 32.0 / 180.0, accuracy: 1e-9)
-    }
-
-    func testRevealScaleIsClamped() {
-        let tiny = CGRect(x: 0, y: 0, width: 10, height: 10)
-        let open = CGRect(x: 0, y: 0, width: 900, height: 500)
-        XCTAssertEqual(SurfaceSizing.revealScale(from: tiny, to: open), CGSize(width: 0.25, height: 0.1))
-        XCTAssertEqual(SurfaceSizing.revealScale(from: open, to: tiny), CGSize(width: 1, height: 1))
-    }
-
     func testWidgetGridAndMediaPageWidths() {
         XCTAssertEqual(SurfaceSizing.rect(for: .widgetGrid(count: 60, rows: 1), in: notched).width, 900)
         XCTAssertEqual(SurfaceSizing.rect(for: .media, in: notched).width, 48 + SurfaceSizing.mediaPageWidth + 48)
