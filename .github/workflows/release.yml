@@ -1,35 +1,99 @@
-# Builds the DMG on a version tag (for example v0.2.0) and attaches it to a GitHub release.
-# Tag with the same version as MARKETING_VERSION in project.yml.
+# Releases come from main through release-please:
+#   1. Every push to main updates a "chore(main): release x.y.z" PR with the changelog.
+#   2. Merging that PR creates the tag and a draft GitHub release.
+#   3. The build job makes the DMG, the Sparkle zip and appcast.xml, uploads them and
+#      only then publishes the release, so releases/latest never lacks its files.
+# Run it by hand (Actions > Release > Run workflow) with a tag to rebuild a release.
 #
-# Without secrets the DMG is signed ad-hoc, so first launch needs "Open Anyway".
-# To sign and notarise, add these repository secrets:
-#   DEVELOPER_ID_P12           base64 of your "Developer ID Application" certificate (.p12)
-#   DEVELOPER_ID_P12_PASSWORD  the .p12 password
-#   DEVELOPER_ID               the identity name, e.g. "Developer ID Application: Name (TEAMID)"
-#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD   for notarytool (an app-specific password)
+# Secrets (README "Maintainer setup"):
+#   RELEASE_PLEASE_TOKEN     fine-grained PAT, this repo only: Contents, Pull requests and
+#                            Issues read/write. Its PRs run CI, which GITHUB_TOKEN's don't.
+#   WISP_DEV_P12             base64 of the self-signed "Wisp Dev" certificate (.p12)
+#   WISP_DEV_P12_PASSWORD    the .p12 password
+#   SPARKLE_PRIVATE_KEY      the EdDSA key from `generate_keys --account wisp -x`
+# Later, to notarise: DEVELOPER_ID_P12, DEVELOPER_ID_P12_PASSWORD, DEVELOPER_ID,
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD.
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to rebuild, e.g. v0.2.0"
+        required: true
+
+# Two quick merges must never build or publish over each other.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
+env:
+  SPARKLE_VERSION: "2.10.1"
+
 jobs:
-  release:
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+  build:
+    needs: release-please
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.release_created == 'true')
     runs-on: macos-latest
     env:
-      HAS_CERTIFICATE: ${{ secrets.DEVELOPER_ID_P12 != '' }}
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+      HAS_DEVELOPER_ID: ${{ secrets.DEVELOPER_ID_P12 != '' }}
+      HAS_WISP_DEV: ${{ secrets.WISP_DEV_P12 != '' }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
       - name: Use the newest Xcode on the runner
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Make a signing keychain
+        run: |
+          keychain="$RUNNER_TEMP/wisp.keychain-db"
+          password=$(uuidgen)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PASSWORD=$password" >> "$GITHUB_ENV"
+
+      # The same self-signed certificate every release keeps Wisp's designated
+      # requirement stable, so Accessibility and other grants survive updates.
+      - name: Import the Wisp Dev certificate
+        if: env.HAS_WISP_DEV == 'true' && env.HAS_DEVELOPER_ID != 'true'
+        env:
+          P12: ${{ secrets.WISP_DEV_P12 }}
+          P12_PASSWORD: ${{ secrets.WISP_DEV_P12_PASSWORD }}
+        run: |
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          rm "$RUNNER_TEMP/cert.p12"
+
       - name: Import the Developer ID certificate
-        if: env.HAS_CERTIFICATE == 'true'
+        if: env.HAS_DEVELOPER_ID == 'true'
         env:
           P12: ${{ secrets.DEVELOPER_ID_P12 }}
           P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
@@ -37,26 +101,55 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          keychain="$RUNNER_TEMP/wisp.keychain-db"
-          password=$(uuidgen)
           echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "$password" "$keychain"
-          security set-keychain-settings -lut 3600 "$keychain"
-          security unlock-keychain -p "$password" "$keychain"
-          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
-          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           rm "$RUNNER_TEMP/cert.p12"
           xcrun notarytool store-credentials wisp --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_PASSWORD" --keychain "$keychain"
+            --password "$APPLE_APP_PASSWORD" --keychain "$KEYCHAIN"
 
-      - name: Build the DMG
-        env:
-          DEVELOPER_ID: ${{ env.HAS_CERTIFICATE == 'true' && secrets.DEVELOPER_ID || '' }}
-          NOTARY_PROFILE: ${{ env.HAS_CERTIFICATE == 'true' && 'wisp' || '' }}
-        run: scripts/release.sh
+      - name: Fetch Sparkle's signing tools
+        run: |
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          gh release download "$SPARKLE_VERSION" -R sparkle-project/Sparkle -p "Sparkle-$SPARKLE_VERSION.tar.xz" \
+            -D "$RUNNER_TEMP/sparkle"
+          tar -xf "$RUNNER_TEMP/sparkle/Sparkle-$SPARKLE_VERSION.tar.xz" -C "$RUNNER_TEMP/sparkle"
+          echo "SPARKLE_BIN=$RUNNER_TEMP/sparkle/bin" >> "$GITHUB_ENV"
 
-      - name: Publish the release
+      - name: Render the release notes for Sparkle's window
+        run: |
+          gh release view "$TAG" --json body --jq .body > "$RUNNER_TEMP/notes.md"
+          gh api markdown -f text="$(cat "$RUNNER_TEMP/notes.md")" -f mode=gfm -f context="$GITHUB_REPOSITORY" \
+            > "$RUNNER_TEMP/notes.html"
+          echo "WISP_NOTES_HTML=$RUNNER_TEMP/notes.html" >> "$GITHUB_ENV"
+
+      - name: Build the DMG, zip and appcast
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" build/release/*.dmg build/release/*.sha256 --generate-notes
+          DEVELOPER_ID: ${{ env.HAS_DEVELOPER_ID == 'true' && secrets.DEVELOPER_ID || '' }}
+          NOTARY_PROFILE: ${{ env.HAS_DEVELOPER_ID == 'true' && 'wisp' || '' }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          if [ "$HAS_WISP_DEV" != "true" ] && [ "$HAS_DEVELOPER_ID" != "true" ]; then
+            echo "::error::No signing certificate secret. An ad-hoc build would reset permissions on every update."
+            exit 1
+          fi
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "::error::SPARKLE_PRIVATE_KEY is not set, so installed copies could not update."
+            exit 1
+          fi
+          scripts/release.sh
+          version=$(sed -n 's/.*MARKETING_VERSION: *"\{0,1\}\([0-9][^" ]*\)"\{0,1\}.*/\1/p' project.yml | head -1)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::project.yml says $version but the tag is $TAG"
+            exit 1
+          fi
+
+      - name: Upload, then publish
+        run: |
+          gh release upload "$TAG" build/release/*.dmg build/release/*.zip build/release/*.sha256 \
+            build/release/appcast.xml build/release/wisp.rb --clobber
+          gh release edit "$TAG" --draft=false --latest
+
+      - name: Remove the signing keychain
+        if: always()
+        run: security delete-keychain "$KEYCHAIN" || true
