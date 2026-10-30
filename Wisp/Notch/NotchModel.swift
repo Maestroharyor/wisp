@@ -33,7 +33,11 @@ enum ShelfPage: Hashable {
 @MainActor
 @Observable
 final class NotchModel {
-    var phase: NotchPhase = .closed
+    var phase: NotchPhase = .closed {
+        didSet { if phase == .peek, oldValue == .closed { hoverPulses += 1 } }
+    }
+    /// Counts pointer arrivals on the closed notch, to replay the hover wobble.
+    private(set) var hoverPulses = 0
     var layout: NotchLayout
     var speed: AnimationSpeed = .standard
     var framesPerSecond = 60
@@ -98,11 +102,23 @@ final class NotchModel {
                 if case .meetingSoon = activity { return .notification(replying: false) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }
-            return phase == .peek ? .peek : .closed
+            // Only the grow feedback changes the shape; glow and wobble play on the closed one.
+            return phase == .peek && preferences.appearance.hoverFeedback == .grow ? .peek : .closed
         }
     }
 
-    var surfaceRect: CGRect { SurfaceSizing.rect(for: spec, in: layout) }
+    /// The zoom the open shelf's content gets from the shelf size setting.
+    var shelfZoom: CGFloat {
+        let requested = preferences.appearance.shelfSize.scale
+        guard let width = SurfaceSizing.shelfContentWidth(for: spec, in: layout) else { return requested }
+        return SurfaceSizing.shelfScale(contentWidth: width, requested: requested, layout: layout)
+    }
+
+    var surfaceRect: CGRect {
+        let look = preferences.appearance
+        return SurfaceSizing.rect(
+            for: spec, in: layout, contentScale: look.shelfSize.scale, peekStrength: look.hoverStrength)
+    }
 
     /// Extra live activities beside a compact pill. They merge back into the shell while
     /// it opens or shows a card.
@@ -113,7 +129,8 @@ final class NotchModel {
 
     var bubbleRects: [CGRect] {
         SurfaceSizing.bubbleRects(
-            beside: surfaceRect, count: bubbles.count, firstOnLeft: preferences.firstBubbleOnLeft)
+            beside: surfaceRect, count: bubbles.count, firstOnLeft: preferences.firstBubbleOnLeft,
+            placement: layout.placement)
     }
 
     /// The bubble under a click, if any. Bubbles take clicks but don't open the shelf on hover.
@@ -121,8 +138,26 @@ final class NotchModel {
         zip(bubbles, bubbleRects).first { $0.1.insetBy(dx: -3, dy: -3).contains(point) }?.0
     }
 
+    /// The closed shell's rim glow: a beat for music, a slow breath while something works.
+    var glowMode: GlowPulse.Mode {
+        let look = preferences.appearance
+        guard phase != .open, !reduceMotion else { return .off }
+        switch activity {
+        case .media?:
+            if look.musicGlow { return .beat }
+            return look.breathingGlow ? .breathing : .off
+        case .agent(let status)? where status.state == .running:
+            return look.breathingGlow ? .breathing : .off
+        case .timer?:
+            return look.breathingGlow ? .breathing : .off
+        default:
+            return .off
+        }
+    }
+
     var navPillRect: CGRect? {
-        phase == .open && !dragging ? SurfaceSizing.navPillRect(below: surfaceRect) : nil
+        phase == .open && !dragging && preferences.appearance.navPill != .hidden
+            ? SurfaceSizing.navPillRect(for: surfaceRect, placement: layout.placement) : nil
     }
 
     /// Screen areas that count as "on the notch" for hover and clicks.
@@ -143,7 +178,12 @@ final class NotchModel {
     }
 
     var isNotchStyle: Bool { layout.style == .notch }
-    var notchHeight: CGFloat { layout.closedRect.height }
+    /// The shell is drawn as a notch attached to its edge: at the top in notch style, and
+    /// always on the left and right edges.
+    var drawsNotch: Bool { isNotchStyle || layout.edge.isSide }
+    /// Height of a one-line pill (the notch itself on the top edge).
+    var notchHeight: CGFloat { layout.barHeight }
+    var placement: Placement { layout.placement }
 
     var motion: NotchMotion {
         .preset(speed, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)

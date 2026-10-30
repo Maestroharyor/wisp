@@ -29,6 +29,19 @@ final class AppServices {
     let dropActions = DropActionRunner()
     let script = ScriptStore()
     let headphones = HeadphoneMonitor()
+    let sounds: SoundPlayer
+    /// Bumped for each confetti burst; the notch watches it.
+    private(set) var celebrations = 0
+    private(set) var lastCelebration: Date?
+    /// Bumped when a timer or an agent run finishes; the breathing glow flashes once.
+    private(set) var finishes = 0
+    /// The current minute, kept fresh only while something on screen depends on the time.
+    private(set) var clock = Date.now
+    @ObservationIgnored private var clockTask: Task<Void, Never>?
+    /// Each session's last published state. The hub republishes on every hook event, so
+    /// the finish sound and confetti fire only when a session first becomes finished.
+    @ObservationIgnored private var themeObserver: NSObjectProtocol?
+    @ObservationIgnored private var agentStates: [String: AgentSession.State] = [:]
     /// Calls already offered with a Join card, so each is offered once.
     @ObservationIgnored private var offeredMeetings: Set<String> = []
     @ObservationIgnored private var meetingTask: Task<Void, Never>?
@@ -62,6 +75,7 @@ final class AppServices {
         lyrics = LyricsStore(preferences: preferences)
         quickActions = QuickActions(preferences: preferences, shortcuts: shortcuts)
         context = ContextEngine(preferences: preferences)
+        sounds = SoundPlayer(preferences: preferences)
     }
 
     /// Glow and glass tint: the playing album's colour when allowed, otherwise Wisp's violet.
@@ -70,9 +84,49 @@ final class AppServices {
         let theme = ThemeCatalog.palette(
             for: preferences.theme, custom: ThemePalette(accent: preferences.customAccent, glow: preferences.customGlow)
         )
-        guard preferences.wallpaperTint, let sampled = wallpaper.color else { return theme }
-        return ThemePalette(accent: sampled, glow: sampled)
+        guard preferences.wallpaperTint, let sampled = wallpaper.color else { return timeTinted(theme) }
+        return timeTinted(ThemePalette(accent: sampled, glow: sampled))
     }
+
+    private func timeTinted(_ palette: ThemePalette) -> ThemePalette {
+        let mode = preferences.appearance.timeOfDay
+        guard mode != .off else { return palette }
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: clock)
+        let minute = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return ThemePalette(
+            accent: TimeOfDayTint.tint(palette.accent, minuteOfDay: minute, mode: mode, isDark: dark),
+            glow: TimeOfDayTint.tint(palette.glow, minuteOfDay: minute, mode: mode, isDark: dark))
+    }
+
+    /// Confetti from the notch when the look allows it for this moment.
+    func celebrate(_ event: CelebrationEvent) {
+        guard Celebration.shouldFire(event, look: preferences.appearance) else { return }
+        celebrateNow()
+    }
+
+    /// A burst whatever the settings say; also how Settings tries confetti out.
+    func celebrateNow() {
+        celebrations += 1
+        lastCelebration = .now
+    }
+
+    /// What the idle ears can show right now.
+    var earContext: EarContext {
+        let look = preferences.appearance
+        // Skip a call that started over ten minutes ago, so the ear points at the next one.
+        let recent = clock.addingTimeInterval(-10 * 60)
+        let meeting =
+            [look.leftEar, look.rightEar].contains(.meeting)
+            ? calendar.events.first { !$0.isAllDay && $0.start > recent } : nil
+        let weatherText = weather.reading.map { "\(Int($0.temperature.rounded()))°" }
+        return EarContext(
+            now: clock, uses24Hour: Self.uses24Hour, batteryLevel: battery.state?.percent,
+            nextMeeting: meeting?.start, weather: weatherText, customText: look.earText)
+    }
+
+    private static let uses24Hour =
+        !(DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: .current) ?? "").contains("a")
 
     /// Without artwork the album tint is a plain white fallback, which turns the glow grey.
     private var albumTintActive: Bool {
@@ -105,9 +159,17 @@ final class AppServices {
             activities.remove(.agent)
             return
         }
+        let changed = agentStates.updateValue(status.state, forKey: status.sessionID) != status.state
         switch status.state {
         case .running: activities.post(.agent(status), slot: .agent, duration: nil)
-        case .finished, .waiting: activities.post(.agent(status), slot: .agent, duration: 4)
+        case .finished:
+            if changed {
+                finishes += 1
+                sounds.play(.done)
+                celebrate(.agentDone(duration: Date.now.timeIntervalSince(status.started)))
+            }
+            activities.post(.agent(status), slot: .agent, duration: 4)
+        case .waiting: activities.post(.agent(status), slot: .agent, duration: 4)
         case .idle: activities.remove(.agent)
         case .needsApproval: break
         }
@@ -141,6 +203,15 @@ final class AppServices {
     }
 
     func start() {
+        // Light and Dark switches retint the accent now rather than on the next minute.
+        themeObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.preferences.appearance.timeOfDay == .lightDark else { return }
+                self.clock = .now
+            }
+        }
         nowPlaying.onChange = { [weak self] info in self?.mediaChanged(info) }
         nowPlaying.looksUpArtwork = { [weak self] in self?.preferences.artworkLookup ?? false }
         nowPlaying.start()
@@ -168,7 +239,10 @@ final class AppServices {
                 self?.activities.remove(.timer)
             }
         }
-        timers.onFinished = { [weak self] label in
+        timers.onFinished = { [weak self] label, endedFocus in
+            self?.sounds.play(.done, fallback: "Glass")
+            self?.finishes += 1
+            if endedFocus { self?.celebrate(.pomodoroDone) }
             self?.activities.post(.timerDone(label: label), slot: .notice, duration: 5)
         }
 
@@ -189,7 +263,7 @@ final class AppServices {
         }
         agents.onNewRequest = { [weak self] in
             guard self?.preferences.approvalSound == true else { return }
-            NSSound(named: "Tink")?.play()
+            self?.sounds.play(.alert, fallback: "Tink")
             NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         }
         agents.onNotice = { [weak self] text in
@@ -228,19 +302,51 @@ final class AppServices {
     /// wallpaper glow is on, and an idle timer takes a newly chosen default length. Only the
     /// settings are tracked; reading the timer here would undo every +/- in the widget.
     private func syncPreferenceEffects() {
-        let (wallpaperOn, timerLength) = withObservationTracking {
-            (preferences.wallpaperTint, preferences.defaultTimerSeconds)
+        let (wallpaperOn, timerLength, needsClock) = withObservationTracking {
+            let look = preferences.appearance
+            let timeEars = [look.leftEar, look.rightEar].contains { [.time, .date, .meeting, .weather].contains($0) }
+            return (preferences.wallpaperTint, preferences.defaultTimerSeconds, look.timeOfDay != .off || timeEars)
         } onChange: { [weak self] in
             Task { @MainActor in self?.syncPreferenceEffects() }
         }
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
+        if needsClock { startClock() } else { stopClock() }
         if timerLength != appliedTimerLength {
             appliedTimerLength = timerLength
             timers.applyDefaultLength(seconds: timerLength)
         }
     }
 
+    /// Ticks on each minute boundary.
+    private func startClock() {
+        guard clockTask == nil else { return }
+        tickClock()
+        clockTask = Task { [weak self] in
+            while !Task.isCancelled {
+                let second = Calendar.current.component(.second, from: .now)
+                try? await Task.sleep(for: .seconds(60 - second))
+                guard !Task.isCancelled else { return }
+                self?.tickClock()
+            }
+        }
+    }
+
+    /// The weather and meeting ears read stores that otherwise refresh only for their widgets.
+    private func tickClock() {
+        clock = .now
+        let ears = [preferences.appearance.leftEar, preferences.appearance.rightEar]
+        if ears.contains(.weather) { weather.refreshIfStale() }
+        if ears.contains(.meeting) { calendar.refreshIfStale() }
+    }
+
+    private func stopClock() {
+        clockTask?.cancel()
+        clockTask = nil
+    }
+
     func stop() {
+        stopClock()
+        if let themeObserver { DistributedNotificationCenter.default().removeObserver(themeObserver) }
         wallpaper.stop()
         headphones.stop()
         lockScreenPlayer.stop()
@@ -302,6 +408,8 @@ final class AppServices {
     }
 
     private func batteryEvent(_ event: BatteryEvent, _ state: BatteryState) {
+        // Confetti is its own setting, so it doesn't depend on the battery pills.
+        if case .full = event { celebrate(.batteryFull) }
         guard preferences.batteryHUD else { return }
         switch event {
         case .pluggedIn: activities.post(.charging(percent: state.percent), slot: .battery, duration: 3)

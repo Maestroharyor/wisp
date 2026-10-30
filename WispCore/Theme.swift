@@ -64,12 +64,13 @@ public enum ThemeCatalog {
     private static func rgb(_ hex: String) -> RGB { RGB(hex: hex) ?? .white }
 
     public static let violet = rgb("#7A6BFF")
+    public static let teal = rgb("#2EC4B6")
 
     public static func palette(for id: ThemeID, custom: ThemePalette) -> ThemePalette {
         switch id {
         case .violet: ThemePalette(accent: violet, glow: violet)
         case .midnight: ThemePalette(accent: rgb("#4C7DFF"), glow: rgb("#2541B2"))
-        case .aurora: ThemePalette(accent: violet, glow: rgb("#2EC4B6"))
+        case .aurora: ThemePalette(accent: violet, glow: teal)
         case .ember: ThemePalette(accent: rgb("#FF7A45"), glow: rgb("#FF3D7F"))
         case .mono: ThemePalette(accent: rgb("#D9D9DE"), glow: rgb("#8E8E99"))
         case .custom: custom

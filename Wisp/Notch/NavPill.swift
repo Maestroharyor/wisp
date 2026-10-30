@@ -5,6 +5,36 @@ struct NavPill: View {
     let model: NotchModel
 
     var body: some View {
+        if model.preferences.appearance.navPill == .dots { dots } else { tabs }
+    }
+
+    private var pages: [(ShelfPage, String)] {
+        [(.home, "Home"), (.tray, "Tray"), (.media, "Media"), (.widgets, "Widgets")]
+    }
+
+    /// Four small dots in a slim capsule, for a quieter shelf.
+    private var dots: some View {
+        HStack(spacing: 2) {
+            ForEach(pages, id: \.0) { page, name in
+                Button {
+                    model.page = page
+                } label: {
+                    Circle()
+                        .fill(model.page == page ? model.accent : .white.opacity(0.35))
+                        .frame(width: 7, height: 7)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(name)
+            }
+        }
+        .padding(.horizontal, 6)
+        .background(Capsule().fill(Color(white: 0.2).opacity(0.92)))
+        .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
+    }
+
+    private var tabs: some View {
         HStack(spacing: 4) {
             tab("house.fill", selected: model.page == .home) { model.page = .home }
             tab("tray.fill", selected: model.page == .tray, badge: model.services.tray.count) { model.page = .tray }

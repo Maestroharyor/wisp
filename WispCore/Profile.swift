@@ -9,14 +9,17 @@ public struct Profile: Codable, Equatable, Identifiable, Sendable {
     public var defaultPage: String
     /// A `SurfaceStyle` raw value.
     public var surface: String
+    /// A saved look's name, applied with the profile; nil keeps the current look.
+    public var look: String?
 
     public var id: String { name }
 
-    public init(name: String, home: HomeLayout, defaultPage: String, surface: String) {
+    public init(name: String, home: HomeLayout, defaultPage: String, surface: String, look: String? = nil) {
         self.name = name
         self.home = home
         self.defaultPage = defaultPage
         self.surface = surface
+        self.look = look
     }
 
     public static let builtIns: [Profile] = [

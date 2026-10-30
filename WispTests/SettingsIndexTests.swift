@@ -9,7 +9,7 @@ final class SettingsIndexTests: XCTestCase {
     }
 
     func testKeywordsFindTheirPane() {
-        XCTAssertEqual(SettingsIndex.panes(matching: "glass"), [.notch])
+        XCTAssertEqual(SettingsIndex.panes(matching: "glass"), [.appearance])
         XCTAssertEqual(SettingsIndex.panes(matching: "claude"), [.agents])
         XCTAssertEqual(SettingsIndex.panes(matching: "pocket"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "lyrics"), [.activities])
@@ -20,7 +20,7 @@ final class SettingsIndexTests: XCTestCase {
 
     func testTitlesMatchCaseAndAccentInsensitively() {
         XCTAssertEqual(SettingsIndex.panes(matching: "CLIPBOARD").first, .clipboard)
-        XCTAssertTrue(SettingsIndex.panes(matching: "notch & look").contains(.notch))
+        XCTAssertTrue(SettingsIndex.panes(matching: "notch").contains(.notch))
         XCTAssertEqual(SettingsIndex.panes(matching: "wídgets").first, .widgets)
     }
 
@@ -56,9 +56,17 @@ final class SetupHealthTests: XCTestCase {
     }
 
     func testFindsTheNewAppearanceAndHUDOptions() {
-        XCTAssertEqual(SettingsIndex.panes(matching: "theme").first, .notch)
-        XCTAssertEqual(SettingsIndex.panes(matching: "wallpaper").first, .notch)
+        XCTAssertEqual(SettingsIndex.panes(matching: "theme").first, .appearance)
+        XCTAssertEqual(SettingsIndex.panes(matching: "wallpaper").first, .appearance)
+        XCTAssertEqual(SettingsIndex.panes(matching: "confetti").first, .appearance)
+        XCTAssertEqual(SettingsIndex.panes(matching: "sound pack").first, .appearance)
+        XCTAssertEqual(SettingsIndex.panes(matching: "pet").first, .appearance)
+        XCTAssertEqual(SettingsIndex.panes(matching: "preset").first, .appearance)
+        XCTAssertEqual(SettingsIndex.panes(matching: "roundness").first, .appearance)
+        XCTAssertEqual(SettingsIndex.panes(matching: "look").first, .appearance)
         XCTAssertEqual(SettingsIndex.panes(matching: "swipe").first, .notch)
+        XCTAssertEqual(SettingsIndex.panes(matching: "position").first, .notch)
+        XCTAssertEqual(SettingsIndex.panes(matching: "bottom").first, .notch)
         XCTAssertEqual(SettingsIndex.panes(matching: "volume steps").first, .activities)
         XCTAssertEqual(SettingsIndex.panes(matching: "menu bar").first, .general)
         XCTAssertTrue(SettingsIndex.panes(matching: "timer length").contains(.widgets))

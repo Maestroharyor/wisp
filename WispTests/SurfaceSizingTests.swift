@@ -86,7 +86,7 @@ final class SurfaceSizingTests: XCTestCase {
 
     func testNavPillHangsBelowTheSurface() {
         let surface = SurfaceSizing.rect(for: .home(contentWidth: 180, editing: false), in: notched)
-        let pill = SurfaceSizing.navPillRect(below: surface)
+        let pill = SurfaceSizing.navPillRect(for: surface)
         XCTAssertEqual(pill.maxY, surface.minY - SurfaceSizing.navPillGap)
         XCTAssertEqual(pill.midX, surface.midX)
     }
@@ -136,5 +136,56 @@ final class SurfaceSizingTests: XCTestCase {
         let six = SurfaceSizing.rect(for: .dropTiles(extra: 2), in: notched).width
         XCTAssertEqual(six - four, 2 * (SurfaceSizing.tileSize + SurfaceSizing.tileSpacing))
         XCTAssertEqual(SurfaceSizing.rect(for: .dropTiles(extra: 9), in: notched).width, six)
+    }
+}
+
+final class ShelfSizeTests: XCTestCase {
+    private let layout = NotchGeometry.layout(
+        for: ScreenMetrics(
+            frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1512, height: 944),
+            safeAreaTop: 38,
+            auxiliaryTopLeft: CGRect(x: 0, y: 944, width: 692, height: 38),
+            auxiliaryTopRight: CGRect(x: 820, y: 944, width: 692, height: 38)))
+
+    func testRoomyGrowsAndCompactShrinksTheShelf() {
+        let spec = SurfaceSpec.media
+        let standard = SurfaceSizing.rect(for: spec, in: layout)
+        let roomy = SurfaceSizing.rect(for: spec, in: layout, contentScale: ShelfSize.roomy.scale)
+        let compact = SurfaceSizing.rect(for: spec, in: layout, contentScale: ShelfSize.compact.scale)
+        XCTAssertGreaterThan(roomy.width, standard.width)
+        XCTAssertGreaterThan(roomy.height, standard.height)
+        XCTAssertLessThan(compact.height, standard.height)
+        XCTAssertEqual(roomy.maxY, standard.maxY, accuracy: 0.5)
+    }
+
+    func testRoomyStopsGrowingAtTheWidestShelf() {
+        let wide = SurfaceSpec.home(contentWidth: 820, editing: false)
+        XCTAssertEqual(SurfaceSizing.shelfScale(contentWidth: 820, requested: 1.12, layout: layout), 1)
+        XCTAssertEqual(SurfaceSizing.shelfScale(contentWidth: 400, requested: 1.12, layout: layout), 1.12)
+        XCTAssertEqual(SurfaceSizing.shelfScale(contentWidth: 820, requested: 0.9, layout: layout), 0.9)
+        XCTAssertEqual(
+            SurfaceSizing.rect(for: wide, in: layout, contentScale: 1.12), SurfaceSizing.rect(for: wide, in: layout))
+        XCTAssertEqual(SurfaceSizing.shelfContentWidth(for: .media, in: layout), SurfaceSizing.mediaPageWidth)
+        XCTAssertNil(SurfaceSizing.shelfContentWidth(for: .closed, in: layout))
+    }
+
+    func testPeekStrengthScalesTheGrowth() {
+        let closed = layout.closedRect
+        let none = SurfaceSizing.rect(for: .peek, in: layout, peekStrength: 0)
+        let normal = SurfaceSizing.rect(for: .peek, in: layout)
+        let strong = SurfaceSizing.rect(for: .peek, in: layout, peekStrength: 2)
+        XCTAssertEqual(none.size, closed.size)
+        XCTAssertEqual(normal, layout.peekRect)
+        XCTAssertEqual(strong.width - closed.width, (normal.width - closed.width) * 2, accuracy: 0.01)
+        XCTAssertEqual(SurfaceSizing.rect(for: .peek, in: layout, peekStrength: 9), strong)
+    }
+
+    func testPillsKeepTheirSize() {
+        for spec in [SurfaceSpec.closed, .compact(wide: false), .medium, .notification(replying: false)] {
+            XCTAssertEqual(
+                SurfaceSizing.rect(for: spec, in: layout, contentScale: 1.12), SurfaceSizing.rect(for: spec, in: layout)
+            )
+        }
     }
 }

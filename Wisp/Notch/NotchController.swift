@@ -98,9 +98,9 @@ final class NotchController {
             services.activities.pin(bubble.slot)
             return
         }
-        // The right wing of the meeting pill mutes the microphone.
-        if machine.phase != .open, case .meeting = model.activity, model.contains(location),
-            location.x > model.surfaceRect.maxX - 56
+        // The mic end of the meeting pill mutes the microphone.
+        if machine.phase != .open, case .meeting = model.activity,
+            SurfaceSizing.meetingMuteZone(in: model.surfaceRect, placement: layout.placement).contains(location)
         {
             services.microphone.toggleMute()
             return
@@ -122,10 +122,15 @@ final class NotchController {
         guard machine.phase != .open, model.contains(location),
             let direction = swipe.add(dx: scroll.dx, dy: scroll.dy)
         else { return }
-        switch direction {
-        case .down: send(.clicked)
-        case .left where model.activity == .media: services.nowPlaying.previous()
-        case .right where model.activity == .media: services.nowPlaying.next()
+        if direction == layout.placement.openingSwipe {
+            send(.clicked)
+            return
+        }
+        guard model.activity == .media else { return }
+        // Skipping runs along the edge: sideways on top and bottom, up and down on the sides.
+        switch (layout.edge.isSide, direction) {
+        case (false, .left), (true, .up): services.nowPlaying.previous()
+        case (false, .right), (true, .down): services.nowPlaying.next()
         default: break
         }
     }
@@ -135,6 +140,7 @@ final class NotchController {
         NotchMenu.show(
             at: location,
             customiseHome: { [weak self] in self?.customiseHome() },
+            openPage: { [weak self] page in self?.open(page: page) },
             services: services
         )
     }
@@ -304,7 +310,11 @@ final class NotchController {
         // Click-through while closed, so the menu bar under the panel keeps working.
         updateClickThrough()
 
-        if !wasOpen, machine.phase == .open { services.tray.pruneMissing() }
+        if !wasOpen, machine.phase == .open {
+            services.tray.pruneMissing()
+            services.sounds.play(.open)
+        }
+        if wasOpen, machine.phase != .open { services.sounds.play(.close) }
         if machine.phase == .open, machine.pinned {
             // Keyboard-opened: take key status (without activating the app) so Esc reaches us.
             panel.makeKey()

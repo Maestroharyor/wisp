@@ -88,7 +88,8 @@ final class NotchCoordinator {
                 showOnExternal: preferences.showOnExternalDisplays, externalIsland: preferences.externalStyle == .island
             )
             if style == .hidden { continue }
-            let layout = NotchGeometry.layout(for: metrics, prefersIsland: style == .island)
+            let layout = NotchGeometry.layout(
+                for: metrics, prefersIsland: style == .island, placement: preferences.placement(for: uuid))
             current.insert(uuid)
             log.notice(
                 "display \(uuid, privacy: .public) style=\(String(describing: layout.style), privacy: .public) closed=\(String(describing: layout.closedRect), privacy: .public) panel=\(String(describing: layout.panelFrame), privacy: .public)"
@@ -191,6 +192,8 @@ final class NotchCoordinator {
             _ = preferences.showOnExternalDisplays
             _ = preferences.externalStyle
             _ = preferences.displayStyles
+            _ = preferences.placement
+            _ = preferences.displayPlacements
             _ = preferences.activityDisplay
         } onChange: { [weak self] in
             Task { @MainActor in

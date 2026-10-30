@@ -25,6 +25,7 @@ struct ShelfContent: View {
             }
         }
         .animation(model.surfaceAnimation, value: model.page)
+        .modifier(ShelfZoom(scale: model.shelfZoom))
         .padding(EdgeInsets(top: insets.top, leading: insets.leading, bottom: insets.bottom, trailing: insets.trailing))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .bottom) {
@@ -38,6 +39,25 @@ struct ShelfContent: View {
         }
         .animation(model.surfaceAnimation, value: model.services.agents.approvals.first?.id)
         .foregroundStyle(.white)
+    }
+}
+
+/// The shelf size setting: lays the pages out at their usual size, then zooms them to
+/// fill the larger or smaller shelf.
+private struct ShelfZoom: ViewModifier {
+    let scale: CGFloat
+
+    func body(content: Content) -> some View {
+        if scale == 1 {
+            content
+        } else {
+            GeometryReader { proxy in
+                content
+                    .frame(width: proxy.size.width / scale, height: proxy.size.height / scale, alignment: .top)
+                    .scaleEffect(scale, anchor: .top)
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+            }
+        }
     }
 }
 

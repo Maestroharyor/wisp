@@ -4,6 +4,7 @@ import Foundation
 public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     case general
     case notch
+    case appearance
     case activities
     case widgets
     case profiles
@@ -18,7 +19,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     public var title: String {
         switch self {
         case .general: "General"
-        case .notch: "Notch & Look"
+        case .notch: "Notch"
+        case .appearance: "Appearance"
         case .activities: "Live Activities"
         case .widgets: "Widgets"
         case .profiles: "Profiles"
@@ -33,7 +35,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     public var subtitle: String {
         switch self {
         case .general: "Shortcuts, startup and setup"
-        case .notch: "How the notch opens and what it looks like"
+        case .notch: "Where the notch sits and how it opens"
+        case .appearance: "Theme, shape, motion and the fun extras"
         case .activities: "What shows beside the notch while it's closed"
         case .widgets: "The widgets on Home and the Widgets page"
         case .profiles: "Saved setups, and switching them automatically"
@@ -55,11 +58,19 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .notch:
             [
-                "hover", "click", "open", "delay", "stay open", "auto close", "glass", "surface", "tinted", "black",
-                "accent", "album", "theme", "colour", "color", "gradient", "aurora", "midnight", "ember", "mono",
-                "wallpaper", "desktop picture", "outline", "swipe", "gesture", "trackpad", "hidden", "drop actions",
-                "command", "script",
-                "animation", "speed", "island", "external", "display", "pocket", "drag", "shake",
+                "hover", "click", "open", "delay", "stay open", "auto close", "swipe", "gesture", "trackpad",
+                "hidden", "drop actions", "command", "script", "island", "external", "display", "pocket", "drag",
+                "shake", "position", "placement", "bottom", "left", "right", "corner", "edge", "side", "dock",
+            ]
+        case .appearance:
+            [
+                "look", "theme", "glass", "surface", "tinted", "black", "accent", "album", "colour", "color",
+                "gradient", "aurora", "midnight", "ember", "mono", "wallpaper", "desktop picture", "outline",
+                "animation", "speed", "preset", "mood", "calm", "arcade", "minimal", "neon", "roundness", "radius",
+                "corners", "shadow", "opacity", "transparent", "size", "compact", "roomy", "glow", "grain",
+                "shimmer", "nav", "pill", "dots", "font", "type", "hover", "wobble", "ears", "idle", "time",
+                "date", "breathing", "music glow", "beat", "sunset", "night", "light", "dark", "sound", "sound pack",
+                "confetti", "celebrate", "pet", "sprite", "import", "export", "share", "reset",
             ]
         case .activities:
             [
@@ -104,7 +115,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
 
     public var panes: [SettingsPaneID] {
         switch self {
-        case .wisp: [.general, .notch, .activities]
+        case .wisp: [.general, .notch, .appearance, .activities]
         case .shelf: [.widgets, .profiles, .clipboard]
         case .connections: [.notifications, .agents]
         case .system: [.permissions, .about]

@@ -55,6 +55,10 @@ public enum ActivityMetrics {
     public static let progressRingSize: CGFloat = 20
     public static let progressRingLineWidth: CGFloat = 2
     public static let controlSize: CGFloat = 24
+    /// An upright pill on a left or right edge: an icon above a short value.
+    public static let sidePillSize = CGSize(width: 50, height: 88)
+    /// Room for longer values (an hour-long timer, a meeting) on a side edge.
+    public static let interactiveSidePillSize = CGSize(width: 58, height: 96)
 
     /// Horizontal padding that centres an icon vertically in the wing.
     public static func symmetricPadding(iconSize: CGFloat, notchHeight: CGFloat, notchStyle: Bool) -> CGFloat {

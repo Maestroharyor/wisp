@@ -114,6 +114,7 @@ struct SettingsView: View {
         case .notch:
             NotchSettings(
                 preferences: preferences, accent: services.accent, glow: services.glow, shortcuts: services.shortcuts)
+        case .appearance: AppearanceSettings(preferences: preferences, services: services)
         case .activities: ActivitySettings(preferences: preferences)
         case .widgets: WidgetSettings(preferences: preferences, shortcuts: services.shortcuts)
         case .profiles: ProfileSettings(preferences: preferences, context: services.context)

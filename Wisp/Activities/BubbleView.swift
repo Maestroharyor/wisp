@@ -11,8 +11,8 @@ struct BubbleLayer: View {
     @State private var split = Sides(right: 0, left: 0)
     /// What each side last showed, kept while it merges back after the activity ended.
     @State private var shown: [ActivityBubble?] = [nil, nil]
-    /// The compact pill the bubbles hang off, kept while the shell opens so they merge
-    /// into where the pill was rather than jumping to the shelf's edge.
+    /// The compact pill the bubbles hang off (global coordinates), kept while the shell opens
+    /// so they merge into where the pill was rather than jumping to the shelf's edge.
     @State private var pill: CGRect = .zero
 
     var body: some View {
@@ -28,7 +28,7 @@ struct BubbleLayer: View {
 
     private func sync(animated: Bool) {
         let bubbles = model.bubbles
-        if !bubbles.isEmpty { pill = model.local(model.surfaceRect) }
+        if !bubbles.isEmpty { pill = model.surfaceRect }
         let target = Sides(right: bubbles.count > 0 ? 1 : 0, left: bubbles.count > 1 ? 1 : 0)
         // A bubble showing something else (a swap with the pill) merges back in first,
         // then splits out again with its new glyph.
@@ -94,8 +94,11 @@ private struct GooBubbles: View, Animatable {
     }
 
     var body: some View {
-        let first: CGFloat = firstOnLeft ? -1 : 1
-        let drops = [drop(side: first, progress: split.right), drop(side: -first, progress: split.left)]
+        let local = model.local(pill)
+        let rests = SurfaceSizing.bubbleRects(
+            beside: pill, count: 2, firstOnLeft: firstOnLeft, placement: model.placement
+        ).map(model.local)
+        let drops = zip(rests, [split.right, split.left]).map { drop(pill: local, rest: $0.0, progress: $0.1) }
         ZStack(alignment: .topLeading) {
             if !reduceMotion {
                 goo(drops)
@@ -109,7 +112,7 @@ private struct GooBubbles: View, Animatable {
                         .shadow(color: .black.opacity(0.5 * drop.progress), radius: 6, y: 2)
                         .overlay {
                             if let bubble = bubbles[index] {
-                                BubbleGlyph(bubble: bubble, size: pill.height, model: model)
+                                BubbleGlyph(bubble: bubble, size: min(local.width, local.height), model: model)
                                     .opacity(max(0, (drop.progress - 0.6) / 0.4))
                                     .blur(radius: 4 * (1 - min(drop.progress, 1)))
                             }
@@ -149,18 +152,24 @@ private struct GooBubbles: View, Animatable {
         let stub: CGRect
     }
 
-    /// `side` is 1 for the right bubble and -1 for the left.
-    private func drop(side: CGFloat, progress: Double) -> Drop {
-        let size = pill.height
+    /// A bubble travelling from inside the pill's nearest end (`pill` and `rest` in panel
+    /// coordinates) out to its resting place.
+    private func drop(pill: CGRect, rest: CGRect, progress: Double) -> Drop {
+        // As thick as the pill, so side-edge bubbles match the upright pill's width.
+        let size = min(pill.width, pill.height)
         let radius = size / 2
-        let edge = side > 0 ? pill.maxX : pill.minX
-        let rest = edge + side * (SurfaceSizing.bubbleGap + radius)
-        let tucked = edge - side * radius
+        let target = CGPoint(x: rest.midX, y: rest.midY)
+        let tucked = CGPoint(
+            x: min(max(target.x, pill.minX + radius), pill.maxX - radius),
+            y: min(max(target.y, pill.minY + radius), pill.maxY - radius))
         let amount = CGFloat(progress)
-        let x = reduceMotion ? rest : tucked + (rest - tucked) * amount
-        let stub = CGRect(x: side > 0 ? pill.maxX - size : pill.minX, y: pill.minY, width: size, height: size)
+        let center =
+            reduceMotion
+            ? target
+            : CGPoint(x: tucked.x + (target.x - tucked.x) * amount, y: tucked.y + (target.y - tucked.y) * amount)
+        let stub = CGRect(x: tucked.x - radius, y: tucked.y - radius, width: size, height: size)
         return Drop(
-            center: CGPoint(x: x, y: pill.midY),
+            center: center,
             radius: radius * (reduceMotion ? 1 : 0.55 + 0.45 * min(amount, 1)),
             progress: progress,
             stub: stub)

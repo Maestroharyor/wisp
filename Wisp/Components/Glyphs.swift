@@ -99,10 +99,11 @@ struct ValueText: View {
     let text: String
     var tint: Color = .white
     var size: CGFloat = 12
+    @Environment(\.valueFont) private var valueFont
 
     var body: some View {
         Text(text)
-            .font(.system(size: size, weight: .semibold, design: .rounded))
+            .font(.system(size: size, weight: .semibold, design: valueFont.design))
             .monospacedDigit()
             .foregroundStyle(tint)
             .lineLimit(1)
@@ -141,4 +142,20 @@ extension ShapeStyle where Self == Color {
     static var wispAmber: Color { Color(red: 1, green: 0.72, blue: 0.2) }
     static var wispGreen: Color { Color(red: 0.3, green: 0.85, blue: 0.4) }
     static var secondaryText: Color { Color.white.opacity(0.55) }
+}
+
+extension EnvironmentValues {
+    /// The type chosen in Settings › Appearance for countdowns, percentages and clocks.
+    @Entry var valueFont: ValueFont = .rounded
+}
+
+extension ValueFont {
+    var design: Font.Design {
+        switch self {
+        case .system: .default
+        case .rounded: .rounded
+        case .monospaced: .monospaced
+        case .serif: .serif
+        }
+    }
 }

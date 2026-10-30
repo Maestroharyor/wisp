@@ -25,7 +25,8 @@ final class TimerStore {
     }
 
     @ObservationIgnored var onActivity: (Activity?) -> Void = { _ in }
-    @ObservationIgnored var onFinished: (String) -> Void = { _ in }
+    /// A timer ran out: its label, and whether it ended a Pomodoro focus session.
+    @ObservationIgnored var onFinished: (String, Bool) -> Void = { _, _ in }
     @ObservationIgnored private var tickTask: Task<Void, Never>?
 
     init() {
@@ -102,19 +103,14 @@ final class TimerStore {
         let now = Date.now
         if timer.isRunning, timer.isFinished(now: now) {
             timer.reset()
-            finish("Timer")
+            onFinished("Timer", false)
         }
         if pomodoro.isRunning, pomodoro.isFinished(now: now) {
             let finished = phase
             setPhase(finished == .focus ? .rest : .focus)
-            finish(finished == .focus ? "Focus done" : "Break over")
+            onFinished(finished == .focus ? "Focus done" : "Break over", finished == .focus)
         }
         update()
-    }
-
-    private func finish(_ label: String) {
-        NSSound(named: "Glass")?.play()
-        onFinished(label)
     }
 
     private func minutes(_ value: Int) -> TimeInterval { TimeInterval(value * 60) }

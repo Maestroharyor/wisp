@@ -16,6 +16,15 @@ struct NotchSettings: View {
             Section {
                 NotchPreview(preferences: preferences, accent: accent, glow: glow)
             }
+            Section("Position") {
+                Picker("Sit at", selection: $preferences.placement) {
+                    ForEach(Placement.allCases) { Text($0.title).tag($0) }
+                }
+                Text(
+                    "Top uses the notch. The left and right edges get a notch on its side. The corners and the bottom float an island below the menu bar or above the Dock. The shelf grows out from wherever it sits."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Opening") {
                 Picker("Open the shelf on", selection: $preferences.openTrigger) {
                     ForEach(OpenTrigger.allCases) { Text($0.title).tag($0) }
@@ -43,42 +52,8 @@ struct NotchSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
                 }
                 Toggle("Trackpad swipes on the notch", isOn: $preferences.swipeGestures)
-                Text("Two fingers down on the closed notch opens the shelf. Sideways on the music pill skips tracks.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Theme") {
-                ThemePicker(preferences: preferences)
-                if preferences.theme == .custom {
-                    ColorPicker("Accent", selection: $preferences.customAccent.color, supportsOpacity: false)
-                    ColorPicker("Glow", selection: $preferences.customGlow.color, supportsOpacity: false)
-                }
-                Toggle("Match the desktop picture", isOn: $preferences.wallpaperTint)
-                Toggle("Outline the open shelf", isOn: $preferences.shellOutline)
                 Text(
-                    "The accent marks selection and progress. The glow shows on the Tinted surface and runs from the accent to the glow colour."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Look") {
-                Picker("Animation", selection: $preferences.animationSpeed) {
-                    ForEach(AnimationSpeed.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                Picker("Surface", selection: $preferences.surfaceStyle) {
-                    ForEach(SurfaceStyle.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                if preferences.surfaceStyle == .black {
-                    Picker("Glass edge", selection: $preferences.glassEdge) {
-                        ForEach(GlassEdge.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                if preferences.surfaceStyle != .black {
-                    Toggle("Tint with the playing album's colour", isOn: $preferences.adaptiveAccent)
-                }
-                Text(
-                    "Glass uses Liquid Glass and shows the wallpaper through the open shelf. Tinted keeps black with a soft colour glow. The closed notch always stays black."
+                    "Two fingers away from the edge on the closed notch opens the shelf. Along the edge on the music pill skips tracks."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -111,10 +86,17 @@ struct NotchSettings: View {
                             }
                             Text("Hidden").tag(DisplayStyle.hidden)
                         }
+                        Picker("Position", selection: placementOverride(uuid)) {
+                            Text("Default (\(preferences.placement.title))").tag(Placement?.none)
+                            ForEach(Placement.allCases) { Text($0.title).tag(Placement?.some($0)) }
+                        }
+                        .padding(.leading, 16)
                     }
                 }
-                Text("Automatic follows the settings above. Choices are remembered per display.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(
+                    "Automatic follows the settings above. Notch and island apply at the top. Choices are remembered per display."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -122,6 +104,12 @@ struct NotchSettings: View {
             _ in
             screens = NSScreen.screens
         }
+    }
+
+    private func placementOverride(_ uuid: String) -> Binding<Placement?> {
+        Binding(
+            get: { preferences.placementOverride(for: uuid) },
+            set: { preferences.setPlacementOverride($0, for: uuid) })
     }
 
     private func displayStyle(_ uuid: String) -> Binding<DisplayStyle> {

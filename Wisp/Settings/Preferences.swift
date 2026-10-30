@@ -11,14 +11,17 @@ enum OpenTrigger: String, CaseIterable, Identifiable {
     var title: String { self == .hover ? "Hover" : "Click" }
 }
 
-/// Overall speed of the notch morph.
-enum AnimationSpeed: String, CaseIterable, Identifiable {
-    case relaxed
-    case standard
-    case fast
-
-    var id: Self { self }
-    var title: String { rawValue.capitalized }
+extension Placement {
+    var title: String {
+        switch self {
+        case .top: "Top"
+        case .topLeft: "Top left"
+        case .topRight: "Top right"
+        case .bottom: "Bottom"
+        case .left: "Left edge"
+        case .right: "Right edge"
+        }
+    }
 }
 
 /// Shape on displays without a camera housing.
@@ -59,35 +62,6 @@ enum PocketTrigger: String, CaseIterable, Identifiable {
         case .shake: "When I shake a file"
         case .dragStart: "As soon as I drag a file"
         case .off: "Never"
-        }
-    }
-}
-
-/// What the open surface is made of. The closed notch is always black so it
-/// blends with the camera housing.
-enum SurfaceStyle: String, CaseIterable, Identifiable {
-    case black
-    case glass
-    case tinted
-
-    var id: Self { self }
-    var title: String { rawValue.capitalized }
-}
-
-/// Translucent fade at the bottom edge of the open surface.
-enum GlassEdge: String, CaseIterable, Identifiable {
-    case off
-    case subtle
-    case strong
-
-    var id: Self { self }
-    var title: String { rawValue.capitalized }
-    /// Opacity of black left at the very bottom edge.
-    var bottomOpacity: Double {
-        switch self {
-        case .off: 1
-        case .subtle: 0.72
-        case .strong: 0.45
         }
     }
 }
@@ -224,6 +198,8 @@ final class Preferences {
         static let showMenuBarIcon = "showMenuBarIcon"
         static let swipeGestures = "swipeGestures"
         static let displayStyles = "displayStyles"
+        static let placement = "placement"
+        static let displayPlacements = "displayPlacements"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let activityDisplay = "activityDisplay"
         static let clipboardEnabled = "clipboardEnabled"
@@ -250,6 +226,8 @@ final class Preferences {
         static let workdayStart = "workdayStart"
         static let workdayEnd = "workdayEnd"
         static let worldClockZones = "worldClockZones"
+        static let appearance = "appearance"
+        static let lookPresets = "lookPresets"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -275,19 +253,34 @@ final class Preferences {
     /// the shortcut.
     var shelfClosing: ShelfClosing { didSet { defaults.set(shelfClosing.rawValue, forKey: Key.shelfClosing) } }
 
+    /// Every look setting; saved as one JSON value.
+    var appearance: Appearance {
+        didSet { defaults.set(try? JSONEncoder().encode(appearance), forKey: Key.appearance) }
+    }
+
+    /// Looks saved under a name in Settings › Appearance.
+    var lookPresets: [AppearancePreset] {
+        didSet { defaults.set(try? JSONEncoder().encode(lookPresets), forKey: Key.lookPresets) }
+    }
+
     var animationSpeed: AnimationSpeed {
-        didSet { defaults.set(animationSpeed.rawValue, forKey: Key.animationSpeed) }
+        get { appearance.animationSpeed }
+        set { appearance.animationSpeed = newValue }
     }
 
     var externalStyle: ExternalStyle {
         didSet { defaults.set(externalStyle.rawValue, forKey: Key.externalStyle) }
     }
 
-    var glassEdge: GlassEdge { didSet { defaults.set(glassEdge.rawValue, forKey: Key.glassEdge) } }
+    var glassEdge: GlassEdge {
+        get { appearance.glassEdge }
+        set { appearance.glassEdge = newValue }
+    }
     var surfaceStyle: SurfaceStyle {
-        didSet {
-            defaults.set(surfaceStyle.rawValue, forKey: Key.surfaceStyle)
-            updateActiveProfile { $0.surface = surfaceStyle.rawValue }
+        get { appearance.surface }
+        set {
+            appearance.surface = newValue
+            updateActiveProfile { $0.surface = newValue.rawValue }
         }
     }
 
@@ -352,7 +345,53 @@ final class Preferences {
     /// keeps the current Home. Used by automatic switches.
     func applySurface(_ profile: Profile) {
         activeProfile = profile.name
-        surfaceStyle = SurfaceStyle(rawValue: profile.surface) ?? surfaceStyle
+        if let name = profile.look, let preset = lookPreset(named: name) {
+            if lookBeforeProfile == nil { lookBeforeProfile = appearance }
+            appearance = preset.appearance
+        } else {
+            if let earlier = lookBeforeProfile {
+                appearance = earlier
+                lookBeforeProfile = nil
+            }
+            surfaceStyle = SurfaceStyle(rawValue: profile.surface) ?? surfaceStyle
+        }
+    }
+
+    /// The look in use before a profile applied its own, put back by the next profile
+    /// that has none.
+    @ObservationIgnored private var lookBeforeProfile: Appearance?
+
+    // MARK: Looks
+
+    /// Wisp's looks, then the saved ones.
+    var allLookPresets: [AppearancePreset] { AppearancePreset.builtIns + lookPresets }
+
+    func lookPreset(named name: String) -> AppearancePreset? { allLookPresets.first { $0.name == name } }
+
+    /// Saves the current look under a name and returns the name used.
+    @discardableResult
+    func saveLook(named name: String) -> String {
+        let unique = AppearancePreset.uniqueName(name, existing: lookPresets.map(\.name))
+        lookPresets.append(AppearancePreset(name: unique, appearance: appearance))
+        return unique
+    }
+
+    /// Adds an imported look, renaming it if the name is taken.
+    @discardableResult
+    func addLook(_ file: LookFile) -> String {
+        let unique = AppearancePreset.uniqueName(file.name, existing: lookPresets.map(\.name))
+        lookPresets.append(AppearancePreset(name: unique, appearance: file.appearance))
+        return unique
+    }
+
+    func deleteLook(named name: String) {
+        lookPresets.removeAll { $0.name == name }
+        for index in profiles.indices where profiles[index].look == name { profiles[index].look = nil }
+    }
+
+    func setLook(_ name: String?, forProfile profileName: String) {
+        guard let index = profiles.firstIndex(where: { $0.name == profileName }) else { return }
+        profiles[index].look = name
     }
 
     /// Saves the current Home and surface as a new profile and makes it active.
@@ -384,7 +423,10 @@ final class Preferences {
     }
     /// Tint the glow and glass with the playing album's colour. Off by default: the
     /// surface stays Wisp violet, the brand colour.
-    var adaptiveAccent: Bool { didSet { defaults.set(adaptiveAccent, forKey: Key.adaptiveAccent) } }
+    var adaptiveAccent: Bool {
+        get { appearance.adaptiveAccent }
+        set { appearance.adaptiveAccent = newValue }
+    }
 
     /// Up to four widgets on Home, with sizes and order.
     var homeLayout: HomeLayout {
@@ -513,14 +555,24 @@ final class Preferences {
 
     // MARK: Appearance
 
-    var theme: ThemeID { didSet { defaults.set(theme.rawValue, forKey: Key.theme) } }
+    var theme: ThemeID {
+        get { appearance.theme }
+        set { appearance.theme = newValue }
+    }
     /// Colours for the Custom theme.
-    var customAccent: RGB { didSet { defaults.set(customAccent.hex, forKey: Key.customAccent) } }
-    var customGlow: RGB { didSet { defaults.set(customGlow.hex, forKey: Key.customGlow) } }
+    var customAccent: RGB {
+        get { appearance.customAccent }
+        set { appearance.customAccent = newValue }
+    }
+    var customGlow: RGB {
+        get { appearance.customGlow }
+        set { appearance.customGlow = newValue }
+    }
     /// Take the glow from the desktop picture instead of the theme.
-    var wallpaperTint: Bool { didSet { defaults.set(wallpaperTint, forKey: Key.wallpaperTint) } }
-    /// A thin accent rim around the open shelf.
-    var shellOutline: Bool { didSet { defaults.set(shellOutline, forKey: Key.shellOutline) } }
+    var wallpaperTint: Bool {
+        get { appearance.wallpaperTint }
+        set { appearance.wallpaperTint = newValue }
+    }
     var showMenuBarIcon: Bool { didSet { defaults.set(showMenuBarIcon, forKey: Key.showMenuBarIcon) } }
     /// Two-finger swipes on the notch: down opens, sideways skips tracks.
     var swipeGestures: Bool { didSet { defaults.set(swipeGestures, forKey: Key.swipeGestures) } }
@@ -533,6 +585,24 @@ final class Preferences {
 
     func setDisplayStyle(_ style: DisplayStyle, for uuid: String) {
         displayStyles[uuid] = style == .automatic ? nil : style.rawValue
+    }
+
+    /// Where the shell sits on displays without their own choice.
+    var placement: Placement { didSet { defaults.set(placement.rawValue, forKey: Key.placement) } }
+    /// Per-display placements by display UUID; a display missing here follows `placement`.
+    var displayPlacements: [String: String] {
+        didSet { defaults.set(displayPlacements, forKey: Key.displayPlacements) }
+    }
+
+    /// The display's own placement, or nil when it follows the default.
+    func placementOverride(for uuid: String) -> Placement? {
+        displayPlacements[uuid].flatMap(Placement.init(rawValue:))
+    }
+
+    func placement(for uuid: String) -> Placement { placementOverride(for: uuid) ?? placement }
+
+    func setPlacementOverride(_ placement: Placement?, for uuid: String) {
+        displayPlacements[uuid] = placement?.rawValue
     }
 
     // MARK: HUDs and alerts
@@ -645,12 +715,25 @@ final class Preferences {
             storedValue: defaults.string(forKey: Key.shelfClosing),
             legacyAutoClose: defaults.object(forKey: Key.shelfAutoCloses) == nil
                 ? nil : defaults.bool(forKey: Key.shelfAutoCloses))
-        animationSpeed =
-            defaults.string(forKey: Key.animationSpeed).flatMap(AnimationSpeed.init(rawValue:)) ?? .standard
+        // Earlier builds kept each look setting under its own key; carry them over once.
+        appearance =
+            defaults.data(forKey: Key.appearance).flatMap { try? JSONDecoder().decode(Appearance.self, from: $0) }
+            ?? Appearance.migrated(
+                from: LegacyLook(
+                    theme: defaults.string(forKey: Key.theme),
+                    customAccent: defaults.string(forKey: Key.customAccent),
+                    customGlow: defaults.string(forKey: Key.customGlow),
+                    wallpaperTint: defaults.bool(forKey: Key.wallpaperTint),
+                    adaptiveAccent: defaults.bool(forKey: Key.adaptiveAccent),
+                    shellOutline: defaults.bool(forKey: Key.shellOutline),
+                    animationSpeed: defaults.string(forKey: Key.animationSpeed),
+                    surface: defaults.string(forKey: Key.surfaceStyle),
+                    glassEdge: defaults.string(forKey: Key.glassEdge)))
+        lookPresets =
+            defaults.data(forKey: Key.lookPresets).flatMap {
+                try? JSONDecoder().decode([AppearancePreset].self, from: $0)
+            } ?? []
         externalStyle = defaults.string(forKey: Key.externalStyle).flatMap(ExternalStyle.init(rawValue:)) ?? .notch
-        glassEdge = defaults.string(forKey: Key.glassEdge).flatMap(GlassEdge.init(rawValue:)) ?? .subtle
-        surfaceStyle = defaults.string(forKey: Key.surfaceStyle).flatMap(SurfaceStyle.init(rawValue:)) ?? .black
-        adaptiveAccent = defaults.bool(forKey: Key.adaptiveAccent)
         contextAware = defaults.bool(forKey: Key.contextAware)
         lastSettingsPane =
             defaults.string(forKey: Key.lastSettingsPane).flatMap(SettingsPaneID.init(rawValue:)) ?? .general
@@ -681,14 +764,11 @@ final class Preferences {
         lockScreenPlayer = defaults.bool(forKey: Key.lockScreenPlayer)
         activityBubbles = defaults.bool(forKey: Key.activityBubbles)
         firstBubbleOnLeft = defaults.bool(forKey: Key.firstBubbleOnLeft)
-        theme = defaults.string(forKey: Key.theme).flatMap(ThemeID.init(rawValue:)) ?? .default
-        customAccent = defaults.string(forKey: Key.customAccent).flatMap(RGB.init(hex:)) ?? ThemeCatalog.violet
-        customGlow = defaults.string(forKey: Key.customGlow).flatMap(RGB.init(hex:)) ?? ThemeCatalog.violet
-        wallpaperTint = defaults.bool(forKey: Key.wallpaperTint)
-        shellOutline = defaults.bool(forKey: Key.shellOutline)
         showMenuBarIcon = defaults.bool(forKey: Key.showMenuBarIcon)
         swipeGestures = defaults.bool(forKey: Key.swipeGestures)
         displayStyles = (defaults.dictionary(forKey: Key.displayStyles) ?? [:]).compactMapValues { "\($0)" }
+        placement = defaults.string(forKey: Key.placement).flatMap(Placement.init(rawValue:)) ?? .top
+        displayPlacements = (defaults.dictionary(forKey: Key.displayPlacements) ?? [:]).compactMapValues { "\($0)" }
         hudDuration = defaults.string(forKey: Key.hudDuration).flatMap(HUDDuration.init(rawValue:)) ?? .standard
         volumeSteps = defaults.integer(forKey: Key.volumeSteps)
         hudUsesAccent = defaults.bool(forKey: Key.hudUsesAccent)

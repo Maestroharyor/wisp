@@ -132,17 +132,17 @@ extension AnyTransition {
         )
     }
 
-    /// Nav pill drifts down from under the shelf after the content settles. On close it
-    /// rides up with the surface's bottom edge (`rideDistance`) and fades into the notch.
-    static func navDrop(_ motion: NotchMotion, rideDistance: CGFloat) -> AnyTransition {
+    /// Nav pill drifts out from under the shelf (`drift`) after the content settles. On close
+    /// it rides back with the surface (`ride`) and fades into the notch.
+    static func navDrop(_ motion: NotchMotion, ride: CGSize, drift: CGSize) -> AnyTransition {
         .asymmetric(
             insertion: .modifier(
-                active: MistModifier(blur: 6, opacity: 0, offsetY: -12),
+                active: MistModifier(blur: 6, opacity: 0, offsetY: drift.height, offsetX: drift.width),
                 identity: MistModifier(blur: 0, opacity: 1)
             )
             .animation(motion.navIn),
             removal: .modifier(
-                active: MistModifier(blur: 4, opacity: 0, offsetY: -rideDistance),
+                active: MistModifier(blur: 4, opacity: 0, offsetY: ride.height, offsetX: ride.width),
                 identity: MistModifier(blur: 0, opacity: 1)
             )
             .animation(motion.surfaceClose)
