@@ -8,6 +8,8 @@ import WispCore
 final class MiniPlayerController {
     private var panel: NSPanel?
     private var moveObserver: NSObjectProtocol?
+    /// Where the pointer grabbed the panel, relative to its origin, during a drag.
+    private var dragAnchor: CGPoint?
     private let services: AppServices
 
     private static let size = CGSize(width: 320, height: 118)
@@ -50,7 +52,6 @@ final class MiniPlayerController {
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: false)
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.isMovableByWindowBackground = true
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
@@ -58,16 +59,41 @@ final class MiniPlayerController {
         panel.contentView = NSHostingView(
             rootView: MiniPlayerView(
                 monitor: services.nowPlaying, lyrics: services.lyrics,
-                close: { [weak self] in self?.hide() }))
+                close: { [weak self] in self?.hide() },
+                dragMoved: { [weak self] in self?.dragMoved() },
+                dragEnded: { [weak self] in self?.dragEnded() }))
+        // Moves by the system (a display change) still save; drags save once they end.
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: panel, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let origin = self?.panel?.frame.origin else { return }
-                self?.services.preferences.miniPlayerOrigin = "\(Int(origin.x)),\(Int(origin.y))"
+                guard let self, self.dragAnchor == nil else { return }
+                self.saveOrigin()
             }
         }
         return panel
+    }
+
+    /// Follows the pointer in screen coordinates, so the panel can go anywhere, including
+    /// onto another display. The hosting view never lets a click move the window itself.
+    private func dragMoved() {
+        guard let panel else { return }
+        let mouse = NSEvent.mouseLocation
+        let anchor = dragAnchor ?? CGPoint(x: mouse.x - panel.frame.minX, y: mouse.y - panel.frame.minY)
+        dragAnchor = anchor
+        panel.setFrameOrigin(CGPoint(x: mouse.x - anchor.x, y: mouse.y - anchor.y))
+    }
+
+    /// Also called when the gesture is cancelled, so the next drag grabs afresh.
+    private func dragEnded() {
+        guard dragAnchor != nil else { return }
+        dragAnchor = nil
+        saveOrigin()
+    }
+
+    private func saveOrigin() {
+        guard let origin = panel?.frame.origin else { return }
+        services.preferences.miniPlayerOrigin = "\(Int(origin.x)),\(Int(origin.y))"
     }
 
     private func savedOrigin() -> CGPoint? {
@@ -90,8 +116,13 @@ private struct MiniPlayerView: View {
     let monitor: NowPlayingMonitor
     let lyrics: LyricsStore
     let close: () -> Void
+    let dragMoved: () -> Void
+    let dragEnded: () -> Void
 
     @State private var hovering = false
+    /// True while the background is being dragged. Gesture state resets on cancel too,
+    /// which `onEnded` doesn't report.
+    @GestureState private var dragging = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -139,6 +170,16 @@ private struct MiniPlayerView: View {
             if hovering {
                 ShelfButton(symbol: "xmark", size: 8, action: close).offset(x: 6, y: -6)
             }
+        }
+        // Buttons and the seek bar keep their own clicks and drags; anywhere else moves the player.
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .gesture(
+            DragGesture(minimumDistance: 2)
+                .updating($dragging) { _, state, _ in state = true }
+                .onChanged { _ in dragMoved() }
+        )
+        .onChange(of: dragging) { _, isDragging in
+            if !isDragging { dragEnded() }
         }
         .onHover { hovering = $0 }
         .foregroundStyle(.white)
