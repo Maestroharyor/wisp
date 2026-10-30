@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <clipPath id="body"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1D1A2B"/><stop offset="1" stop-color="#08070D"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8E7FFF" stop-opacity="0.75"/>
+      <stop offset="0.55" stop-color="#7A6BFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#7A6BFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="flame" cx="0.5" cy="0.72" r="0.62">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.28" stop-color="#E4DDFF"/>
+      <stop offset="0.62" stop-color="#9C8EFF"/>
+      <stop offset="1" stop-color="#6252F0"/>
+    </radialGradient>
+    <linearGradient id="trail" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#B9ADFF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#B9ADFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.16"/><stop offset="0.4" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+  </defs>
+  <g clip-path="url(#body)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#tile)"/>
+    <circle cx="512" cy="600" r="300" fill="url(#halo)"/>
+    <!-- the notch the wisp drifts toward -->
+    <path d="M338 100 H686 C674 100 668 112 668 128 V168 C668 204 648 222 614 222 H410 C376 222 356 204 356 168 V128 C356 112 350 100 338 100 Z" fill="#000"/>
+    <!-- a thread of smoke leaving the flame tip and curling up toward the notch -->
+    <path d="M520 356 C540 318 500 296 516 262 C528 238 556 244 548 268" fill="none" stroke="url(#trail)" stroke-width="16" stroke-linecap="round" filter="url(#blur)" opacity="0.8"/>
+    <path d="M520 356 C540 318 500 296 516 262 C528 238 556 244 548 268" fill="none" stroke="url(#trail)" stroke-width="9" stroke-linecap="round"/>
+    <!-- the flame: a teardrop with a soft lean, its glow then the body -->
+    <path d="M520 352 C548 430 650 486 650 610 C650 700 590 760 512 760 C434 760 374 700 374 610 C374 540 420 504 446 452 C462 500 486 512 496 482 C504 440 494 398 520 352 Z" fill="#8E7FFF" filter="url(#blur)" opacity="0.7"/>
+    <path d="M520 352 C548 430 650 486 650 610 C650 700 590 760 512 760 C434 760 374 700 374 610 C374 540 420 504 446 452 C462 500 486 512 496 482 C504 440 494 398 520 352 Z" fill="url(#flame)"/>
+    <!-- inner core -->
+    <path d="M514 560 C530 600 576 620 576 664 C576 700 548 722 512 722 C476 722 450 700 450 666 C450 630 480 612 492 584 C500 600 508 598 514 560 Z" fill="#fff" opacity="0.85"/>
+    <rect x="100" y="100" width="824" height="420" fill="url(#sheen)"/>
+  </g>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="184" fill="none" stroke="#fff" stroke-opacity="0.12" stroke-width="3"/>
+</svg>

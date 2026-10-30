@@ -12,6 +12,8 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "glass"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "claude"), [.agents])
         XCTAssertEqual(SettingsIndex.panes(matching: "pocket"), [.notch])
+        XCTAssertEqual(SettingsIndex.panes(matching: "lyrics"), [.activities])
+        XCTAssertTrue(SettingsIndex.panes(matching: "meeting").contains(.activities))
         XCTAssertTrue(SettingsIndex.panes(matching: "caps lock").contains(.general))
     }
 

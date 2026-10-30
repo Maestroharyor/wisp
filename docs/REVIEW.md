@@ -78,14 +78,17 @@ A new user gets permission prompts with no context.
 
 Developer ID signing and notarisation, Sparkle updates and a Homebrew cask, so other people can install it.
 
+## Status (2026-10-29)
+
+Built: A (flame icon, picked from six drafts), B, C, D, E, F, G, H (all four parts) and I (release script, DMG and a cask template, no Sparkle). The tray page was also redesigned. For B, the blur-and-drift "materialise" motion was tried and dropped at Ayomide's request: the shelf keeps expanding out of the notch and closing back into it, with rounder corners and comments that stand alone. Still open from I: notarisation, which needs a paid Developer ID, and a GitHub Actions release workflow.
+
+Since then: the agent timeline and spend, Allow All, prompt drafts, lyrics and the mini player, the meeting pill, the lock screen player (public APIs only) and the GitHub workflows.
+
 ## Still planned
 
 From plan revision 3:
 - **HUD extras:** keyboard backlight, DDC on external displays, AirPods, VPN.
-- The lock screen player.
-- Lyrics and the mini player.
 - The screen recorder.
-- The meeting pill.
 
 ## Fixed during this review
 

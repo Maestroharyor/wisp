@@ -1,0 +1,62 @@
+# Builds the DMG on a version tag (for example v0.2.0) and attaches it to a GitHub release.
+# Tag with the same version as MARKETING_VERSION in project.yml.
+#
+# Without secrets the DMG is signed ad-hoc, so first launch needs "Open Anyway".
+# To sign and notarise, add these repository secrets:
+#   DEVELOPER_ID_P12           base64 of your "Developer ID Application" certificate (.p12)
+#   DEVELOPER_ID_P12_PASSWORD  the .p12 password
+#   DEVELOPER_ID               the identity name, e.g. "Developer ID Application: Name (TEAMID)"
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD   for notarytool (an app-specific password)
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    env:
+      HAS_CERTIFICATE: ${{ secrets.DEVELOPER_ID_P12 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode on the runner
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Import the Developer ID certificate
+        if: env.HAS_CERTIFICATE == 'true'
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/wisp.keychain-db"
+          password=$(uuidgen)
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          xcrun notarytool store-credentials wisp --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --keychain "$keychain"
+
+      - name: Build the DMG
+        env:
+          DEVELOPER_ID: ${{ env.HAS_CERTIFICATE == 'true' && secrets.DEVELOPER_ID || '' }}
+          NOTARY_PROFILE: ${{ env.HAS_CERTIFICATE == 'true' && 'wisp' || '' }}
+        run: scripts/release.sh
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/release/*.dmg build/release/*.sha256 --generate-notes

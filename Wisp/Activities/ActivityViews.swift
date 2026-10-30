@@ -17,17 +17,42 @@ struct CompactActivityView: View {
             : ActivityMetrics.islandContentInset
 
         HStack(spacing: 0) {
-            leading
-                .frame(width: max(wing - padding, 0), alignment: .leading)
-                .padding(.leading, padding)
+            Group {
+                if let agent = splitAgent {
+                    HStack(spacing: ActivityMetrics.contentSpacing) {
+                        AgentGlyph(state: agent.state, source: agent.source, project: agent.project)
+                        AgentStateLabel(status: agent)
+                    }
+                } else {
+                    leading
+                }
+            }
+            .frame(width: max(wing - padding, 0), alignment: .leading)
+            .padding(.leading, padding)
             if gap > 0 { Color.clear.frame(width: gap) } else { Spacer(minLength: 4) }
-            trailing
-                .frame(width: max(wing - padding, 0), alignment: .trailing)
-                .padding(.trailing, padding)
+            Group {
+                if splitAgent != nil {
+                    HStack(spacing: ActivityMetrics.contentSpacing) {
+                        ArtworkView(
+                            image: model.services.nowPlaying.artwork, size: model.isNotchStyle ? 18 : 16, radius: 4)
+                        Waveform(tint: model.services.nowPlaying.tint, playing: true).frame(width: 18, height: 14)
+                    }
+                } else {
+                    trailing
+                }
+            }
+            .frame(width: max(wing - padding, 0), alignment: .trailing)
+            .padding(.trailing, padding)
         }
         .frame(height: surface.height)
         .font(.system(size: ActivityMetrics.labelFontSize, weight: .semibold))
         .foregroundStyle(.white)
+    }
+
+    /// An agent run with music behind it: agent and its timer on the left, music on the right.
+    private var splitAgent: AgentStatus? {
+        guard case .agent(let status) = activity, model.services.activities.companion == .media else { return nil }
+        return status
     }
 
     @ViewBuilder private var leading: some View {
@@ -61,10 +86,17 @@ struct CompactActivityView: View {
             Image(systemName: state.symbol ?? "moon.fill").foregroundStyle(.indigo)
         case .agent(let status):
             HStack(spacing: ActivityMetrics.contentSpacing) {
-                AgentGlyph(state: status.state)
+                AgentGlyph(state: status.state, source: status.source, project: status.project)
                 Text(status.project).lineLimit(1)
             }
-        case .batteryFull, .timerDone, .notification, .agentApproval:
+        case .meeting(let status):
+            HStack(spacing: ActivityMetrics.contentSpacing) {
+                Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
+                    .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
+                    .frame(width: 16)
+                Text(status.title).lineLimit(1)
+            }
+        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()
         }
     }
@@ -105,7 +137,17 @@ struct CompactActivityView: View {
                 .foregroundStyle(state.isOn ? .white : Color.secondaryText)
         case .agent(let status):
             AgentStateLabel(status: status)
-        case .batteryFull, .timerDone, .notification, .agentApproval:
+        case .meeting(let status):
+            HStack(spacing: 6) {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    ValueText(
+                        text: Countdown.format(max(0, context.date.timeIntervalSince(status.started))), tint: .red)
+                }
+                Image(systemName: model.services.microphone.muted ? "mic.slash.circle.fill" : "mic.circle")
+                    .foregroundStyle(.white.opacity(0.8))
+                    .help(model.services.microphone.muted ? "Unmute the microphone" : "Mute the microphone")
+            }
+        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()
         }
     }

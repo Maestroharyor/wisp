@@ -73,12 +73,14 @@ private struct SurfaceView: View {
         }
         .compositingGroup()
         .shadow(color: .black.opacity(model.spec == .closed ? 0 : 0.5), radius: isOpen ? 18 : 6, y: isOpen ? 8 : 2)
-        .animation(model.spec == .closed ? .easeOut(duration: 0.08) : model.surfaceAnimation, value: model.spec)
+        // The shell rides the same spring as the frame, so closing visibly folds back
+        // into the notch in both directions instead of snapping shut.
+        .animation(model.surfaceAnimation, value: model.spec)
         .contentShape(shape)
     }
 
     /// Content starts at the closed notch's width relative to the open surface.
-    private var revealScale: CGFloat {
+    private var revealScale: CGSize {
         SurfaceSizing.revealScale(from: model.layout.closedRect, to: model.surfaceRect)
     }
 
@@ -97,22 +99,27 @@ private struct SurfaceView: View {
             if let activity = model.activity {
                 MediumActivityView(activity: activity, model: model)
                     .id(activity.kindKey)
-                    .transition(.notchEnlarge(motion, fromScale: revealScale))
+                    .transition(.expand(motion, fromScale: revealScale))
             }
         case .notification:
             if case .agentApproval(let approval) = model.activity {
                 AgentApprovalCard(approval: approval, model: model)
                     .id(approval.id)
-                    .transition(.notchEnlarge(motion, fromScale: revealScale))
+                    .transition(.expand(motion, fromScale: revealScale))
+            }
+            if case .meetingSoon(let invite) = model.activity {
+                MeetingSoonCard(invite: invite, model: model)
+                    .id(invite.id)
+                    .transition(.expand(motion, fromScale: revealScale))
             }
             if case .notification(let item) = model.activity {
                 NotificationCardView(item: item, model: model)
                     .id(item.id)
-                    .transition(.notchEnlarge(motion, fromScale: revealScale))
+                    .transition(.expand(motion, fromScale: revealScale))
             }
         case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
             ShelfContent(model: model)
-                .transition(.notchEnlarge(motion, fromScale: revealScale))
+                .transition(.expand(motion, fromScale: revealScale))
         }
     }
 }
@@ -162,23 +169,43 @@ struct SurfaceBackground: View {
                 .fill(.clear)
                 .glassEffect(.regular.tint(accent.opacity(0.18)), in: Rectangle())
                 .overlay(Color.black.opacity(0.42))
+                .overlay(Self.notchShade)
         } else {
             ZStack {
                 VisualEffectBlur()
                 Color.black.opacity(0.55)
                 accent.opacity(0.08)
+                Self.notchShade
             }
         }
     }
 
+    /// Colour lives low and in the corners, away from the camera: two soft glows rise from
+    /// the bottom corners with a faint wash between, so nothing points at the notch.
     private var tinted: some View {
         ZStack {
             Color.black
             RadialGradient(
-                colors: [accent.opacity(0.38), accent.opacity(0.08), .clear],
-                center: .bottom, startRadius: 0, endRadius: 260)
-            LinearGradient(colors: [.clear, accent.opacity(0.12)], startPoint: .top, endPoint: .bottom)
+                colors: [accent.opacity(0.34), accent.opacity(0.08), .clear],
+                center: UnitPoint(x: 0.12, y: 1.15), startRadius: 0, endRadius: 240)
+            RadialGradient(
+                colors: [accent.opacity(0.3), accent.opacity(0.06), .clear],
+                center: UnitPoint(x: 0.88, y: 1.15), startRadius: 0, endRadius: 240)
+            LinearGradient(colors: [.clear, accent.opacity(0.1)], startPoint: .center, endPoint: .bottom)
+            Self.notchShade
         }
+    }
+
+    /// Solid black across the top that fades out lower down, so the camera housing melts
+    /// into the shelf instead of sitting on a lit background.
+    private static var notchShade: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .black, location: 0),
+                .init(color: .black, location: 0.28),
+                .init(color: .black.opacity(0), location: 0.6),
+            ],
+            startPoint: .top, endPoint: .bottom)
     }
 
     @ViewBuilder private var black: some View {

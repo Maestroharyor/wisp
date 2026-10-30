@@ -181,15 +181,17 @@ struct WidgetDivider: View {
 /// opens that widget on its own; dragging an icon onto another reorders the grid.
 struct WidgetsPage: View {
     let model: NotchModel
+    /// Ties each icon tile to its solo card, so opening one grows the tile into the card.
+    @Namespace private var zoom
 
     var body: some View {
         ZStack {
             if let solo = model.soloWidget {
-                SoloWidgetView(kind: solo, model: model)
-                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+                SoloWidgetView(kind: solo, model: model, zoom: zoom)
+                    .transition(.opacity)
             } else {
-                WidgetGridView(model: model)
-                    .transition(.scale(scale: 1.04).combined(with: .opacity))
+                WidgetGridView(model: model, zoom: zoom)
+                    .transition(.opacity)
             }
         }
         .animation(model.surfaceAnimation, value: model.soloWidget)
@@ -198,6 +200,7 @@ struct WidgetsPage: View {
 
 private struct WidgetGridView: View {
     let model: NotchModel
+    let zoom: Namespace.ID
 
     var body: some View {
         let preferences = model.preferences
@@ -221,7 +224,7 @@ private struct WidgetGridView: View {
                     spacing: WidgetGrid.spreadSpacing(columns: columns, available: proxy.size.width)
                 ) {
                     ForEach(widgets) { kind in
-                        WidgetIconCell(kind: kind, metrics: metrics) {
+                        WidgetIconCell(kind: kind, metrics: metrics, zoom: zoom) {
                             model.soloWidget = kind
                         }
                         .draggable(kind.rawValue) { WidgetIconTile(kind: kind, size: metrics.tileSize) }
@@ -242,6 +245,7 @@ private struct WidgetGridView: View {
 private struct WidgetIconCell: View {
     let kind: WidgetKind
     let metrics: WidgetGrid.Metrics
+    let zoom: Namespace.ID
     let open: () -> Void
     @State private var hovering = false
 
@@ -249,6 +253,7 @@ private struct WidgetIconCell: View {
         Button(action: open) {
             VStack(spacing: metrics.captionGap) {
                 WidgetIconTile(kind: kind, size: metrics.tileSize)
+                    .matchedGeometryEffect(id: kind, in: zoom)
                     .scaleEffect(hovering ? 1.05 : 1)
                 Text(kind.title)
                     .font(.system(size: metrics.captionSize, weight: .semibold))
@@ -286,31 +291,43 @@ private struct WidgetIconTile: View {
 private struct SoloWidgetView: View {
     let kind: WidgetKind
     let model: NotchModel
+    let zoom: Namespace.ID
 
     var body: some View {
-        WidgetCard(kind: kind, model: model)
-            .frame(
-                width: ShellMetrics.soloCardWidth(notchStyle: model.isNotchStyle),
-                height: SurfaceSizing.shelfContentHeight
-            )
-            .overlay(alignment: .topLeading) {
-                Button {
-                    model.soloWidget = nil
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 10, weight: .bold))
-                        .frame(width: 20, height: 20)
-                        .background(Circle().fill(.white.opacity(0.12)))
-                }
-                .buttonStyle(.plain)
-                .offset(x: -26, y: 2)
-                .help("Back to widgets")
+        Group {
+            if kind == .agents {
+                AgentsDetail(hub: model.services.agents)
+            } else {
+                WidgetCard(kind: kind, model: model)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(
+            width: kind.hasDetailPage
+                ? SurfaceSizing.wideSoloWidth : ShellMetrics.soloCardWidth(notchStyle: model.isNotchStyle),
+            height: SurfaceSizing.shelfContentHeight
+        )
+        .matchedGeometryEffect(id: kind, in: zoom)
+        .overlay(alignment: .topLeading) {
+            Button {
+                model.soloWidget = nil
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 10, weight: .bold))
+                    .frame(width: 20, height: 20)
+                    .background(Circle().fill(.white.opacity(0.12)))
+            }
+            .buttonStyle(.plain)
+            .offset(x: -26, y: 2)
+            .help("Back to widgets")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
 extension WidgetKind {
+    /// Opened on its own, this widget gets the wide page with a list and details.
+    var hasDetailPage: Bool { self == .agents || self == .calendar }
+
     /// Icon tint on the Widgets page grid.
     var tint: Color {
         switch self {
@@ -336,9 +353,35 @@ extension WidgetKind {
 /// A large player on its own page.
 struct MediaPage: View {
     let model: NotchModel
+    @State private var showsLyrics = false
 
     var body: some View {
-        NowPlayingWidget(monitor: model.services.nowPlaying)
-            .frame(width: SurfaceSizing.mediaPageWidth, height: SurfaceSizing.shelfContentHeight)
+        let services = model.services
+        HStack(spacing: 6) {
+            Group {
+                if showsLyrics, services.nowPlaying.info != nil {
+                    HStack(spacing: 12) {
+                        ArtworkView(image: services.nowPlaying.artwork, size: 50, radius: 11)
+                        LyricLines(monitor: services.nowPlaying, lyrics: services.lyrics)
+                    }
+                    .transition(.opacity)
+                } else {
+                    NowPlayingWidget(monitor: services.nowPlaying).transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 6) {
+                if model.preferences.lyrics {
+                    ShelfButton(
+                        symbol: showsLyrics ? "quote.bubble.fill" : "quote.bubble", size: 12,
+                        tint: showsLyrics ? .accentColor : .white
+                    ) { withAnimation(.easeOut(duration: 0.2)) { showsLyrics.toggle() } }
+                    .help("Lyrics (from LRCLIB)")
+                }
+                ShelfButton(symbol: "pip", size: 12) { services.miniPlayer.toggle() }
+                    .help("Mini player")
+            }
+        }
+        .frame(width: SurfaceSizing.mediaPageWidth, height: SurfaceSizing.shelfContentHeight)
     }
 }

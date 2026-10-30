@@ -1,6 +1,6 @@
 # Wisp plan and status
 
-The status below is as of 2026-10-29. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 198 tests. For what comes next, see `docs/REVIEW.md`.
+The status below is as of 2026-10-29. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 250 tests. For what comes next, see `docs/REVIEW.md`.
 
 ## Done
 
@@ -17,20 +17,24 @@ The status below is as of 2026-10-29. Testing approach: decision logic lives in 
 | Agent hub | `wisp-agent` hook helper, session pills, Allow/Deny cards (also inside an open shelf), hooks install/remove |
 | Look and profiles | Black, Glass and Tinted surfaces with album accent; profiles with Hyper+1–9 and context rules |
 | Settings | Sidebar window with search, live preview, setup health and About |
+| Agents, media and meetings | Agent timeline, daily spend, Allow All, request sound, prompt drafts pasted into the terminal; approval queue; lyrics (LRCLIB) and a mini player; meeting pill and Join card; lock screen player; scrolling week calendar; CI and release workflows |
+| Identity (review A to I) | Flame icon and menu bar glyph; rounder corners (the expanding open and close stays); one violet accent; split agent and music pill; context rules keep Home; first-launch setup; Codex hooks, jump to terminal, tokens and cost, project colours; tray redesign; release script with DMG and cask |
 
 ## Not done
 
 - **HUD extras:** keyboard backlight (private CoreBrightness), DDC brightness and volume on external displays, AirPods card, VPN pill.
-- **Lock screen player**, **lyrics and mini player**, **screen recorder**, **meeting pill**.
-- **Distribution:** Developer ID signing, notarisation and Sparkle updates.
+- **Screen recorder.**
+- **Lock screen player:** built with public APIs only; whether macOS shows it over the lock screen is untested.
+- **Distribution:** a GitHub Actions workflow that runs `scripts/release.sh` on each tag. Notarisation needs a Developer ID (the script already supports it). No Sparkle; updates go through Releases and Homebrew.
 
 ## Verify by hand
 
-1. **Animation and shape.** Click the notch: it opens to 451 pt, the content blurs in, then the nav pill drops in. 
+1. **Animation and shape.** Click the notch: it opens to 451 pt, the content expands out of the notch with the surface, then the nav pill settles in.
 2. **External display.** A drawn notch sits flush with the top edge (no margin). Switch to the island style in Settings › Notch.
 3. **System overlays.** Volume keys show a wing with a green bar. Brightness shows yellow. Caps Lock shows On/Off.
 4. **Tray.** Drag a file from Finder onto the notch: four tiles appear. Drop on Keep, then open the Tray tab.
 5. **Clipboard.** Copy a few texts, links and images, then press Caps Lock + V (or ⌥⇧⌘V).
 6. **Now Playing.** Play in a browser (YouTube Music) or Music: artwork and a waveform show beside the notch.
-7. **Closing.** The shelf content blurs and shrinks into the notch with the surface, and the nav pill rides up into it.
+7. **Closing.** The shelf content shrinks into the notch with the surface, and the nav pill rides up into it.
+9. **Split pill.** Play music, then start a Claude Code prompt: the agent and its timer sit left of the camera, the artwork and waveform right.
 8. **Clicks outside the shelf** reach the app underneath.

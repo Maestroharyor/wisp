@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let coordinator: NotchCoordinator
     private let settings: SettingsWindowController
     private let clipboardPanel: ClipboardPanelController
+    private let onboarding: OnboardingWindowController
     private var terminationSignal: DispatchSourceSignal?
 
     override init() {
@@ -16,12 +17,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator = NotchCoordinator(services: services)
         settings = SettingsWindowController(services: services, hotkeys: hotkeys)
         clipboardPanel = ClipboardPanelController(services: services)
+        onboarding = OnboardingWindowController(services: services)
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         services.openSettings = { [weak self] in self?.showSettings() }
         services.openClipboard = { [weak self] in self?.toggleClipboard() }
+        services.openSetup = { [weak self] in self?.onboarding.show() }
         services.start()
         coordinator.start()
         hotkeys.onToggle = { [weak self] in self?.toggleShelf() }
@@ -29,6 +32,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onProfileDigit = { [weak self] digit in self?.services.context.choose(digit: digit) }
         hotkeys.start()
         handleTerminationSignal()
+        if !preferences.onboarded { onboarding.show() }
+        #if DEBUG
+            // Lets scripts drive Wisp for visual checks without synthetic input.
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.maestro.wisp.debug.toggleShelf"), object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.toggleShelf() }
+            }
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.maestro.wisp.debug.miniPlayer"), object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.services.miniPlayer.toggle() }
+            }
+        #endif
     }
 
     /// Launching Wisp again while it runs (Finder, Spotlight, `open`) shows Settings,

@@ -117,9 +117,9 @@ struct SettingsView: View {
         case .profiles: ProfileSettings(preferences: preferences, context: services.context)
         case .clipboard: ClipboardSettings(preferences: preferences, store: services.clipboard)
         case .notifications: NotificationSettings(preferences: preferences, monitor: services.notifications)
-        case .agents: AgentSettings(hub: services.agents)
+        case .agents: AgentSettings(hub: services.agents, preferences: preferences)
         case .permissions: PermissionSettings(onChange: model.refreshHealth)
-        case .about: AboutSettings(preferences: preferences)
+        case .about: AboutSettings(preferences: preferences, runSetup: services.openSetup)
         }
     }
 }

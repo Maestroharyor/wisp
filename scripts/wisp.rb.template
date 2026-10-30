@@ -1,0 +1,19 @@
+# Homebrew cask for a personal tap. scripts/release.sh fills in the version and checksum.
+cask "wisp" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/Maestroharyor/wisp/releases/download/v#{version}/Wisp-#{version}.dmg"
+  name "Wisp"
+  desc "The notch for people who build"
+  homepage "https://ayomideodewale.com/wisp"
+
+  depends_on macos: ">= :sonoma"
+
+  app "Wisp.app"
+
+  zap trash: [
+    "~/Library/Application Support/Wisp",
+    "~/Library/Preferences/com.maestro.wisp.plist",
+  ]
+end

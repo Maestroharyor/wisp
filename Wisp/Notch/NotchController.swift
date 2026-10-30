@@ -34,10 +34,13 @@ final class NotchController {
         observeActivity()
     }
 
-    /// An approval card has buttons, so the closed panel stops being click-through while it shows.
+    /// Approval and Join cards have buttons, so the closed panel stops being click-through
+    /// while one shows.
     private var showsApproval: Bool {
-        if case .agentApproval = model.activity { return true }
-        return false
+        switch model.activity {
+        case .agentApproval, .meetingSoon: true
+        default: false
+        }
     }
 
     private func observeActivity() {
@@ -82,6 +85,13 @@ final class NotchController {
         if handleNotificationClick(at: location) { return }
         // The approval card's own buttons take the click.
         if machine.phase != .open, showsApproval, model.contains(location) { return }
+        // The right wing of the meeting pill mutes the microphone.
+        if machine.phase != .open, case .meeting = model.activity, model.contains(location),
+            location.x > model.surfaceRect.maxX - 56
+        {
+            services.microphone.toggleMute()
+            return
+        }
         if model.contains(location) {
             if machine.phase == .open {
                 // Let text fields (notes, search) take keyboard input without activating Wisp.

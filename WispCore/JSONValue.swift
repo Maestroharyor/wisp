@@ -62,6 +62,12 @@ public enum JSONValue: Codable, Equatable, Sendable {
         }
     }
 
+    /// Whole numbers only; JSON numbers that are not integers read as nil.
+    public var intValue: Int? {
+        guard case .number(let value) = self, value == value.rounded(), abs(value) < 1e15 else { return nil }
+        return Int(value)
+    }
+
     public var stringValue: String? {
         if case .string(let value) = self { return value }
         return nil

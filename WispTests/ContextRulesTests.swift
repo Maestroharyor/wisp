@@ -19,6 +19,22 @@ final class ContextRulesTests: XCTestCase {
         XCTAssertEqual(ContextRules.match(rules, state: state), "Code")
     }
 
+    func testOnlyFocusRulesSwapHome() {
+        let focus = rule("work", .focus("Work"), "Work")
+        let coding = rule("code", .frontApp(["com.apple.dt.Xcode"]), "Code")
+        XCTAssertTrue(ContextRules.swapsHome(focus))
+        XCTAssertFalse(ContextRules.swapsHome(coding))
+        XCTAssertFalse(ContextRules.swapsHome(nil))
+    }
+
+    func testMatchingRuleReturnsTheWinningRule() {
+        let rules = [
+            rule("music", .mediaPlaying, "Music", priority: 1), rule("work", .focus("Work"), "Work", priority: 3),
+        ]
+        let state = ContextState(mediaPlaying: true, focus: "Work")
+        XCTAssertEqual(ContextRules.matchingRule(rules, state: state)?.id, "work")
+    }
+
     func testHigherPriorityWins() {
         let rules = [
             rule("music", .mediaPlaying, "Music", priority: 1),

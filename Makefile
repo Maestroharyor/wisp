@@ -11,7 +11,7 @@ SIGN_IDENTITY ?= $(shell security find-identity -p codesigning | grep -q '"Wisp 
 
 XCODEBUILD := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED) -destination "platform=macOS,arch=arm64" -quiet
 
-.PHONY: project build test lint format run clean
+.PHONY: project build test lint format run release clean
 
 project:
 	xcodegen generate --quiet
@@ -33,6 +33,10 @@ run: build
 	-pkill -x Wisp
 	@while pgrep -x Wisp >/dev/null; do sleep 0.2; done
 	open "$(APP)"
+
+# Universal Release DMG in build/release. See scripts/release.sh for notarising.
+release:
+	scripts/release.sh
 
 clean:
 	rm -rf $(DERIVED) $(PROJECT)

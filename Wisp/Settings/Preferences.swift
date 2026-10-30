@@ -111,7 +111,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         case .mirror: "Mirror"
         case .dayProgress: "Day Progress"
         case .worldClocks: "World Clocks"
-        case .agents: "Claude Code"
+        case .agents: "Agents"
         }
     }
 
@@ -165,8 +165,10 @@ final class Preferences {
         static let glassEdge = "glassEdge"
         static let surfaceStyle = "surfaceStyle"
         static let lastSettingsPane = "lastSettingsPane"
+        static let onboarded = "onboarded"
         static let profiles = "profiles"
         static let activeProfile = "activeProfile"
+        static let homeProfile = "homeProfile"
         static let contextRules = "contextRules"
         static let contextAware = "contextAware"
         static let adaptiveAccent = "adaptiveAccent"
@@ -178,6 +180,11 @@ final class Preferences {
         static let batteryHUD = "batteryHUD"
         static let capsLockHUD = "capsLockHUD"
         static let mediaActivity = "mediaActivity"
+        static let approvalSound = "approvalSound"
+        static let lyrics = "lyrics"
+        static let meetingActivity = "meetingActivity"
+        static let lockScreenPlayer = "lockScreenPlayer"
+        static let miniPlayerOrigin = "miniPlayerOrigin"
         static let activityDisplay = "activityDisplay"
         static let clipboardEnabled = "clipboardEnabled"
         static let clipboardLimit = "clipboardLimit"
@@ -238,6 +245,11 @@ final class Preferences {
     }
 
     /// The Settings pane shown last, reopened next time.
+    /// First-launch setup is done (or was never needed).
+    var onboarded: Bool {
+        didSet { defaults.set(onboarded, forKey: Key.onboarded) }
+    }
+
     var lastSettingsPane: SettingsPaneID {
         didSet { defaults.set(lastSettingsPane.rawValue, forKey: Key.lastSettingsPane) }
     }
@@ -264,6 +276,12 @@ final class Preferences {
         didSet { defaults.set(activeProfile, forKey: Key.activeProfile) }
     }
 
+    /// The profile whose Home widgets are showing. Automatic switches leave Home alone,
+    /// so this can differ from `activeProfile`; Home edits are saved into this one.
+    private(set) var homeProfile: String {
+        didSet { defaults.set(homeProfile, forKey: Key.homeProfile) }
+    }
+
     var contextRules: [ContextRule] {
         didSet { defaults.set(try? JSONEncoder().encode(contextRules), forKey: Key.contextRules) }
     }
@@ -277,9 +295,16 @@ final class Preferences {
 
     /// Makes `profile` active: its Home widgets (switched on if needed) and surface.
     func apply(_ profile: Profile) {
-        activeProfile = profile.name
+        applySurface(profile)
+        homeProfile = profile.name
         for kind in profile.home.ids.compactMap(WidgetKind.init(rawValue:)) { enable(kind) }
         homeLayout = profile.home
+    }
+
+    /// Makes `profile` active for its surface (and start page, set by the caller) but
+    /// keeps the current Home. Used by automatic switches.
+    func applySurface(_ profile: Profile) {
+        activeProfile = profile.name
         surfaceStyle = SurfaceStyle(rawValue: profile.surface) ?? surfaceStyle
     }
 
@@ -288,12 +313,15 @@ final class Preferences {
         let unique = Profile.uniqueName(name, existing: profiles.map(\.name))
         profiles.append(Profile(name: unique, home: homeLayout, defaultPage: "home", surface: surfaceStyle.rawValue))
         activeProfile = unique
+        homeProfile = unique
     }
 
     func deleteProfile(named name: String) {
         guard name != ContextEngineState.baseProfile else { return }
         profiles.removeAll { $0.name == name }
-        if activeProfile == name, let base = profile(named: ContextEngineState.baseProfile) { apply(base) }
+        if activeProfile == name || homeProfile == name, let base = profile(named: ContextEngineState.baseProfile) {
+            apply(base)
+        }
     }
 
     func setDefaultPage(_ page: String, for name: String) {
@@ -314,7 +342,9 @@ final class Preferences {
     var homeLayout: HomeLayout {
         didSet {
             defaults.set(try? JSONEncoder().encode(homeLayout), forKey: Key.homeLayout)
-            updateActiveProfile { $0.home = homeLayout }
+            if let index = profiles.firstIndex(where: { $0.name == homeProfile }), profiles[index].home != homeLayout {
+                profiles[index].home = homeLayout
+            }
         }
     }
 
@@ -405,6 +435,16 @@ final class Preferences {
     var batteryHUD: Bool { didSet { defaults.set(batteryHUD, forKey: Key.batteryHUD) } }
     var capsLockHUD: Bool { didSet { defaults.set(capsLockHUD, forKey: Key.capsLockHUD) } }
     var mediaActivity: Bool { didSet { defaults.set(mediaActivity, forKey: Key.mediaActivity) } }
+    /// A short sound when an agent asks for permission.
+    var approvalSound: Bool { didSet { defaults.set(approvalSound, forKey: Key.approvalSound) } }
+    /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
+    var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
+    /// The meeting pill while the microphone is in use, and the Join card before calls.
+    var meetingActivity: Bool { didSet { defaults.set(meetingActivity, forKey: Key.meetingActivity) } }
+    /// Show a player while the screen is locked, where macOS allows it.
+    var lockScreenPlayer: Bool { didSet { defaults.set(lockScreenPlayer, forKey: Key.lockScreenPlayer) } }
+    /// Where the mini player was last left, as "x,y" (its top-left corner).
+    var miniPlayerOrigin: String? { didSet { defaults.set(miniPlayerOrigin, forKey: Key.miniPlayerOrigin) } }
 
     /// Where live activities (Now Playing, HUDs, timers) appear.
     var activityDisplay: ActivityDisplayTarget {
@@ -432,12 +472,16 @@ final class Preferences {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        // Read before anything below writes the first settings.
+        onboarded = !OnboardingStep.needsSetup(
+            storedFlag: defaults.object(forKey: Key.onboarded) == nil ? nil : defaults.bool(forKey: Key.onboarded),
+            hasEarlierSettings: defaults.object(forKey: Key.profiles) != nil)
         defaults.register(defaults: [
             Key.hotkey: Hotkey.hyperSpace.stringValue,
             Key.quickPressTogglesCapsLock: true,
             Key.showOnExternalDisplays: true,
             Key.hoverDelay: 0.15,
-            // Matches the reference app: hover peeks, a click opens.
+            // Hover only peeks; a click opens, so the shelf never appears by accident.
             Key.openTrigger: OpenTrigger.click.rawValue,
             Key.animationSpeed: AnimationSpeed.standard.rawValue,
             Key.externalStyle: ExternalStyle.notch.rawValue,
@@ -450,6 +494,10 @@ final class Preferences {
             Key.batteryHUD: true,
             Key.capsLockHUD: true,
             Key.mediaActivity: true,
+            Key.approvalSound: true,
+            Key.lyrics: true,
+            Key.meetingActivity: true,
+            Key.lockScreenPlayer: true,
             Key.activityDisplay: ActivityDisplayTarget.pointer.rawValue,
             Key.clipboardEnabled: true,
             Key.clipboardLimit: 200,
@@ -481,7 +529,9 @@ final class Preferences {
         contextRules =
             defaults.data(forKey: Key.contextRules).flatMap { try? JSONDecoder().decode([ContextRule].self, from: $0) }
             ?? ContextRules.defaults
-        activeProfile = defaults.string(forKey: Key.activeProfile) ?? ContextEngineState.baseProfile
+        let active = defaults.string(forKey: Key.activeProfile) ?? ContextEngineState.baseProfile
+        activeProfile = active
+        homeProfile = defaults.string(forKey: Key.homeProfile) ?? active
         profiles = []
         // Earlier builds stored a plain list of Home widgets; carry it over once.
         let legacy = (defaults.stringArray(forKey: Key.homeWidgets) ?? []).compactMap(WidgetKind.init(rawValue:))
@@ -496,6 +546,11 @@ final class Preferences {
         batteryHUD = defaults.bool(forKey: Key.batteryHUD)
         capsLockHUD = defaults.bool(forKey: Key.capsLockHUD)
         mediaActivity = defaults.bool(forKey: Key.mediaActivity)
+        approvalSound = defaults.bool(forKey: Key.approvalSound)
+        lyrics = defaults.bool(forKey: Key.lyrics)
+        meetingActivity = defaults.bool(forKey: Key.meetingActivity)
+        lockScreenPlayer = defaults.bool(forKey: Key.lockScreenPlayer)
+        miniPlayerOrigin = defaults.string(forKey: Key.miniPlayerOrigin)
         activityDisplay =
             defaults.string(forKey: Key.activityDisplay).flatMap(ActivityDisplayTarget.init(rawValue:)) ?? .pointer
         clipboardEnabled = defaults.bool(forKey: Key.clipboardEnabled)

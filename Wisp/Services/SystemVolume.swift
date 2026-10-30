@@ -66,7 +66,7 @@ enum SystemVolume {
         mElement: kAudioObjectPropertyElementMain
     )
 
-    private static func read<Value>(_ device: AudioObjectID, _ address: AudioObjectPropertyAddress) -> Value? {
+    static func read<Value>(_ device: AudioObjectID, _ address: AudioObjectPropertyAddress) -> Value? {
         var address = address
         guard AudioObjectHasProperty(device, &address) else { return nil }
         var size = UInt32(MemoryLayout<Value>.size)
@@ -76,14 +76,13 @@ enum SystemVolume {
         return pointer.pointee
     }
 
-    private static func write(_ device: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: Float32) -> Bool
-    {
+    static func write(_ device: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: Float32) -> Bool {
         var address = address
         var value = value
         return AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value) == noErr
     }
 
-    private static func write(_ device: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: UInt32) -> Bool {
+    static func write(_ device: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: UInt32) -> Bool {
         var address = address
         var value = value
         return AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<UInt32>.size), &value) == noErr

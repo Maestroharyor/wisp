@@ -1,27 +1,27 @@
 import SwiftUI
 import WispCore
 
-/// Timing for the notch morph. Opening is layered: the surface springs open first,
-/// then the content reveals (blur, scale and fade) slightly later, then the nav pill
-/// drops in. Closing clears content first, then the surface settles back.
+/// Timing for the notch morph. The open content expands out of the notch with the
+/// surface, both on one spring, so shell and content move as one; closing reverses it
+/// into the notch. The nav pill settles in after.
 struct NotchMotion {
     /// Surface spring when growing (peek, activity or open).
     let surfaceOpen: Animation
     /// Surface spring when shrinking back to closed.
     let surfaceClose: Animation
-    /// Content reveal after the surface has started opening.
+    /// Content condensing in after the surface has started opening.
     let contentIn: Animation
-    /// Content hide, before the surface closes.
+    /// Content dissipating, before the surface closes.
     let contentOut: Animation
-    /// Nav pill drop-in, after the content.
+    /// Nav pill settling in, after the content.
     let navIn: Animation
-    /// Blur radius content starts from when revealing.
+    /// Blur radius content condenses from.
     let contentBlur: CGFloat
-    /// Scale content starts from when revealing.
-    let contentScale: CGFloat
+    /// How far below its place compact content starts before drifting up.
+    let contentDrift: CGFloat
+    /// Whether open content scales from the notch width (off for Reduce Motion).
+    let expands: Bool
 
-    /// Surface springs come from `SpringTuning` (measured reference values, stretched on
-    /// low refresh rates). Content timing and the speed scales are our own.
     static func preset(_ speed: AnimationSpeed, framesPerSecond: Int, reduceMotion: Bool) -> NotchMotion {
         let open = SpringTuning.surface(
             opening: true, speedScale: speed.scale, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)
@@ -35,18 +35,20 @@ struct NotchMotion {
                 contentOut: .easeOut(duration: 0.1),
                 navIn: .easeInOut(duration: 0.2),
                 contentBlur: 0,
-                contentScale: 1
+                contentDrift: 0,
+                expands: false
             )
         }
-        let delay = 0.08 * speed.scale
+        let delay = 0.07 * speed.scale
         return NotchMotion(
             surfaceOpen: open.animation,
             surfaceClose: close.animation,
-            contentIn: .spring(response: 0.34 * speed.scale, dampingFraction: 0.9).delay(delay),
-            contentOut: .easeOut(duration: 0.11 * speed.scale),
-            navIn: .spring(response: 0.36 * speed.scale, dampingFraction: 0.78).delay(delay + 0.05),
+            contentIn: .spring(response: 0.46 * speed.scale, dampingFraction: 0.9).delay(delay),
+            contentOut: .easeOut(duration: 0.14 * speed.scale),
+            navIn: .spring(response: 0.42 * speed.scale, dampingFraction: 0.85).delay(delay + 0.08),
             contentBlur: 8,
-            contentScale: 0.94
+            contentDrift: 10,
+            expands: true
         )
     }
 }
@@ -66,67 +68,75 @@ extension SpringSpec {
     var animation: Animation { .spring(response: response, dampingFraction: dampingFraction) }
 }
 
-/// Blur + scale + fade, anchored to the top so content appears to drop out of the notch.
-private struct RevealModifier: ViewModifier {
+/// Blur, fade, scale from the top and a vertical drift.
+private struct MistModifier: ViewModifier {
     let blur: CGFloat
-    let scale: CGFloat
     let opacity: Double
     var offsetY: CGFloat = 0
+    var offsetX: CGFloat = 0
+    var scale = CGSize(width: 1, height: 1)
 
     func body(content: Content) -> some View {
         content
             .blur(radius: blur)
-            .scaleEffect(scale, anchor: .top)
+            .scaleEffect(x: scale.width, y: scale.height, anchor: .top)
             .opacity(opacity)
-            .offset(y: offsetY)
+            .offset(x: offsetX, y: offsetY)
     }
 }
 
 extension AnyTransition {
-    /// The open content grows out of the notch with the surface: laid out at its final
-    /// size, scaled from the notch width and driven by the same spring as the shell, so
-    /// shell and content move as one (the reference drives both from one reveal clock).
-    /// Closing reverses it on the close spring.
-    static func notchEnlarge(_ motion: NotchMotion, fromScale: CGFloat) -> AnyTransition {
-        let start = motion.contentScale < 1 ? fromScale : 1
+    /// Open content unfolds out of the notch with the surface: laid out at its final size,
+    /// squeezed to the notch's width and height from the top, and driven by the same spring
+    /// as the shell, so shell and content grow down and out as one. Closing folds it back
+    /// up into the notch on the close spring. It starts part-visible so the growth reads.
+    static func expand(_ motion: NotchMotion, fromScale: CGSize) -> AnyTransition {
+        let start = motion.expands ? fromScale : CGSize(width: 1, height: 1)
+        let collapsed = MistModifier(blur: motion.contentBlur / 2, opacity: motion.expands ? 0.35 : 0, scale: start)
+        let open = MistModifier(blur: 0, opacity: 1)
         return .asymmetric(
-            insertion: .modifier(
-                active: RevealModifier(blur: motion.contentBlur / 2, scale: start, opacity: 0),
-                identity: RevealModifier(blur: 0, scale: 1, opacity: 1)
-            )
-            .animation(motion.surfaceOpen),
-            removal: .modifier(
-                active: RevealModifier(blur: motion.contentBlur / 2, scale: start, opacity: 0),
-                identity: RevealModifier(blur: 0, scale: 1, opacity: 1)
-            )
-            .animation(motion.surfaceClose)
+            insertion: .modifier(active: collapsed, identity: open).animation(motion.surfaceOpen),
+            removal: .modifier(active: collapsed, identity: open).animation(motion.surfaceClose)
         )
     }
 
-    /// Compact wings: fade and un-blur out of the camera housing.
+    /// Switching shelf pages: the new page slides in from the side of its tab and the old
+    /// one slides out the other way, both fading, while the shell resizes between them.
+    static func pageSlide(_ motion: NotchMotion, forward: Bool) -> AnyTransition {
+        let distance: CGFloat = motion.expands ? 36 : 0
+        let incoming = MistModifier(blur: motion.contentBlur / 2, opacity: 0, offsetX: forward ? distance : -distance)
+        let outgoing = MistModifier(blur: motion.contentBlur / 2, opacity: 0, offsetX: forward ? -distance : distance)
+        let shown = MistModifier(blur: 0, opacity: 1)
+        return .asymmetric(
+            insertion: .modifier(active: incoming, identity: shown),
+            removal: .modifier(active: outgoing, identity: shown).animation(motion.contentOut)
+        )
+    }
+
+    /// Compact wings: the same motion, smaller, out of the camera housing.
     static func wingReveal(_ motion: NotchMotion) -> AnyTransition {
         .asymmetric(
             insertion: .modifier(
-                active: RevealModifier(blur: motion.contentBlur / 2, scale: 0.8, opacity: 0),
-                identity: RevealModifier(blur: 0, scale: 1, opacity: 1)
+                active: MistModifier(blur: motion.contentBlur / 2, opacity: 0, offsetY: motion.contentDrift / 3),
+                identity: MistModifier(blur: 0, opacity: 1)
             )
             .animation(motion.contentIn),
             removal: .opacity.animation(motion.contentOut)
         )
     }
 
-    /// Nav pill drops from under the shelf after the content settles. On close it rides
-    /// up with the surface's bottom edge (`rideDistance`) and fades into the notch.
+    /// Nav pill drifts down from under the shelf after the content settles. On close it
+    /// rides up with the surface's bottom edge (`rideDistance`) and fades into the notch.
     static func navDrop(_ motion: NotchMotion, rideDistance: CGFloat) -> AnyTransition {
         .asymmetric(
             insertion: .modifier(
-                active: RevealModifier(blur: 4, scale: 0.9, opacity: 0, offsetY: -14),
-                identity: RevealModifier(blur: 0, scale: 1, opacity: 1)
+                active: MistModifier(blur: 6, opacity: 0, offsetY: -12),
+                identity: MistModifier(blur: 0, opacity: 1)
             )
             .animation(motion.navIn),
             removal: .modifier(
-                active: RevealModifier(blur: 3, scale: 0.7, opacity: 0, offsetY: -rideDistance),
-                identity: RevealModifier(blur: 0, scale: 1, opacity: 1)
+                active: MistModifier(blur: 4, opacity: 0, offsetY: -rideDistance),
+                identity: MistModifier(blur: 0, opacity: 1)
             )
             .animation(motion.surfaceClose)
         )

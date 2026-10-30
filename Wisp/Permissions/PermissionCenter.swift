@@ -31,7 +31,8 @@ enum Permission: String, CaseIterable, Identifiable {
     var purpose: String {
         switch self {
         case .accessibility: "Caps Lock shortcut, volume and brightness keys, pasting, hiding system banners"
-        case .fullDiskAccess: "Reading notifications, Messages chats and Focus status"
+        case .fullDiskAccess:
+            "Reading notifications, Messages chats and Focus status. Drag Wisp into the list, then switch it on"
         case .screenRecording: "Recording the screen from the notch"
         case .contacts: "Photos and names on notifications"
         case .automation: "Replying in Messages, meeting controls, Music fallback"
@@ -71,7 +72,12 @@ enum Permission: String, CaseIterable, Identifiable {
         case .screenRecording: CGRequestScreenCaptureAccess()
         case .contacts: Task { _ = try? await CNContactStore().requestAccess(for: .contacts) }
         case .camera: Task { _ = await AVCaptureDevice.requestAccess(for: .video) }
-        case .fullDiskAccess, .automation, .calendars: openSettings()
+        case .fullDiskAccess:
+            // Full Disk Access has no prompt and Wisp isn't listed until added by hand:
+            // show Wisp in Finder so it can be dragged into the list.
+            openSettings()
+            NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+        case .automation, .calendars: openSettings()
         }
     }
 

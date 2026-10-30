@@ -1,33 +1,50 @@
 # Wisp
 
-A Dynamic Island for the Mac notch, built for people who make things. Wisp turns the camera housing into a live surface: system overlays, notifications and your Claude Code sessions grow out of it, and a click opens a shelf with widgets, a file tray and clipboard history. Displays without a notch get a drawn notch (or a floating island).
+**The notch for people who build.** Wisp watches your coding agents from the Mac notch. Claude Code and Codex runs show beside the camera, permission prompts become an Allow or Deny card, and a click on a session brings its terminal forward. Profiles follow what you're doing, and quick toggles, widgets, a file tray and clipboard history sit one click away. Displays without a notch get a drawn notch (or a floating island).
 
-Made by [Ayomide Odewale](https://ayomideodewale.com).
+Website: [ayomideodewale.com/wisp](https://ayomideodewale.com/wisp) · Made by [Ayomide Odewale](https://ayomideodewale.com).
+
+## Install
+
+Download `Wisp-<version>.dmg` from [Releases](https://github.com/Maestroharyor/wisp/releases), open it and drag Wisp to Applications.
+
+Builds are not notarised yet, so the first launch is blocked:
+1. Open Wisp once. macOS says it can't verify the developer.
+2. Go to System Settings › Privacy & Security and click **Open Anyway** next to Wisp.
+
+Or run `xattr -dr com.apple.quarantine /Applications/Wisp.app` once. A first-launch setup then walks you through Accessibility, how the shelf opens and connecting your agents.
 
 ## Features
 
+- **Coding agents in the notch**
+  - Claude Code and Codex, connected from setup or Settings › Agents. Wisp edits `~/.claude/settings.json` or `~/.codex/hooks.json` and keeps a backup.
+  - A pill while a session works, Done when it finishes, and Needs you when it waits. With music playing, the agent sits left of the camera and the waveform right.
+  - Permission prompts become an Allow, Allow All or Deny card (a bar when the shelf is open), with a soft sound. Several at once queue up ("1 of 2") instead of replacing each other; prompts you leave fall back to the terminal.
+  - Each project gets its own colour; each session shows its tokens and estimated cost, read from the transcript.
+  - Click a session to bring its terminal or editor forward.
+  - Open the Agents widget for each session's timeline, today's estimated spend, and a box to draft the next prompt and paste it into that terminal (it never presses Return for you).
+- **Profiles that follow you**: saved Home layouts, start page and surface. Switch with Caps Lock + 1–9 or the notch menu. Rules switch the start page and surface automatically by front app, music or a waiting agent; a Focus rule can swap Home too.
 - **Notch shell**
-  - One non-activating panel per display, morphing with tuned springs.
+  - One non-activating panel per display. The shelf and its content expand out of the notch on one spring and tuck back in when it closes.
   - Opens on hover or click; Caps Lock + Space toggles it.
-  - Surfaces: Black, Glass (Liquid Glass) or Tinted, optionally tinted with the playing album's colour.
+  - Surfaces: Black, Glass (Liquid Glass) or Tinted, in Wisp violet or the playing album's colour.
 - **Live activities beside the camera**
   - Volume, brightness and Caps Lock overlays that replace the system ones.
   - Battery: charging, unplugged, low and full.
   - Timers and Pomodoro; Now Playing from any app, including browsers.
+  - Meetings: a pill while the microphone is on, named after the calendar event, with elapsed time and a mute button. A Join card appears two minutes before a call with a Zoom, Meet, Teams or Webex link.
   - Focus changes, tray count and file-action notices.
 - **Notifications** in the notch, with quick replies to iMessage, WhatsApp and Telegram, and the system banner hidden.
-- **Claude Code in the notch**
-  - A pill while a session works, Done when it finishes, and Needs you when it waits.
-  - Permission prompts become an Allow or Deny card; prompts you leave fall back to the terminal.
-  - Connect or disconnect from Settings › Agents; Wisp edits `~/.claude/settings.json` and keeps a backup.
 - **Shelf**
   - **Home**: up to four widgets, resizable and reorderable.
   - **Widgets**: an icon grid of every widget; click one to open it on its own.
-  - Widgets: Now Playing, Calendar, Timer, Pomodoro, Battery, System Stats, Weather, Notes, Quick Toggles, Shortcuts, Clipboard, Mirror, Day Progress, World Clocks and Claude Code.
-  - **Tray**: drop files on the notch to keep them, then drag them out, AirDrop or zip them.
+  - Calendar shows the coming week and scrolls.
+  - Widgets: Now Playing, Calendar, Timer, Pomodoro, Battery, System Stats, Weather, Notes, Quick Toggles, Shortcuts, Clipboard, Mirror, Day Progress, World Clocks and Agents.
+  - **Tray**: drop files on the notch to keep them; each shows its type and size. Drag them out, AirDrop, transform or zip them.
   - **Pocket**: shake a file mid-drag and drop targets appear by the pointer.
   - **Transform**: convert, compress, resize and combine files.
-- **Profiles**: saved Home layouts, start page and surface. Switch with Caps Lock + 1–9, the notch menu, or automatically by front app, music, Focus or a waiting agent.
+  - **Media**: the player, with synced lyrics from LRCLIB (optional) and a floating mini player.
+- **Lock screen player**: while the screen is locked and music plays, a player shows where macOS allows it.
 - **Clipboard history**: a bottom panel with type tabs, search and pinning. Return pastes into the app in front; concealed (password) items are skipped.
 - **Settings**: a searchable sidebar with a live notch preview and a setup check that flags missing permissions.
 
@@ -43,7 +60,16 @@ make build   # generate the Xcode project and build
 make test    # unit tests (WispCore)
 make lint    # swift-format --strict
 make run     # build and launch
+make release # universal Release DMG in build/release
 ```
+
+`scripts/release.sh` signs with a Developer ID and notarises when `DEVELOPER_ID` and `NOTARY_PROFILE` are set (see the script). Without them it signs with "Wisp Dev" or ad-hoc. It also writes a Homebrew cask for a personal tap.
+
+GitHub Actions:
+- `ci.yml` lints and tests every push to `main` and every pull request.
+- `release.yml` runs on a `v*` tag, builds the DMG and attaches it to a GitHub release. Add the secrets listed at the top of that file to sign and notarise; without them the DMG is signed ad-hoc.
+
+The app icon comes from `design/logo/wisp-icon.svg`; `design/logo/export.sh` renders it into the asset catalog.
 
 Signing:
 - Without a "Wisp Dev" code-signing certificate, builds are ad-hoc signed.
@@ -78,7 +104,10 @@ Settings › Permissions shows each one's status, and General warns when a featu
 | `Wisp/Services` | System integrations: CoreAudio, IOKit, EventKit, notifications, Claude Code hub, camera, Shortcuts, context engine |
 | `Wisp/Input` | Hyper key, hotkeys, pointer monitor |
 | `Wisp/Settings` | Preferences, the Settings window and its panes (`Panes/`) |
-| `WispAgent/` | `wisp-agent`, the Claude Code hook command that forwards events to Wisp over a Unix socket |
+| `Wisp/Onboarding` | First-launch setup |
+| `WispAgent/` | `wisp-agent`, the Claude Code and Codex hook command that tags events with the agent and terminal and forwards them to Wisp over a Unix socket |
+| `scripts/` | Release script and the cask template |
+| `design/logo/` | Icon and menu bar glyph sources |
 | `WispMediaBridge/` | Objective-C library run inside `/usr/bin/perl` to read system-wide Now Playing; macOS only answers that query for Apple-signed processes |
 
 ## Credits

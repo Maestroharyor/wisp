@@ -94,7 +94,7 @@ final class ClipboardPanelController {
         guard AccessibilityPermission.isTrusted else { return }
         Task {
             try? await Task.sleep(for: .milliseconds(120))
-            Self.sendPasteShortcut()
+            PasteShortcut.send()
         }
     }
 
@@ -156,16 +156,6 @@ final class ClipboardPanelController {
         return true
     }
 
-    private static func sendPasteShortcut() {
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let vKey: CGKeyCode = 9
-        let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true)
-        let up = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false)
-        down?.flags = .maskCommand
-        up?.flags = .maskCommand
-        down?.post(tap: .cgAnnotatedSessionEventTap)
-        up?.post(tap: .cgAnnotatedSessionEventTap)
-    }
 }
 
 /// Key-capable panel that never activates Wisp, so the previous app stays in front.

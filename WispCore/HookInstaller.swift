@@ -1,21 +1,20 @@
 import Foundation
 
-/// Adds and removes Wisp's hooks in Claude Code's settings.json without touching the
-/// user's own settings or hooks. Wisp's entries are recognised by the helper's name.
+/// Adds and removes Wisp's hooks in Claude Code's settings.json or Codex's hooks.json
+/// (the same shape) without touching the user's own settings or hooks. Wisp's entries
+/// are recognised by the helper's name.
 public enum HookInstaller {
     public enum Failure: Error { case notAnObject }
 
     public static let helperName = "wisp-agent"
-    public static let events = [
-        "SessionStart", "UserPromptSubmit", "PermissionRequest", "Notification", "Stop", "SessionEnd",
-    ]
+    public static let events = AgentSource.claude.hookEvents
     /// Seconds a permission prompt waits for the notch before Claude Code shows its own.
     public static let approvalTimeout = 120
 
-    public static func install(into settings: Data, command: String) throws -> Data {
+    public static func install(into settings: Data, command: String, source: AgentSource = .claude) throws -> Data {
         var root = try object(settings)
         var hooks = stripped(root["hooks"])
-        for event in events {
+        for event in source.hookEvents {
             let timeout = event == "PermissionRequest" ? approvalTimeout : 5
             let group: JSONValue = .object([
                 "matcher": .string(""),

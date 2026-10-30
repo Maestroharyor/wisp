@@ -4,10 +4,12 @@ import WispCore
 
 struct AboutSettings: View {
     let preferences: Preferences
+    let runSetup: () -> Void
 
     private static let repository = URL(string: "https://github.com/Maestroharyor/wisp")
     private static let issues = URL(string: "https://github.com/Maestroharyor/wisp/issues/new")
     private static let author = URL(string: "https://ayomideodewale.com")
+    private static let website = URL(string: "https://ayomideodewale.com/wisp")
 
     var body: some View {
         Form {
@@ -19,7 +21,7 @@ struct AboutSettings: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Wisp").font(.system(size: 18, weight: .bold))
                         Text("Version \(Self.version)").foregroundStyle(.secondary)
-                        Text("Live activities, a file tray and widgets for the Mac notch.")
+                        Text("The notch for people who build.")
                             .font(.caption).foregroundStyle(.secondary)
                         if let author = Self.author {
                             HStack(spacing: 4) {
@@ -38,8 +40,8 @@ struct AboutSettings: View {
                             Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
                         }
                     }
-                    if let author = Self.author {
-                        Link(destination: author) { Label("ayomideodewale.com", systemImage: "globe") }
+                    if let website = Self.website {
+                        Link(destination: website) { Label("Website", systemImage: "globe") }
                     }
                     if let issues = Self.issues {
                         Link(destination: issues) { Label("Report an issue", systemImage: "ladybug") }
@@ -54,6 +56,7 @@ struct AboutSettings: View {
                 ShortcutRow(keys: "Right-click the notch", action: "Menu: Customise Home, profiles, Settings")
             }
             Section {
+                Button("Run Setup Again", action: runSetup)
                 Button("Reset All Settings…", role: .destructive, action: reset)
             } footer: {
                 Text(

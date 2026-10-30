@@ -76,6 +76,14 @@ final class SurfaceSizingTests: XCTestCase {
         XCTAssertLessThanOrEqual(tray.width, NotchSizes.standard.maxSurface.width)
     }
 
+    func testTrayLeavesRoomForTheDropCardAndHeaderActions() {
+        let two = SurfaceSizing.rect(for: .tray(items: 2), in: notched)
+        let six = SurfaceSizing.rect(for: .tray(items: 6), in: notched)
+        let insets = ShellMetrics.shelfInsets(notchStyle: true, notchHeight: notched.closedRect.height)
+        XCTAssertEqual(two.width - insets.leading - insets.trailing, SurfaceSizing.trayMinimumContentWidth)
+        XCTAssertEqual(six.width - insets.leading - insets.trailing, 7 * SurfaceSizing.trayItemWidth)
+    }
+
     func testNavPillHangsBelowTheSurface() {
         let surface = SurfaceSizing.rect(for: .home(contentWidth: 180, editing: false), in: notched)
         let pill = SurfaceSizing.navPillRect(below: surface)
@@ -87,7 +95,7 @@ final class SurfaceSizingTests: XCTestCase {
         let pages: [SurfaceSpec] = [
             .home(contentWidth: 180, editing: false), .home(contentWidth: 800, editing: false),
             .tray(items: 0), .tray(items: 30), .media, .widgetGrid(count: 3, rows: 2), .widgetGrid(count: 30, rows: 1),
-            .widgetSolo,
+            .widgetSolo(wide: false), .widgetSolo(wide: true),
             .dropTiles,
         ]
         let heights = Set(pages.map { SurfaceSizing.rect(for: $0, in: notched).height })
@@ -97,14 +105,16 @@ final class SurfaceSizingTests: XCTestCase {
     func testRevealScaleStartsAtTheNotchWidth() {
         let closed = CGRect(x: 0, y: 0, width: 185, height: 32)
         let open = CGRect(x: 0, y: 0, width: 600, height: 180)
-        XCTAssertEqual(SurfaceSizing.revealScale(from: closed, to: open), 185.0 / 600.0, accuracy: 1e-9)
+        let scale = SurfaceSizing.revealScale(from: closed, to: open)
+        XCTAssertEqual(scale.width, 185.0 / 600.0, accuracy: 1e-9)
+        XCTAssertEqual(scale.height, 32.0 / 180.0, accuracy: 1e-9)
     }
 
     func testRevealScaleIsClamped() {
         let tiny = CGRect(x: 0, y: 0, width: 10, height: 10)
         let open = CGRect(x: 0, y: 0, width: 900, height: 500)
-        XCTAssertEqual(SurfaceSizing.revealScale(from: tiny, to: open), 0.25)
-        XCTAssertEqual(SurfaceSizing.revealScale(from: open, to: tiny), 1)
+        XCTAssertEqual(SurfaceSizing.revealScale(from: tiny, to: open), CGSize(width: 0.25, height: 0.1))
+        XCTAssertEqual(SurfaceSizing.revealScale(from: open, to: tiny), CGSize(width: 1, height: 1))
     }
 
     func testWidgetGridAndMediaPageWidths() {

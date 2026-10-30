@@ -11,7 +11,8 @@ public enum SurfaceSpec: Sendable, Equatable {
     /// The Widgets page: an icon grid of the switched-on widgets.
     case widgetGrid(count: Int, rows: Int)
     /// The Widgets page with one widget opened on its own.
-    case widgetSolo
+    /// One widget on its own. Wide ones (Agents, Calendar) get room for a detail page.
+    case widgetSolo(wide: Bool)
     /// The Media page: a large player.
     case media
     case tray(items: Int)
@@ -20,11 +21,15 @@ public enum SurfaceSpec: Sendable, Equatable {
     case notification(replying: Bool)
 }
 
-/// Turns a `SurfaceSpec` into a rectangle on a display, using the measured shell metrics.
+/// Turns a `SurfaceSpec` into a rectangle on a display, using the shell metrics.
 public enum SurfaceSizing {
     public static let pickerRowHeight: CGFloat = 76
     public static let multiCardWidth: CGFloat = 243
     public static let trayItemWidth: CGFloat = 84
+    /// A solo widget with a detail page: a list beside the selected item's details.
+    public static let wideSoloWidth: CGFloat = 560
+    /// Wide enough for the tray's summary and its labelled action buttons on one row.
+    public static let trayMinimumContentWidth: CGFloat = 5 * trayItemWidth
     public static let tileSize: CGFloat = 96
     public static let tileSpacing: CGFloat = 10
     public static let navPillSize = CGSize(width: 174, height: 34)
@@ -63,13 +68,14 @@ public enum SurfaceSizing {
         case .widgetGrid(let count, let rows):
             let content = WidgetGrid.contentWidth(count: count, rows: rows)
             return shelf(contentWidth: content, contentHeight: shelfContentHeight, layout, sizes)
-        case .widgetSolo:
-            let content = ShellMetrics.soloCardWidth(notchStyle: notchStyle)
+        case .widgetSolo(let wide):
+            let content = wide ? wideSoloWidth : ShellMetrics.soloCardWidth(notchStyle: notchStyle)
             return shelf(contentWidth: content, contentHeight: shelfContentHeight, layout, sizes)
         case .media:
             return shelf(contentWidth: mediaPageWidth, contentHeight: shelfContentHeight, layout, sizes)
         case .tray(let items):
-            let content = CGFloat(max(items, 4)) * trayItemWidth
+            // One more card than files: the "drop more" card always sits last.
+            let content = max(CGFloat(items + 1) * trayItemWidth, trayMinimumContentWidth)
             return shelf(contentWidth: content, contentHeight: shelfContentHeight, layout, sizes)
         case .notification(let replying):
             let height = closed.height + notificationCardHeight + (replying ? replyBarHeight : 0)
@@ -80,11 +86,12 @@ public enum SurfaceSizing {
         }
     }
 
-    /// Scale the open content starts from so it grows out of the notch together with
-    /// the surface (one spring drives both): the closed width relative to the open width.
-    public static func revealScale(from closed: CGRect, to open: CGRect) -> CGFloat {
-        guard open.width > 0 else { return 1 }
-        return min(max(closed.width / open.width, 0.25), 1)
+    /// Scale the open content starts from so it unfolds out of the notch with the surface
+    /// (one spring drives both): the closed size relative to the open size, per axis.
+    public static func revealScale(from closed: CGRect, to open: CGRect) -> CGSize {
+        let width = open.width > 0 ? min(max(closed.width / open.width, 0.25), 1) : 1
+        let height = open.height > 0 ? min(max(closed.height / open.height, 0.1), 1) : 1
+        return CGSize(width: width, height: height)
     }
 
     /// Content height shared by every shelf page, so switching tabs never changes

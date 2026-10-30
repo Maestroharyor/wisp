@@ -48,7 +48,7 @@ public struct NotchSizes: Sendable, Equatable {
     public var drawnNotchFallbackHeight: CGFloat = 24
     public var island = CGSize(width: 130, height: 32)
     public var islandTopMargin: CGFloat = 4
-    public var peekGrowth = CGSize(width: 18, height: 4)
+    public var peekGrowth = CGSize(width: 16, height: 10)
     /// The largest surface any content may ask for; the panel is sized to fit it.
     public var maxSurface = CGSize(width: 900, height: 560)
     /// Room around the surface for its shadow.

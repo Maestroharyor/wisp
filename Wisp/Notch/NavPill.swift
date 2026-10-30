@@ -26,7 +26,8 @@ struct NavPill: View {
                 .font(.system(size: 12, weight: .semibold))
                 .frame(width: 38, height: 26)
                 .background(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(selected ? 0.24 : 0))
+                    RoundedRectangle(cornerRadius: 9, style: .continuous).fill(
+                        Color.wispViolet.opacity(selected ? 0.85 : 0))
                 )
                 .overlay(alignment: .topTrailing) {
                     if badge > 0 {

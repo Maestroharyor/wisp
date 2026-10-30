@@ -73,7 +73,9 @@ struct NowPlayingWidget: View {
                     let position = monitor.position(at: context.date)
                     HStack(spacing: 10) {
                         ValueText(text: Countdown.format(position), tint: .secondaryText, size: 11)
-                        ProgressBar(value: info.duration > 0 ? position / info.duration : 0, tint: .white, height: 5) {
+                        ProgressBar(
+                            value: info.duration > 0 ? position / info.duration : 0, tint: .accentColor, height: 5
+                        ) {
                             monitor.seek(to: $0 * info.duration)
                         }
                         ValueText(
@@ -116,7 +118,7 @@ struct NowPlayingWidget: View {
     }
 }
 
-/// A bare SF Symbol button that dims while pressed, like the reference player.
+/// A bare SF Symbol button that dims while pressed.
 struct PlainIconButton: View {
     let symbol: String
     var size: CGFloat = 16
@@ -196,17 +198,34 @@ struct CalendarWidget: View {
             }
             if store.access == .fullAccess {
                 if store.events.isEmpty {
-                    Text("No more events today")
+                    Text("Nothing in the next week")
                         .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    VStack(spacing: 4) {
-                        ForEach(store.events) { event in EventRow(event: event) }
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(alignment: .leading, spacing: 4, pinnedViews: [.sectionHeaders]) {
+                            ForEach(CalendarDays.group(store.events, date: \.start, now: .now), id: \.label) { day in
+                                Section {
+                                    ForEach(day.items) { event in
+                                        EventRow(event: event).onTapGesture { store.open(event) }
+                                    }
+                                } header: {
+                                    if day.label != "Today" {
+                                        Text(day.label.uppercased())
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundStyle(Color.secondaryText)
+                                            .padding(.top, 4)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.bottom, 14)
                     }
-                    .frame(maxHeight: .infinity, alignment: .top)
+                    // Fades the last row so it reads as "scroll for more".
                     .mask(
                         LinearGradient(
-                            stops: [.init(color: .white, location: 0.7), .init(color: .clear, location: 1)],
+                            stops: [.init(color: .white, location: 0.82), .init(color: .clear, location: 1)],
                             startPoint: .top, endPoint: .bottom))
                 }
             } else {
@@ -280,7 +299,7 @@ struct TimerWidget: View {
     }
 }
 
-/// Round control from the reference widgets: tinted fill, bold glyph.
+/// Round control: tinted fill, bold glyph.
 struct CircleButton: View {
     let symbol: String
     let tint: Color

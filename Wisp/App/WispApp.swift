@@ -5,7 +5,7 @@ struct WispApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("Wisp", systemImage: "capsule.inset.filled") {
+        MenuBarExtra {
             Button("Toggle Shelf") { appDelegate.toggleShelf() }
             Button("Clipboard History") { appDelegate.toggleClipboard() }
             Button("Settings…") { appDelegate.showSettings() }
@@ -13,6 +13,8 @@ struct WispApp: App {
             Divider()
             Button("Quit Wisp") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
+        } label: {
+            Image("MenuGlyph").accessibilityLabel("Wisp")
         }
     }
 }

@@ -1,21 +1,22 @@
 import CoreGraphics
 
-/// Shell proportions measured from the reference app (droppy-analysis/features/design.md §16).
+/// Wisp's shell proportions. Open surfaces are generously rounded, a little softer than
+/// the hardware notch, so the shelf reads as something that grew out of it.
 public enum ShellMetrics {
     /// Concave flare where a closed notch meets the menu bar.
     public static func closedTopRadius(height: CGFloat) -> CGFloat { clamp(height * 0.24, 8, 10) }
     public static func closedBottomRadius(height: CGFloat) -> CGFloat { clamp(height * 0.32, 11, 13) }
 
-    public static let expandedTopRadius: CGFloat = 32
-    public static let expandedShelfBottomRadius: CGFloat = 40
-    public static let expandedIslandRadius: CGFloat = 44
+    public static let expandedTopRadius: CGFloat = 34
+    public static let expandedShelfBottomRadius: CGFloat = 46
+    public static let expandedIslandRadius: CGFloat = 50
     public static let expandedHUDBottomRadius: CGFloat = 28
-    public static let closedIslandRadius: CGFloat = 18
-    public static let widgetCornerRadius: CGFloat = 18
+    public static let closedIslandRadius: CGFloat = 20
+    public static let widgetCornerRadius: CGFloat = 20
     public static let cardSpacing: CGFloat = 18
     public static let widgetContentHeight: CGFloat = 93
     /// The media widget needs room for artwork, a progress row and controls.
-    /// One media widget then gives a shelf of about 180 pt, as in the reference.
+    /// One media widget then gives a shelf of about 180 pt.
     public static let mediaWidgetContentHeight: CGFloat = 122
 
     public static func shelfMinimumWidth(notchStyle: Bool) -> CGFloat { notchStyle ? 451 : 405 }
@@ -39,7 +40,7 @@ public enum ShellMetrics {
     }
 }
 
-/// Live-activity proportions measured from the reference app.
+/// Live-activity proportions: wing widths, row heights and type sizes for the pill and cards.
 public enum ActivityMetrics {
     public static let compactNotchWing: CGFloat = 70
     public static let compactIslandWidth: CGFloat = 150

@@ -131,6 +131,8 @@ struct ShelfButton: View {
 }
 
 extension ShapeStyle where Self == Color {
+    /// Wisp's accent: #7A6BFF, the same as the AccentColor asset.
+    static var wispViolet: Color { Color(red: 122 / 255, green: 107 / 255, blue: 1) }
     static var wispAmber: Color { Color(red: 1, green: 0.72, blue: 0.2) }
     static var wispGreen: Color { Color(red: 0.3, green: 0.85, blue: 0.4) }
     static var secondaryText: Color { Color.white.opacity(0.55) }

@@ -5,7 +5,8 @@ import WispCore
 /// switches profiles by the rules in Settings. A manual choice holds for 30 minutes.
 @MainActor
 final class ContextEngine {
-    /// Called with the profile to apply and whether the user picked it.
+    /// Called with the profile to apply and whether it may swap Home: true when the user
+    /// picked it or a Focus rule chose it, false for other automatic switches.
     var onSwitch: (Profile, Bool) -> Void = { _, _ in }
 
     private let preferences: Preferences
@@ -66,10 +67,11 @@ final class ContextEngine {
 
     private func evaluate() {
         guard preferences.contextAware else { return }
-        let candidate = ContextRules.match(preferences.contextRules, state: state)
-        if let name = engine.propose(candidate, at: .now) {
+        let rule = ContextRules.matchingRule(preferences.contextRules, state: state)
+        if let name = engine.propose(rule?.profile, at: .now) {
             recheck?.cancel()
-            if let profile = preferences.profile(named: name) { onSwitch(profile, false) }
+            let swapsHome = rule?.profile == name && ContextRules.swapsHome(rule)
+            if let profile = preferences.profile(named: name) { onSwitch(profile, swapsHome) }
             return
         }
         // A new match has to hold for the debounce; look again once it has.

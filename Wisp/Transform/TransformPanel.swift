@@ -126,7 +126,7 @@ private struct TransformView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.indigo))
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.accentColor))
             }
             .buttonStyle(.plain)
             .disabled(model.files.isEmpty || model.running)
@@ -198,7 +198,7 @@ private struct TransformView: View {
                     .frame(maxWidth: .infinity, minHeight: 56)
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(model.operation == operation ? Color.indigo : .white.opacity(0.08)))
+                            .fill(model.operation == operation ? Color.accentColor : .white.opacity(0.08)))
                 }
                 .buttonStyle(.plain)
             }

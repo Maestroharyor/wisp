@@ -1,0 +1,65 @@
+import Foundation
+
+/// Song lyrics, timed when the source has timings.
+public struct Lyrics: Equatable, Sendable {
+    public struct Line: Equatable, Sendable {
+        /// Seconds into the song; nil for plain (untimed) lyrics.
+        public let time: TimeInterval?
+        public let text: String
+    }
+
+    public let lines: [Line]
+    public var isSynced: Bool { lines.first?.time != nil }
+
+    /// Timed LRC text ("[mm:ss.xx] words") if there is any, otherwise plain text.
+    public static func parse(synced: String?, plain: String?) -> Lyrics? {
+        if let synced {
+            let lines = synced.split(separator: "\n").compactMap(timedLine).sorted { ($0.time ?? 0) < ($1.time ?? 0) }
+            if !lines.isEmpty { return Lyrics(lines: lines) }
+        }
+        let text = (plain ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        return Lyrics(
+            lines: text.split(separator: "\n", omittingEmptySubsequences: false).map {
+                Line(time: nil, text: $0.trimmingCharacters(in: .whitespaces))
+            })
+    }
+
+    /// The line being sung at `position`, or nil before the first one (or for plain lyrics).
+    public func index(at position: TimeInterval) -> Int? {
+        guard isSynced else { return nil }
+        return lines.lastIndex { ($0.time ?? 0) <= position }
+    }
+
+    private static func timedLine(_ raw: Substring) -> Line? {
+        guard raw.hasPrefix("["), let close = raw.firstIndex(of: "]") else { return nil }
+        let stamp = raw[raw.index(after: raw.startIndex)..<close].split(separator: ":")
+        guard stamp.count == 2, let minutes = Double(stamp[0]), let seconds = Double(stamp[1]) else { return nil }
+        let text = raw[raw.index(after: close)...].trimmingCharacters(in: .whitespaces)
+        return Line(time: minutes * 60 + seconds, text: text)
+    }
+}
+
+/// The LRCLIB `/api/get` response.
+public struct LyricsResponse: Decodable, Sendable {
+    public let instrumental: Bool?
+    public let plainLyrics: String?
+    public let syncedLyrics: String?
+
+    public var lyrics: Lyrics? {
+        instrumental == true ? nil : Lyrics.parse(synced: syncedLyrics, plain: plainLyrics)
+    }
+}
+
+/// Builds the LRCLIB lookup for a song. LRCLIB is free and needs no account.
+public enum LyricsQuery {
+    public static func url(title: String, artist: String, album: String?, duration: TimeInterval) -> URL? {
+        guard !title.isEmpty, !artist.isEmpty else { return nil }
+        var components = URLComponents(string: "https://lrclib.net/api/get")
+        var items = [URLQueryItem(name: "track_name", value: title), URLQueryItem(name: "artist_name", value: artist)]
+        if let album, !album.isEmpty { items.append(URLQueryItem(name: "album_name", value: album)) }
+        if duration > 0 { items.append(URLQueryItem(name: "duration", value: String(Int(duration.rounded())))) }
+        components?.queryItems = items
+        return components?.url
+    }
+}

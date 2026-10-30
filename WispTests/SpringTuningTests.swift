@@ -23,6 +23,10 @@ final class SpringTuningTests: XCTestCase {
         XCTAssertEqual(spec.dampingFraction, 0.9)
     }
 
+    func testCloseSettlesWithLessOvershootThanOpen() {
+        XCTAssertGreaterThan(SpringTuning.surfaceClose.dampingFraction, SpringTuning.surfaceOpen.dampingFraction)
+    }
+
     func testReduceMotionIsCriticallyDampedAndIgnoresSpeed() {
         let spec = SpringTuning.surface(opening: true, speedScale: 2, framesPerSecond: 120, reduceMotion: true)
         XCTAssertEqual(spec, SpringTuning.reducedMotion)

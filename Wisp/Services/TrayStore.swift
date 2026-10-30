@@ -10,6 +10,8 @@ import WispCore
 final class TrayStore {
     private(set) var list = TrayList()
     private(set) var thumbnails: [URL: NSImage] = [:]
+    /// File sizes, read once when a file arrives. Folders have none.
+    private(set) var sizes: [URL: Int64] = [:]
 
     @ObservationIgnored var onAdd: (Int) -> Void = { _ in }
     @ObservationIgnored var onNotice: (String, String) -> Void = { _, _ in }
@@ -26,6 +28,20 @@ final class TrayStore {
 
     var count: Int { list.urls.count }
 
+    /// "2 files · 3.4 MB", or what is selected.
+    var header: String {
+        TraySummary.header(
+            sizes: list.urls.compactMap { sizes[$0] },
+            selectedSizes: list.urls.filter(list.selected.contains).compactMap { sizes[$0] },
+            count: count)
+    }
+
+    /// "PNG · 1.2 MB", or "Folder".
+    func detail(for url: URL) -> String {
+        if sizes[url] == nil, Self.isFolder(url) { return "Folder" }
+        return TraySummary.detail(pathExtension: url.pathExtension, size: sizes[url])
+    }
+
     func add(_ urls: [URL]) {
         let before = count
         list.add(urls.filter(Self.exists))
@@ -37,12 +53,14 @@ final class TrayStore {
     func remove(_ url: URL) {
         list.remove(url)
         thumbnails[url] = nil
+        sizes[url] = nil
         save()
     }
 
     func removeSelectedOrAll() {
         if list.selected.isEmpty { list.removeAll() } else { list.removeSelected() }
         thumbnails = thumbnails.filter { list.urls.contains($0.key) }
+        sizes = sizes.filter { list.urls.contains($0.key) }
         save()
     }
 
@@ -106,8 +124,9 @@ final class TrayStore {
     private func loadThumbnail(_ url: URL) {
         guard thumbnails[url] == nil else { return }
         thumbnails[url] = NSWorkspace.shared.icon(forFile: url.path)
+        if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize { sizes[url] = Int64(size) }
         let request = QLThumbnailGenerator.Request(
-            fileAt: url, size: CGSize(width: 112, height: 112), scale: 2, representationTypes: .thumbnail)
+            fileAt: url, size: CGSize(width: 168, height: 168), scale: 2, representationTypes: .thumbnail)
         QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { [weak self] representation, _ in
             guard let cgImage = representation?.cgImage else { return }
             let size = CGSize(width: cgImage.width, height: cgImage.height)
@@ -116,6 +135,10 @@ final class TrayStore {
                 self?.thumbnails[url] = NSImage(cgImage: cgImage, size: size)
             }
         }
+    }
+
+    private static func isFolder(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
     }
 
     private nonisolated static func exists(_ url: URL) -> Bool {

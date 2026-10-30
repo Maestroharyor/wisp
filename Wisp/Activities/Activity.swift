@@ -58,6 +58,10 @@ enum Activity: Sendable, Equatable {
     case agent(AgentStatus)
     /// A Claude Code permission prompt answered from the notch.
     case agentApproval(AgentApproval)
+    /// The microphone is live: a call or a recording.
+    case meeting(MeetingStatus)
+    /// A call with a link starts in a couple of minutes.
+    case meetingSoon(MeetingInvite)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -70,7 +74,7 @@ enum Activity: Sendable, Equatable {
     /// Level bars need room for the bar and the number.
     var usesWideWings: Bool {
         switch self {
-        case .level, .sent, .focus, .agent: true
+        case .level, .sent, .focus, .agent, .meeting: true
         default: false
         }
     }
@@ -95,8 +99,24 @@ enum Activity: Sendable, Equatable {
         case .focus: "focus"
         case .agent: "agent"
         case .agentApproval(let approval): "agentApproval-\(approval.id)"
+        case .meeting: "meeting"
+        case .meetingSoon(let invite): "meetingSoon-\(invite.id)"
         }
     }
+}
+
+/// A live call: what it is (from the calendar, if anything) and when the mic came on.
+struct MeetingStatus: Sendable, Equatable {
+    let title: String
+    let started: Date
+}
+
+/// A call that's about to start, with its link.
+struct MeetingInvite: Sendable, Equatable {
+    let id: String
+    let title: String
+    let link: URL
+    let start: Date
 }
 
 /// Priorities and lifetimes for each activity source. Higher wins.
@@ -112,12 +132,16 @@ enum ActivitySlot: String {
     case level
     case agent
     case agentApproval
+    case meeting
+    case meetingSoon
 
     var priority: Int {
         switch self {
         case .media: 10
         case .agent: 15
         case .agentApproval: 55
+        case .meeting: 44
+        case .meetingSoon: 48
         case .timer: 20
         case .tray: 30
         case .battery: 40

@@ -108,14 +108,20 @@ final class WidgetPageSizingTests: XCTestCase {
         XCTAssertEqual(rect.width, 48 + WidgetGrid.contentWidth(count: 8, rows: 1) + 48)
     }
 
+    func testWideSoloWidgetsGetRoomForADetailPage() {
+        let wide = SurfaceSizing.rect(for: .widgetSolo(wide: true), in: notched)
+        XCTAssertEqual(wide.width, 48 + SurfaceSizing.wideSoloWidth + 48)
+        XCTAssertEqual(wide.height, SurfaceSizing.rect(for: .widgetSolo(wide: false), in: notched).height)
+    }
+
     func testSoloWidgetUsesTheSoloCardWidth() {
-        let notchSolo = SurfaceSizing.rect(for: .widgetSolo, in: notched)
+        let notchSolo = SurfaceSizing.rect(for: .widgetSolo(wide: false), in: notched)
         XCTAssertEqual(
             notchSolo.width,
             max(
                 48 + ShellMetrics.soloCardWidth(notchStyle: true) + 48, ShellMetrics.shelfMinimumWidth(notchStyle: true)
             ))
-        let islandSolo = SurfaceSizing.rect(for: .widgetSolo, in: island)
+        let islandSolo = SurfaceSizing.rect(for: .widgetSolo(wide: false), in: island)
         XCTAssertEqual(
             islandSolo.width,
             max(
@@ -126,6 +132,6 @@ final class WidgetPageSizingTests: XCTestCase {
     func testGridAndSoloKeepTheShelfHeight() {
         let home = SurfaceSizing.rect(for: .home(contentWidth: 400, editing: false), in: notched).height
         XCTAssertEqual(SurfaceSizing.rect(for: .widgetGrid(count: 5, rows: 2), in: notched).height, home)
-        XCTAssertEqual(SurfaceSizing.rect(for: .widgetSolo, in: notched).height, home)
+        XCTAssertEqual(SurfaceSizing.rect(for: .widgetSolo(wide: false), in: notched).height, home)
     }
 }

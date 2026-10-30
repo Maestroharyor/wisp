@@ -23,21 +23,60 @@ final class NowPlayingMonitor {
     @ObservationIgnored private var artworkTrackID: String?
     @ObservationIgnored private let bridge = MediaBridge()
     @ObservationIgnored private var usingBridge = false
+    @ObservationIgnored private var retryTask: Task<Void, Never>?
+    @ObservationIgnored private var wakeObserver: NSObjectProtocol?
 
     func start() {
         bridge.onEvent = { [weak self] event in self?.handle(event) }
-        bridge.onUnavailable = { [weak self] in
-            self?.usingBridge = false
-            self?.startPolling()
+        bridge.onUnavailable = { [weak self] in self?.bridgeFailed() }
+        // The bridge can drop around sleep; start it fresh on wake.
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.restartBridge() }
         }
         usingBridge = bridge.start()
-        if !usingBridge { startPolling() }
+        if !usingBridge { bridgeFailed() }
     }
 
     func stop() {
+        if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
+        retryTask?.cancel()
         bridge.stop()
         pollTask?.cancel()
         pollTask = nil
+    }
+
+    /// Falls back to Music and Spotify via AppleScript, and keeps trying the bridge every
+    /// 20 seconds, so browsers and other apps come back without relaunching Wisp.
+    private func bridgeFailed() {
+        usingBridge = false
+        startPolling()
+        retryTask?.cancel()
+        retryTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(20))
+                guard !Task.isCancelled, let self else { return }
+                if bridge.start() {
+                    usingBridge = true
+                    pollTask?.cancel()
+                    pollTask = nil
+                    return
+                }
+            }
+        }
+    }
+
+    private func restartBridge() {
+        retryTask?.cancel()
+        bridge.stop()
+        if bridge.start() {
+            usingBridge = true
+            pollTask?.cancel()
+            pollTask = nil
+        } else {
+            bridgeFailed()
+        }
     }
 
     private func startPolling() {

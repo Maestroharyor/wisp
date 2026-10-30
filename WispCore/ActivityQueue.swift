@@ -51,6 +51,12 @@ public struct ActivityQueue<Payload: Sendable>: Sendable {
             }
     }
 
+    /// The entry for `id` if it is still live, even when another one is showing.
+    public func live(id: String, now: Date) -> ActivityEntry<Payload>? {
+        guard let entry = entries[id], entry.expiresAt.map({ $0 > now }) ?? true else { return nil }
+        return entry
+    }
+
     /// When the next transient activity ends, so the owner can schedule a refresh.
     public func nextExpiry(after now: Date) -> Date? {
         entries.values.compactMap(\.expiresAt).filter { $0 > now }.min()

@@ -59,9 +59,19 @@ public struct ContextRule: Codable, Equatable, Identifiable, Sendable {
 public enum ContextRules {
     /// The profile of the highest-priority enabled rule that matches, if any.
     public static func match(_ rules: [ContextRule], state: ContextState) -> String? {
-        rules.filter { $0.enabled && $0.trigger.matches(state) }
-            .max { $0.priority < $1.priority }?
-            .profile
+        matchingRule(rules, state: state)?.profile
+    }
+
+    /// The highest-priority enabled rule that matches, if any.
+    public static func matchingRule(_ rules: [ContextRule], state: ContextState) -> ContextRule? {
+        rules.filter { $0.enabled && $0.trigger.matches(state) }.max { $0.priority < $1.priority }
+    }
+
+    /// Automatic switches change the start page and surface only. A Focus is a deliberate
+    /// choice the user made, so a Focus rule may also swap the Home widgets.
+    public static func swapsHome(_ rule: ContextRule?) -> Bool {
+        guard case .focus = rule?.trigger else { return false }
+        return true
     }
 
     /// Rules Wisp starts with; each can be switched off.

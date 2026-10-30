@@ -15,8 +15,9 @@ public struct SpringSpec: Equatable, Sendable {
     public var damping: Double { 4 * .pi * dampingFraction / response }
 }
 
-/// Notch surface timing. Values measured from the reference app's motion presets
-/// (see droppy-analysis/features/animation.md); the scaling rules are ours to tune.
+/// Notch surface timing. The surface opens on a lively spring with a little overshoot,
+/// so the shelf feels like it swells out of the notch, and closes on a firmer one with
+/// almost none, so it tucks back in without bouncing.
 public enum SpringTuning {
     public static let surfaceOpen = SpringSpec(response: 0.47, dampingFraction: 0.76)
     public static let surfaceClose = SpringSpec(response: 0.54, dampingFraction: 0.9)

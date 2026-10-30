@@ -8,6 +8,8 @@ import WispCore
 @Observable
 final class ActivityCenter {
     private(set) var current: Activity?
+    /// Music still playing behind an agent run: the pill shows both, agent left and music right.
+    private(set) var companion: Activity?
 
     @ObservationIgnored private var queue = ActivityQueue<Activity>()
     @ObservationIgnored private var expiryTask: Task<Void, Never>?
@@ -29,6 +31,9 @@ final class ActivityCenter {
         queue.prune(now: now)
         let next = queue.current(now: now)?.payload
         if next != current { current = next }
+        let behind: Activity? =
+            if case .agent = next, queue.live(id: ActivitySlot.media.rawValue, now: now) != nil { .media } else { nil }
+        if behind != companion { companion = behind }
 
         expiryTask?.cancel()
         guard let expiry = queue.nextExpiry(after: now) else { return }

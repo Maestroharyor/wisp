@@ -82,7 +82,7 @@ final class SystemStatsStore {
     }
 }
 
-/// Today's next calendar events, read through EventKit after the user allows it.
+/// The coming week's calendar events, read through EventKit after the user allows it.
 @MainActor
 @Observable
 final class CalendarStore {
@@ -94,8 +94,11 @@ final class CalendarStore {
         let isAllDay: Bool
         /// The event's calendar colour.
         let color: Color
+        /// A video-call link from the event's URL, location or notes.
+        let link: URL?
     }
 
+    /// Events from now through the next six days, soonest first (at most 30).
     private(set) var events: [Event] = []
     /// Every timed event today, including finished ones, for the Day Progress widget.
     private(set) var dayEvents: [ClosedRange<Date>] = []
@@ -123,21 +126,36 @@ final class CalendarStore {
             }
         }
         let now = Date.now
-        let dayStart = Calendar.current.startOfDay(for: now)
-        let end = dayStart.addingTimeInterval(86400)
-        let today = store.events(matching: store.predicateForEvents(withStart: dayStart, end: end, calendars: nil))
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? now
+        let weekEnd = calendar.date(byAdding: .day, value: 7, to: dayStart) ?? now
+        let week = store.events(matching: store.predicateForEvents(withStart: dayStart, end: weekEnd, calendars: nil))
             .sorted { $0.startDate < $1.startDate }
-        dayEvents = today.filter { !$0.isAllDay && $0.startDate <= $0.endDate }.map { $0.startDate...$0.endDate }
+        dayEvents = week.filter { !$0.isAllDay && $0.startDate < tomorrow && $0.startDate <= $0.endDate }
+            .map { $0.startDate...$0.endDate }
         events =
-            today
+            week
             .filter { $0.endDate > now }
-            .prefix(3)
+            .prefix(30)
             .map {
                 Event(
                     id: $0.eventIdentifier ?? UUID().uuidString, title: $0.title ?? "Event", start: $0.startDate,
                     end: $0.endDate, isAllDay: $0.isAllDay,
-                    color: Color(nsColor: $0.calendar.color ?? .systemPurple))
+                    color: Color(nsColor: $0.calendar.color ?? .systemPurple),
+                    link: MeetingLink.find(in: [$0.url?.absoluteString, $0.location, $0.notes]))
             }
+    }
+
+    /// Opens the event in Calendar.
+    func open(_ event: Event) {
+        let id = event.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? event.id
+        if let url = URL(string: "ical://ekevent/\(id)?method=show&options=more"), NSWorkspace.shared.open(url) {
+            return
+        }
+        if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") {
+            NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
+        }
     }
 }
 

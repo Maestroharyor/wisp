@@ -9,6 +9,7 @@ enum NotchMenu {
         menu.addItem(item("Customise Home", symbol: "square.grid.2x2", action: customiseHome))
         menu.addItem(item("Clipboard History", symbol: "doc.on.clipboard", action: services.openClipboard))
         menu.addItem(item("Transform Files…", symbol: "wand.and.stars") { services.openTransform([]) })
+        menu.addItem(item("Mini Player", symbol: "pip") { services.miniPlayer.toggle() })
         menu.addItem(profilesItem(services: services))
         menu.addItem(.separator())
         menu.addItem(item("Settings…", symbol: "gearshape", action: services.openSettings))

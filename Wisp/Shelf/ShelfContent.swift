@@ -12,20 +12,26 @@ struct ShelfContent: View {
             if model.dragging {
                 DropTiles(model: model)
             } else {
-                switch model.page {
-                case .home: HomePage(model: model)
-                case .tray: TrayPage(model: model)
-                case .media: MediaPage(model: model)
-                case .widgets: WidgetsPage(model: model)
+                Group {
+                    switch model.page {
+                    case .home: HomePage(model: model)
+                    case .tray: TrayPage(model: model)
+                    case .media: MediaPage(model: model)
+                    case .widgets: WidgetsPage(model: model)
+                    }
                 }
+                .id(model.page)
+                .transition(.pageSlide(model.motion, forward: model.pageMovedForward))
             }
         }
+        .animation(model.surfaceAnimation, value: model.page)
         .padding(EdgeInsets(top: insets.top, leading: insets.leading, bottom: insets.bottom, trailing: insets.trailing))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .bottom) {
             let hub = model.services.agents
             if let approval = hub.approvals.first {
                 ApprovalBar(approval: approval, hub: hub)
+                    .id(approval.id)
                     .padding(.horizontal, insets.leading)
                     .padding(.bottom, 10)
             }

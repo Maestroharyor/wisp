@@ -6,11 +6,10 @@ Wisp is made by [Ayomide Odewale](https://ayomideodewale.com).
 
 Wisp is written from scratch and bundles no third-party code.
 
-## Design reference
+## Inspiration
 
-- **Droppy** (getdroppy.app) is the reference for Wisp's look and feel.
-- Wisp copies none of its code, assets, names or copy.
-- Proportions and spring timings were measured from the shipped app with rizin. Only numeric values were recorded (see `droppy-analysis/features/`).
+- **Droppy** (getdroppy.app) was the starting reference for Wisp's look and feel. Early builds borrowed its measured proportions and spring timings (numbers only, measured with rizin).
+- Wisp now has its own motion, proportions, icon and accent, and copies none of Droppy's code, assets, names or copy.
 
 ## Services
 

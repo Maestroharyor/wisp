@@ -85,7 +85,8 @@ final class HotkeyCenter {
         guard AccessibilityPermission.isTrusted else {
             disableRemap()
             status = .needsAccessibility
-            AccessibilityPermission.requestAccess()
+            // During first-launch setup, the setup window asks, with an explanation.
+            if preferences.onboarded { AccessibilityPermission.requestAccess() }
             accessWaiter = Task { [weak self] in
                 await AccessibilityPermission.waitUntilTrusted()
                 guard !Task.isCancelled else { return }

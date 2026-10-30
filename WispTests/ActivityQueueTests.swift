@@ -9,6 +9,16 @@ final class ActivityQueueTests: XCTestCase {
         XCTAssertNil(ActivityQueue<String>().current(now: now))
     }
 
+    func testLiveFindsAnEntryHiddenBehindTheWinner() {
+        var queue = ActivityQueue<String>()
+        queue.post(id: "media", priority: 10, duration: nil, payload: "media", now: now)
+        queue.post(id: "agent", priority: 15, duration: nil, payload: "agent", now: now)
+        queue.post(id: "notice", priority: 45, duration: 1, payload: "notice", now: now)
+        XCTAssertEqual(queue.live(id: "media", now: now)?.payload, "media")
+        XCTAssertNil(queue.live(id: "notice", now: now.addingTimeInterval(2)))
+        XCTAssertNil(queue.live(id: "missing", now: now))
+    }
+
     func testTransientPreemptsStickyThenHandsBack() {
         var queue = ActivityQueue<String>()
         queue.post(id: "media", priority: 10, duration: nil, payload: "media", now: now)

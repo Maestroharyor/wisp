@@ -46,7 +46,12 @@ final class MediaBridge {
         let stdin = Pipe()
         process.standardOutput = stdout
         process.standardInput = stdin
-        process.standardError = FileHandle.nullDevice
+        let stderr = Pipe()
+        process.standardError = stderr
+        stderr.fileHandleForReading.readabilityHandler = { [log] handle in
+            let text = String(decoding: handle.availableData, as: UTF8.self)
+            if !text.isEmpty { log.error("media bridge: \(text, privacy: .public)") }
+        }
 
         stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData

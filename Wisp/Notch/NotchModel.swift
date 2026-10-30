@@ -8,6 +8,16 @@ enum ShelfPage: Hashable {
     case media
     case widgets
 
+    /// Position in the nav pill, left to right.
+    var order: Int {
+        switch self {
+        case .home: 0
+        case .tray: 1
+        case .media: 2
+        case .widgets: 3
+        }
+    }
+
     /// From a profile's stored page name; anything unknown is Home.
     init(name: String) {
         switch name {
@@ -30,8 +40,13 @@ final class NotchModel {
     var reduceMotion = false
     /// Choosing any tab, including Widgets again, returns the Widgets page to its grid.
     var page: ShelfPage = .home {
-        didSet { soloWidget = nil }
+        didSet {
+            soloWidget = nil
+            pageMovedForward = page.order >= oldValue.order
+        }
     }
+    /// Whether the last page change went right in the nav pill, so content slides that way.
+    private(set) var pageMovedForward = true
     /// The widget opened on its own from the Widgets page grid.
     var soloWidget: WidgetKind?
     var editingHome = false
@@ -70,7 +85,7 @@ final class NotchModel {
                 return .home(contentWidth: preferences.homeLayout.contentWidth, editing: editingHome)
             case .media: return .media
             case .widgets:
-                if soloWidget != nil { return .widgetSolo }
+                if let soloWidget { return .widgetSolo(wide: soloWidget.hasDetailPage) }
                 let count = preferences.gridWidgets.count
                 return .widgetGrid(
                     count: count, rows: WidgetGrid.rows(count: count, preferred: preferences.widgetGridRows))
@@ -80,6 +95,7 @@ final class NotchModel {
             if let activity {
                 if case .notification = activity { return .notification(replying: replyingTo != nil) }
                 if case .agentApproval = activity { return .notification(replying: false) }
+                if case .meetingSoon = activity { return .notification(replying: false) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }
             return phase == .peek ? .peek : .closed

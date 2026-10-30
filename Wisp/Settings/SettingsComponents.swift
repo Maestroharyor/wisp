@@ -20,17 +20,11 @@ extension SettingsPaneID {
     }
 
     var tint: Color {
+        // One violet family: darker for the app itself, lighter for connections.
         switch self {
-        case .general: .gray
-        case .notch: Color(red: 0.2, green: 0.2, blue: 0.22)
-        case .activities: .pink
-        case .widgets: .blue
-        case .profiles: .indigo
-        case .clipboard: .teal
-        case .notifications: .red
-        case .agents: Color(red: 0.85, green: 0.47, blue: 0.34)
-        case .permissions: .green
-        case .about: .cyan
+        case .general, .about, .permissions: Color(red: 0.32, green: 0.27, blue: 0.62)
+        case .notch, .activities, .widgets, .profiles, .clipboard: .wispViolet
+        case .notifications, .agents: Color(red: 0.6, green: 0.53, blue: 1)
         }
     }
 }
@@ -188,7 +182,9 @@ struct NotchPreview: View {
             Image(nsImage: wallpaper).resizable().scaledToFill().frame(maxWidth: .infinity).frame(height: 124)
                 .clipped()
         } else {
-            LinearGradient(colors: [.indigo, .purple, .orange], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(
+                colors: [Color(red: 0.12, green: 0.1, blue: 0.25), .wispViolet], startPoint: .topLeading,
+                endPoint: .bottomTrailing)
         }
     }
 

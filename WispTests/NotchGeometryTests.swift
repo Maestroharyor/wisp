@@ -54,6 +54,8 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertEqual(surface.midX, layout.closedRect.midX)
         XCTAssertEqual(layout.peekRect.maxY, notched.frame.maxY)
         XCTAssertGreaterThan(layout.peekRect.width, layout.closedRect.width)
+        // Hover swells the notch downward too, not just sideways.
+        XCTAssertGreaterThanOrEqual(layout.peekRect.height - layout.closedRect.height, 8)
     }
 
     func testCompactRectAddsWingsBothSides() {
