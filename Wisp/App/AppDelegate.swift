@@ -1,4 +1,5 @@
 import AppKit
+import WispCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -45,6 +46,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.services.miniPlayer.toggle() }
             }
+            // Toggle stand-in activities, to film show, hide and bubble motion.
+            for kind in ["timer", "agent"] {
+                DistributedNotificationCenter.default().addObserver(
+                    forName: Notification.Name("com.maestro.wisp.debug.\(kind)"), object: nil, queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.toggleDebugActivity(kind) }
+                }
+            }
         #endif
     }
 
@@ -64,6 +73,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func toggleShelf() {
         coordinator.toggleShelf()
     }
+
+    #if DEBUG
+        private var debugActivities: Set<String> = []
+
+        private func toggleDebugActivity(_ kind: String) {
+            let slot: ActivitySlot = kind == "timer" ? .timer : .agent
+            if debugActivities.remove(kind) != nil {
+                services.activities.remove(slot)
+                return
+            }
+            debugActivities.insert(kind)
+            if kind == "timer" {
+                var countdown = Countdown(duration: 300)
+                countdown.start(now: .now)
+                services.activities.post(.timer(label: "Debug", countdown: countdown), slot: slot, duration: nil)
+            } else {
+                let status = AgentStatus(
+                    sessionID: "debug", project: "wisp", source: .claude, state: .running, started: .now)
+                services.activities.post(.agent(status), slot: slot, duration: nil)
+            }
+        }
+    #endif
 
     func toggleClipboard() {
         clipboardPanel.toggle()
