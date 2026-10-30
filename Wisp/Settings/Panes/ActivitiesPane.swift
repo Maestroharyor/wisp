@@ -17,6 +17,9 @@ struct ActivitySettings: View {
             Section("Show beside the notch") {
                 Toggle("Now Playing (any app, including browsers)", isOn: $preferences.mediaActivity)
                 Toggle("Lyrics from LRCLIB (sends the song title, artist and length)", isOn: $preferences.lyrics)
+                Toggle(
+                    "Find missing album art on iTunes (sends the song title and artist)",
+                    isOn: $preferences.artworkLookup)
                 Toggle("Player on the lock screen, where macOS allows it", isOn: $preferences.lockScreenPlayer)
                 Toggle(
                     "Meetings: a pill while the microphone is on, and a Join card before calls",

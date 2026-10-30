@@ -59,7 +59,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .activities:
             [
                 "volume", "brightness", "battery", "hud", "overlay", "media", "music", "pointer", "display", "focus",
-                "lyrics", "lrclib", "lock screen", "meeting", "call", "microphone", "zoom", "meet", "bubbles", "split",
+                "lyrics", "lrclib", "album art", "artwork", "itunes", "lock screen", "meeting", "call", "microphone",
+                "zoom", "meet", "bubbles", "split",
             ]
         case .widgets:
             [

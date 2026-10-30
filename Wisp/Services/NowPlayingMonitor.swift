@@ -18,6 +18,11 @@ final class NowPlayingMonitor {
     private(set) var readAt = Date.now
 
     @ObservationIgnored var onChange: (NowPlayingInfo?) -> Void = { _ in }
+    /// Whether to fetch album art online for tracks that arrive without any.
+    @ObservationIgnored var looksUpArtwork: () -> Bool = { false }
+    /// Looked-up art per track, so replays and bridge restarts don't search again.
+    @ObservationIgnored private var foundArtwork: [String: NSImage] = [:]
+    @ObservationIgnored private var searchedTracks: Set<String> = []
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var scripts: [String: NSAppleScript] = [:]
     @ObservationIgnored private var artworkTrackID: String?
@@ -101,6 +106,7 @@ final class NowPlayingMonitor {
                 artworkTrackID = next.trackID
                 setArtwork(nil)
             }
+            if artwork == nil { lookUpArtwork(for: next) }
             guard next != info else { return }
             info = next
             onChange(next)
@@ -211,6 +217,43 @@ final class NowPlayingMonitor {
                 self.setArtwork(data.flatMap(NSImage.init(data:)))
             }
         }
+    }
+
+    /// Browsers often hand macOS no picture; search iTunes once per track instead.
+    private func lookUpArtwork(for info: NowPlayingInfo) {
+        let trackID = info.trackID
+        if let found = foundArtwork[trackID] {
+            setArtwork(found)
+            return
+        }
+        guard looksUpArtwork(), !searchedTracks.contains(trackID),
+            let url = ArtworkQuery.url(title: info.title, artist: info.artist)
+        else { return }
+        searchedTracks.insert(trackID)
+        Task { [weak self] in
+            let image = await Self.fetchArtwork(from: url, artist: info.artist)
+            guard let self else { return }
+            guard let image else {
+                // A failed request (offline, a firewall prompt) may work next time.
+                self.searchedTracks.remove(trackID)
+                return
+            }
+            if self.foundArtwork.count > 50 { self.foundArtwork.removeAll() }
+            self.foundArtwork[trackID] = image
+            // Only if the same song is still on and nothing better arrived meanwhile.
+            guard self.artworkTrackID == trackID, self.artwork == nil else { return }
+            self.setArtwork(image)
+        }
+    }
+
+    private static func fetchArtwork(from searchURL: URL, artist: String) async -> NSImage? {
+        let session = URLSession.shared
+        guard let data = try? await session.data(for: URLRequest(url: searchURL, timeoutInterval: 10)).0,
+            let response = try? JSONDecoder().decode(ArtworkSearchResponse.self, from: data),
+            let imageURL = response.artworkURL(artist: artist),
+            let imageData = try? await session.data(for: URLRequest(url: imageURL, timeoutInterval: 10)).0
+        else { return nil }
+        return NSImage(data: imageData)
     }
 
     private func setArtwork(_ image: NSImage?) {

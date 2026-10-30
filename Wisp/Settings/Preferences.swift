@@ -183,6 +183,7 @@ final class Preferences {
         static let mediaActivity = "mediaActivity"
         static let approvalSound = "approvalSound"
         static let lyrics = "lyrics"
+        static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
         static let lockScreenPlayer = "lockScreenPlayer"
         static let activityBubbles = "activityBubbles"
@@ -445,6 +446,8 @@ final class Preferences {
     var approvalSound: Bool { didSet { defaults.set(approvalSound, forKey: Key.approvalSound) } }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
+    /// Look up album art on iTunes when the player gives none (sends title and artist).
+    var artworkLookup: Bool { didSet { defaults.set(artworkLookup, forKey: Key.artworkLookup) } }
     /// The meeting pill while the microphone is in use, and the Join card before calls.
     var meetingActivity: Bool { didSet { defaults.set(meetingActivity, forKey: Key.meetingActivity) } }
     /// Show a player while the screen is locked, where macOS allows it.
@@ -505,6 +508,7 @@ final class Preferences {
             Key.mediaActivity: true,
             Key.approvalSound: true,
             Key.lyrics: true,
+            Key.artworkLookup: true,
             Key.meetingActivity: true,
             Key.lockScreenPlayer: true,
             Key.activityBubbles: true,
@@ -559,6 +563,7 @@ final class Preferences {
         mediaActivity = defaults.bool(forKey: Key.mediaActivity)
         approvalSound = defaults.bool(forKey: Key.approvalSound)
         lyrics = defaults.bool(forKey: Key.lyrics)
+        artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)
         lockScreenPlayer = defaults.bool(forKey: Key.lockScreenPlayer)
         activityBubbles = defaults.bool(forKey: Key.activityBubbles)

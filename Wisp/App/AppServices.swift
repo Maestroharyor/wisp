@@ -113,6 +113,7 @@ final class AppServices {
 
     func start() {
         nowPlaying.onChange = { [weak self] info in self?.mediaChanged(info) }
+        nowPlaying.looksUpArtwork = { [weak self] in self?.preferences.artworkLookup ?? false }
         nowPlaying.start()
 
         lockScreenPlayer.start()
