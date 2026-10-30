@@ -1,6 +1,6 @@
 # Wisp plan and status
 
-The status below is as of 2026-10-30. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 365 tests. For what comes next, see `docs/REVIEW.md`.
+The status below is as of 2026-10-30. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 376 tests. For what comes next, see `docs/REVIEW.md`.
 
 ## Done
 
@@ -32,7 +32,7 @@ The status below is as of 2026-10-30. Testing approach: decision logic lives in 
 - **Shelf size:** done as a zoom of the shelf content; widgets keep fixed layouts rather than reflowing.
 - **Screen recorder.**
 - **Lock screen player:** built with public APIs only; whether macOS shows it over the lock screen is untested.
-- **Distribution:** a GitHub Actions workflow that runs `scripts/release.sh` on each tag. Notarisation needs a Developer ID (the script already supports it). No Sparkle; updates go through Releases and Homebrew.
+- **Distribution:** release-please keeps a release PR on `main`; merging it tags a draft release, and `release.yml` builds the DMG, the Sparkle zip and `appcast.xml`, uploads them and publishes. Wisp updates itself with Sparkle. Releases are signed with the self-signed "Wisp Dev" certificate until there's a Developer ID (the script already supports notarisation).
 
 ## Verify by hand
 

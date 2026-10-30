@@ -4,7 +4,11 @@
 
 Wisp is made by [Ayomide Odewale](https://ayomideodewale.com).
 
-Wisp is written from scratch and bundles no third-party code.
+Wisp is written from scratch. The one third-party library it bundles is listed below.
+
+## Libraries
+
+- **[Sparkle](https://sparkle-project.org)** (MIT) checks for, downloads and installs updates.
 
 ## Inspiration
 
