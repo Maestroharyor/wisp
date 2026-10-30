@@ -26,11 +26,18 @@ Or run `xattr -dr com.apple.quarantine /Applications/Wisp.app` once. A first-lau
 - **Profiles that follow you**: saved Home layouts, start page and surface. Switch with Caps Lock + 1–9 or the notch menu. Rules switch the start page and surface automatically by front app, music or a waiting agent; a Focus rule can swap Home too.
 - **Notch shell**
   - One non-activating panel per display. The black shell grows out of the notch into the shelf, like a box resizing, and shrinks back into it when it closes.
-  - Opens on hover or click; Caps Lock + Space toggles it. Once open it closes when the pointer leaves, when you click elsewhere, or only with Esc and the shortcut; you choose in Settings › Notch.
+  - Opens on hover or click; Caps Lock + Space toggles it. Once open it closes when the pointer leaves, when you click elsewhere, or only with Esc and the shortcut; you choose in Settings › Notch. Right-click the notch to open any page directly.
   - Surfaces: Black, Glass (Liquid Glass) or Tinted.
-  - **Themes:** Wisp violet (default), Midnight, Aurora (violet into teal), Ember, Mono or your own two colours. The glow can instead match the desktop picture or the playing album, and an optional thin outline traces the open shelf.
+  - **Themes:** Wisp violet (default), Midnight, Aurora (violet into teal), Ember, Mono or your own two colours. The glow can instead match the desktop picture or the playing album, or drift warmer at sunset and cooler at night.
   - Trackpad swipes on the notch: two fingers down opens the shelf, sideways on the music pill skips tracks.
   - Per display: notch, floating island or hidden, remembered for each screen.
+  - **Position:** at the top (the notch), a top corner, the bottom or the left or right edge, for every display or one at a time. Corners sit below the menu bar and the bottom sits above the Dock; on the sides Wisp becomes a notch on its side, and live activities stand upright with the value under the icon.
+- **Appearance** (its own Settings pane)
+  - **Presets:** Default, Calm, Arcade, Minimal and Neon each set the whole look at once. Save your own, give each profile a look, and share looks as `.wisplook` files.
+  - **Shell:** roundness, shadow, opacity, shelf size (compact, standard, roomy), glow strength and reach, grain, a slow shimmer, an outline, and the page switcher as a pill, dots or hidden.
+  - **Pills and motion:** a minimal pill (an icon and a dot), the font for numbers, and what the notch does when the pointer arrives: grow, glow, wobble or nothing.
+  - **Idle:** small "ears" beside the closed notch (time, date, battery, next meeting, weather or your own text), a breathing glow while something works and a glow that pulses with music (a steady beat; Wisp doesn't listen to the audio).
+  - **Fun:** sound packs built from macOS sounds or your own files, confetti when a Pomodoro, a long agent run or a charge finishes, and a small flame pet that peeks out from under the notch.
 - **Live activities beside the camera**
   - Volume, brightness and Caps Lock overlays that replace the system ones, with a choice of how long they stay, how many volume steps there are, and whether the bars use the theme accent.
   - Headphones: when AirPods or other Bluetooth headphones take over the sound, a pill shows them with their battery and case levels.
