@@ -30,6 +30,8 @@ final class AppServices {
     @ObservationIgnored private var meetingTask: Task<Void, Never>?
     /// The notification being replied to; new notifications wait until it is done.
     private(set) var replyingTo: NotificationItem?
+    /// The newest notification that arrived during a reply, shown when the reply ends.
+    private var waitingNotification: NotificationItem?
 
     private(set) lazy var transform = TransformPanelController(services: self)
     private(set) lazy var pocket = QuickPocket(services: self)
@@ -104,10 +106,20 @@ final class AppServices {
     }
 
     func endReply(sentText: String?) {
+        guard replyingTo != nil else { return }
         replyingTo = nil
         activities.remove(.notification)
         if let sentText {
             activities.post(.sent(text: sentText), slot: .notice, duration: 2.5)
+        }
+        // The card holds one notification at a time, so show the newest that waited, after
+        // the "sent" notice has had its moment (a notification would outrank it).
+        if let waiting = waitingNotification {
+            waitingNotification = nil
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(sentText == nil ? 0 : 2.5))
+                self?.showNotification(waiting)
+            }
         }
     }
 
@@ -208,7 +220,7 @@ final class AppServices {
             activities.remove(.meeting)
             return
         }
-        calendar.refresh()
+        calendar.refreshIfStale()
         let title = Meetings.current(meetingEvents, now: .now)?.title ?? "On a call"
         activities.post(
             .meeting(MeetingStatus(title: title, started: microphone.since ?? .now)), slot: .meeting, duration: nil)
@@ -216,7 +228,7 @@ final class AppServices {
 
     private func offerUpcomingMeeting() {
         guard preferences.meetingActivity, calendar.access == .fullAccess else { return }
-        calendar.refresh()
+        calendar.refreshIfStale()
         guard let next = Meetings.upcoming(meetingEvents, now: .now, within: 120), let link = next.link,
             !offeredMeetings.contains(next.id)
         else { return }
@@ -227,7 +239,10 @@ final class AppServices {
     }
 
     private func showNotification(_ item: NotificationItem) {
-        guard replyingTo == nil else { return }
+        guard replyingTo == nil else {
+            waitingNotification = item
+            return
+        }
         activities.post(.notification(item), slot: .notification, duration: notificationDuration)
         if preferences.hideSystemBanners { BannerSuppressor.closeBanners() }
     }

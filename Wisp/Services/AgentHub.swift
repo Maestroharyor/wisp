@@ -49,6 +49,8 @@ final class AgentHub {
     var onNotice: (String) -> Void = { _ in }
 
     @ObservationIgnored private var listener: NWListener?
+    @ObservationIgnored private var lastListenerRestart = Date.distantPast
+    @ObservationIgnored private var restartTask: Task<Void, Never>?
     @ObservationIgnored private var waiting: [UUID: NWConnection] = [:]
     @ObservationIgnored private var timeouts: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "com.maestro.wisp", category: "agents")
@@ -104,12 +106,33 @@ final class AgentHub {
                 Task { @MainActor in self?.accept(connection) }
             }
             listener.stateUpdateHandler = { [weak self] state in
-                Task { @MainActor in self?.listening = state == .ready }
+                Task { @MainActor in
+                    self?.listening = state == .ready
+                    // Hooks need the socket; bring it back rather than going quiet for good.
+                    if case .failed = state { self?.restartListener() }
+                }
             }
             listener.start(queue: .main)
             self.listener = listener
         } catch {
             log.error("agent socket failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static let maximumMessage = 1 << 20
+
+    /// Right away the first time, then after a pause, so a socket that keeps failing
+    /// doesn't spin but always comes back.
+    private func restartListener() {
+        listener?.cancel()
+        listener = nil
+        restartTask?.cancel()
+        let wait = Date.now.timeIntervalSince(lastListenerRestart) > 5 ? 0 : 5
+        restartTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled, let self else { return }
+            self.lastListenerRestart = .now
+            self.start()
         }
     }
 
@@ -135,6 +158,11 @@ final class AgentHub {
             [weak self] data, _, isComplete, error in
             Task { @MainActor in
                 let all = received + (data ?? Data())
+                // Hook events are small; anything this big is not one of ours.
+                guard all.count <= Self.maximumMessage else {
+                    connection.cancel()
+                    return
+                }
                 if isComplete || error != nil {
                     self?.handle(all, from: connection)
                 } else {

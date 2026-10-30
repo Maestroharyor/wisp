@@ -17,6 +17,7 @@ final class TrayStore {
     @ObservationIgnored var onNotice: (String, String) -> Void = { _, _ in }
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let key = "trayPaths"
+    @ObservationIgnored private var lastPrune = Date.distantPast
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -44,10 +45,26 @@ final class TrayStore {
 
     func add(_ urls: [URL]) {
         let before = count
-        list.add(urls.filter(Self.exists))
-        urls.forEach(loadThumbnail)
+        let existing = urls.filter(Self.exists)
+        list.add(existing)
+        existing.forEach(loadThumbnail)
         save()
         if count > before { onAdd(count) }
+    }
+
+    /// Drops cards for files that were moved or deleted since they were added. At most once
+    /// a minute, since checking files on a slow network volume would hitch the shelf.
+    func pruneMissing() {
+        guard Date.now.timeIntervalSince(lastPrune) > 60 else { return }
+        lastPrune = .now
+        let before = list.urls
+        list.prune(keeping: Self.exists)
+        guard list.urls != before else { return }
+        for url in before where !list.urls.contains(url) {
+            thumbnails[url] = nil
+            sizes[url] = nil
+        }
+        save()
     }
 
     func remove(_ url: URL) {
@@ -85,35 +102,50 @@ final class TrayStore {
         let existing = Set((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
         let output = folder.appendingPathComponent(ArchiveNaming.name(for: urls, existing: existing))
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        if urls.count == 1 {
-            process.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent", first.path, output.path]
+        let names = ArchiveNaming.stagedNames(for: urls)
+        Task { [weak self] in
+            let ok = await Self.archive(urls, names: names, to: output)
+            if ok { self?.add([output]) }
+            self?.onNotice(ok ? "doc.zipper" : "xmark.circle.fill", ok ? "Zipped" : "Zip failed")
+        }
+    }
+
+    /// Off the main thread: copying gigabytes into the staging folder takes a while.
+    /// ditto archives one source, so several files are cloned into a temporary folder first
+    /// (cheap on APFS), which is removed afterwards.
+    private nonisolated static func archive(_ urls: [URL], names: [String], to output: URL) async -> Bool {
+        let files = FileManager.default
+        var arguments = ["-c", "-k", "--sequesterRsrc"]
+        var staging: URL?
+        if urls.count == 1, let only = urls.first {
+            arguments += ["--keepParent", only.path, output.path]
         } else {
-            // ditto archives one source; stage the files in a temporary folder first.
-            let staging = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let folder = files.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            staging = folder
             do {
-                try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
-                for url in urls {
-                    try FileManager.default.copyItem(at: url, to: staging.appendingPathComponent(url.lastPathComponent))
+                try files.createDirectory(at: folder, withIntermediateDirectories: true)
+                for (url, name) in Swift.zip(urls, names) {
+                    try files.copyItem(at: url, to: folder.appendingPathComponent(name))
                 }
             } catch {
-                onNotice("xmark.circle.fill", "Zip failed")
-                return
+                try? files.removeItem(at: folder)
+                return false
             }
-            process.arguments = ["-c", "-k", "--sequesterRsrc", staging.path, output.path]
+            arguments += [folder.path, output.path]
         }
-        process.terminationHandler = { [weak self] finished in
-            let ok = finished.terminationStatus == 0
-            Task { @MainActor in
-                if ok { self?.add([output]) }
-                self?.onNotice(ok ? "doc.zipper" : "xmark.circle.fill", ok ? "Zipped" : "Zip failed")
+        defer { if let staging { try? files.removeItem(at: staging) } }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = arguments
+        return await withCheckedContinuation { continuation in
+            process.terminationHandler = { finished in continuation.resume(returning: finished.terminationStatus == 0) }
+            do {
+                try process.run()
+            } catch {
+                process.terminationHandler = nil
+                continuation.resume(returning: false)
             }
-        }
-        do {
-            try process.run()
-        } catch {
-            onNotice("xmark.circle.fill", "Zip failed")
         }
     }
 

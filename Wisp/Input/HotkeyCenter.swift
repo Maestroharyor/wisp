@@ -118,7 +118,13 @@ final class HotkeyCenter {
             }
             return true
         }
-        status = tap.start() ? .active : .unavailable("Could not start the keyboard tap")
+        guard tap.start() else {
+            // Without the tap, a remapped Caps Lock would send F18 and do nothing.
+            disableRemap()
+            status = .unavailable("Could not start the keyboard tap")
+            return
+        }
+        status = .active
     }
 
     private func reapplyRemap() {

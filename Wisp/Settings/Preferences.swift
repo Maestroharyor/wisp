@@ -199,7 +199,7 @@ final class Preferences {
         static let focusActivity = "focusActivity"
         static let pocketTrigger = "pocketTrigger"
         /// Earlier builds' name for the pocket setting, read once to carry it over.
-        static let legacyPocketTrigger = "pocketTrigger"
+        static let legacyPocketTrigger = "basketTrigger"
         static let scrubberSounds = "scrubberSounds"
         static let widgetGridOrder = "widgetGridOrder"
         static let widgetGridRows = "widgetGridRows"

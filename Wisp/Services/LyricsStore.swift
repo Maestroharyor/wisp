@@ -34,6 +34,8 @@ final class LyricsStore {
             lyrics = cached
             return
         }
+        // Never leave the last song's words up while this one loads or fails.
+        lyrics = nil
         guard
             let url = LyricsQuery.url(
                 title: info.title, artist: info.artist, album: info.album, duration: info.duration)
@@ -44,9 +46,10 @@ final class LyricsStore {
         request.setValue("Wisp (https://ayomideodewale.com/wisp)", forHTTPHeaderField: "User-Agent")
         do {
             // A miss comes back as an error object, which decodes to no lyrics.
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
             let found = (try? JSONDecoder().decode(LyricsResponse.self, from: data))?.lyrics
-            cache[id] = found
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if LyricsQuery.isCacheable(status: status) { cache[id] = found }
             if trackID == id { lyrics = found }
         } catch {
             log.debug("lyrics fetch failed: \(error.localizedDescription, privacy: .public)")

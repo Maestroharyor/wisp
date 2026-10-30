@@ -88,7 +88,9 @@ struct NowPlayingWidget: View {
 
                 // Player, transport and output device spread across the width.
                 HStack(spacing: 0) {
-                    PlainIconButton(symbol: "list.bullet", size: 15, tint: .secondaryText) { monitor.openPlayer() }
+                    PlainIconButton(symbol: "list.bullet", size: 15, tint: .secondaryText, label: "Open player") {
+                        monitor.openPlayer()
+                    }
                     Spacer()
                     PlainIconButton(symbol: "backward.fill", size: 20) { monitor.previous() }
                     Spacer()
@@ -123,6 +125,8 @@ struct PlainIconButton: View {
     let symbol: String
     var size: CGFloat = 16
     var tint: Color = .white
+    /// What VoiceOver says; defaults to a name for the symbol.
+    var label: String?
     let action: () -> Void
 
     var body: some View {
@@ -134,6 +138,7 @@ struct PlainIconButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressDimStyle())
+        .accessibilityLabel(label ?? SymbolLabel.label(for: symbol))
     }
 }
 
@@ -282,10 +287,10 @@ struct TimerWidget: View {
             } else {
                 CircleButton(symbol: "play.fill", tint: .wispAmber, filled: true) { store.toggleTimer() }
                 VStack(spacing: 2) {
-                    PlainIconButton(symbol: "chevron.up", size: 10, tint: .secondaryText) {
+                    PlainIconButton(symbol: "chevron.up", size: 10, tint: .secondaryText, label: "One more minute") {
                         store.adjustTimer(byMinutes: 1)
                     }
-                    PlainIconButton(symbol: "chevron.down", size: 10, tint: .secondaryText) {
+                    PlainIconButton(symbol: "chevron.down", size: 10, tint: .secondaryText, label: "One less minute") {
                         store.adjustTimer(byMinutes: -1)
                     }
                 }
@@ -305,6 +310,8 @@ struct CircleButton: View {
     let tint: Color
     var filled = false
     var size: CGFloat = 34
+    /// What VoiceOver says; defaults to a name for the symbol.
+    var label: String?
     let action: () -> Void
 
     var body: some View {
@@ -316,6 +323,7 @@ struct CircleButton: View {
                 .background(Circle().fill(filled ? tint.opacity(0.28) : .white.opacity(0.14)))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label ?? SymbolLabel.label(for: symbol))
     }
 }
 

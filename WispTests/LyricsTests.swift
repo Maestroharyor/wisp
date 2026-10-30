@@ -48,4 +48,12 @@ final class LyricsTests: XCTestCase {
         XCTAssertEqual(items.first { $0.name == "track_name" }?.value, "Clocks")
         XCTAssertNil(LyricsQuery.url(title: "", artist: "X", album: nil, duration: 0))
     }
+
+    func testOnlyAnswersAndMissesAreCached() {
+        XCTAssertTrue(LyricsQuery.isCacheable(status: 200))
+        XCTAssertTrue(LyricsQuery.isCacheable(status: 404))
+        XCTAssertFalse(LyricsQuery.isCacheable(status: 429))
+        XCTAssertFalse(LyricsQuery.isCacheable(status: 500))
+        XCTAssertFalse(LyricsQuery.isCacheable(status: 503))
+    }
 }

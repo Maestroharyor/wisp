@@ -12,6 +12,9 @@ final class MediaBridge {
 
     private var process: Process?
     private var input: FileHandle?
+    private var output: FileHandle?
+    private var errors: FileHandle?
+    private var reader: Task<Void, Never>?
     private var buffer = Data()
     private var restarts: [Date] = []
     private let log = Logger(subsystem: "com.maestro.wisp", category: "media")
@@ -49,13 +52,30 @@ final class MediaBridge {
         let stderr = Pipe()
         process.standardError = stderr
         stderr.fileHandleForReading.readabilityHandler = { [log] handle in
-            let text = String(decoding: handle.availableData, as: UTF8.self)
-            if !text.isEmpty { log.error("media bridge: \(text, privacy: .public)") }
+            let data = handle.availableData
+            // Empty data is end of file; leaving the handler set can spin.
+            guard !data.isEmpty else {
+                handle.readabilityHandler = nil
+                return
+            }
+            log.error("media bridge: \(String(decoding: data, as: UTF8.self), privacy: .public)")
         }
 
-        stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        // One stream rather than a Task per chunk, so lines arrive in order.
+        let (chunks, continuation) = AsyncStream<Data>.makeStream()
+        stdout.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
-            Task { @MainActor in self?.receive(data) }
+            guard !data.isEmpty else {
+                handle.readabilityHandler = nil
+                continuation.finish()
+                return
+            }
+            continuation.yield(data)
+        }
+        reader = Task { [weak self] in
+            for await data in chunks {
+                self?.receive(data)
+            }
         }
         process.terminationHandler = { [weak self] finished in
             let status = finished.terminationStatus
@@ -70,6 +90,8 @@ final class MediaBridge {
         }
         self.process = process
         input = stdin.fileHandleForWriting
+        output = stdout.fileHandleForReading
+        errors = stderr.fileHandleForReading
         return true
     }
 
@@ -78,7 +100,17 @@ final class MediaBridge {
         try? input?.close()
         process?.terminate()
         process = nil
+        detachPipes()
+    }
+
+    private func detachPipes() {
         input = nil
+        output?.readabilityHandler = nil
+        errors?.readabilityHandler = nil
+        output = nil
+        errors = nil
+        reader?.cancel()
+        reader = nil
     }
 
     func send(_ command: MediaBridgeCommand) {
@@ -104,7 +136,7 @@ final class MediaBridge {
     /// Restarts after a crash, at most three times a minute; then reports unavailable.
     private func terminated(status: Int32) {
         process = nil
-        input = nil
+        detachPipes()
         buffer.removeAll()
         let now = Date.now
         restarts = restarts.filter { now.timeIntervalSince($0) < 60 } + [now]

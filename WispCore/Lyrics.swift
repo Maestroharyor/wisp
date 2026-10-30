@@ -53,6 +53,12 @@ public struct LyricsResponse: Decodable, Sendable {
 
 /// Builds the LRCLIB lookup for a song. LRCLIB is free and needs no account.
 public enum LyricsQuery {
+    /// Whether a response settles the question for this track. Rate limits and server
+    /// errors say nothing about the song, so they're retried next time.
+    public static func isCacheable(status: Int) -> Bool {
+        status == 200 || status == 404
+    }
+
     public static func url(title: String, artist: String, album: String?, duration: TimeInterval) -> URL? {
         guard !title.isEmpty, !artist.isEmpty else { return nil }
         var components = URLComponents(string: "https://lrclib.net/api/get")

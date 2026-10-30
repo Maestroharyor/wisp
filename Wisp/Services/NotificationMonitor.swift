@@ -92,7 +92,8 @@ final class NotificationMonitor {
             hasAccess = Permission.hasFullDiskAccess
             if !hasAccess { database = nil }
         }
-        pollNotifications()
+        // bulletin_added triggers a poll as banners arrive; this is only the fallback.
+        if ticks % 3 == 0 { pollNotifications() }
         if ticks % 2 == 0 { pollFocus() }
     }
 

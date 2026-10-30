@@ -23,6 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Writing to a helper (media bridge, zip) that just exited must fail with an
+        // error, not kill Wisp with SIGPIPE.
+        signal(SIGPIPE, SIG_IGN)
         services.openSettings = { [weak self] in self?.showSettings() }
         services.openClipboard = { [weak self] in self?.toggleClipboard() }
         services.openSetup = { [weak self] in self?.onboarding.show() }

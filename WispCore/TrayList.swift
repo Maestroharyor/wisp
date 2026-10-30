@@ -69,4 +69,23 @@ public enum ArchiveNaming {
         }
         return candidate
     }
+
+    /// Names for files gathered into one folder before zipping. Files with the same name
+    /// from different folders get " 2", " 3" before the extension instead of clashing.
+    public static func stagedNames(for urls: [URL]) -> [String] {
+        var used: Set<String> = []
+        return urls.map { url in
+            let name = url.lastPathComponent
+            let ext = url.pathExtension
+            let stem = url.deletingPathExtension().lastPathComponent
+            var candidate = name
+            var index = 2
+            while used.contains(candidate) {
+                candidate = ext.isEmpty ? "\(stem) \(index)" : "\(stem) \(index).\(ext)"
+                index += 1
+            }
+            used.insert(candidate)
+            return candidate
+        }
+    }
 }

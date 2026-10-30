@@ -45,7 +45,9 @@ final class SystemHUD {
         brightnessTask = Task { [weak self] in
             while !Task.isCancelled {
                 self?.checkBrightness()
-                try? await Task.sleep(for: .milliseconds(300))
+                // Barely wake up while the brightness HUD is off.
+                let active = self?.preferences.brightnessHUD ?? false
+                try? await Task.sleep(for: .milliseconds(active ? 300 : 2000))
             }
         }
     }

@@ -23,8 +23,10 @@ final class NowPlayingMonitor {
     /// Looked-up art per track, so replays and bridge restarts don't search again.
     @ObservationIgnored private var foundArtwork: [String: NSImage] = [:]
     @ObservationIgnored private var searchedTracks: Set<String> = []
+    /// When a lookup last failed per track, so an offline Mac doesn't search on every update.
+    @ObservationIgnored private var failedLookups: [String: Date] = [:]
     @ObservationIgnored private var pollTask: Task<Void, Never>?
-    @ObservationIgnored private var scripts: [String: NSAppleScript] = [:]
+    @ObservationIgnored private var polling = false
     @ObservationIgnored private var artworkTrackID: String?
     @ObservationIgnored private let bridge = MediaBridge()
     @ObservationIgnored private var usingBridge = false
@@ -88,8 +90,9 @@ final class NowPlayingMonitor {
         pollTask?.cancel()
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
-                self?.poll()
-                try? await Task.sleep(for: .seconds(1))
+                await self?.poll()
+                // Each poll starts osascript, so check every two seconds rather than every one.
+                try? await Task.sleep(for: .seconds(2))
             }
         }
     }
@@ -136,8 +139,11 @@ final class NowPlayingMonitor {
             bridge.send(.seek(seconds))
             return
         }
-        run("tell application id \"\(info.source.bundleID)\" to set player position to \(Int(seconds))")
-        poll()
+        let script = "tell application id \"\(info.source.bundleID)\" to set player position to \(Int(seconds))"
+        Task { [weak self] in
+            _ = await AppleScriptRunner.run(script)
+            await self?.poll()
+        }
     }
 
     func openPlayer() {
@@ -152,18 +158,27 @@ final class NowPlayingMonitor {
             return
         }
         guard let info else { return }
-        run("tell application id \"\(info.source.bundleID)\" to \(verb)")
+        let script = "tell application id \"\(info.source.bundleID)\" to \(verb)"
         Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(150))
-            self?.poll()
+            _ = await AppleScriptRunner.run(script)
+            await self?.poll()
         }
     }
 
-    private func poll() {
-        let readings = NowPlayingSource.scriptable.compactMap { source -> NowPlayingInfo? in
-            guard isRunning(source), let raw = run(Self.statusScript(for: source)) else { return nil }
-            return NowPlayingParser.parse(raw, source: source)
+    private func poll() async {
+        // A slow player must not stack up overlapping polls.
+        guard !polling else { return }
+        polling = true
+        defer { polling = false }
+        var readings: [NowPlayingInfo] = []
+        for source in NowPlayingSource.scriptable where isRunning(source) {
+            guard let raw = await AppleScriptRunner.run(Self.statusScript(for: source)),
+                let reading = NowPlayingParser.parse(raw, source: source)
+            else { continue }
+            readings.append(reading)
         }
+        // The bridge may have come back while the scripts ran.
+        guard !usingBridge else { return }
         // Prefer whichever player is actually playing.
         let next = readings.first(where: \.isPlaying) ?? readings.first
         readAt = .now
@@ -179,19 +194,6 @@ final class NowPlayingMonitor {
         !NSRunningApplication.runningApplications(withBundleIdentifier: source.bundleID).isEmpty
     }
 
-    @discardableResult
-    private func run(_ source: String) -> String? {
-        runDescriptor(source)?.stringValue
-    }
-
-    private func runDescriptor(_ source: String) -> NSAppleEventDescriptor? {
-        let script = scripts[source] ?? NSAppleScript(source: source)
-        scripts[source] = script
-        var error: NSDictionary?
-        let result = script?.executeAndReturnError(&error)
-        return error == nil ? result : nil
-    }
-
     private func loadArtwork(for info: NowPlayingInfo?) {
         artworkTrackID = info?.trackID
         guard let info else {
@@ -202,9 +204,12 @@ final class NowPlayingMonitor {
         case .system:
             setArtwork(nil)
         case .music:
-            let data = runDescriptor(
-                "tell application id \"com.apple.Music\" to get raw data of artwork 1 of current track")?.data
-            setArtwork(data.flatMap(NSImage.init(data:)))
+            let trackID = info.trackID
+            Task { [weak self] in
+                let image = await Self.musicArtwork()
+                guard let self, self.artworkTrackID == trackID else { return }
+                self.setArtwork(image)
+            }
         case .spotify:
             guard let url = info.artworkURL else {
                 setArtwork(nil)
@@ -226,6 +231,7 @@ final class NowPlayingMonitor {
             setArtwork(found)
             return
         }
+        if let failed = failedLookups[trackID], Date.now.timeIntervalSince(failed) < 60 { return }
         guard looksUpArtwork(), !searchedTracks.contains(trackID),
             let url = ArtworkQuery.url(title: info.title, artist: info.artist)
         else { return }
@@ -236,6 +242,8 @@ final class NowPlayingMonitor {
             guard let image else {
                 // A failed request (offline, a firewall prompt) may work next time.
                 self.searchedTracks.remove(trackID)
+                if self.failedLookups.count > 50 { self.failedLookups.removeAll() }
+                self.failedLookups[trackID] = .now
                 return
             }
             if self.foundArtwork.count > 50 { self.foundArtwork.removeAll() }
@@ -244,6 +252,22 @@ final class NowPlayingMonitor {
             guard self.artworkTrackID == trackID, self.artwork == nil else { return }
             self.setArtwork(image)
         }
+    }
+
+    /// osascript prints raw data as text, so the script writes the picture to a file.
+    private static func musicArtwork() async -> NSImage? {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("wisp-artwork-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let script = """
+            tell application id "com.apple.Music" to set d to raw data of artwork 1 of current track
+            set f to open for access (POSIX file "\(file.path)") with write permission
+            set eof f to 0
+            write d to f
+            close access f
+            return "ok"
+            """
+        guard await AppleScriptRunner.run(script) != nil else { return nil }
+        return NSImage(contentsOf: file)
     }
 
     private static func fetchArtwork(from searchURL: URL, artist: String) async -> NSImage? {

@@ -15,6 +15,7 @@ final class NotchController {
     private var dwellTask: Task<Void, Never>?
     private var closeTask: Task<Void, Never>?
     private var dragEndTask: Task<Void, Never>?
+    private var motionObserver: NSObjectProtocol?
 
     /// Grace period before a shelf closes after the pointer leaves.
     private let closeDelay: Duration = .milliseconds(300)
@@ -32,6 +33,12 @@ final class NotchController {
         syncSettings()
         model.onReplyEnded = { [weak self] in self?.endReply() }
         observeActivity()
+        // Turning Reduce Motion on takes effect right away, not at the next hover.
+        motionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.syncSettings() }
+        }
     }
 
     /// Approval and Join cards have buttons, so the closed panel stops being click-through
@@ -98,12 +105,10 @@ final class NotchController {
             return
         }
         if model.contains(location) {
-            if machine.phase == .open {
-                // Let text fields (notes, search) take keyboard input without activating Wisp.
-                panel.makeKey()
-            } else {
-                send(.clicked)
-            }
+            if machine.phase != .open { send(.clicked) }
+            // Let text fields (notes, search) and Esc reach the shelf without activating
+            // Wisp. Hover opens stay non-key so typing keeps going to the front app.
+            if machine.phase == .open { panel.makeKey() }
         } else if machine.phase == .open {
             send(.clickedOutside)
         }
@@ -120,11 +125,14 @@ final class NotchController {
 
     /// A file drag moved; open the drop tiles when it reaches the notch.
     func fileDragMoved(to location: CGPoint) {
+        // A new drag right after the last must not be cut short by its end timer.
+        dragEndTask?.cancel()
         let target = layout.hitRegion(for: model.surfaceRect).insetBy(dx: -24, dy: -24)
         let over = target.contains(location)
         if over, !model.dragging {
-            dragEndTask?.cancel()
             model.dragging = true
+            // So leaving again registers as an exit and the shelf closes.
+            pointerInside = true
             panel.ignoresMouseEvents = false
             send(.dragEntered)
         } else if !over, model.dragging, machine.phase == .open,
@@ -210,9 +218,12 @@ final class NotchController {
     }
 
     func tearDown() {
+        // A display unplugged mid-reply must not leave notifications held back forever.
+        if isReplying { services.endReply(sentText: nil) }
         dwellTask?.cancel()
         closeTask?.cancel()
         dragEndTask?.cancel()
+        if let motionObserver { NSWorkspace.shared.notificationCenter.removeObserver(motionObserver) }
         panel.orderOut(nil)
         panel.close()
     }
@@ -277,6 +288,7 @@ final class NotchController {
         // Click-through while closed, so the menu bar under the panel keeps working.
         updateClickThrough()
 
+        if !wasOpen, machine.phase == .open { services.tray.pruneMissing() }
         if machine.phase == .open, machine.pinned {
             // Keyboard-opened: take key status (without activating the app) so Esc reaches us.
             panel.makeKey()

@@ -98,14 +98,18 @@ final class CalendarStore {
         let link: URL?
     }
 
-    /// Events from now through the next six days, soonest first (at most 30).
-    private(set) var events: [Event] = []
+    /// Events from now through the next six days, soonest first (at most 30). Filtered
+    /// when read, since the cached query can be minutes old and must not list a meeting
+    /// that has just ended.
+    var events: [Event] { upcoming.filter { $0.end > .now } }
+    private var upcoming: [Event] = []
     /// Every timed event today, including finished ones, for the Day Progress widget.
     private(set) var dayEvents: [ClosedRange<Date>] = []
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
 
     @ObservationIgnored private let store = EKEventStore()
     @ObservationIgnored private var observer: NSObjectProtocol?
+    @ObservationIgnored private var lastRefresh: Date?
 
     func requestAccess() {
         Task {
@@ -115,9 +119,19 @@ final class CalendarStore {
         }
     }
 
+    /// Edits arrive through EKEventStoreChanged, so a fresh query is only needed when the
+    /// cached week has aged (a new day, finished events) rather than on every check.
+    func refreshIfStale() {
+        if let lastRefresh, Calendar.current.isDateInToday(lastRefresh), Date.now.timeIntervalSince(lastRefresh) < 600 {
+            return
+        }
+        refresh()
+    }
+
     func refresh() {
         access = EKEventStore.authorizationStatus(for: .event)
         guard access == .fullAccess else { return }
+        lastRefresh = .now
         if observer == nil {
             observer = NotificationCenter.default.addObserver(
                 forName: .EKEventStoreChanged, object: store, queue: .main
@@ -134,7 +148,7 @@ final class CalendarStore {
             .sorted { $0.startDate < $1.startDate }
         dayEvents = week.filter { !$0.isAllDay && $0.startDate < tomorrow && $0.startDate <= $0.endDate }
             .map { $0.startDate...$0.endDate }
-        events =
+        upcoming =
             week
             .filter { $0.endDate > now }
             .prefix(30)

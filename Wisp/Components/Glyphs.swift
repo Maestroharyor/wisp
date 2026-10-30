@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import WispCore
 
 /// Short rounded level bar used by volume and brightness.
 struct LevelBar: View {
@@ -47,7 +48,8 @@ struct Waveform: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !playing || reduceMotion)) { context in
+        // 20 fps reads as smooth for small bars and halves the cost of always-on music.
+        TimelineView(.animation(minimumInterval: 1 / 20, paused: !playing || reduceMotion)) { context in
             let time = context.date.timeIntervalSinceReferenceDate
             HStack(alignment: .center, spacing: barWidth < 3 ? 1.5 : 2) {
                 ForEach(0..<barCount, id: \.self) { index in
@@ -112,6 +114,8 @@ struct ShelfButton: View {
     let symbol: String
     var size: CGFloat = 13
     var tint: Color = .white
+    /// What VoiceOver says; defaults to a name for the symbol.
+    var label: String?
     let action: () -> Void
 
     @State private var hovering = false
@@ -127,6 +131,7 @@ struct ShelfButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .accessibilityLabel(label ?? SymbolLabel.label(for: symbol))
     }
 }
 

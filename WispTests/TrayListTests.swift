@@ -52,4 +52,20 @@ final class TrayListTests: XCTestCase {
         XCTAssertEqual(ArchiveNaming.name(for: [a], existing: ["a.zip"]), "a 2.zip")
         XCTAssertEqual(ArchiveNaming.name(for: [a, b], existing: ["Archive.zip", "Archive 2.zip"]), "Archive 3.zip")
     }
+
+    func testStagedNamesStayUniqueAcrossFolders() {
+        let urls = [
+            URL(fileURLWithPath: "/a/report.pdf"),
+            URL(fileURLWithPath: "/b/report.pdf"),
+            URL(fileURLWithPath: "/c/report.pdf"),
+            URL(fileURLWithPath: "/c/notes"),
+        ]
+        XCTAssertEqual(
+            ArchiveNaming.stagedNames(for: urls), ["report.pdf", "report 2.pdf", "report 3.pdf", "notes"])
+    }
+
+    func testStagedNamesKeepFoldersWithoutExtension() {
+        let urls = [URL(fileURLWithPath: "/a/Photos"), URL(fileURLWithPath: "/b/Photos")]
+        XCTAssertEqual(ArchiveNaming.stagedNames(for: urls), ["Photos", "Photos 2"])
+    }
 }
