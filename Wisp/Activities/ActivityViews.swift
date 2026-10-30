@@ -17,42 +17,17 @@ struct CompactActivityView: View {
             : ActivityMetrics.islandContentInset
 
         HStack(spacing: 0) {
-            Group {
-                if let agent = splitAgent {
-                    HStack(spacing: ActivityMetrics.contentSpacing) {
-                        AgentGlyph(state: agent.state, source: agent.source, project: agent.project)
-                        AgentStateLabel(status: agent)
-                    }
-                } else {
-                    leading
-                }
-            }
-            .frame(width: max(wing - padding, 0), alignment: .leading)
-            .padding(.leading, padding)
+            leading
+                .frame(width: max(wing - padding, 0), alignment: .leading)
+                .padding(.leading, padding)
             if gap > 0 { Color.clear.frame(width: gap) } else { Spacer(minLength: 4) }
-            Group {
-                if splitAgent != nil {
-                    HStack(spacing: ActivityMetrics.contentSpacing) {
-                        ArtworkView(
-                            image: model.services.nowPlaying.artwork, size: model.isNotchStyle ? 18 : 16, radius: 4)
-                        Waveform(tint: model.services.nowPlaying.tint, playing: true).frame(width: 18, height: 14)
-                    }
-                } else {
-                    trailing
-                }
-            }
-            .frame(width: max(wing - padding, 0), alignment: .trailing)
-            .padding(.trailing, padding)
+            trailing
+                .frame(width: max(wing - padding, 0), alignment: .trailing)
+                .padding(.trailing, padding)
         }
         .frame(height: surface.height)
         .font(.system(size: ActivityMetrics.labelFontSize, weight: .semibold))
         .foregroundStyle(.white)
-    }
-
-    /// An agent run with music behind it: agent and its timer on the left, music on the right.
-    private var splitAgent: AgentStatus? {
-        guard case .agent(let status) = activity, model.services.activities.companion == .media else { return nil }
-        return status
     }
 
     @ViewBuilder private var leading: some View {

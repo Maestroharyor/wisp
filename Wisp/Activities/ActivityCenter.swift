@@ -2,14 +2,27 @@ import Foundation
 import Observation
 import WispCore
 
-/// Observable wrapper around `ActivityQueue`: publishes the activity to show and
-/// wakes itself when a transient one expires.
+/// A live activity shown as a round bubble beside the main pill.
+struct ActivityBubble: Equatable {
+    let slot: ActivitySlot
+    let activity: Activity
+}
+
+/// Observable wrapper around `ActivityQueue`: publishes the activity for the main pill
+/// and the bubbles beside it, and wakes itself when a transient one expires.
 @MainActor
 @Observable
 final class ActivityCenter {
+    /// Sticky activities that a glyph can sum up, so they can sit in a bubble.
+    static let bubbleSlots: Set<ActivitySlot> = [.media, .timer, .agent, .meeting]
+    static let bubbleLimit = 2
+
     private(set) var current: Activity?
-    /// Music still playing behind an agent run: the pill shows both, agent left and music right.
-    private(set) var companion: Activity?
+    /// Highest priority first: the first sits right of the pill, the second left.
+    private(set) var bubbles: [ActivityBubble] = []
+
+    /// The bubble the user clicked, kept in the pill while it lasts.
+    @ObservationIgnored private var pinned: ActivitySlot?
 
     @ObservationIgnored private var queue = ActivityQueue<Activity>()
     @ObservationIgnored private var expiryTask: Task<Void, Never>?
@@ -26,14 +39,25 @@ final class ActivityCenter {
         refresh()
     }
 
+    /// Swaps a bubble into the main pill.
+    func pin(_ slot: ActivitySlot) {
+        pinned = slot
+        refresh()
+    }
+
     private func refresh() {
         let now = Date.now
         queue.prune(now: now)
-        let next = queue.current(now: now)?.payload
+        if let pinned, queue.live(id: pinned.rawValue, now: now) == nil { self.pinned = nil }
+        let arrangement = queue.arrangement(
+            now: now, pinned: pinned?.rawValue, bubbleIDs: Set(Self.bubbleSlots.map(\.rawValue)),
+            limit: Self.bubbleLimit)
+        let next = arrangement.primary?.payload
         if next != current { current = next }
-        let behind: Activity? =
-            if case .agent = next, queue.live(id: ActivitySlot.media.rawValue, now: now) != nil { .media } else { nil }
-        if behind != companion { companion = behind }
+        let nextBubbles = arrangement.bubbles.compactMap { entry in
+            ActivitySlot(rawValue: entry.id).map { ActivityBubble(slot: $0, activity: entry.payload) }
+        }
+        if nextBubbles != bubbles { bubbles = nextBubbles }
 
         expiryTask?.cancel()
         guard let expiry = queue.nextExpiry(after: now) else { return }

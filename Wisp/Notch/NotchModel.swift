@@ -104,6 +104,20 @@ final class NotchModel {
 
     var surfaceRect: CGRect { SurfaceSizing.rect(for: spec, in: layout) }
 
+    /// Extra live activities beside a compact pill. They merge back into the shell while
+    /// it opens or shows a card.
+    var bubbles: [ActivityBubble] {
+        guard activity != nil, preferences.activityBubbles, case .compact = spec else { return [] }
+        return services.activities.bubbles.filter { $0.slot != .media || preferences.mediaActivity }
+    }
+
+    var bubbleRects: [CGRect] { SurfaceSizing.bubbleRects(beside: surfaceRect, count: bubbles.count) }
+
+    /// The bubble under a click, if any. Bubbles take clicks but don't open the shelf on hover.
+    func bubble(at point: CGPoint) -> ActivityBubble? {
+        zip(bubbles, bubbleRects).first { $0.1.insetBy(dx: -3, dy: -3).contains(point) }?.0
+    }
+
     var navPillRect: CGRect? {
         phase == .open && !dragging ? SurfaceSizing.navPillRect(below: surfaceRect) : nil
     }

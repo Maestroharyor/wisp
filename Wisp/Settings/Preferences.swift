@@ -184,6 +184,7 @@ final class Preferences {
         static let lyrics = "lyrics"
         static let meetingActivity = "meetingActivity"
         static let lockScreenPlayer = "lockScreenPlayer"
+        static let activityBubbles = "activityBubbles"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let activityDisplay = "activityDisplay"
         static let clipboardEnabled = "clipboardEnabled"
@@ -444,6 +445,8 @@ final class Preferences {
     var meetingActivity: Bool { didSet { defaults.set(meetingActivity, forKey: Key.meetingActivity) } }
     /// Show a player while the screen is locked, where macOS allows it.
     var lockScreenPlayer: Bool { didSet { defaults.set(lockScreenPlayer, forKey: Key.lockScreenPlayer) } }
+    /// Extra live activities split off into round bubbles beside the pill.
+    var activityBubbles: Bool { didSet { defaults.set(activityBubbles, forKey: Key.activityBubbles) } }
     /// Where the mini player was last left, as "x,y" (its top-left corner).
     var miniPlayerOrigin: String? { didSet { defaults.set(miniPlayerOrigin, forKey: Key.miniPlayerOrigin) } }
 
@@ -499,6 +502,7 @@ final class Preferences {
             Key.lyrics: true,
             Key.meetingActivity: true,
             Key.lockScreenPlayer: true,
+            Key.activityBubbles: true,
             Key.activityDisplay: ActivityDisplayTarget.pointer.rawValue,
             Key.clipboardEnabled: true,
             Key.clipboardLimit: 200,
@@ -551,6 +555,7 @@ final class Preferences {
         lyrics = defaults.bool(forKey: Key.lyrics)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)
         lockScreenPlayer = defaults.bool(forKey: Key.lockScreenPlayer)
+        activityBubbles = defaults.bool(forKey: Key.activityBubbles)
         miniPlayerOrigin = defaults.string(forKey: Key.miniPlayerOrigin)
         activityDisplay =
             defaults.string(forKey: Key.activityDisplay).flatMap(ActivityDisplayTarget.init(rawValue:)) ?? .pointer

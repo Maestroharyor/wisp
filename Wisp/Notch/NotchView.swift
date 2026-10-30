@@ -13,6 +13,9 @@ struct NotchView: View {
         let flare = model.isNotchStyle ? radii.top : 0
 
         ZStack(alignment: .topLeading) {
+            // Under the shell, so bubbles split out from behind the pill's ends.
+            BubbleLayer(model: model)
+                .frame(width: panel.width, height: panel.height)
             SurfaceView(model: model, radii: radii)
                 .frame(width: surface.width + flare * 2, height: surface.height)
                 .position(x: surface.midX, y: surface.midY)

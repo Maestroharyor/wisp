@@ -85,6 +85,11 @@ final class NotchController {
         if handleNotificationClick(at: location) { return }
         // The approval card's own buttons take the click.
         if machine.phase != .open, showsApproval, model.contains(location) { return }
+        // A bubble swaps into the main pill.
+        if machine.phase != .open, let bubble = model.bubble(at: location) {
+            services.activities.pin(bubble.slot)
+            return
+        }
         // The right wing of the meeting pill mutes the microphone.
         if machine.phase != .open, case .meeting = model.activity, model.contains(location),
             location.x > model.surfaceRect.maxX - 56

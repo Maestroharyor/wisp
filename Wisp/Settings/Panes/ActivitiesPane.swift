@@ -22,6 +22,7 @@ struct ActivitySettings: View {
                     "Meetings: a pill while the microphone is on, and a Join card before calls",
                     isOn: $preferences.meetingActivity)
                 Toggle("Battery and charging", isOn: $preferences.batteryHUD)
+                Toggle("Split extra activities into bubbles beside the notch", isOn: $preferences.activityBubbles)
                 Picker("Show on", selection: $preferences.activityDisplay) {
                     Text("Display under the pointer").tag(ActivityDisplayTarget.pointer)
                     Text("MacBook display").tag(ActivityDisplayTarget.builtIn)
