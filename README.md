@@ -18,22 +18,23 @@ Or run `xattr -dr com.apple.quarantine /Applications/Wisp.app` once. A first-lau
 
 - **Coding agents in the notch**
   - Claude Code and Codex, connected from setup or Settings › Agents. Wisp edits `~/.claude/settings.json` or `~/.codex/hooks.json` and keeps a backup.
-  - A pill while a session works, Done when it finishes, and Needs you when it waits. With music playing, the agent sits left of the camera and the waveform right.
+  - A pill while a session works, Done when it finishes, and Needs you when it waits.
   - Permission prompts become an Allow, Allow All or Deny card (a bar when the shelf is open), with a soft sound. Several at once queue up ("1 of 2") instead of replacing each other; prompts you leave fall back to the terminal.
   - Each project gets its own colour; each session shows its tokens and estimated cost, read from the transcript.
   - Click a session to bring its terminal or editor forward.
   - Open the Agents widget for each session's timeline, today's estimated spend, and a box to draft the next prompt and paste it into that terminal (it never presses Return for you).
 - **Profiles that follow you**: saved Home layouts, start page and surface. Switch with Caps Lock + 1–9 or the notch menu. Rules switch the start page and surface automatically by front app, music or a waiting agent; a Focus rule can swap Home too.
 - **Notch shell**
-  - One non-activating panel per display. The shelf and its content expand out of the notch on one spring and tuck back in when it closes.
-  - Opens on hover or click; Caps Lock + Space toggles it.
-  - Surfaces: Black, Glass (Liquid Glass) or Tinted, in Wisp violet or the playing album's colour.
+  - One non-activating panel per display. The black shell grows out of the notch into the shelf, like a box resizing, and shrinks back into it when it closes.
+  - Opens on hover or click; Caps Lock + Space toggles it. It closes when the pointer leaves, or stays open until you click away (Settings › Notch).
+  - Surfaces: Black, Glass (Liquid Glass) or Tinted, in Wisp violet (or, if you turn it on, the playing album's colour).
 - **Live activities beside the camera**
   - Volume, brightness and Caps Lock overlays that replace the system ones.
   - Battery: charging, unplugged, low and full.
-  - Timers and Pomodoro; Now Playing from any app, including browsers.
+  - Timers and Pomodoro; Now Playing from any app, including browsers. When a browser gives no album art, Wisp finds it on iTunes (only the title and artist are sent; switch it off in Settings › Live Activities).
   - Meetings: a pill while the microphone is on, named after the calendar event, with elapsed time and a mute button. A Join card appears two minutes before a call with a Zoom, Meet, Teams or Webex link.
   - Focus changes, tray count and file-action notices.
+  - **Bubbles:** with more than one live activity, the extras pinch off the pill into round bubbles, one on each side, as on iPhone. Click a bubble to swap it into the pill.
 - **Notifications** in the notch, with quick replies to iMessage, WhatsApp and Telegram, and the system banner hidden.
 - **Shelf**
   - **Home**: up to four widgets, resizable and reorderable.

@@ -15,10 +15,11 @@ The status below is as of 2026-10-29. Testing approach: decision logic lives in 
 | N5 Clipboard | History with de-duplication, pinning and cap; concealed types skipped; image storage; bottom panel with tabs, search, keyboard navigation and paste |
 | N6 Notifications | Read from the notification database (Full Disk Access); system banner hidden; replies to iMessage, WhatsApp and Telegram |
 | Agent hub | `wisp-agent` hook helper, session pills, Allow/Deny cards (also inside an open shelf), hooks install/remove |
-| Look and profiles | Black, Glass and Tinted surfaces with album accent; profiles with Hyper+1–9 and context rules |
+| Look and profiles | Black, Glass and Tinted surfaces in Wisp violet (album tint optional, off by default); profiles with Hyper+1–9 and context rules |
 | Settings | Sidebar window with search, live preview, setup health and About |
 | Agents, media and meetings | Agent timeline, daily spend, Allow All, request sound, prompt drafts pasted into the terminal; approval queue; lyrics (LRCLIB) and a mini player; meeting pill and Join card; lock screen player; scrolling week calendar; CI and release workflows |
-| Identity (review A to I) | Flame icon and menu bar glyph; rounder corners (the expanding open and close stays); one violet accent; split agent and music pill; context rules keep Home; first-launch setup; Codex hooks, jump to terminal, tokens and cost, project colours; tray redesign; release script with DMG and cask |
+| Identity (review A to I) | Flame icon and menu bar glyph; rounder corners (the expanding open and close stays); one violet accent; context rules keep Home; first-launch setup; Codex hooks, jump to terminal, tokens and cost, project colours; tray redesign; release script with DMG and cask |
+| Activity motion and bubbles | Compact content is clipped to the growing shell and resolves out of a blur after it, contracting toward the camera on the way out; extra live activities pinch off into up to two round bubbles (gooey split and merge), and clicking one swaps it into the pill |
 
 ## Not done
 
@@ -36,5 +37,5 @@ The status below is as of 2026-10-29. Testing approach: decision logic lives in 
 5. **Clipboard.** Copy a few texts, links and images, then press Caps Lock + V (or ⌥⇧⌘V).
 6. **Now Playing.** Play in a browser (YouTube Music) or Music: artwork and a waveform show beside the notch.
 7. **Closing.** The shelf content shrinks into the notch with the surface, and the nav pill rides up into it.
-9. **Split pill.** Play music, then start a Claude Code prompt: the agent and its timer sit left of the camera, the artwork and waveform right.
+9. **Bubbles.** Play music, then start a timer: the music pinches off into a bubble right of the pill. Start a Claude Code prompt too: it splits off on the left. Click a bubble: it swaps into the pill.
 8. **Clicks outside the shelf** reach the app underneath.
