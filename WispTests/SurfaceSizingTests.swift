@@ -106,4 +106,21 @@ final class SurfaceSizingTests: XCTestCase {
         XCTAssertEqual(SurfaceSizing.rect(for: .widgetGrid(count: 60, rows: 1), in: notched).width, 900)
         XCTAssertEqual(SurfaceSizing.rect(for: .media, in: notched).width, 48 + SurfaceSizing.mediaPageWidth + 48)
     }
+
+    func testBubblesSitRightThenLeftOfThePillAsCircles() {
+        let pill = SurfaceSizing.rect(for: .compact(wide: false), in: notched)
+        let bubbles = SurfaceSizing.bubbleRects(beside: pill, count: 2)
+        XCTAssertEqual(bubbles.count, 2)
+        XCTAssertEqual(bubbles[0].width, pill.height)
+        XCTAssertEqual(bubbles[0].height, pill.height)
+        XCTAssertEqual(bubbles[0].minX, pill.maxX + SurfaceSizing.bubbleGap)
+        XCTAssertEqual(bubbles[1].maxX, pill.minX - SurfaceSizing.bubbleGap)
+        XCTAssertEqual(bubbles[0].midY, pill.midY)
+    }
+
+    func testNoBubblesAndAtMostTwo() {
+        let pill = SurfaceSizing.rect(for: .compact(wide: false), in: notched)
+        XCTAssertTrue(SurfaceSizing.bubbleRects(beside: pill, count: 0).isEmpty)
+        XCTAssertEqual(SurfaceSizing.bubbleRects(beside: pill, count: 5).count, 2)
+    }
 }

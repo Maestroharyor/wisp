@@ -58,4 +58,68 @@ final class ActivityQueueTests: XCTestCase {
         queue.remove(id: "b")
         XCTAssertEqual(queue.nextExpiry(after: now), now.addingTimeInterval(3))
     }
+
+    // MARK: Arrangement (main pill plus bubbles)
+
+    private let capable: Set<String> = ["media", "timer", "agent", "meeting"]
+
+    private func sticky(_ ids: [(String, Int)]) -> ActivityQueue<String> {
+        var queue = ActivityQueue<String>()
+        for (offset, item) in ids.enumerated() {
+            queue.post(
+                id: item.0, priority: item.1, duration: nil, payload: item.0,
+                now: now.addingTimeInterval(Double(offset)))
+        }
+        return queue
+    }
+
+    func testArrangementPutsHighestInThePillAndTheRestInBubblesByPriority() {
+        let queue = sticky([("media", 10), ("timer", 20), ("agent", 15)])
+        let arrangement = queue.arrangement(now: now, pinned: nil, bubbleIDs: capable, limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "timer")
+        XCTAssertEqual(arrangement.bubbles.map(\.id), ["agent", "media"])
+    }
+
+    func testArrangementKeepsAtMostTheLimit() {
+        let queue = sticky([("media", 10), ("timer", 20), ("agent", 15), ("meeting", 44)])
+        let arrangement = queue.arrangement(now: now, pinned: nil, bubbleIDs: capable, limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "meeting")
+        XCTAssertEqual(arrangement.bubbles.map(\.id), ["timer", "agent"])
+    }
+
+    func testPinnedBubbleTakesThePillAndTheWinnerBecomesABubble() {
+        let queue = sticky([("media", 10), ("timer", 20)])
+        let arrangement = queue.arrangement(now: now, pinned: "media", bubbleIDs: capable, limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "media")
+        XCTAssertEqual(arrangement.bubbles.map(\.id), ["timer"])
+    }
+
+    func testHUDTakesThePillOverAPinAndBubblesStay() {
+        var queue = sticky([("media", 10), ("timer", 20)])
+        queue.post(id: "level", priority: 70, duration: 1.5, payload: "level", now: now)
+        let arrangement = queue.arrangement(now: now, pinned: "media", bubbleIDs: capable, limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "level")
+        XCTAssertEqual(arrangement.bubbles.map(\.id), ["timer", "media"])
+    }
+
+    func testEndedPinIsIgnored() {
+        let queue = sticky([("media", 10), ("timer", 20)])
+        let arrangement = queue.arrangement(now: now, pinned: "agent", bubbleIDs: capable, limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "timer")
+        XCTAssertEqual(arrangement.bubbles.map(\.id), ["media"])
+    }
+
+    func testOnlyCapableActivitiesBecomeBubbles() {
+        var queue = sticky([("media", 10), ("tray", 30)])
+        queue.post(id: "notice", priority: 45, duration: 2, payload: "notice", now: now)
+        let arrangement = queue.arrangement(now: now, pinned: nil, bubbleIDs: capable, limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "notice")
+        XCTAssertEqual(arrangement.bubbles.map(\.id), ["media"])
+    }
+
+    func testSingleActivityHasNoBubbles() {
+        let arrangement = sticky([("media", 10)]).arrangement(now: now, pinned: nil, bubbleIDs: capable, limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "media")
+        XCTAssertTrue(arrangement.bubbles.isEmpty)
+    }
 }

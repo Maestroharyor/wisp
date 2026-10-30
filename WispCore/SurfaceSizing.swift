@@ -90,6 +90,18 @@ public enum SurfaceSizing {
     /// the shelf's height. Tall enough for the media player.
     public static let shelfContentHeight: CGFloat = ShellMetrics.mediaWidgetContentHeight
 
+    /// Space between the main pill and a bubble beside it.
+    public static let bubbleGap: CGFloat = 6
+
+    /// Round bubbles for extra live activities, as tall as the pill: the first to its
+    /// right, the second to its left.
+    public static func bubbleRects(beside pill: CGRect, count: Int) -> [CGRect] {
+        let size = pill.height
+        let right = CGRect(x: pill.maxX + bubbleGap, y: pill.minY, width: size, height: size)
+        let left = CGRect(x: pill.minX - bubbleGap - size, y: pill.minY, width: size, height: size)
+        return Array([right, left].prefix(max(count, 0)))
+    }
+
     /// The floating Home/Tray/Clipboard pill centred under an open surface.
     public static func navPillRect(below surface: CGRect) -> CGRect {
         CGRect(
