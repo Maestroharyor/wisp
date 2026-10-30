@@ -16,6 +16,8 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "bubbles"), [.activities])
         XCTAssertTrue(SettingsIndex.panes(matching: "meeting").contains(.activities))
         XCTAssertTrue(SettingsIndex.panes(matching: "caps lock").contains(.general))
+        XCTAssertEqual(SettingsIndex.panes(matching: "update"), [.about])
+        XCTAssertEqual(SettingsIndex.panes(matching: "sparkle release"), [.about])
     }
 
     func testTitlesMatchCaseAndAccentInsensitively() {

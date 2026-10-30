@@ -4,6 +4,7 @@ import WispCore
 
 struct AboutSettings: View {
     let preferences: Preferences
+    @Bindable var updater: Updater
     let runSetup: () -> Void
 
     private static let repository = URL(string: "https://github.com/Maestroharyor/wisp")
@@ -47,6 +48,27 @@ struct AboutSettings: View {
                         Link(destination: issues) { Label("Report an issue", systemImage: "ladybug") }
                     }
                 }
+            }
+            Section {
+                Toggle("Check for updates automatically", isOn: $updater.automaticallyChecks)
+                Toggle("Download and install updates automatically", isOn: $updater.automaticallyDownloads)
+                    .disabled(!updater.automaticallyChecks)
+                LabeledContent("Last checked") {
+                    if let lastCheck = updater.lastCheck {
+                        Text(lastCheck, format: .relative(presentation: .named))
+                    } else {
+                        Text("Never")
+                    }
+                }
+                Button("Check Now", action: updater.checkForUpdates)
+                    .disabled(!updater.canCheckForUpdates)
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text(
+                    "Wisp checks GitHub Releases once a day. Updates are signed, and your settings and permissions are kept."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
             Section("Keyboard shortcuts") {
                 ShortcutRow(keys: hyper("Space"), action: "Open or close the shelf")

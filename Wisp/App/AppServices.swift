@@ -30,6 +30,7 @@ final class AppServices {
     let script = ScriptStore()
     let headphones = HeadphoneMonitor()
     let sounds: SoundPlayer
+    let updater = Updater()
     /// Bumped for each confetti burst; the notch watches it.
     private(set) var celebrations = 0
     private(set) var lastCelebration: Date?

@@ -6,6 +6,12 @@ options:
     macOS: "14.0"
   createIntermediateGroups: true
 
+packages:
+  # Updates from GitHub Releases. See README "Updates" and scripts/release.sh.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.10.1
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -65,6 +71,7 @@ targets:
     sources: [Wisp]
     dependencies:
       - target: WispCore
+      - package: Sparkle
       - target: WispAgent
         embed: true
         codeSign: true
@@ -91,6 +98,10 @@ targets:
         NSLocationUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSLocationWhenInUseUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSContactsUsageDescription: Wisp shows contact photos on notifications.
+        SUFeedURL: https://github.com/Maestroharyor/wisp/releases/latest/download/appcast.xml
+        SUPublicEDKey: uWF1jHIoXFoGaVJMhVj3Y6lG9o6EXOzkfqqJED1WbIc=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
         NSCameraUsageDescription: Wisp shows your camera in the Mirror widget so you can check yourself before a call.
     entitlements:
       path: Wisp/Resources/Wisp.entitlements
@@ -107,7 +118,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp
         PRODUCT_NAME: Wisp
-        ENABLE_HARDENED_RUNTIME: YES
+        # Only notarisation needs the hardened runtime. Self-signed builds ("Wisp Dev"
+        # has no Team ID) leave it off, or library validation refuses Sparkle.framework.
+        # scripts/release.sh turns it on for Developer ID builds.
+        ENABLE_HARDENED_RUNTIME: NO
         # A self-signed certificate has no Team ID, so hardened runtime's library
         # validation rejects Xcode's separate debug dylib. Keep debug builds monolithic.
         ENABLE_DEBUG_DYLIB: NO
