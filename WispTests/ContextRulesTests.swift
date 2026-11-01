@@ -89,6 +89,69 @@ final class ProfileTests: XCTestCase {
         XCTAssertTrue(names.contains(ContextEngineState.baseProfile))
     }
 
+    func testCodeIsOnlyTheAgents() throws {
+        let code = try XCTUnwrap(Profile.builtIns.first { $0.name == "Code" })
+        XCTAssertEqual(code.home.slots, [.init(id: "agents", size: .wide)])
+        let stats = try XCTUnwrap(Profile.builtIns.first { $0.name == "Stats" })
+        XCTAssertEqual(stats.home.slots.map(\.id), ["systemStats", "timer", "dayProgress"])
+    }
+
+    func testUpgradeReplacesAnUntouchedCodeAndAddsStatsOnce() throws {
+        let oldCode = Profile(
+            name: "Code",
+            home: HomeLayout(slots: [
+                .init(id: "agents", size: .medium), .init(id: "systemStats", size: .medium),
+                .init(id: "timer", size: .small),
+            ]), defaultPage: "home", surface: "tinted")
+        let everyday = Profile(name: "Everyday", home: HomeLayout(slots: []), defaultPage: "home", surface: "black")
+        let upgraded = Profile.upgrade([everyday, oldCode], from: 1)
+        XCTAssertEqual(upgraded.map(\.name), ["Everyday", "Code", "Stats"])
+        XCTAssertEqual(upgraded[1].home.slots, [.init(id: "agents", size: .wide)])
+        let fromTwo = Profile.upgrade(
+            [
+                Profile(
+                    name: "Code", home: HomeLayout(slots: [.init(id: "agents", size: .large)]), defaultPage: "home",
+                    surface: "tinted")
+            ], from: 2)
+        XCTAssertEqual(fromTwo.first?.home.slots, [.init(id: "agents", size: .wide)])
+        XCTAssertEqual(fromTwo.count, 1, "Stats was offered at version 2 already")
+        XCTAssertEqual(
+            Profile.upgrade(
+                [
+                    Profile(
+                        name: "Code", home: HomeLayout(slots: [.init(id: "agents", size: .large)]),
+                        defaultPage: "home", surface: "tinted")
+                ], from: 3
+            ).first?.home.slots, [.init(id: "agents", size: .wide)])
+        XCTAssertEqual(Profile.upgrade(upgraded, from: 1).count, 3, "Stats isn't added twice")
+        XCTAssertEqual(Profile.upgrade([everyday], from: Profile.builtInsVersion), [everyday], "already current")
+    }
+
+    func testResizeCyclesThroughAllowedSizes() {
+        XCTAssertEqual(WidgetSize.large.next(in: WidgetSize.standard), .small)
+        XCTAssertEqual(WidgetSize.large.next(in: WidgetSize.allCases), .wide)
+        XCTAssertEqual(WidgetSize.wide.next(in: WidgetSize.allCases), .small)
+        XCTAssertEqual(WidgetSize.wide.next(in: WidgetSize.standard), .small, "a size it can't take resets")
+    }
+
+    func testHomeOnScreenFollowsAnUntouchedProfile() {
+        let old = HomeLayout(slots: [.init(id: "agents", size: .large)])
+        let new = HomeLayout(slots: [.init(id: "agents", size: .wide)])
+        let before = [Profile(name: "Code", home: old, defaultPage: "home", surface: "tinted")]
+        let after = [Profile(name: "Code", home: new, defaultPage: "home", surface: "tinted")]
+        XCTAssertEqual(Profile.upgradedHome(old, profile: "Code", before: before, after: after), new)
+        let edited = HomeLayout(slots: [.init(id: "agents", size: .medium)])
+        XCTAssertEqual(Profile.upgradedHome(edited, profile: "Code", before: before, after: after), edited)
+        XCTAssertEqual(Profile.upgradedHome(old, profile: "Work", before: before, after: after), old)
+    }
+
+    func testUpgradeKeepsAnEditedCode() {
+        let edited = Profile(
+            name: "Code", home: HomeLayout(slots: [.init(id: "notes", size: .small)]), defaultPage: "home",
+            surface: "glass")
+        XCTAssertEqual(Profile.upgrade([edited], from: 1).first, edited)
+    }
+
     func testCodableRoundTrip() throws {
         let home = HomeLayout(slots: [.init(id: "agents", size: .medium), .init(id: "calendar", size: .small)])
         let profile = Profile(name: "Code", home: home, defaultPage: "widgets", surface: "glass")

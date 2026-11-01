@@ -29,14 +29,56 @@ public struct Profile: Codable, Equatable, Identifiable, Sendable {
         Profile(
             name: "Work", home: layout(("calendar", .medium), ("dayProgress", .medium), ("pomodoro", .small)),
             defaultPage: "home", surface: "black"),
-        Profile(
-            name: "Code", home: layout(("agents", .medium), ("systemStats", .medium), ("timer", .small)),
-            defaultPage: "home", surface: "tinted"),
+        // Only the agents' status bars; a bar opens that session's details.
+        Profile(name: "Code", home: layout(("agents", .wide)), defaultPage: "home", surface: "tinted"),
         Profile(name: "Music", home: layout(("nowPlaying", .large)), defaultPage: "media", surface: "tinted"),
+        Profile(
+            name: "Stats", home: layout(("systemStats", .medium), ("timer", .small), ("dayProgress", .medium)),
+            defaultPage: "home", surface: "black"),
         Profile(
             name: "Meeting", home: layout(("mirror", .small), ("calendar", .medium), ("worldClocks", .small)),
             defaultPage: "home", surface: "black"),
     ]
+
+    /// Bumped when the built-ins change in a way saved profiles should follow.
+    public static let builtInsVersion = 4
+
+    /// Saved profiles brought up to the current built-ins, once per version. Only a profile
+    /// still exactly as Wisp first made it is changed; one the user edited is theirs. New
+    /// built-ins are added once, so deleting one later sticks.
+    public static func upgrade(_ profiles: [Profile], from version: Int) -> [Profile] {
+        var result = profiles
+        // Version 3 changed Code but a Home still on the old layout copied it back, so 4 repeats it.
+        if version < 4 {
+            let earlierCodes = [
+                layout(("agents", .medium), ("systemStats", .medium), ("timer", .small)), layout(("agents", .large)),
+            ].map { Profile(name: "Code", home: $0, defaultPage: "home", surface: "tinted") }
+            if let index = result.firstIndex(where: earlierCodes.contains),
+                let code = builtIns.first(where: { $0.name == "Code" })
+            {
+                result[index] = code
+            }
+        }
+        if version < 2 {
+            if !result.contains(where: { $0.name == "Stats" }),
+                let stats = builtIns.first(where: { $0.name == "Stats" })
+            {
+                result.append(stats)
+            }
+        }
+        return result
+    }
+
+    /// The Home on screen after `upgrade`: it follows its profile's new layout only while
+    /// it's still the profile's old one, so the user's own Home edits are kept.
+    public static func upgradedHome(
+        _ current: HomeLayout, profile name: String, before: [Profile], after: [Profile]
+    ) -> HomeLayout {
+        guard let old = before.first(where: { $0.name == name }), let new = after.first(where: { $0.name == name }),
+            old.home == current
+        else { return current }
+        return new.home
+    }
 
     private static func layout(_ slots: (String, WidgetSize)...) -> HomeLayout {
         HomeLayout(slots: slots.map { HomeLayout.Slot(id: $0.0, size: $0.1) })

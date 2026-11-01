@@ -181,6 +181,7 @@ final class Preferences {
         static let lastSettingsPane = "lastSettingsPane"
         static let onboarded = "onboarded"
         static let profiles = "profiles"
+        static let profilesVersion = "profilesVersion"
         static let activeProfile = "activeProfile"
         static let homeProfile = "homeProfile"
         static let contextRules = "contextRules"
@@ -875,13 +876,23 @@ final class Preferences {
             .flatMap(PocketTrigger.init(rawValue:)) ?? .shake
         introduceNewWidgets()
         // First run with profiles: the everyday profile starts as the user's current setup.
+        let saved = defaults.data(forKey: Key.profiles).flatMap {
+            try? JSONDecoder().decode([Profile].self, from: $0)
+        }
         profiles =
-            defaults.data(forKey: Key.profiles).flatMap { try? JSONDecoder().decode([Profile].self, from: $0) }
+            saved.map { Profile.upgrade($0, from: defaults.integer(forKey: Key.profilesVersion)) }
             ?? Profile.builtIns.map { builtIn in
                 guard builtIn.name == ContextEngineState.baseProfile else { return builtIn }
                 return Profile(
                     name: builtIn.name, home: homeLayout, defaultPage: builtIn.defaultPage,
                     surface: surfaceStyle.rawValue)
             }
+        // Observers don't run in init: save the upgrade so the version below stays true.
+        if let saved {
+            defaults.set(try? JSONEncoder().encode(profiles), forKey: Key.profiles)
+            homeLayout = Profile.upgradedHome(homeLayout, profile: homeProfile, before: saved, after: profiles)
+            defaults.set(try? JSONEncoder().encode(homeLayout), forKey: Key.homeLayout)
+        }
+        defaults.set(Profile.builtInsVersion, forKey: Key.profilesVersion)
     }
 }

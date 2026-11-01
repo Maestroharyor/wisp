@@ -2,26 +2,35 @@ import CoreGraphics
 
 /// How wide a widget sits on Home.
 public enum WidgetSize: String, Codable, Sendable, CaseIterable {
+    /// A size this version doesn't know (saved by a newer Wisp) reads as large, so the rest
+    /// of the layout and the profiles holding it still load.
+    public init(from decoder: Decoder) throws {
+        self = WidgetSize(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .large
+    }
+
     case small
     case medium
     case large
+    /// The whole shelf, for a widget that is the profile's only one (Agents in Code).
+    case wide
 
     public var width: CGFloat {
         switch self {
         case .small: 180
         case .medium: 240
         case .large: 330
+        case .wide: 560
         }
     }
 
-    /// The size the resize button switches to.
-    public var next: WidgetSize {
-        switch self {
-        case .small: .medium
-        case .medium: .large
-        case .large: .small
-        }
+    /// The size the resize button switches to, among `sizes` (a widget's allowed sizes).
+    public func next(in sizes: [WidgetSize]) -> WidgetSize {
+        guard let index = sizes.firstIndex(of: self) else { return sizes.first ?? self }
+        return sizes[(index + 1) % sizes.count]
     }
+
+    /// Sizes every widget can take. Only widgets built for it also go `wide`.
+    public static let standard: [WidgetSize] = [.small, .medium, .large]
 }
 
 /// The widgets on Home: up to four, in order, each with a size.
