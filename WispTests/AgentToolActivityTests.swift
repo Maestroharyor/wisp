@@ -89,6 +89,7 @@ final class ToolLabelTests: XCTestCase {
             ("echo dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQgdG9rZW4x", "echo •••"),
             ("curl -u admin:hunter2 https://x.io", "curl -u admin:••• https://x.io"),
             ("curl --user me:pw https://x.io", "curl --user me:••• https://x.io"),
+            ("curl -u admin:123456 https://x.io", "curl -u admin:••• https://x.io"),
             ("curl -H 'X-Api-Key: abc123' x", "curl -H 'X-Api-Key: •••' x"),
             ("curl -H \"x-auth-token: abc\" x", "curl -H \"x-auth-token: •••\" x"),
             ("sshpass -p hunter2 ssh me@host", "sshpass -p ••• ssh me@host"),
@@ -262,6 +263,28 @@ final class AgentToolSessionTests: XCTestCase {
         XCTAssertEqual(facts["Last activity"], "just now")
         sessions.prune(now: start + 7300, olderThan: 3600)
         XCTAssertNotNil(sessions.session("s1"), "a session busy with tools isn't pruned")
+    }
+
+    func testStatusBarChangesAlsoCountAsActivity() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        let snapshot = StatusLineSnapshot.decode(
+            Data(#"{"session_id":"s1","cwd":"/p/app","cost":{"total_cost_usd":1.25}}"#.utf8))
+        sessions.apply(snapshot, source: .claude, terminal: nil, branch: nil, at: start + 7200)
+        let session = try XCTUnwrap(sessions.session("s1"))
+        let facts = Dictionary(uniqueKeysWithValues: session.facts(now: start + 7205).map { ($0.label, $0.value) })
+        XCTAssertEqual(facts["Last activity"], "just now")
+        sessions.prune(now: start + 7300, olderThan: 3600)
+        XCTAssertNotNil(sessions.session("s1"))
+    }
+
+    func testADenialWispCantMatchLeavesOtherToolsRunning() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(try tool("PreToolUse", "Read", id: "r"), at: start)
+        sessions.apply(try event("PermissionRequest", extra: #","tool_name":"Bash""#), at: start + 1)
+        sessions.record(.denied, "Denied", session: "s1", at: start + 2)
+        XCTAssertEqual(sessions.session("s1")?.runningTools.map(\.name), ["Read"])
     }
 
     func testToolFactsUseTheHiddenLabelInPrivate() throws {

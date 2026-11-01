@@ -1,6 +1,6 @@
 # Wisp plan and status
 
-The status below is as of 2026-11-01. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 553 tests. For what comes next, see `docs/REVIEW.md`.
+The status below is as of 2026-11-01. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 555 tests. For what comes next, see `docs/REVIEW.md`.
 
 ## Done
 

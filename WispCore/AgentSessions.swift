@@ -91,6 +91,9 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     /// The last hook of any kind, tool activity included, so the busiest session wins the
     /// pill; `updated` leaves tool activity out to keep the sessions list steady.
     public var lastActivity: Date?
+
+    /// The later of the last hook and the last change the status bar reported.
+    public var latestActivity: Date { max(lastActivity ?? updated, updated) }
     /// With tool activity on: tools running now (several run in parallel), oldest first.
     public var runningTools: [ActiveTool] = []
     /// The last tool to finish and when, so the pill can hold its label for a moment
@@ -287,10 +290,8 @@ public struct AgentSessions: Sendable {
     /// request's timeline entry); parallel calls to other tools carry on.
     private static func dropDeniedTool(in session: inout AgentSession) {
         let requested = session.timeline.last { $0.kind == .request }?.text
-        guard
-            let index = session.runningTools.lastIndex(where: { $0.name == requested })
-                ?? session.runningTools.indices.last
-        else { return }
+        // A call Wisp never saw start (it launched mid-call) leaves the others alone.
+        guard let index = session.runningTools.lastIndex(where: { $0.name == requested }) else { return }
         session.runningTools.remove(at: index)
     }
 
@@ -415,6 +416,6 @@ public struct AgentSessions: Sendable {
 
     public mutating func prune(now: Date, olderThan age: TimeInterval) {
         // Tool activity counts: a long turn of tool calls is still a live session.
-        sessions = sessions.filter { now.timeIntervalSince($0.value.lastActivity ?? $0.value.updated) < age }
+        sessions = sessions.filter { now.timeIntervalSince($0.value.latestActivity) < age }
     }
 }

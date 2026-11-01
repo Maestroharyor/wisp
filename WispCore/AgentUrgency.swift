@@ -40,7 +40,7 @@ public enum AgentUrgency {
         [.running, .waiting, .needsApproval].contains(session.state) || session.compacting
     }
 
-    private static func recency(_ session: AgentSession) -> Date { session.lastActivity ?? session.updated }
+    private static func recency(_ session: AgentSession) -> Date { session.latestActivity }
 
     private static func since(_ session: AgentSession) -> Date { session.stateSince ?? session.updated }
 }

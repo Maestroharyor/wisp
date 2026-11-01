@@ -94,7 +94,7 @@ extension AgentSession {
         var agent = source.displayName
         if let version = live.version { agent += " \(version)" }
         result.append(AgentFact("Agent", agent))
-        result.append(AgentFact("Last activity", Self.ago(now.timeIntervalSince(lastActivity ?? updated))))
+        result.append(AgentFact("Last activity", Self.ago(now.timeIntervalSince(latestActivity))))
         result.append(AgentFact("Session ID", id, isPrivate: true))
         return result
     }
