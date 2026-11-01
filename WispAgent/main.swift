@@ -6,7 +6,8 @@ import WispCore
 // Unix socket and prints Wisp's reply (a permission decision, or nothing). It wraps the
 // JSON in Wisp's envelope with the agent (`--source codex`, otherwise Claude Code) and the
 // terminal app it runs in. Any failure exits 0 with no output, so the agent carries on as
-// if no hook ran. `wisp-agent statusline` is Claude Code's status bar (StatusLineCommand).
+// if no hook ran. Tool activity hooks are sent without waiting for a reply.
+// `wisp-agent statusline` is Claude Code's status bar (StatusLineCommand).
 
 // The socket belongs to the app this helper ships in, so a hook pointing at Wisp Dev
 // talks to Wisp Dev and one pointing at Wisp talks to Wisp.
@@ -31,6 +32,13 @@ let source: AgentSource =
     zip(arguments, arguments.dropFirst()).first { $0.0 == "--source" }.flatMap { AgentSource(rawValue: $0.1) }
     ?? .claude
 let hookJSON = FileHandle.standardInput.readDataToEndOfFile()
+// Tool activity fires on every tool call and needs no answer, so it never waits on Wisp.
+if AgentProtocol.kind(forHook: hookJSON) == .tool {
+    if let message = AgentProtocol.envelope(kind: .tool, source: source, terminal: terminal, payload: hookJSON) {
+        SocketSend.send(message, to: socketPath, timeout: 0.05)
+    }
+    exit(0)
+}
 let input =
     AgentProtocol.envelope(kind: .hook, source: source, terminal: terminal, payload: hookJSON)
     ?? AgentTerminal.tag(hookJSON, source: source, terminal: terminal)
