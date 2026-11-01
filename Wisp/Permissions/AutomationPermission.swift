@@ -1,5 +1,6 @@
 import AppKit
 import CoreServices
+import WispCore
 
 /// Automation (Apple Events) is granted per app Wisp controls, and System Settings lists Wisp
 /// only after macOS has asked about one of them. Allow asks now, for the apps Wisp scripts.
@@ -29,16 +30,33 @@ enum AutomationPermission {
             // Asking blocks until the person answers, so it runs off the main thread.
             let targets = systemTargets + running
             await Task.detached { for target in targets { _ = ask(target) } }.value
+            await refresh()
             Permission.automation.openSettings()
         }
     }
 
+    /// Granted, not granted, or nil when none of the always-asked apps can answer, as of the
+    /// last `refresh()`.
+    private(set) static var status: Bool?
+
+    /// Asking macOS takes tens of milliseconds per app, so it runs off the main thread. Never prompts.
+    static func refresh() async {
+        let targets = systemTargets
+        status = await Task.detached {
+            AutomationStatus.summary(targets.map { determine($0, askUserIfNeeded: false) })
+        }.value
+    }
+
     /// `noErr` once allowed; macOS shows its prompt first if it hasn't asked about `bundleID`.
     private nonisolated static func ask(_ bundleID: String) -> OSStatus {
+        determine(bundleID, askUserIfNeeded: true)
+    }
+
+    private nonisolated static func determine(_ bundleID: String, askUserIfNeeded: Bool) -> OSStatus {
         var target = AEAddressDesc()
         let created = bundleID.withCString { AECreateDesc(typeApplicationBundleID, $0, strlen($0), &target) }
         guard created == noErr else { return OSStatus(created) }
         defer { AEDisposeDesc(&target) }
-        return AEDeterminePermissionToAutomateTarget(&target, typeWildCard, typeWildCard, true)
+        return AEDeterminePermissionToAutomateTarget(&target, typeWildCard, typeWildCard, askUserIfNeeded)
     }
 }

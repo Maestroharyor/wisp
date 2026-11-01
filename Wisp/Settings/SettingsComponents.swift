@@ -69,8 +69,7 @@ final class SettingsModel {
             notifications: preferences.notificationsEnabled,
             calendarWidgets: widgets.contains(.calendar) || widgets.contains(.dayProgress),
             mirror: widgets.contains(.mirror))
-        let granted = Dictionary(uniqueKeysWithValues: Permission.allCases.map { ($0.rawValue, $0.isGranted) })
-        let ids = SetupHealth.missing(granted: granted, needed: needed)
+        let ids = SetupHealth.missing(granted: Permission.statuses, needed: needed)
         let next = ids.compactMap(Permission.init(rawValue:))
         if next != missing { missing = next }
     }
