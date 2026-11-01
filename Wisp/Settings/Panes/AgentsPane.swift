@@ -243,22 +243,21 @@ private struct TerminalBarSettings: View {
 
 /// Installs `wisp` (status, watch, spend) as a link in ~/.local/bin.
 private struct CommandLineSettings: View {
-    @State private var installer = CommandLineInstaller()
+    private let installer = CommandLineInstaller.shared
 
     var body: some View {
         Section {
             LabeledContent {
                 switch installer.state {
-                case .installed, .otherApp: Button("Uninstall") { installer.uninstall() }
+                case .installed: Button("Uninstall") { installer.uninstall() }
+                // That link belongs to the other copy of Wisp, so it's repointed, never removed from here.
+                case .otherApp: Button("Point it at this Wisp") { installer.install() }
                 case .notInstalled: Button("Install") { installer.install() }
                 case .foreign: EmptyView()
                 }
             } label: {
                 Text("wisp command")
                 Text(status)
-            }
-            if case .otherApp = installer.state {
-                Button("Point it at this Wisp") { installer.install() }
             }
             if let problem = installer.problem {
                 Label(problem, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)

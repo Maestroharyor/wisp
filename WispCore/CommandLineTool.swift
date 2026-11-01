@@ -25,6 +25,38 @@ public enum CommandLineTool {
         return isHelper ? .otherApp(linkTarget) : .foreign
     }
 
+    /// What's at `link` now.
+    public static func state(at link: URL, helper: URL) -> State {
+        let manager = FileManager.default
+        return state(
+            exists: manager.fileExists(atPath: link.path),
+            linkTarget: try? manager.destinationOfSymbolicLink(atPath: link.path), helper: helper.path)
+    }
+
+    public enum Problem: Error, Equatable {
+        /// Something that isn't Wisp's is already called `wisp` there.
+        case taken
+    }
+
+    /// Links `link` to `helper`, creating its folder and replacing only a link of Wisp's own.
+    public static func install(at link: URL, helper: URL) throws {
+        let manager = FileManager.default
+        switch state(at: link, helper: helper) {
+        case .installed: return
+        case .foreign: throw Problem.taken
+        case .otherApp: try manager.removeItem(at: link)
+        case .notInstalled: break
+        }
+        try manager.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try manager.createSymbolicLink(at: link, withDestinationURL: helper)
+    }
+
+    /// Removes `link` when it's Wisp's link to `helper`; anything else is left alone.
+    public static func uninstall(at link: URL, helper: URL) throws {
+        guard state(at: link, helper: helper) == .installed else { return }
+        try FileManager.default.removeItem(at: link)
+    }
+
     /// Whether `path` (a PATH value) has `~/.local/bin`.
     public static func isOnPath(_ path: String, home: String) -> Bool {
         let wanted = normalized("\(home)/\(folder)")
