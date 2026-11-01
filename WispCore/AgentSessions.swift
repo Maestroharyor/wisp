@@ -88,6 +88,8 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     public var state: State
     /// When `state` last changed; nil until a hook changes it.
     public var stateSince: Date?
+    /// When a reminder last put this wait back in the pill; only counts after `stateSince`.
+    public var nudged: Date?
     /// The last hook of any kind, tool activity included, so the busiest session wins the
     /// pill; `updated` leaves tool activity out to keep the sessions list steady.
     public var lastActivity: Date?
@@ -399,8 +401,15 @@ public struct AgentSessions: Sendable {
     public mutating func resolveApproval(session id: String, at date: Date) {
         guard var session = sessions[id], session.state == .needsApproval else { return }
         session.state = .running
+        session.stateSince = date
         session.updated = date
         sessions[id] = session
+    }
+
+    /// A reminder for a session still waiting: it leads the pill again, as when the wait began.
+    public mutating func nudge(session id: String, at date: Date) {
+        guard sessions[id]?.state == .waiting else { return }
+        sessions[id]?.nudged = date
     }
 
     /// Tokens from the transcript. The estimated cost is kept only while Claude Code hasn't

@@ -99,6 +99,11 @@ public struct DailySpend: Codable, Equatable, Sendable {
         }
     }
 
+    /// The day a date falls on ("2026-11-02"), as spend is stored.
+    public static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {
+        key(date, calendar)
+    }
+
     private static func key(_ date: Date, _ calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
