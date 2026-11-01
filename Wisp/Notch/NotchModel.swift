@@ -65,6 +65,9 @@ final class NotchModel {
     /// The reply typed so far. Kept here, not in the card, because a higher-priority alert
     /// (volume, Caps Lock, an approval) replaces the card for a moment.
     var replyDraft = ""
+    /// Lyrics instead of artwork on the Media page. Kept here so closing the shelf or
+    /// changing page (which rebuilds the page) doesn't turn them off.
+    var showsLyrics = false
     /// Prompt drafts in the Agents detail, per session, so closing the shelf keeps them and
     /// one session's draft never goes to another.
     var agentDrafts: [String: String] = [:]

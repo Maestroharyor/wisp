@@ -356,10 +356,10 @@ extension WidgetKind {
 /// A large player on its own page.
 struct MediaPage: View {
     let model: NotchModel
-    @State private var showsLyrics = false
 
     var body: some View {
         let services = model.services
+        let showsLyrics = model.showsLyrics
         HStack(spacing: 6) {
             Group {
                 if showsLyrics, services.nowPlaying.info != nil {
@@ -378,7 +378,7 @@ struct MediaPage: View {
                     ShelfButton(
                         symbol: showsLyrics ? "quote.bubble.fill" : "quote.bubble", size: 12,
                         tint: showsLyrics ? .accentColor : .white
-                    ) { withAnimation(.easeOut(duration: 0.2)) { showsLyrics.toggle() } }
+                    ) { withAnimation(.easeOut(duration: 0.2)) { model.showsLyrics.toggle() } }
                     .help("Lyrics (from LRCLIB)")
                 }
                 ShelfButton(symbol: "pip", size: 12) { services.miniPlayer.toggle() }
