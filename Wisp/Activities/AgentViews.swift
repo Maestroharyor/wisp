@@ -22,6 +22,16 @@ extension AgentSession.State {
     }
 }
 
+extension ContextUsage.Level {
+    var tint: Color {
+        switch self {
+        case .normal: .wispViolet
+        case .warning: .wispAmber
+        case .critical: .red
+        }
+    }
+}
+
 extension Color {
     /// The project's own colour, stable across launches.
     static func project(_ name: String) -> Color {
@@ -33,11 +43,13 @@ extension AgentSource {
     var symbol: String { self == .claude ? "sparkle" : "chevron.left.forwardslash.chevron.right" }
 }
 
-/// The agent's mark in its project's colour, pulsing while it works.
+/// The agent's mark in its project's colour, pulsing while it works, ringed by how full
+/// its context window is when the agent reports it.
 struct AgentGlyph: View {
     let state: AgentSession.State
     let source: AgentSource
     let project: String
+    var context: Double? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // A symbol effect follows `state` both ways. The earlier repeatForever animation started
@@ -47,6 +59,45 @@ struct AgentGlyph: View {
             .foregroundStyle(state == .finished ? state.tint : Color.project(project))
             .frame(width: 16)
             .symbolEffect(.pulse, options: .repeating, isActive: state == .running && !reduceMotion)
+            .overlay {
+                if let context, state != .finished { ContextRing(percent: context).frame(width: 19, height: 19) }
+            }
+            .accessibilityValue(context.map { "\(Int($0.rounded()))% context used" } ?? "")
+    }
+}
+
+/// A thin ring filled to the share of the context window in use.
+struct ContextRing: View {
+    let percent: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(.white.opacity(0.14), lineWidth: 1.5)
+            Circle()
+                .trim(from: 0, to: min(max(percent, 0), 100) / 100)
+                .stroke(ContextUsage.level(percent).tint, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: percent)
+    }
+}
+
+/// A short bar for the context window, with its percentage.
+struct ContextBar: View {
+    let percent: Double
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Capsule().fill(.white.opacity(0.14)).frame(width: 36, height: 4)
+                .overlay(alignment: .leading) {
+                    Capsule().fill(ContextUsage.level(percent).tint)
+                        .frame(width: 36 * min(max(percent, 0), 100) / 100, height: 4)
+                }
+            Text("\(Int(percent.rounded()))%").font(.system(size: 10)).monospacedDigit()
+                .foregroundStyle(ContextUsage.level(percent).tint)
+        }
+        .help("Context window used")
     }
 }
 
@@ -55,7 +106,9 @@ struct AgentStateLabel: View {
     let status: AgentStatus
 
     var body: some View {
-        if status.state == .running {
+        if status.compacting {
+            Text("Compacting…").lineLimit(1).foregroundStyle(Color.wispViolet)
+        } else if status.state == .running {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 ValueText(
                     text: Countdown.format(max(0, context.date.timeIntervalSince(status.started))),
@@ -195,6 +248,8 @@ private struct ApprovalButtonStyle: ButtonStyle {
 }
 
 /// Every live Claude Code session, newest first.
+/// Each agent session as a status bar, like the one in the terminal. At the Wide size the
+/// widget shows `AgentsDetail` instead, with the selected session's details on the right.
 struct AgentsWidget: View {
     let hub: AgentHub
 
@@ -202,23 +257,15 @@ struct AgentsWidget: View {
         let sessions = hub.sessions.list
         Group {
             if hub.connected.isEmpty {
-                VStack(spacing: 6) {
-                    Text("See Claude Code and Codex sessions here")
-                        .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
-                    Button("Connect Claude Code") { hub.installHooks(.claude) }.controlSize(.small)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ConnectAgentsHint(hub: hub)
             } else if sessions.isEmpty {
-                VStack(spacing: 4) {
-                    Image(systemName: "sparkle").foregroundStyle(Color.wispViolet)
-                    Text("No agent sessions").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                NoSessionsHint()
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 5) {
                         ForEach(sessions) { session in
-                            SessionRow(session: session) { hub.focus(session: session.id) }
+                            SessionBar(session: session) { hub.focus(session: session.id) }
+                                .help("Show the terminal")
                         }
                     }
                 }
@@ -228,43 +275,147 @@ struct AgentsWidget: View {
     }
 }
 
-/// One session: click to bring its terminal forward.
-private struct SessionRow: View {
+private struct ConnectAgentsHint: View {
+    let hub: AgentHub
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text("See Claude Code and Codex sessions here")
+                .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+            Button("Connect Claude Code") { hub.installHooks(.claude) }.controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct NoSessionsHint: View {
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: "sparkle").foregroundStyle(Color.wispViolet)
+            Text("No agent sessions").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Elapsed time while working, "Compacting…", or the state with how long the last turn took.
+private struct SessionStateText: View {
     let session: AgentSession
-    let focus: () -> Void
+
+    var body: some View {
+        Group {
+            if session.compacting {
+                Text("Compacting…").foregroundStyle(Color.wispViolet)
+            } else if session.state == .running {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(Countdown.format(max(0, context.date.timeIntervalSince(session.turnStarted))))
+                        .monospacedDigit()
+                        .foregroundStyle(session.state.tint)
+                }
+            } else if session.state == .finished, let took = session.lastTurnDuration {
+                Text("Done in \(Countdown.format(took))").monospacedDigit().foregroundStyle(session.state.tint)
+            } else {
+                Text(session.state.label).foregroundStyle(session.state.tint)
+            }
+        }
+        .font(.system(size: 11, weight: .medium))
+        .lineLimit(1)
+    }
+}
+
+/// One session in the terminal bar's order: project, branch and model with its state, then
+/// context, cost, tokens and lines changed. Figures nobody reported are left out; when the
+/// widget is narrow the last ones go first, as in the terminal.
+private struct SessionBar: View {
+    let session: AgentSession
+    let open: () -> Void
 
     @State private var hovering = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            AgentGlyph(state: session.state, source: session.source, project: session.project)
-                .font(.system(size: 11))
-            Text(session.project).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-            if let usage = session.usage {
-                Text(usage.summary(cost: session.cost))
-                    .font(.system(size: 10)).foregroundStyle(Color.secondaryText).lineLimit(1)
-            }
-            Spacer(minLength: 4)
-            if session.state == .running {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(Countdown.format(max(0, context.date.timeIntervalSince(session.turnStarted))))
-                        .font(.system(size: 11, weight: .medium)).monospacedDigit()
-                        .foregroundStyle(session.state.tint)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 7) {
+                AgentGlyph(
+                    state: session.state, source: session.source, project: session.project,
+                    context: session.contextPercent
+                )
+                .font(.system(size: 12))
+                Text(session.project).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                if let branch = session.branch {
+                    Label(branch, systemImage: "arrow.triangle.branch")
+                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(Color.secondaryText)
+                        .lineLimit(1).truncationMode(.middle)
                 }
-            } else {
-                Text(session.state.label).font(.system(size: 11, weight: .medium)).foregroundStyle(session.state.tint)
+                if let model = session.displayModel {
+                    Text(model).font(.system(size: 11)).foregroundStyle(Color.secondaryText).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                SessionStateText(session: session)
+            }
+            if partCount > 0 {
+                ViewThatFits(in: .horizontal) {
+                    ForEach((0..<partCount).reversed(), id: \.self) { dropped in
+                        figures(keeping: partCount - dropped)
+                    }
+                }
+                .padding(.leading, 25)
             }
         }
-        .padding(.horizontal, 8)
-        .frame(height: 26)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.project(session.project).opacity(hovering ? 0.22 : 0.12))
         )
-        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onHover { hovering = $0 }
-        .onTapGesture(perform: focus)
-        .help("Show the terminal")
+        .onTapGesture(perform: open)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private enum Part: Hashable {
+        case context(Double)
+        case cost(String)
+        case tokens(String)
+        case lines(added: Int, removed: Int)
+    }
+
+    /// In the order they're kept.
+    private var parts: [Part] {
+        var result: [Part] = []
+        if let percent = session.contextPercent { result.append(.context(percent)) }
+        if let cost = session.cost {
+            result.append(.cost((session.costIsReal ? "" : "~") + String(format: "$%.2f", cost)))
+        }
+        if let usage = session.usage { result.append(.tokens(usage.summary(cost: nil))) }
+        if session.linesAdded > 0 || session.linesRemoved > 0 {
+            result.append(.lines(added: session.linesAdded, removed: session.linesRemoved))
+        }
+        return result
+    }
+
+    private var partCount: Int { parts.count }
+
+    private func figures(keeping count: Int) -> some View {
+        HStack(spacing: 12) {
+            ForEach(Array(parts.prefix(count)), id: \.self) { part in
+                switch part {
+                case .context(let percent): ContextBar(percent: percent)
+                case .cost(let text): Text(text)
+                case .tokens(let text): Text(text).foregroundStyle(Color.secondaryText)
+                case .lines(let added, let removed):
+                    HStack(spacing: 4) {
+                        Text("+\(added)").foregroundStyle(Color.wispGreen)
+                        Text("−\(removed)").foregroundStyle(.red.opacity(0.8))
+                    }
+                }
+            }
+        }
+        .font(.system(size: 11, design: .monospaced))
+        .monospacedDigit()
+        .lineLimit(1)
+        .fixedSize()
     }
 }
 
@@ -284,9 +435,10 @@ struct AgentsDetail: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(String(format: "Today ~$%.2f", hub.spend.total(on: .now)))
                     .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.secondaryText)
-                if sessions.isEmpty {
-                    Text("No agent sessions").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
-                        .frame(maxHeight: .infinity)
+                if hub.connected.isEmpty {
+                    ConnectAgentsHint(hub: hub)
+                } else if sessions.isEmpty {
+                    NoSessionsHint()
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 4) {
@@ -323,14 +475,25 @@ private struct DetailSessionRow: View {
     let selected: Bool
 
     var body: some View {
-        HStack(spacing: 6) {
-            AgentGlyph(state: session.state, source: session.source, project: session.project).font(.system(size: 11))
-            Text(session.project).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-            Spacer(minLength: 4)
-            Text(session.state.label).font(.system(size: 10, weight: .medium)).foregroundStyle(session.state.tint)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                AgentGlyph(
+                    state: session.state, source: session.source, project: session.project,
+                    context: session.contextPercent
+                )
+                .font(.system(size: 11))
+                Text(session.project).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 4)
+                SessionStateText(session: session)
+            }
+            if let branch = session.branch {
+                Text(branch).font(.system(size: 10, design: .monospaced)).foregroundStyle(Color.secondaryText)
+                    .lineLimit(1).truncationMode(.middle)
+                    .padding(.leading, 22)
+            }
         }
         .padding(.horizontal, 8)
-        .frame(height: 24)
+        .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(Color.project(session.project).opacity(selected ? 0.28 : 0.1))
@@ -347,25 +510,39 @@ private struct SessionDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 6) {
-                Text(session.usage.map { $0.summary(cost: session.cost) } ?? session.source.displayName)
-                    .font(.system(size: 11)).foregroundStyle(Color.secondaryText).lineLimit(1)
+            HStack(spacing: 10) {
+                if let percent = session.contextPercent { ContextBar(percent: percent) }
                 Spacer()
-                Button {
-                    hub.focus(session: session.id)
-                } label: {
-                    Label("Terminal", systemImage: "arrow.up.forward.app").font(.system(size: 11, weight: .semibold))
+                action("Terminal", symbol: "arrow.up.forward.app") { hub.focus(session: session.id) }
+                if !session.cwd.isEmpty {
+                    action("Folder", symbol: "folder") { hub.openFolder(session: session.id) }
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.project(session.project))
+                action("Copy ID", symbol: "doc.on.doc") {
+                    hub.copyID(session: session.id)
+                    note = "Session ID copied"
+                }
             }
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 6) {
+                    TimelineView(.periodic(from: .now, by: 30)) { context in
+                        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 3) {
+                            ForEach(session.facts(now: context.date)) { fact in
+                                GridRow {
+                                    Text(fact.label).foregroundStyle(Color.secondaryText)
+                                    Text(fact.value).textSelection(.enabled).lineLimit(2)
+                                        .truncationMode(.middle)
+                                }
+                            }
+                        }
+                        .font(.system(size: 11))
+                    }
+                    Divider().opacity(0.4)
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(session.timeline) { entry in
                             HStack(spacing: 6) {
                                 Text(entry.date, format: .dateTime.hour().minute())
-                                    .font(.system(size: 10)).monospacedDigit().foregroundStyle(Color.secondaryText)
+                                    .font(.system(size: 10)).monospacedDigit()
+                                    .foregroundStyle(Color.secondaryText)
                                 Image(systemName: entry.kind.symbol).font(.system(size: 9))
                                     .foregroundStyle(entry.kind.tint).frame(width: 12)
                                 Text(entry.text).font(.system(size: 11)).lineLimit(1).truncationMode(.middle)
@@ -374,9 +551,6 @@ private struct SessionDetail: View {
                         }
                     }
                 }
-                .onAppear { proxy.scrollTo(session.timeline.last?.id, anchor: .bottom) }
-                // The timeline keeps the latest 40 entries, so its count stops changing; its last id doesn't.
-                .onChange(of: session.timeline.last?.id) { proxy.scrollTo(session.timeline.last?.id, anchor: .bottom) }
             }
             HStack(spacing: 6) {
                 TextField(note ?? "Draft a prompt…", text: $draft)
@@ -397,6 +571,14 @@ private struct SessionDetail: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func action(_ title: String, symbol: String, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
+            Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.project(session.project))
     }
 
     private func send() {
@@ -420,6 +602,7 @@ extension AgentTimelineEntry.Kind {
         case .denied: "xmark.circle"
         case .waiting: "ellipsis.bubble"
         case .done: "flag.checkered"
+        case .compacted: "arrow.down.right.and.arrow.up.left"
         }
     }
 
@@ -429,6 +612,7 @@ extension AgentTimelineEntry.Kind {
         case .request, .waiting: .wispAmber
         case .allowed, .done: .wispGreen
         case .denied: .red
+        case .compacted: .wispViolet
         }
     }
 }

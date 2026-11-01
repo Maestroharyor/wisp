@@ -21,11 +21,14 @@ struct AgentStatus: Sendable, Equatable {
     let source: AgentSource
     let state: AgentSession.State
     let started: Date
+    var contextPercent: Double? = nil
+    var compacting = false
 }
 
-/// Receives Claude Code and Codex hook events from the `wisp-agent` helper over a Unix
-/// socket, tracks sessions (with token use read from their transcripts), answers
-/// permission requests from the notch, and brings a session's terminal forward.
+/// Receives Claude Code and Codex hook events and Claude Code status bar snapshots from the
+/// `wisp-agent` helper over a Unix socket, tracks sessions (with live cost and context from
+/// the snapshots, token use from their transcripts), answers permission requests from the
+/// notch, and brings a session's terminal forward.
 @MainActor
 @Observable
 final class AgentHub {
@@ -39,6 +42,14 @@ final class AgentHub {
     /// Sources whose hooks call another copy's helper (a dev build, a moved app), which
     /// sends events to that copy instead of this one.
     private(set) var connectedElsewhere: Set<AgentSource> = []
+    /// Sources connected to this copy by an older version, missing hooks Wisp now uses.
+    private(set) var outdated: Set<AgentSource> = []
+    /// Who owns Claude Code's status bar.
+    private(set) var statusLine: StatusLineState = .none
+    /// What Claude Code's status bar becomes when hooks are added. Set from Preferences.
+    var terminalBarMode: TerminalBarMode = .wisp
+    /// Context percentage that triggers an alert; nil turns the alert off. Set from Preferences.
+    var contextThreshold: Double? = ContextUsage.defaultThreshold
     private(set) var listening = false
     /// Estimated spend per day across every session, kept for a month.
     private(set) var spend: DailySpend
@@ -52,6 +63,8 @@ final class AgentHub {
     var onNewRequest: () -> Void = {}
     /// A short message for the notch, such as a request allowed by Allow All.
     var onNotice: (String) -> Void = { _ in }
+    /// A session's context window passed the alert threshold.
+    var onContextAlert: (String) -> Void = { _ in }
 
     @ObservationIgnored private var listener: NWListener?
     @ObservationIgnored private var lastListenerRestart = Date.distantPast
@@ -62,6 +75,12 @@ final class AgentHub {
     /// Per session: how far into the transcript Wisp has read, and the totals so far.
     @ObservationIgnored private var transcripts: [String: (offset: UInt64, usage: TranscriptUsage)] = [:]
     @ObservationIgnored private var reading: Set<String> = []
+    /// Latest status bar snapshot per session, applied together at most every `liveInterval`.
+    @ObservationIgnored private var pendingSnapshots:
+        [String: (snapshot: StatusLineSnapshot, source: AgentSource, terminal: String?)] = [:]
+    @ObservationIgnored private var flushTask: Task<Void, Never>?
+    @ObservationIgnored private var unsupportedLogged: Set<String> = []
+    private let liveInterval: Duration = .milliseconds(250)
 
     @ObservationIgnored private let defaults: UserDefaults
     private static let spendKey = "agentSpend"
@@ -182,16 +201,36 @@ final class AgentHub {
     }
 
     private func handle(_ data: Data, from connection: NWConnection) {
-        guard let event = try? AgentEvent.decode(data) else {
+        switch try? AgentProtocol.decode(data) {
+        case .hook(let event):
+            handle(event, from: connection)
+        case .statusline(let snapshot, let source, let terminal):
+            // Never answered: the helper has already gone.
+            connection.cancel()
+            receive(snapshot, source: source, terminal: terminal)
+        case .unsupported(let name):
+            if unsupportedLogged.insert(name).inserted {
+                // The name comes from whoever wrote to the socket, so it stays private.
+                log.notice("ignoring an agent message this version doesn't know: \(name, privacy: .private)")
+            }
             reply(connection, nil)
-            return
+        case nil:
+            reply(connection, nil)
         }
+    }
+
+    private func handle(_ event: AgentEvent, from connection: NWConnection) {
         // A new prompt or the end of a turn means a pending request was answered in the
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
         sessions.apply(event, at: .now)
         sessions.prune(now: .now, olderThan: 6 * 3600)
+        if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
 
+        if event.isResume {
+            ledger.startRun(session: event.sessionID, at: .now)
+            saveSpend(adding: 0)
+        }
         if event.kind == .stop { refreshUsage(for: event.sessionID) }
         if event.kind == .sessionEnd { transcripts[event.sessionID] = nil }
 
@@ -220,6 +259,56 @@ final class AgentHub {
             reply(connection, nil)
         }
         publishStatus(for: event.sessionID)
+    }
+
+    // MARK: Live status
+
+    private func receive(_ snapshot: StatusLineSnapshot, source: AgentSource, terminal: String?) {
+        guard let id = snapshot.sessionID else { return }
+        pendingSnapshots[id] = (snapshot, source, terminal)
+        guard flushTask == nil else { return }
+        flushTask = Task { [weak self, liveInterval] in
+            try? await Task.sleep(for: liveInterval)
+            self?.flushSnapshots()
+        }
+    }
+
+    private func flushSnapshots() {
+        flushTask = nil
+        let batch = pendingSnapshots
+        pendingSnapshots = [:]
+        for (id, item) in batch {
+            let branch = item.snapshot.branch == nil ? Self.branch(cwd: item.snapshot.cwd) : nil
+            let pillChanged = sessions.apply(
+                item.snapshot, source: item.source, terminal: item.terminal, branch: branch, at: .now)
+            if let cost = item.snapshot.cost {
+                let increase = ledger.record(
+                    total: cost, session: id, transcript: item.snapshot.transcriptPath, at: .now)
+                saveSpend(adding: increase)
+            }
+            // Tracked even while the alert is off, so turning it on doesn't fire for a session
+            // that was already past the level.
+            let threshold = contextThreshold ?? ContextUsage.defaultThreshold
+            if let percent = sessions.contextAlert(session: id, threshold: threshold), contextThreshold != nil,
+                let project = sessions.session(id)?.project
+            {
+                onContextAlert("\(project) is at \(Int(percent.rounded()))% context")
+            }
+            if pillChanged { publishStatus(for: id) }
+        }
+    }
+
+    /// Reads `.git/HEAD` directly: a few bytes, so it's fine on the main actor.
+    private static func branch(cwd: String) -> String? {
+        GitHead.branch(cwd: cwd, read: { try? String(contentsOfFile: $0, encoding: .utf8) })
+    }
+
+    /// Saves the ledger and adds `increase`, the part of a cost not counted before, to today.
+    private func saveSpend(adding increase: Double) {
+        defaults.set(try? JSONEncoder().encode(ledger), forKey: Self.ledgerKey)
+        guard increase > 0 else { return }
+        spend.add(increase, on: .now)
+        defaults.set(try? JSONEncoder().encode(spend), forKey: Self.spendKey)
     }
 
     // MARK: Approvals
@@ -280,10 +369,14 @@ final class AgentHub {
             onStatus(nil)
             return
         }
-        onStatus(
-            AgentStatus(
-                sessionID: session.id, project: session.project, source: session.source, state: session.state,
-                started: session.turnStarted))
+        onStatus(status(for: session))
+    }
+
+    private func status(for session: AgentSession) -> AgentStatus {
+        AgentStatus(
+            sessionID: session.id, project: session.project, source: session.source, state: session.state,
+            started: session.turnStarted, contextPercent: session.contextPercent?.rounded(),
+            compacting: session.compacting)
     }
 
     // MARK: Token use
@@ -300,14 +393,12 @@ final class AgentHub {
             guard sessions.session(id) != nil else { return }
             transcripts[id] = next
             let cost = next.usage.cost()
-            // The transcript's cost is cumulative; count only what this transcript hasn't added yet.
-            let increase = ledger.record(total: cost ?? 0, for: path, at: .now)
-            defaults.set(try? JSONEncoder().encode(ledger), forKey: Self.ledgerKey)
-            if increase > 0 {
-                spend.add(increase, on: .now)
-                defaults.set(try? JSONEncoder().encode(spend), forKey: Self.spendKey)
+            // Claude Code's own figure, once its status bar sends one, is the one that counts.
+            if sessions.session(id)?.costIsReal != true, let cost {
+                saveSpend(adding: ledger.record(total: cost, for: path, at: .now))
             }
             sessions.setUsage(next.usage.total, cost: cost, session: id)
+            sessions.setModelID(next.usage.lastModel, session: id)
         }
     }
 
@@ -352,6 +443,17 @@ final class AgentHub {
             configuration: NSWorkspace.OpenConfiguration())
     }
 
+    /// Opens the session's working folder in Finder.
+    func openFolder(session id: String) {
+        guard let cwd = sessions.session(id)?.cwd, !cwd.isEmpty else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: cwd))
+    }
+
+    func copyID(session id: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(id, forType: .string)
+    }
+
     /// Pastes a drafted prompt into the session's terminal without sending it, so it can
     /// be checked before pressing Return there. False when Accessibility is missing.
     func sendDraft(_ text: String, to id: String) -> Bool {
@@ -373,17 +475,26 @@ final class AgentHub {
     func refreshInstalled() {
         var here: Set<AgentSource> = []
         var elsewhere: Set<AgentSource> = []
+        var old: Set<AgentSource> = []
         let helper = Self.helperURL?.path ?? ""
         for source in [AgentSource.claude, .codex] {
             let data = (try? Data(contentsOf: Self.settingsURL(source))) ?? Data()
             switch (try? HookInstaller.link(in: data, helper: helper, source: source)) ?? HookLink.none {
             case .this: here.insert(source)
+            case .outdated:
+                here.insert(source)
+                old.insert(source)
             case .other: elsewhere.insert(source)
             case .none: break
+            }
+            if source == .claude {
+                let bar = (try? StatusLineChain.state(in: data)) ?? .none
+                if bar != statusLine { statusLine = bar }
             }
         }
         if here != connected { connected = here }
         if elsewhere != connectedElsewhere { connectedElsewhere = elsewhere }
+        if old != outdated { outdated = old }
     }
 
     private func displayPath(_ source: AgentSource) -> String {
@@ -400,60 +511,139 @@ final class AgentHub {
         let path = displayPath(source)
         let original = (try? Data(contentsOf: url)) ?? Data()
         let command = HookInstaller.command(helper: helper.path, source: source)
-        guard let updated = try? HookInstaller.install(into: original, command: command, source: source) else {
+        guard
+            let updated = try? withStatusLine(
+                HookInstaller.install(into: original, command: command, source: source),
+                source: source, helper: helper.path)
+        else {
             alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
             return
         }
         let events = source.hookEvents.joined(separator: ", ")
+        let bar = source == .claude ? barSentence(terminalBarMode, original: original) : ""
         let trust = source == .codex ? " Codex asks you to trust new hooks once: run /hooks in Codex." : ""
-        // Hooks from another copy (a dev build, a moved app) are replaced, not added to.
-        let hasWispHooks = (try? HookInstaller.isInstalled(in: original)) ?? false
-        let confirmed =
-            hasWispHooks
-            ? confirm(
-                "Point \(source.displayName)'s hooks at this Wisp?",
-                detail: """
-                    Wisp's hooks in \(path) call another copy of Wisp, so this one doesn't see your sessions. \
-                    They'll call this copy instead. Your other settings and hooks stay as they are, though the \
-                    file is rewritten with sorted keys.\(trust)
-                    """,
-                action: "Use This Wisp")
-            : confirm(
+        let link = (try? HookInstaller.link(in: original, helper: helper.path, source: source)) ?? HookLink.none
+        let confirmed: Bool
+        switch link {
+        case .none:
+            confirmed = confirm(
                 "Add Wisp's hooks to \(source.displayName)?",
                 detail: """
-                    Wisp adds a command hook for \(events) to \(path). Your other settings and hooks stay as they \
-                    are, though the file is rewritten with sorted keys. A backup is saved next to it with \
+                    Wisp adds a command hook for \(events) to \(path).\(bar) Your other settings and hooks stay as \
+                    they are, though the file is rewritten with sorted keys. A backup is saved next to it with \
                     .wisp-backup on the end. Permission prompts wait up to \(HookInstaller.approvalTimeout) s for \
                     the notch, then fall back to the terminal.\(trust)
                     """,
                 action: "Add Hooks")
+        case .outdated, .this:
+            confirmed = confirm(
+                "Update Wisp's hooks for \(source.displayName)?",
+                detail: """
+                    Wisp adds hooks for compaction to \(path), so the notch can show when the context is being \
+                    compacted.\(bar) The current file is saved next to it with .wisp-previous on the end.\(trust)
+                    """,
+                action: "Update Hooks")
+        case .other:
+            // Hooks from another copy (a dev build, a moved app) are replaced, not added to.
+            confirmed = confirm(
+                "Point \(source.displayName)'s hooks at this Wisp?",
+                detail: """
+                    Wisp's hooks in \(path) call another copy of Wisp, so this one doesn't see your sessions. \
+                    They'll call this copy instead.\(bar) Your other settings and hooks stay as they are, though \
+                    the file is rewritten with sorted keys.\(trust)
+                    """,
+                action: "Use This Wisp")
+        }
         guard confirmed else { return }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            // Back up only a file Wisp hasn't touched yet; reinstalling would otherwise replace the
-            // user's original with a copy that already has Wisp's hooks.
-            if !original.isEmpty, !hasWispHooks {
+            // The first backup keeps the user's file from before Wisp; later ones would replace it
+            // with a copy that already has Wisp's hooks, so `write` keeps those separately.
+            if !original.isEmpty, link == .none {
                 try original.write(to: url.appendingPathExtension("wisp-backup"), options: .atomic)
             }
-            try updated.write(to: url, options: .atomic)
         } catch {
             alert("Couldn't write \(path)", detail: error.localizedDescription)
+            return
         }
-        refreshInstalled()
+        write(updated, to: url)
+    }
+
+    /// Claude Code's settings also get the status bar Preferences ask for.
+    private func withStatusLine(_ settings: Data, source: AgentSource, helper: String) throws -> Data {
+        source == .claude ? try StatusLineChain.install(terminalBarMode, into: settings, helper: helper) : settings
     }
 
     func removeHooks(_ source: AgentSource) {
         let url = Self.settingsURL(source)
-        guard let original = try? Data(contentsOf: url), let updated = try? HookInstaller.remove(from: original)
+        guard let original = try? Data(contentsOf: url),
+            let removed = try? HookInstaller.remove(from: original),
+            let updated = source == .claude ? try? StatusLineChain.restore(from: removed) : removed
         else { return }
+        let detail =
+            source == .claude
+            ? "Only Wisp's entries are removed, and your own status bar, if you had one, comes back."
+            : "Only Wisp's entries are removed."
+        guard confirm("Remove Wisp's hooks from \(source.displayName)?", detail: detail, action: "Remove") else {
+            return
+        }
+        write(updated, to: url)
+    }
+
+    /// Switches Claude Code's status bar after the user confirms. Only touches the file when
+    /// hooks are connected, so choosing a mode before connecting just sets what connecting
+    /// will do. False when the user cancelled, so the caller can put the old choice back.
+    func setTerminalBar(_ mode: TerminalBarMode) -> Bool {
+        guard connected.contains(.claude), let helper = Self.helperURL else {
+            terminalBarMode = mode
+            return true
+        }
+        let url = Self.settingsURL(.claude)
+        let original = (try? Data(contentsOf: url)) ?? Data()
+        guard let updated = try? StatusLineChain.install(mode, into: original, helper: helper.path) else {
+            alert("Couldn't read ~/.claude/settings.json", detail: "Fix the file's JSON, then try again.")
+            return false
+        }
+        guard updated != original else {
+            terminalBarMode = mode
+            return true
+        }
+        let change =
+            mode == .off
+            ? " Claude Code's status bar goes back to how it was before Wisp." : barSentence(mode, original: original)
         guard
             confirm(
-                "Remove Wisp's hooks from \(source.displayName)?", detail: "Only Wisp's entries are removed.",
-                action: "Remove")
-        else { return }
+                "Change Claude Code's status bar?",
+                detail:
+                    "Wisp edits ~/.claude/settings.json.\(change) The current file is saved next to it with .wisp-previous on the end.",
+                action: "Change")
+        else { return false }
+        terminalBarMode = mode
+        write(updated, to: url)
+        return true
+    }
+
+    private func barSentence(_ mode: TerminalBarMode, original: Data) -> String {
+        let mine = ((try? StatusLineChain.state(in: original)) ?? .none).userCommand != nil
+        switch mode {
+        case .wisp:
+            return mine
+                ? " Wisp's status bar replaces yours in the terminal; yours comes back if you turn it off."
+                : " Wisp's status bar is added to the terminal."
+        case .listen:
+            return mine ? " Your status bar stays, and Wisp reads the session figures through it." : ""
+        case .off: return ""
+        }
+    }
+
+    /// Writes a settings file Wisp has edited before, keeping the version it replaces.
+    private func write(_ data: Data, to url: URL) {
         do {
-            try updated.write(to: url, options: .atomic)
+            if let current = try? Data(contentsOf: url), !current.isEmpty {
+                try current.write(to: url.appendingPathExtension("wisp-previous"), options: .atomic)
+            }
+            try data.write(to: url, options: .atomic)
         } catch {
             alert("Couldn't write \(url.path)", detail: error.localizedDescription)
         }

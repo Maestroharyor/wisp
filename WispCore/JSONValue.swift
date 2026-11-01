@@ -68,6 +68,11 @@ public enum JSONValue: Codable, Equatable, Sendable {
         return Int(value)
     }
 
+    public var doubleValue: Double? {
+        if case .number(let value) = self { return value }
+        return nil
+    }
+
     public var stringValue: String? {
         if case .string(let value) = self { return value }
         return nil

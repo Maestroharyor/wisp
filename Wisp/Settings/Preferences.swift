@@ -195,6 +195,9 @@ final class Preferences {
         static let capsLockHUD = "capsLockHUD"
         static let mediaActivity = "mediaActivity"
         static let approvalSound = "approvalSound"
+        static let terminalBarMode = "terminalBarMode"
+        static let contextAlert = "contextAlert"
+        static let contextThreshold = "contextThreshold"
         static let lyrics = "lyrics"
         static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
@@ -590,6 +593,13 @@ final class Preferences {
     var mediaActivity: Bool { didSet { defaults.set(mediaActivity, forKey: Key.mediaActivity) } }
     /// A short sound when an agent asks for permission.
     var approvalSound: Bool { didSet { defaults.set(approvalSound, forKey: Key.approvalSound) } }
+    /// What Claude Code's status bar shows once connected: Wisp's, the user's own, or nothing new.
+    var terminalBarMode: TerminalBarMode {
+        didSet { defaults.set(terminalBarMode.rawValue, forKey: Key.terminalBarMode) }
+    }
+    /// A notice when a session's context window passes `contextThreshold` percent.
+    var contextAlert: Bool { didSet { defaults.set(contextAlert, forKey: Key.contextAlert) } }
+    var contextThreshold: Int { didSet { defaults.set(contextThreshold, forKey: Key.contextThreshold) } }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
     /// Look up album art on iTunes when the player gives none (sends title and artist).
@@ -722,6 +732,9 @@ final class Preferences {
             Key.capsLockHUD: true,
             Key.mediaActivity: true,
             Key.approvalSound: true,
+            Key.terminalBarMode: TerminalBarMode.wisp.rawValue,
+            Key.contextAlert: true,
+            Key.contextThreshold: Int(ContextUsage.defaultThreshold),
             Key.lyrics: true,
             Key.artworkLookup: true,
             Key.meetingActivity: true,
@@ -812,6 +825,9 @@ final class Preferences {
         capsLockHUD = defaults.bool(forKey: Key.capsLockHUD)
         mediaActivity = defaults.bool(forKey: Key.mediaActivity)
         approvalSound = defaults.bool(forKey: Key.approvalSound)
+        terminalBarMode = defaults.string(forKey: Key.terminalBarMode).flatMap(TerminalBarMode.init(rawValue:)) ?? .wisp
+        contextAlert = defaults.bool(forKey: Key.contextAlert)
+        contextThreshold = min(max(defaults.integer(forKey: Key.contextThreshold), 50), 95)
         lyrics = defaults.bool(forKey: Key.lyrics)
         artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)

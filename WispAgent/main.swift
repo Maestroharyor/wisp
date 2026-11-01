@@ -3,9 +3,10 @@ import Network
 import WispCore
 
 // Claude Code and Codex hook command: forwards the hook's JSON (stdin) to Wisp over a
-// Unix socket and prints Wisp's reply (a permission decision, or nothing). It tags the
-// JSON with the agent (`--source codex`, otherwise Claude Code) and the terminal app it
-// runs in. Any failure exits 0 with no output, so the agent carries on as if no hook ran.
+// Unix socket and prints Wisp's reply (a permission decision, or nothing). It wraps the
+// JSON in Wisp's envelope with the agent (`--source codex`, otherwise Claude Code) and the
+// terminal app it runs in. Any failure exits 0 with no output, so the agent carries on as
+// if no hook ran. `wisp-agent statusline` is Claude Code's status bar (StatusLineCommand).
 
 // The socket belongs to the app this helper ships in, so a hook pointing at Wisp Dev
 // talks to Wisp Dev and one pointing at Wisp talks to Wisp.
@@ -14,16 +15,25 @@ let appBundleID = Bundle.main.executableURL.map(AppSupport.appBundle(containingH
 let socketPath = AppSupport.socketURL(
     home: FileManager.default.homeDirectoryForCurrentUser, bundleID: appBundleID
 ).path
-guard FileManager.default.fileExists(atPath: socketPath) else { exit(0) }
-
 let arguments = CommandLine.arguments
-let source: AgentSource =
-    zip(arguments, arguments.dropFirst()).first { $0.0 == "--source" }.flatMap { AgentSource(rawValue: $0.1) }
-    ?? .claude
 let environment = ProcessInfo.processInfo.environment
 let terminal = AgentTerminal.bundleID(
     cfBundleIdentifier: environment["__CFBundleIdentifier"], termProgram: environment["TERM_PROGRAM"])
-let input = AgentTerminal.tag(FileHandle.standardInput.readDataToEndOfFile(), source: source, terminal: terminal)
+
+// The bar prints even when Wisp isn't running, so this comes before the socket check.
+if arguments.dropFirst().first == StatusLineChain.subcommand {
+    StatusLineCommand.run(
+        arguments: Array(arguments.dropFirst(2)), socketPath: socketPath, terminal: terminal, environment: environment)
+}
+guard FileManager.default.fileExists(atPath: socketPath) else { exit(0) }
+
+let source: AgentSource =
+    zip(arguments, arguments.dropFirst()).first { $0.0 == "--source" }.flatMap { AgentSource(rawValue: $0.1) }
+    ?? .claude
+let hookJSON = FileHandle.standardInput.readDataToEndOfFile()
+let input =
+    AgentProtocol.envelope(kind: .hook, source: source, terminal: terminal, payload: hookJSON)
+    ?? AgentTerminal.tag(hookJSON, source: source, terminal: terminal)
 let connection = NWConnection(to: .unix(path: socketPath), using: .tcp)
 
 @Sendable func finish(_ reply: Data) -> Never {

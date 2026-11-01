@@ -4,6 +4,8 @@ import Foundation
 public enum HookLink: Equatable, Sendable {
     case none
     case this
+    /// This copy's hooks, from an older version: some events Wisp now uses are missing.
+    case outdated
     case other
 }
 
@@ -23,14 +25,11 @@ public enum HookInstaller {
         var hooks = stripped(root["hooks"])
         for event in source.hookEvents {
             let timeout = event == "PermissionRequest" ? approvalTimeout : 5
-            let group: JSONValue = .object([
-                "matcher": .string(""),
-                "hooks": .array([
-                    .object([
-                        "type": .string("command"), "command": .string(command), "timeout": .number(Double(timeout)),
-                    ])
-                ]),
-            ])
+            var handler: [String: JSONValue] = [
+                "type": .string("command"), "command": .string(command), "timeout": .number(Double(timeout)),
+            ]
+            if source.backgroundHookEvents.contains(event) { handler["async"] = .bool(true) }
+            let group: JSONValue = .object(["matcher": .string(""), "hooks": .array([.object(handler)])])
             var groups: [JSONValue] = []
             if case .array(let existing) = hooks[event] { groups = existing }
             hooks[event] = .array(groups + [group])
@@ -48,8 +47,32 @@ public enum HookInstaller {
 
     /// The hook command for `helper`: the path in POSIX single quotes, tagged for Codex.
     public static func command(helper: String, source: AgentSource) -> String {
-        let quoted = "'" + helper.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        return source == .claude ? quoted : quoted + " --source codex"
+        source == .claude ? quote(helper) : quote(helper) + " --source codex"
+    }
+
+    /// `text` as one POSIX shell word in single quotes.
+    public static func quote(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// The inverse of `quote`: single-quoted runs joined by `\'`. Anything else is nil.
+    public static func unquote(_ word: String) -> String? {
+        var result = ""
+        var rest = Substring(word)
+        while !rest.isEmpty {
+            if rest.hasPrefix("\\'") {
+                result += "'"
+                rest = rest.dropFirst(2)
+            } else if rest.hasPrefix("'") {
+                let body = rest.dropFirst()
+                guard let end = body.firstIndex(of: "'") else { return nil }
+                result += body[..<end]
+                rest = body[body.index(after: end)...]
+            } else {
+                return nil
+            }
+        }
+        return result
     }
 
     /// Whether the hooks call this copy's helper, another copy's (a dev build, a moved app),
@@ -58,20 +81,23 @@ public enum HookInstaller {
         let commands = try wispCommands(in: settings)
         if commands.isEmpty { return .none }
         let mine = command(helper: helper, source: source)
-        return commands.allSatisfy { $0 == mine } ? .this : .other
+        guard commands.allSatisfy({ $0.command == mine }) else { return .other }
+        return Set(commands.map(\.event)) == Set(source.hookEvents) ? .this : .outdated
     }
 
     public static func isInstalled(in settings: Data) throws -> Bool {
         try !wispCommands(in: settings).isEmpty
     }
 
-    private static func wispCommands(in settings: Data) throws -> [String] {
+    private static func wispCommands(in settings: Data) throws -> [(event: String, command: String)] {
         let root = try object(settings)
-        return hooksObject(root["hooks"]).values.flatMap { value -> [String] in
+        return hooksObject(root["hooks"]).flatMap { event, value -> [(event: String, command: String)] in
             guard case .array(let groups) = value else { return [] }
-            return groups.flatMap { group -> [String] in
+            return groups.flatMap { group -> [(event: String, command: String)] in
                 guard case .array(let handlers) = group["hooks"] else { return [] }
-                return handlers.filter(isWisp).compactMap { $0["command"]?.stringValue }
+                return handlers.filter(isWisp).compactMap { handler in
+                    handler["command"]?.stringValue.map { (event, $0) }
+                }
             }
         }
     }

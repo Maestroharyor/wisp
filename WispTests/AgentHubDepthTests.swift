@@ -169,6 +169,7 @@ final class HookInstallerCodexTests: XCTestCase {
         XCTAssertEqual(out["hooks"]?["PermissionRequest"]?[0]?["hooks"]?[0]?["timeout"], .number(120))
         XCTAssertEqual(
             out["hooks"]?["Stop"]?[0]?["hooks"]?[0]?["command"], .string("'/x/wisp-agent' --source codex"))
-        XCTAssertEqual(AgentSource.codex.hookEvents.count, 5)
+        XCTAssertEqual(AgentSource.codex.hookEvents.count, 7)
+        XCTAssertNil(out["hooks"]?["PreCompact"]?[0]?["hooks"]?[0]?["async"], "Codex documents no async hooks")
     }
 }

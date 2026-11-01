@@ -37,7 +37,10 @@ final class AgentEventTests: XCTestCase {
         )
         XCTAssertEqual(note.kind, .notification)
         XCTAssertEqual(note.message, "Claude needs your permission")
-        let unknown = try decode(#"{"session_id":"s","hook_event_name":"PreCompact"}"#)
+        let resume = try decode(#"{"session_id":"s","hook_event_name":"SessionStart","source":"resume"}"#)
+        XCTAssertTrue(resume.isResume)
+        XCTAssertFalse(try decode(#"{"session_id":"s","hook_event_name":"SessionStart","source":"startup"}"#).isResume)
+        let unknown = try decode(#"{"session_id":"s","hook_event_name":"SubagentStart"}"#)
         XCTAssertEqual(unknown.kind, .other)
         XCTAssertEqual(unknown.project, "Claude")
     }

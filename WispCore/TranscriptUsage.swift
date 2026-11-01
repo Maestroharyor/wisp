@@ -29,7 +29,7 @@ public struct TokenUsage: Equatable, Sendable {
         return tokens + String(format: " · ~$%.2f", cost)
     }
 
-    private static func compact(_ count: Int) -> String {
+    static func compact(_ count: Int) -> String {
         switch count {
         case ..<1_000: "\(count)"
         // Below 999,500 so rounding never shows "1000k".
@@ -48,6 +48,8 @@ public struct TranscriptUsage: Sendable {
     private var byModel: [String: TokenUsage] = [:]
     private var seen: Set<String> = []
     private var codexTotal: TokenUsage?
+    /// The model of the newest Claude message read, as an id ("claude-opus-4-1-...").
+    public private(set) var lastModel: String?
 
     public init() {}
 
@@ -66,6 +68,8 @@ public struct TranscriptUsage: Sendable {
             let id = message["id"]?.stringValue ?? UUID().uuidString
             guard seen.insert(id).inserted else { return }
             let model = message["model"]?.stringValue ?? "unknown"
+            // Claude Code writes "<synthetic>" for messages no model produced.
+            if model.hasPrefix("claude") { lastModel = model }
             byModel[model, default: TokenUsage()] =
                 byModel[model, default: TokenUsage()]
                 + TokenUsage(
