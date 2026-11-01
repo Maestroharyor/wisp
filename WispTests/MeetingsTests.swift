@@ -43,4 +43,11 @@ final class MeetingsTests: XCTestCase {
         XCTAssertNil(Meetings.upcoming([event(300, 900, link: link)], now: now, within: 120))
         XCTAssertNil(Meetings.upcoming([event(-30, 900, link: link)], now: now, within: 120))
     }
+
+    func testOccurrencesOfOneEventGetTheirOwnIDs() {
+        let monday = Meetings.occurrenceID(eventID: "E1", start: now)
+        let tuesday = Meetings.occurrenceID(eventID: "E1", start: now.addingTimeInterval(86_400))
+        XCTAssertNotEqual(monday, tuesday)
+        XCTAssertEqual(monday, Meetings.occurrenceID(eventID: "E1", start: now))
+    }
 }

@@ -44,7 +44,8 @@ final class AppServices {
     @ObservationIgnored private var themeObserver: NSObjectProtocol?
     @ObservationIgnored private var agentStates: [String: AgentSession.State] = [:]
     /// Calls already offered with a Join card, so each is offered once.
-    @ObservationIgnored private var offeredMeetings: Set<String> = []
+    /// Meeting occurrences already offered a Join card, with their start times.
+    @ObservationIgnored private var offeredMeetings: [String: Date] = [:]
     @ObservationIgnored private var meetingTask: Task<Void, Never>?
     /// The notification being replied to; new notifications wait until it is done.
     private(set) var replyingTo: NotificationItem?
@@ -382,9 +383,10 @@ final class AppServices {
         guard preferences.meetingActivity, calendar.access == .fullAccess else { return }
         calendar.refreshIfStale()
         guard let next = Meetings.upcoming(meetingEvents, now: .now, within: 120), let link = next.link,
-            !offeredMeetings.contains(next.id)
+            offeredMeetings[next.id] == nil
         else { return }
-        offeredMeetings.insert(next.id)
+        offeredMeetings = offeredMeetings.filter { $0.value > .now.addingTimeInterval(-86_400) }
+        offeredMeetings[next.id] = next.start
         activities.post(
             .meetingSoon(MeetingInvite(id: next.id, title: next.title, link: link, start: next.start)),
             slot: .meetingSoon, duration: 90)

@@ -39,6 +39,11 @@ public struct MeetingEvent: Equatable, Sendable {
 }
 
 public enum Meetings {
+    /// Every occurrence of a recurring event shares one calendar id; the start tells them apart.
+    public static func occurrenceID(eventID: String, start: Date) -> String {
+        "\(eventID)@\(Int(start.timeIntervalSince1970))"
+    }
+
     /// The timed event happening now, to name a call while the microphone is live.
     public static func current(_ events: [MeetingEvent], now: Date) -> MeetingEvent? {
         events.filter { !$0.isAllDay && $0.start <= now && now < $0.end }.max { $0.start < $1.start }

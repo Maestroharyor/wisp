@@ -87,7 +87,10 @@ final class SystemStatsStore {
 @Observable
 final class CalendarStore {
     struct Event: Identifiable, Equatable {
+        /// One occurrence: recurring events repeat `eventID` with a different start.
         let id: String
+        /// The calendar's id for the event, used to open it in Calendar.
+        let eventID: String
         let title: String
         let start: Date
         let end: Date
@@ -153,8 +156,10 @@ final class CalendarStore {
             .filter { $0.endDate > now }
             .prefix(30)
             .map {
-                Event(
-                    id: $0.eventIdentifier ?? UUID().uuidString, title: $0.title ?? "Event", start: $0.startDate,
+                let eventID = $0.eventIdentifier ?? UUID().uuidString
+                return Event(
+                    id: Meetings.occurrenceID(eventID: eventID, start: $0.startDate), eventID: eventID,
+                    title: $0.title ?? "Event", start: $0.startDate,
                     end: $0.endDate, isAllDay: $0.isAllDay,
                     color: Color(nsColor: $0.calendar.color ?? .systemPurple),
                     link: MeetingLink.find(in: [$0.url?.absoluteString, $0.location, $0.notes]))
@@ -163,7 +168,7 @@ final class CalendarStore {
 
     /// Opens the event in Calendar.
     func open(_ event: Event) {
-        let id = event.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? event.id
+        let id = event.eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? event.eventID
         if let url = URL(string: "ical://ekevent/\(id)?method=show&options=more"), NSWorkspace.shared.open(url) {
             return
         }
