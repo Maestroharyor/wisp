@@ -231,12 +231,17 @@ final class AppServices {
         nowPlaying.start()
 
         lockScreenPlayer.start()
-        microphone.onChange = { [weak self] _ in self?.updateMeeting() }
+        microphone.onChange = { [weak self] _ in
+            self?.updateMeeting()
+            self?.updateOnCall()
+        }
         microphone.start()
-        // Calendar-driven: look for calls about to start twice a minute.
+        // Calendar-driven: look for calls about to start twice a minute. A meeting can also start
+        // while the mic is already on (a browser call), which the mic alone never reports.
         meetingTask = Task { [weak self] in
             while !Task.isCancelled {
                 self?.offerUpcomingMeeting()
+                self?.updateOnCall()
                 try? await Task.sleep(for: .seconds(30))
             }
         }
@@ -330,7 +335,8 @@ final class AppServices {
                 (media: preferences.mediaActivity, meeting: preferences.meetingActivity),
                 (
                     bar: preferences.terminalBarMode,
-                    threshold: preferences.contextAlert ? Double(preferences.contextThreshold) : nil
+                    threshold: preferences.contextAlert ? Double(preferences.contextThreshold) : nil,
+                    privacy: preferences.agentPrivacy
                 )
             )
         } onChange: { [weak self] in
@@ -338,6 +344,7 @@ final class AppServices {
         }
         agents.terminalBarMode = agentPrefs.bar
         agents.contextThreshold = agentPrefs.threshold
+        agents.privacyMode = agentPrefs.privacy
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
         if needsClock { startClock() } else { stopClock() }
         if timerLength != appliedTimerLength {
@@ -413,6 +420,18 @@ final class AppServices {
         activities.post(
             .meeting(MeetingStatus(title: title, started: microphone.since ?? .now, kind: kind)), slot: .meeting,
             duration: nil)
+    }
+
+    /// Whether a call is on, for hiding agent details. Judged whether or not the meeting pill is on.
+    private func updateOnCall() {
+        guard microphone.inUse else {
+            agents.onCall = false
+            return
+        }
+        calendar.refreshIfStale()
+        agents.onCall = AgentPrivacy.onCall(
+            micInUse: true, inputBundleIDs: microphone.inputApps,
+            meetingInProgress: Meetings.current(meetingEvents, now: .now) != nil)
     }
 
     private func offerUpcomingMeeting() {

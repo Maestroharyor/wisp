@@ -199,6 +199,7 @@ final class Preferences {
         static let terminalBarMode = "terminalBarMode"
         static let contextAlert = "contextAlert"
         static let contextThreshold = "contextThreshold"
+        static let agentPrivacy = "agentPrivacy"
         static let lyrics = "lyrics"
         static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
@@ -601,6 +602,10 @@ final class Preferences {
     /// A notice when a session's context window passes `contextThreshold` percent.
     var contextAlert: Bool { didSet { defaults.set(contextAlert, forKey: Key.contextAlert) } }
     var contextThreshold: Int { didSet { defaults.set(contextThreshold, forKey: Key.contextThreshold) } }
+    /// When agent commands, file paths and session names are hidden.
+    var agentPrivacy: AgentPrivacy.Mode {
+        didSet { defaults.set(agentPrivacy.rawValue, forKey: Key.agentPrivacy) }
+    }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
     /// Look up album art on iTunes when the player gives none (sends title and artist).
@@ -736,6 +741,7 @@ final class Preferences {
             Key.terminalBarMode: TerminalBarMode.wisp.rawValue,
             Key.contextAlert: true,
             Key.contextThreshold: Int(ContextUsage.defaultThreshold),
+            Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
             Key.lyrics: true,
             Key.artworkLookup: true,
             Key.meetingActivity: true,
@@ -829,6 +835,8 @@ final class Preferences {
         terminalBarMode = defaults.string(forKey: Key.terminalBarMode).flatMap(TerminalBarMode.init(rawValue:)) ?? .wisp
         contextAlert = defaults.bool(forKey: Key.contextAlert)
         contextThreshold = min(max(defaults.integer(forKey: Key.contextThreshold), 50), 95)
+        agentPrivacy =
+            defaults.string(forKey: Key.agentPrivacy).flatMap(AgentPrivacy.Mode.init(rawValue:)) ?? .default
         lyrics = defaults.bool(forKey: Key.lyrics)
         artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)

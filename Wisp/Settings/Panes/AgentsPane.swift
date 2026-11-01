@@ -42,6 +42,22 @@ struct AgentSettings: View {
                 LabeledContent("Estimated spend today") {
                     Text(String(format: "~$%.2f", hub.spend.total(on: .now))).monospacedDigit()
                 }
+                LabeledContent("Last 7 days") {
+                    Text(String(format: "~$%.2f", hub.spend.total(lastDays: 7, ending: .now))).monospacedDigit()
+                }
+            }
+            Section {
+                Picker("Hide commands and file names", selection: $preferences.agentPrivacy) {
+                    Text("Never").tag(AgentPrivacy.Mode.never)
+                    Text("During calls").tag(AgentPrivacy.Mode.duringCalls)
+                    Text("Always").tag(AgentPrivacy.Mode.always)
+                }
+            } header: {
+                Text("Privacy")
+            } footer: {
+                Text(
+                    "Hides commands, file paths, session names and prompt drafts in the notch, so they don't show on a shared screen. macOS doesn't tell apps when the screen is shared, so a call app or browser using the microphone counts as a call. The eye button beside today's spend in the Agents widget (Wide size, as in the Code profile) hides them any time."
+                )
             }
             let sessions = hub.sessions.list
             if !sessions.isEmpty {

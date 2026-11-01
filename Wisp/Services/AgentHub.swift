@@ -50,6 +50,18 @@ final class AgentHub {
     var terminalBarMode: TerminalBarMode = .wisp
     /// Context percentage that triggers an alert; nil turns the alert off. Set from Preferences.
     var contextThreshold: Double? = ContextUsage.defaultThreshold
+    /// When agent details are hidden. Set from Preferences.
+    var privacyMode: AgentPrivacy.Mode = .default
+    /// A call is on (from the microphone). Set by AppServices.
+    var onCall = false
+    /// Hide details now, whatever the mode; lasts until Wisp quits.
+    var hideNow = false
+    /// Commands, file paths and session names stay off screen.
+    var detailsHidden: Bool { AgentPrivacy.hidden(mode: privacyMode, onCall: onCall, manual: hideNow) }
+    /// Why details are hidden, or nil when they're shown.
+    var hiddenReason: String? { AgentPrivacy.reason(mode: privacyMode, onCall: onCall, manual: hideNow) }
+    /// The setting or a call hides details whatever the eye button says.
+    var hiddenByRule: Bool { AgentPrivacy.hidden(mode: privacyMode, onCall: onCall, manual: false) }
     private(set) var listening = false
     /// Estimated spend per day across every session, kept for a month.
     private(set) var spend: DailySpend
@@ -236,10 +248,9 @@ final class AgentHub {
 
         if event.kind == .permissionRequest, sessions.shouldAutoApprove(event.sessionID) {
             reply(connection, PermissionReply.json(allow: true))
-            let what = event.summary.isEmpty ? (event.toolName ?? "a tool") : event.summary
             sessions.record(.allowed, "Allowed (Allow All)", session: event.sessionID, at: .now)
             sessions.resolveApproval(session: event.sessionID, at: .now)
-            onNotice("Allowed \(what)")
+            onNotice(AgentPrivacy.allowedNotice(tool: event.toolName, summary: event.summary, hidden: detailsHidden))
         } else if event.kind == .permissionRequest {
             let approval = AgentApproval(
                 id: UUID(), sessionID: event.sessionID, project: event.project, source: event.source,
@@ -447,6 +458,16 @@ final class AgentHub {
     func openFolder(session id: String) {
         guard let cwd = sessions.session(id)?.cwd, !cwd.isEmpty else { return }
         NSWorkspace.shared.open(URL(fileURLWithPath: cwd))
+    }
+
+    /// Shows the session's transcript in Finder; `.jsonl` files have no dependable default app.
+    /// False when the file is gone (deleted, or the session was cleaned up).
+    func revealTranscript(session id: String) -> Bool {
+        guard let path = sessions.session(id)?.transcriptPath, FileManager.default.fileExists(atPath: path) else {
+            return false
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        return true
     }
 
     func copyID(session id: String) {
