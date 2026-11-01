@@ -153,11 +153,11 @@ struct AgentApprovalCard: View {
                         .buttonStyle(.plain)
                         .help("Show the terminal")
                     }
-                    Text(approval.summary.isEmpty ? "Wants to use \(approval.tool)" : approval.summary)
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .lineLimit(2)
-                        .truncationMode(.middle)
+                    ApprovalSummary(
+                        approval: approval, hidden: hub.detailsHidden, fallback: "Wants to use \(approval.tool)",
+                        size: 12, lines: 2
+                    )
+                    .id(approval.id)
                 }
                 Spacer(minLength: 8)
                 ApprovalButtons(approval: approval, hub: hub)
@@ -167,6 +167,38 @@ struct AgentApprovalCard: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
+    }
+}
+
+/// The command or path a request wants to use. In private mode it's hidden until "Show" is
+/// pressed for this request, so nothing is approved unseen.
+private struct ApprovalSummary: View {
+    let approval: AgentApproval
+    let hidden: Bool
+    let fallback: String
+    let size: CGFloat
+    let lines: Int
+
+    @State private var revealed = false
+
+    var body: some View {
+        if hidden && !revealed && !approval.summary.isEmpty {
+            HStack(spacing: 6) {
+                Label("Details hidden", systemImage: "eye.slash")
+                    .font(.system(size: size)).foregroundStyle(.white.opacity(0.7))
+                Button("Show") { revealed = true }
+                    .font(.system(size: size - 1, weight: .semibold))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.wispViolet)
+                    .help("Show this request's command or file")
+            }
+        } else {
+            Text(AgentPrivacy.summary(approval.summary, hidden: false) ?? fallback)
+                .font(.system(size: size, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(lines)
+                .truncationMode(.middle)
+        }
     }
 }
 
@@ -213,11 +245,10 @@ struct ApprovalBar: View {
                 Text(position).font(.system(size: 10, weight: .semibold)).monospacedDigit()
                     .foregroundStyle(Color.secondaryText)
             }
-            Text(approval.summary.isEmpty ? approval.project : approval.summary)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.8))
-                .lineLimit(1)
-                .truncationMode(.middle)
+            ApprovalSummary(
+                approval: approval, hidden: hub.detailsHidden, fallback: approval.project, size: 11, lines: 1
+            )
+            .id(approval.id)
             Spacer(minLength: 8)
             ApprovalButtons(approval: approval, hub: hub)
         }
@@ -433,8 +464,11 @@ struct AgentsDetail: View {
         let selected = sessions.first { $0.id == selection } ?? sessions.first
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(String(format: "Today ~$%.2f", hub.spend.total(on: .now)))
-                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.secondaryText)
+                HStack(spacing: 6) {
+                    SpendTrend(spend: hub.spend)
+                    Spacer(minLength: 0)
+                    PrivacyButton(hub: hub)
+                }
                 if hub.connected.isEmpty {
                     ConnectAgentsHint(hub: hub)
                 } else if sessions.isEmpty {
@@ -453,7 +487,9 @@ struct AgentsDetail: View {
             .frame(width: 190)
 
             if let selected {
-                SessionDetail(session: selected, hub: hub, draft: draft(for: selected.id), note: $note)
+                SessionDetail(
+                    session: selected, hub: hub, hidden: hub.detailsHidden, draft: draft(for: selected.id),
+                    note: $note)
             } else {
                 Spacer()
             }
@@ -467,6 +503,62 @@ struct AgentsDetail: View {
         Binding(
             get: { model.agentDrafts[session] ?? "" },
             set: { model.agentDrafts[session] = $0.isEmpty ? nil : $0 })
+    }
+}
+
+/// Today's spend with a week of days behind it.
+private struct SpendTrend: View {
+    let spend: DailySpend
+
+    var body: some View {
+        // Redrawn each minute so "today" moves over at midnight without waiting for an event.
+        TimelineView(.everyMinute) { context in trend(at: context.date) }
+    }
+
+    private func trend(at now: Date) -> some View {
+        let week = spend.recent(days: 7, ending: now)
+        let peak = week.max() ?? 0
+        let weekTotal = week.reduce(0, +)
+        return HStack(spacing: 6) {
+            Text(String(format: "Today ~$%.2f", week.last ?? 0))
+                .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.secondaryText)
+                .lineLimit(1).fixedSize()
+            if weekTotal > 0 {
+                Sparkline(values: week.map { peak > 0 ? $0 / peak : 0 }, tint: .wispViolet, filled: true)
+                    .frame(width: 40, height: 14)
+            }
+        }
+        .help(String(format: "Last 7 days ~$%.2f", weekTotal))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            String(format: "Spend today about %.2f dollars, last 7 days about %.2f dollars", week.last ?? 0, weekTotal))
+    }
+}
+
+/// The manual switch. While a call or Settings hide details it can't show them, so it says
+/// why instead of offering to hide what's already hidden.
+private struct PrivacyButton: View {
+    let hub: AgentHub
+
+    var body: some View {
+        let locked = hub.hiddenByRule
+        Button {
+            hub.hideNow.toggle()
+        } label: {
+            Image(systemName: hub.detailsHidden ? "eye.slash" : "eye")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(hub.detailsHidden ? Color.wispViolet : Color.secondaryText)
+        }
+        .buttonStyle(.plain)
+        .disabled(locked)
+        .help(
+            hub.hiddenReason.map { "Commands and file names are hidden \($0)" + (locked ? "" : "; click to show") }
+                ?? "Hide commands and file names"
+        )
+        .accessibilityLabel(
+            locked
+                ? "Agent details hidden \(hub.hiddenReason ?? "")"
+                : hub.hideNow ? "Show agent details" : "Hide agent details")
     }
 }
 
@@ -505,6 +597,7 @@ private struct DetailSessionRow: View {
 private struct SessionDetail: View {
     let session: AgentSession
     let hub: AgentHub
+    let hidden: Bool
     @Binding var draft: String
     @Binding var note: String?
 
@@ -517,16 +610,25 @@ private struct SessionDetail: View {
                 if !session.cwd.isEmpty {
                     action("Folder", symbol: "folder") { hub.openFolder(session: session.id) }
                 }
-                action("Copy ID", symbol: "doc.on.doc") {
-                    hub.copyID(session: session.id)
-                    note = "Session ID copied"
+                if session.transcriptPath != nil {
+                    action("Transcript", symbol: "doc.text") {
+                        if !hub.revealTranscript(session: session.id) { note = "Transcript not found" }
+                    }
+                    .help("Show the transcript in Finder")
+                }
+                // Wisp's clipboard history would show the ID, so it isn't offered while private.
+                if !hidden {
+                    action("Copy ID", symbol: "doc.on.doc") {
+                        hub.copyID(session: session.id)
+                        note = "Session ID copied"
+                    }
                 }
             }
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 6) {
                     TimelineView(.periodic(from: .now, by: 30)) { context in
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 3) {
-                            ForEach(session.facts(now: context.date)) { fact in
+                            ForEach(session.facts(now: context.date, hidden: hidden)) { fact in
                                 GridRow {
                                     Text(fact.label).foregroundStyle(Color.secondaryText)
                                     Text(fact.value).textSelection(.enabled).lineLimit(2)
@@ -545,32 +647,43 @@ private struct SessionDetail: View {
                                     .foregroundStyle(Color.secondaryText)
                                 Image(systemName: entry.kind.symbol).font(.system(size: 9))
                                     .foregroundStyle(entry.kind.tint).frame(width: 12)
-                                Text(entry.text).font(.system(size: 11)).lineLimit(1).truncationMode(.middle)
+                                Text(entry.display(hidden: hidden)).font(.system(size: 11)).lineLimit(1)
+                                    .truncationMode(.middle)
                             }
                             .id(entry.id)
                         }
                     }
                 }
             }
-            HStack(spacing: 6) {
-                TextField(note ?? "Draft a prompt…", text: $draft)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .padding(.horizontal, 8)
+            if hidden {
+                Label(note ?? "Prompt drafts are hidden while details are private", systemImage: "eye.slash")
+                    .font(.system(size: 11)).foregroundStyle(Color.secondaryText)
                     .frame(height: 24)
-                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.08)))
-                    .onSubmit(send)
-                Button("Paste in Terminal", action: send)
-                    .font(.system(size: 11, weight: .semibold))
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 8)
-                    .frame(height: 24)
-                    .background(Capsule().fill(Color.wispViolet.opacity(draft.isEmpty ? 0.3 : 0.9)))
-                    .disabled(draft.isEmpty)
-                    .help("Pastes into the session's terminal without sending; press Return there")
+            } else {
+                draftBox
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var draftBox: some View {
+        HStack(spacing: 6) {
+            TextField(note ?? "Draft a prompt…", text: $draft)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .padding(.horizontal, 8)
+                .frame(height: 24)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.08)))
+                .onSubmit(send)
+            Button("Paste in Terminal", action: send)
+                .font(.system(size: 11, weight: .semibold))
+                .buttonStyle(.plain)
+                .padding(.horizontal, 8)
+                .frame(height: 24)
+                .background(Capsule().fill(Color.wispViolet.opacity(draft.isEmpty ? 0.3 : 0.9)))
+                .disabled(draft.isEmpty)
+                .help("Pastes into the session's terminal without sending; press Return there")
+        }
     }
 
     private func action(_ title: String, symbol: String, perform: @escaping () -> Void) -> some View {

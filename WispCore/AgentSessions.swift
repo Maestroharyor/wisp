@@ -10,9 +10,23 @@ public struct AgentTimelineEntry: Equatable, Sendable, Identifiable {
     public let date: Date
     public let kind: Kind
     public let text: String
+    /// The command, path or URL behind a tool entry; left out in private mode.
+    public let detail: String?
+
+    public init(date: Date, kind: Kind, text: String, detail: String? = nil) {
+        self.date = date
+        self.kind = kind
+        self.text = text
+        self.detail = detail
+    }
+
+    public func display(hidden: Bool) -> String {
+        guard let detail, !detail.isEmpty, !hidden else { return text }
+        return "\(text): \(detail)"
+    }
 
     public static func == (lhs: AgentTimelineEntry, rhs: AgentTimelineEntry) -> Bool {
-        lhs.date == rhs.date && lhs.kind == rhs.kind && lhs.text == rhs.text
+        lhs.date == rhs.date && lhs.kind == rhs.kind && lhs.text == rhs.text && lhs.detail == rhs.detail
     }
 }
 
@@ -144,7 +158,7 @@ public struct AgentSessions: Sendable {
         case .permissionRequest:
             session.state = .needsApproval
             let tool = event.toolName ?? "Tool"
-            Self.append(.request, event.summary.isEmpty ? tool : "\(tool): \(event.summary)", to: &session, at: date)
+            Self.append(.request, tool, detail: event.summary, to: &session, at: date)
         case .notification:
             if event.notificationType == "idle_prompt" || event.notificationType == "elicitation_dialog" {
                 session.state = .waiting
@@ -248,9 +262,10 @@ public struct AgentSessions: Sendable {
     public func shouldAutoApprove(_ id: String) -> Bool { sessions[id]?.autoApprove == true }
 
     private static func append(
-        _ kind: AgentTimelineEntry.Kind, _ text: String, to session: inout AgentSession, at date: Date
+        _ kind: AgentTimelineEntry.Kind, _ text: String, detail: String? = nil, to session: inout AgentSession,
+        at date: Date
     ) {
-        session.timeline.append(AgentTimelineEntry(date: date, kind: kind, text: text))
+        session.timeline.append(AgentTimelineEntry(date: date, kind: kind, text: text, detail: detail))
         if session.timeline.count > timelineLimit {
             session.timeline.removeFirst(session.timeline.count - timelineLimit)
         }

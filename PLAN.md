@@ -1,6 +1,6 @@
 # Wisp plan and status
 
-The status below is as of 2026-11-01. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 507 tests. For what comes next, see `docs/REVIEW.md`.
+The status below is as of 2026-11-01. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 519 tests. For what comes next, see `docs/REVIEW.md`.
 
 ## Done
 
@@ -28,12 +28,12 @@ The status below is as of 2026-11-01. Testing approach: decision logic lives in 
 
 ## In progress: Agent Bar
 
-Live status for coding agents: a Claude Code `statusLine` bar in the terminal, live session data, context window %, tool activity, git branch, a `wisp` CLI and alerts. Each phase is its own PR. Phase A is being built on `feat/agent-statusline`.
+Live status for coding agents: a Claude Code `statusLine` bar in the terminal, live session data, context window %, tool activity, git branch, a `wisp` CLI and alerts. Each phase is its own PR. Phase A shipped in #12; Phase B is on `feat/agent-widget-privacy`.
 
 | Phase | Scope | Status |
 |---|---|---|
-| A | Also pulled in from B at review: Code profile is one Wide Agents widget (sessions left, details right, every figure Claude Code reports); new Stats profile for System Stats, Timer and Day Progress; saved profiles and Home upgraded once when untouched. `wisp-agent statusline` (Wisp's bar by default; an existing bar is chained, never replaced; "Keep my bar" and "Off" restore it exactly). Snapshots forwarded fire-and-forget to Wisp: model, real cost, lines +/−, durations, context %. Context ring in the pill, context alert (default 80%), "Compacting…" via PreCompact/PostCompact. Versioned socket envelope (`docs/agent-protocol.md`). `GitHead` branch parsing. "Update hooks" card for existing installs | In progress |
-| B | Open transcript; 7-day spend sparkline; hide details during a call (session cards, folder and copy ID landed in A). Screen-share detection has no public API: options to be decided | Not started |
+| A | Also pulled in from B at review: Code profile is one Wide Agents widget (sessions left, details right, every figure Claude Code reports); new Stats profile for System Stats, Timer and Day Progress; saved profiles and Home upgraded once when untouched. `wisp-agent statusline` (Wisp's bar by default; an existing bar is chained, never replaced; "Keep my bar" and "Off" restore it exactly). Snapshots forwarded fire-and-forget to Wisp: model, real cost, lines +/−, durations, context %. Context ring in the pill, context alert (default 80%), "Compacting…" via PreCompact/PostCompact. Versioned socket envelope (`docs/agent-protocol.md`). `GitHead` branch parsing. "Update hooks" card for existing installs | Done |
+| B | Transcript (shown in Finder), today's spend with a 7-day sparkline, private mode: commands, file paths, session names, session IDs and prompt drafts hidden during calls (mic held by a call app or a browser, or in use during a calendar meeting), always, or with the eye button; approval cards hide the command until Show is pressed. Screen sharing alone has no public API, so it's covered by the eye button and Always (session cards, folder and copy ID landed in A) | Done |
 | C | Opt-in tool activity: PreToolUse/PostToolUse/SubagentStop (`async` for Claude), `ToolLabel` with secret masking, pill label, most-urgent session wins the pill with a count badge | Not started |
 | D | `wisp status`, `--json`, `watch`, `spend` over a `query` message; `~/.local/bin/wisp` symlink install/uninstall; per-project `DailySpend` | Not started |
 | E | Alerts: long-running tool, re-nudge, daily budget (USD) at 80% and 100%. Notices only, never blocking | Not started |
