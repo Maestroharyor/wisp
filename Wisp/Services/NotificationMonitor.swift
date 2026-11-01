@@ -65,7 +65,7 @@ final class NotificationMonitor {
 
     func reply(to item: NotificationItem, text: String) async -> Bool {
         switch item.channel {
-        case .iMessage: MessagesReply.send(text, title: item.title, body: item.body)
+        case .iMessage: await MessagesReply.send(text, title: item.title, body: item.body)
         case .whatsApp: await whatsApp.send(text, to: item.title)
         case .telegram: await telegram.send(text, to: item.title)
         case nil: false
