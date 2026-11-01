@@ -18,6 +18,8 @@ final class ClipboardStore {
     /// The last copy still being stored (an image encodes off the main thread); later copies
     /// wait for it so history keeps the order things were copied in.
     @ObservationIgnored private var storing: Task<Void, Never>?
+    /// Counts stores, so only the latest one clears `storing` when it finishes.
+    @ObservationIgnored private var storeCount = 0
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "clipboard")
 
     /// Marker types from nspasteboard.org that ask clipboard managers to stay away.
@@ -108,18 +110,22 @@ final class ClipboardStore {
         if let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             let item = ClipItem(kind: ClipClassifier.kind(for: text), text: text, date: copied)
-            guard previous != nil else { return record(item, source: source) }
+            guard let previous else { return record(item, source: source) }
+            let number = nextStore()
             storing = Task { [weak self] in
-                await previous?.value
+                await previous.value
                 self?.record(item, source: source)
+                self?.finishStore(number)
             }
         } else if let data = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff) {
             // A screenshot on a big display is tens of megabytes; encoding it on the main
             // thread would stall the key taps that run there.
+            let number = nextStore()
             storing = Task { [weak self] in
                 let stored = await Task.detached { Result { try Self.storeImage(data) } }.value
                 await previous?.value
                 guard let self else { return }
+                defer { self.finishStore(number) }
                 switch stored {
                 case .success(var item):
                     item.date = copied
@@ -129,6 +135,16 @@ final class ClipboardStore {
                 }
             }
         }
+    }
+
+    private func nextStore() -> Int {
+        storeCount += 1
+        return storeCount
+    }
+
+    /// Once the latest store is done, text copies go straight in again.
+    private func finishStore(_ number: Int) {
+        if number == storeCount { storing = nil }
     }
 
     private func record(_ item: ClipItem, source: (name: String?, bundleID: String?)) {
