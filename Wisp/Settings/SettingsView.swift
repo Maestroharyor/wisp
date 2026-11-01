@@ -24,7 +24,8 @@ final class SettingsWindowController {
     }
 
     private func makeWindow() -> NSWindow {
-        let host = NSHostingController(rootView: SettingsView(services: services, hotkeys: hotkeys))
+        let view = SettingsView(services: services, hotkeys: hotkeys) { [weak self] in self?.bringForward() }
+        let host = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: host)
         window.title = "Wisp Settings"
         // The sidebar runs to the top edge, as in System Settings.
@@ -36,7 +37,23 @@ final class SettingsWindowController {
         window.setContentSize(CGSize(width: 820, height: 600))
         window.contentMinSize = CGSize(width: 700, height: 480)
         window.setFrameAutosaveName("WispSettings")
+        // Drop the window on close so its view, and the permission checks it runs every
+        // second, stop. The next show builds a fresh one; the frame and pane are saved.
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.window = nil }
+        }
         return window
+    }
+
+    /// Permissions are switched on in System Settings, which covers this window, and a menu
+    /// bar app has no Dock icon to get back with. `activate` can be refused, so the window
+    /// is ordered front regardless.
+    private func bringForward() {
+        guard let window, window.isVisible, !window.isMiniaturized else { return }
+        window.orderFrontRegardless()
+        NSApp.activate()
     }
 }
 
@@ -45,11 +62,14 @@ final class SettingsWindowController {
 struct SettingsView: View {
     let services: AppServices
     let hotkeys: HotkeyCenter
+    /// Called when a permission is granted while Settings is open.
+    let granted: () -> Void
     @State private var model: SettingsModel
 
-    init(services: AppServices, hotkeys: HotkeyCenter) {
+    init(services: AppServices, hotkeys: HotkeyCenter, granted: @escaping () -> Void) {
         self.services = services
         self.hotkeys = hotkeys
+        self.granted = granted
         _model = State(initialValue: SettingsModel(preferences: services.preferences))
     }
 
@@ -82,10 +102,17 @@ struct SettingsView: View {
         }
         .frame(minWidth: 700, minHeight: 480)
         .task {
-            // Grants happen in System Settings; keep the health badge current while open.
+            // Grants happen in System Settings; keep the health badge current while open, and
+            // come back to the front when one goes through.
+            await AutomationPermission.refresh()
+            var last = Permission.statuses
             while !Task.isCancelled {
+                await AutomationPermission.refresh()
                 model.refreshHealth()
-                try? await Task.sleep(for: .seconds(2))
+                let now = Permission.statuses
+                if !PermissionWatch.newlyGranted(before: last, after: now).isEmpty { granted() }
+                last = now
+                try? await Task.sleep(for: .seconds(1))
             }
         }
     }
