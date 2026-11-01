@@ -63,9 +63,17 @@ final class NotchController {
         }
     }
 
+    /// Setting ignoresMouseEvents to false makes the whole transparent panel catch clicks
+    /// (AppKit passes clicks through transparent areas only while the property is untouched),
+    /// so a closed panel takes the mouse only while the pointer is over something it handles.
     private func updateClickThrough() {
-        panel.ignoresMouseEvents =
-            machine.phase == .closed && !model.dragging && !isReplying && !showsApproval && !pointerOverBubble
+        let overControls = pointerInside && (isReplying || showsApproval || showsMeetingPill)
+        panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble
+    }
+
+    /// The meeting pill's microphone end mutes on click.
+    private var showsMeetingPill: Bool {
+        if case .meeting = model.activity { true } else { false }
     }
 
     var isReplying: Bool { model.replyingTo != nil }
@@ -219,7 +227,7 @@ final class NotchController {
             // hide the reply field and leave the reply hanging.
             dwellTask?.cancel()
             dwellTask = nil
-            panel.ignoresMouseEvents = false
+            updateClickThrough()
             panel.makeKey()
         } else {
             services.notifications.openApp(for: item)
