@@ -136,7 +136,7 @@ Releases come from `main` through [release-please](https://github.com/googleapis
 1. **Release PR.** Every merge to `main` updates an open "chore(main): release x.y.z" pull request. It bumps `MARKETING_VERSION` in `project.yml` and adds the merged PR titles to `CHANGELOG.md`.
 2. **Version.** Below 1.0, `feat` and `fix` bump the patch (0.1.0 → 0.1.1) and `!` bumps the minor version (0.1.3 → 0.2.0). `docs`, `chore`, `ci` and `test` alone don't make a release. The first release is pinned to 0.1.0 with `release-as` in `release-please-config.json`; remove that line once v0.1.0 is out, or every release stays 0.1.0.
 3. **Merge to release.** When you're ready to ship, check the release PR (there's a checklist in `.github/PULL_REQUEST_TEMPLATE/release.md`) and merge it. release-please tags `vX.Y.Z` and creates a **draft** GitHub release with the notes.
-4. **Build and publish.** The `build` job in `release.yml` checks out the tag and runs `scripts/release.sh`, which signs the app and the Sparkle zip and writes `appcast.xml`. It uploads the DMG, zip, checksums, appcast and cask, and only then publishes the release and marks it Latest. Installed copies find the update through `releases/latest/download/appcast.xml`, which never points at a release without its files.
+4. **Build and publish.** The `build` job in `release.yml` checks out the tag and runs `scripts/release.sh`, which signs the app and the Sparkle zip and writes `appcast.xml`. It uploads the DMG, zip, checksums, appcast and cask, and only then publishes the release, marking it Latest when it is the newest version. Installed copies find the update through `releases/latest/download/appcast.xml`, which never points at a release without its files.
 5. **Re-running.** If the build fails, fix the cause and run Actions › Release › Run workflow with the tag (for example `v0.2.0`). It rebuilds and replaces the files.
 
 The build number (`CFBundleVersion`) is `major × 10000 + minor × 100 + patch`, so 0.2.0 is 200 and 1.0.3 is 10003. Sparkle compares this number, so minor and patch stay below 100.
@@ -181,6 +181,21 @@ These secrets live in the repository settings (Settings › Secrets and variable
 | Location | Weather widget (Open-Meteo, no account) |
 
 Settings › Permissions shows each one's status, and General warns when a feature you use is missing one.
+
+## Privacy
+
+Wisp has no account, no analytics and no server of its own. It only goes online for these:
+
+| Service | What's sent | When | Off switch |
+|---|---|---|---|
+| [LRCLIB](https://lrclib.net) | Song title, artist, album and length | Lyrics are on screen (Media page or mini player) | Settings › Live Activities › "Lyrics from LRCLIB" |
+| [iTunes Search](https://performance-partners.apple.com/search-api) | Song title and artist | A song is playing and its app gave no album art | Settings › Live Activities › "Find missing album art on iTunes" |
+| [Open-Meteo](https://open-meteo.com) | Your location, rounded to about 100 m | The Weather widget or ear is shown, at most every 30 minutes | Remove the Weather widget and ear |
+| Apple (Core Location) | Your location, to name the town under the weather | Along with the weather | Same as above |
+| Spotify | Nothing new: Wisp loads the cover from the URL the Spotify app gives it | Spotify is playing | Quit Spotify |
+| GitHub | A request for `appcast.xml` | Update checks; Wisp asks before checking automatically | Settings › About › "Check for updates automatically" |
+
+Lyrics and artwork are on by default because the Now Playing feature looks broken without them. They follow the "feature lookups" rule in [AGENTS.md](AGENTS.md): visible feature only, minimum data, public endpoint, cached, own switch, listed here. Everything else that goes online stays off until you turn it on.
 
 ## Layout
 
