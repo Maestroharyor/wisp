@@ -83,7 +83,8 @@ public enum AgentCLI {
     }
 
     private static func cells(_ row: AgentReport.Row) -> [String] {
-        let tool = row.tool.map { tool in row.toolSeconds.map { "\(tool) · \(AgentSession.time($0))" } ?? tool }
+        // The tool's own seconds stay in the JSON: appended here they'd be cut off with the label.
+        let tool = row.tool
         return [
             row.project, row.branch ?? "-", row.agent.split(separator: " ").first.map(String.init) ?? row.agent,
             row.state, row.model ?? "-", row.contextPercent.map { "\(Int($0.rounded()))%" } ?? "-",

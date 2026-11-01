@@ -124,9 +124,9 @@ final class AgentCLITests: XCTestCase {
         XCTAssertEqual(
             AgentCLI.table(report, width: 120),
             """
-            PROJECT  BRANCH  AGENT   STATE    MODEL  CTX  COST    TOOL                    TIME
-            wisp     main    Claude  working  Opus   42%  $0.41   Running npm test · 12s  3m 05s
-            site     main    Claude  done     Opus   42%  ~$2.00  -                       3m 05s
+            PROJECT  BRANCH  AGENT   STATE    MODEL  CTX  COST    TOOL              TIME
+            wisp     main    Claude  working  Opus   42%  $0.41   Running npm test  3m 05s
+            site     main    Claude  done     Opus   42%  ~$2.00  -                 3m 05s
 
             """)
     }
