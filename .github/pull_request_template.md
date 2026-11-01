@@ -37,7 +37,8 @@ for a breaking change ("feat!: ..."). The pr-title check enforces this.
 
 ## Release note
 
-<!-- One line for the changelog, written for people who use Wisp. "None" for internal changes. -->
+<!-- One sentence for people who use Wisp: it's shown in Wisp's update window, so say what changed for them
+     ("The mic pill says Recording unless you're on a call."). "None" for internal changes. -->
 
 ## Checklist
 

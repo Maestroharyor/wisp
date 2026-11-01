@@ -90,6 +90,7 @@ Applies to comments, docs, UI copy, commit messages and PR text.
 - Conventional prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `perf:`.
 - Branch names: `feat/short-description`, `fix/short-description`.
 - **`main` is protected.** Never push to it. Push a branch and open a pull request at `https://github.com/Maestroharyor/wisp` using `.github/pull_request_template.md`. Pull requests are squash merged.
+- **The PR's Release note is user-facing.** It's the sentence people read in Wisp's update window, so write what changed for them, not how. Use "None" for internal changes.
 - **The PR title is a conventional commit.** It becomes the commit on `main`, and release-please reads it to pick the version (below 1.0: `fix` and `feat` bump the patch, `!` bumps the minor).
 - **Releases come from the release PR.** release-please keeps a "chore(main): release x.y.z" PR open; merging it tags a draft release, and `release.yml` builds, uploads and publishes. Don't tag or bump `MARKETING_VERSION` by hand.
 - **Required checks (`test` in `ci.yml`, `pr-title` in `pr-title.yml`) must never get path filters.** The release PR only touches `CHANGELOG.md` and `project.yml`; a skipped check would block it forever.
