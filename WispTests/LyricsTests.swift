@@ -14,6 +14,19 @@ final class LyricsTests: XCTestCase {
         XCTAssertEqual(lyrics.lines[3].time ?? 0, 62.5, accuracy: 0.001)
     }
 
+    func testWindowsLineEndings() throws {
+        let timed = try XCTUnwrap(Lyrics.parse(synced: "[00:01.00] One\r\n[00:02.00] Two\r\n", plain: nil))
+        XCTAssertEqual(timed.lines.map(\.text), ["One", "Two"])
+        let plain = try XCTUnwrap(Lyrics.parse(synced: nil, plain: "One\r\nTwo"))
+        XCTAssertEqual(plain.lines.map(\.text), ["One", "Two"])
+    }
+
+    func testRepeatedLineWithSeveralStamps() throws {
+        let lyrics = try XCTUnwrap(Lyrics.parse(synced: "[00:12.00][00:45.00] Chorus\n[00:20.00] Verse", plain: nil))
+        XCTAssertEqual(lyrics.lines.map(\.text), ["Chorus", "Verse", "Chorus"])
+        XCTAssertEqual(lyrics.lines.map { $0.time ?? -1 }, [12, 20, 45])
+    }
+
     func testCurrentLineFollowsPlayback() throws {
         let lyrics = try XCTUnwrap(Lyrics.parse(synced: synced, plain: nil))
         XCTAssertNil(lyrics.index(at: 10))
