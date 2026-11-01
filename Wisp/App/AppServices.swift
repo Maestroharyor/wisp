@@ -70,6 +70,7 @@ final class AppServices {
     var openSettings: @MainActor () -> Void = {}
     var openClipboard: @MainActor () -> Void = {}
     var openSetup: @MainActor () -> Void = {}
+    var openShelf: @MainActor (ShelfPage) -> Void = { _ in }
 
     init(preferences: Preferences) {
         self.preferences = preferences
