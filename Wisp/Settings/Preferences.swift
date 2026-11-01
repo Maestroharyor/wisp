@@ -363,7 +363,7 @@ final class Preferences {
         activeProfile = profile.name
         if let name = profile.look, let preset = lookPreset(named: name) {
             if lookBeforeProfile == nil { lookBeforeProfile = appearance }
-            appearance = preset.appearance
+            appearance = preset.appearance.keepingSounds(of: appearance)
         } else {
             if let earlier = lookBeforeProfile {
                 appearance = earlier
@@ -388,6 +388,17 @@ final class Preferences {
     var allLookPresets: [AppearancePreset] { AppearancePreset.builtIns + lookPresets }
 
     func lookPreset(named name: String) -> AppearancePreset? { allLookPresets.first { $0.name == name } }
+
+    /// Applies a look chosen in Settings. Keeps the user's custom sound files, and saves the
+    /// surface to the active profile as the surface picker does, so the profile doesn't put
+    /// the old one back later.
+    func applyLook(_ look: Appearance) {
+        let next = look.keepingSounds(of: appearance)
+        appearance = next
+        updateActiveProfile { $0.surface = next.surface.rawValue }
+    }
+
+    func isCurrentLook(_ look: Appearance) -> Bool { look.keepingSounds(of: appearance) == appearance }
 
     /// Saves the current look under a name and returns the name used.
     @discardableResult
