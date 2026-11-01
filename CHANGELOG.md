@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Maestroharyor/wisp/compare/v0.1.2...v0.1.3) (2026-11-01)
+
+
+### Features
+
+* friendly release notes in the update window ([#10](https://github.com/Maestroharyor/wisp/issues/10)) ([bd840f6](https://github.com/Maestroharyor/wisp/commit/bd840f6e4c2405a77aa854cca52898b79c48e8d7))
+
 ## [0.1.2](https://github.com/Maestroharyor/wisp/compare/v0.1.1...v0.1.2) (2026-11-01)
 
 
