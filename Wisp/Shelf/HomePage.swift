@@ -122,7 +122,7 @@ struct HomePage: View {
         return Button {
             if onHome {
                 preferences.homeLayout.remove(kind.rawValue)
-            } else {
+            } else if !full {
                 preferences.enable(kind)
             }
         } label: {
