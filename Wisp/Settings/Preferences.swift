@@ -447,6 +447,8 @@ final class Preferences {
     func deleteProfile(named name: String) {
         guard name != ContextEngineState.baseProfile else { return }
         profiles.removeAll { $0.name == name }
+        // A rule that switches to a missing profile would do nothing but still show as on.
+        contextRules.removeAll { $0.profile == name }
         if activeProfile == name || homeProfile == name, let base = profile(named: ContextEngineState.baseProfile) {
             apply(base)
         }
