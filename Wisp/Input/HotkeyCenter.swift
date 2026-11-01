@@ -37,6 +37,8 @@ final class HotkeyCenter {
     @ObservationIgnored private let clipboardCarbon = CarbonHotkey(id: 2)
     @ObservationIgnored private var keyboardWatcher: KeyboardWatcher?
     @ObservationIgnored private var accessWaiter: Task<Void, Never>?
+    /// Notices Accessibility being switched off while Hyper is active.
+    @ObservationIgnored private var trustWatcher: Task<Void, Never>?
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "hotkey")
 
     init(preferences: Preferences) {
@@ -51,6 +53,7 @@ final class HotkeyCenter {
     /// Restores Caps Lock. Call on quit.
     func shutdown() {
         accessWaiter?.cancel()
+        trustWatcher?.cancel()
         tap.stop()
         carbon.unregister()
         clipboardCarbon.unregister()
@@ -64,6 +67,7 @@ final class HotkeyCenter {
 
     private func configure() {
         accessWaiter?.cancel()
+        trustWatcher?.cancel()
         tap.stop()
         carbon.unregister()
         clipboardCarbon.unregister()
@@ -125,6 +129,21 @@ final class HotkeyCenter {
             return
         }
         status = .active
+        watchTrust()
+    }
+
+    /// Without Accessibility the tap gets no events, so a remapped Caps Lock would send F18
+    /// and do nothing. macOS doesn't announce the change, so check every few seconds.
+    private func watchTrust() {
+        trustWatcher = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled, !AccessibilityPermission.isTrusted else { continue }
+                self?.log.notice("Accessibility was turned off; restoring Caps Lock")
+                self?.configure()
+                return
+            }
+        }
     }
 
     private func reapplyRemap() {
