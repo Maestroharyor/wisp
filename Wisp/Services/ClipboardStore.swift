@@ -15,6 +15,9 @@ final class ClipboardStore {
     @ObservationIgnored private let pasteboard = NSPasteboard.general
     @ObservationIgnored private var lastChangeCount: Int
     @ObservationIgnored private var pollTask: Task<Void, Never>?
+    /// The last copy still being stored (an image encodes off the main thread); later copies
+    /// wait for it so history keeps the order things were copied in.
+    @ObservationIgnored private var storing: Task<Void, Never>?
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "clipboard")
 
     /// Marker types from nspasteboard.org that ask clipboard managers to stay away.
@@ -100,17 +103,27 @@ final class ClipboardStore {
         let app = NSWorkspace.shared.frontmostApplication
 
         let source = (name: app?.localizedName, bundleID: app?.bundleIdentifier)
+        let copied = Date.now
+        let previous = storing
         if let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
-            record(ClipItem(kind: ClipClassifier.kind(for: text), text: text, date: .now), source: source)
+            let item = ClipItem(kind: ClipClassifier.kind(for: text), text: text, date: copied)
+            guard previous != nil else { return record(item, source: source) }
+            storing = Task { [weak self] in
+                await previous?.value
+                self?.record(item, source: source)
+            }
         } else if let data = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff) {
             // A screenshot on a big display is tens of megabytes; encoding it on the main
             // thread would stall the key taps that run there.
-            Task { [weak self] in
+            storing = Task { [weak self] in
                 let stored = await Task.detached { Result { try Self.storeImage(data) } }.value
+                await previous?.value
                 guard let self else { return }
                 switch stored {
-                case .success(let item): self.record(item, source: source)
+                case .success(var item):
+                    item.date = copied
+                    self.record(item, source: source)
                 case .failure(let error):
                     self.log.error("could not store clipboard image: \(error.localizedDescription, privacy: .public)")
                 }
@@ -119,6 +132,8 @@ final class ClipboardStore {
     }
 
     private func record(_ item: ClipItem, source: (name: String?, bundleID: String?)) {
+        // History may have been switched off while an image was being stored.
+        guard preferences.clipboardEnabled else { return deleteFiles(of: [item]) }
         var item = item
         item.sourceApp = source.name
         item.sourceBundleID = source.bundleID
