@@ -30,12 +30,19 @@ final class OnboardingWindowController {
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
+        // The close button counts as finishing; otherwise setup would return on every launch.
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.finish() }
+        }
         return window
     }
 
     private func finish() {
         services.preferences.onboarded = true
-        window?.close()
+        // orderOut rather than close, which would post willClose and call this again.
+        window?.orderOut(nil)
         // The hotkey waits for Accessibility; ask now if setup was skipped.
         if !AccessibilityPermission.isTrusted { AccessibilityPermission.requestAccess() }
     }
