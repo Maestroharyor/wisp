@@ -336,7 +336,7 @@ final class AppServices {
                 (
                     bar: preferences.terminalBarMode,
                     threshold: preferences.contextAlert ? Double(preferences.contextThreshold) : nil,
-                    privacy: preferences.agentPrivacy
+                    privacy: preferences.agentPrivacy, tools: preferences.agentToolActivity
                 )
             )
         } onChange: { [weak self] in
@@ -345,6 +345,7 @@ final class AppServices {
         agents.terminalBarMode = agentPrefs.bar
         agents.contextThreshold = agentPrefs.threshold
         agents.privacyMode = agentPrefs.privacy
+        agents.toolActivity = agentPrefs.tools
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
         if needsClock { startClock() } else { stopClock() }
         if timerLength != appliedTimerLength {

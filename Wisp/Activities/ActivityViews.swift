@@ -67,7 +67,8 @@ struct CompactActivityView: View {
         case .agent(let status):
             HStack(spacing: ActivityMetrics.contentSpacing) {
                 AgentGlyph(
-                    state: status.state, source: status.source, project: status.project, context: status.contextPercent)
+                    state: status.state, source: status.source, project: status.project, context: status.contextPercent,
+                    others: status.others)
                 Text(status.project).lineLimit(1)
             }
         case .device(let device):
@@ -217,7 +218,7 @@ struct SideActivityView: View {
         case .focus(let state):
             ValueText(text: state.isOn ? "On" : "Off", tint: state.isOn ? .white : Color.secondaryText)
         case .agent(let status):
-            AgentStateLabel(status: status).font(.system(size: 12, weight: .semibold))
+            AgentStateLabel(status: status, showsTool: false).font(.system(size: 12, weight: .semibold))
         case .meeting(let status):
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 ValueText(text: Countdown.format(max(0, context.date.timeIntervalSince(status.started))), tint: .red)
@@ -280,7 +281,8 @@ struct ActivityGlyph: View {
             Image(systemName: state.symbol ?? "moon.fill").foregroundStyle(.indigo)
         case .agent(let status):
             AgentGlyph(
-                state: status.state, source: status.source, project: status.project, context: status.contextPercent)
+                state: status.state, source: status.source, project: status.project, context: status.contextPercent,
+                others: status.others)
         case .device(let device):
             Image(systemName: device.symbol)
         case .meeting:
