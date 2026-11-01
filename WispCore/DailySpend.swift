@@ -53,8 +53,20 @@ public struct DailySpend: Codable, Equatable, Sendable {
     }
 
     /// Each project's spend on `ending` and over the `count` days to it, most first. Spend
-    /// with no project comes last as `otherProjects`, so the rows add up to the total.
-    public func byProject(lastDays count: Int, ending date: Date, calendar: Calendar = .current) -> [ProjectSpend] {
+    /// with no project comes last as `otherProjects`, so the rows add up to the total. With
+    /// `top`, projects past that many are folded into `otherProjects` too.
+    public func byProject(
+        lastDays count: Int, ending date: Date, top: Int? = nil, calendar: Calendar = .current
+    ) -> [ProjectSpend] {
+        let all = allProjects(lastDays: count, ending: date, calendar: calendar)
+        guard let top, all.count > top + 1 else { return all }
+        let rest = all.dropFirst(top)
+        let other = ProjectSpend(
+            project: Self.otherProjects, today: rest.map(\.today).reduce(0, +), week: rest.map(\.week).reduce(0, +))
+        return Array(all.prefix(top)) + [other]
+    }
+
+    private func allProjects(lastDays count: Int, ending date: Date, calendar: Calendar) -> [ProjectSpend] {
         let todayKey = Self.key(date, calendar)
         var week: [String: Double] = [:]
         var today: [String: Double] = [:]

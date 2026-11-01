@@ -117,6 +117,19 @@ final class DailySpendTests: XCTestCase {
             rows.map(\.week).reduce(0, +), spend.total(lastDays: 7, ending: day, calendar: calendar), accuracy: 1e-9)
     }
 
+    func testTopFoldsTheRestIntoOther() {
+        var spend = DailySpend()
+        for (index, name) in ["a", "b", "c", "d"].enumerated() {
+            spend.add(Double(10 - index), on: day, project: name, calendar: calendar)
+        }
+        spend.add(0.5, on: day, calendar: calendar)
+        let rows = spend.byProject(lastDays: 7, ending: day, top: 2, calendar: calendar)
+        XCTAssertEqual(rows.map(\.project), ["a", "b", DailySpend.otherProjects])
+        XCTAssertEqual(rows[2].week, 8 + 7 + 0.5, accuracy: 1e-9)
+        // One row past the top isn't worth folding.
+        XCTAssertEqual(spend.byProject(lastDays: 7, ending: day, top: 4, calendar: calendar).count, 5)
+    }
+
     func testProjectEntriesArePrunedWithTheirDays() throws {
         var spend = DailySpend()
         for offset in 0..<40 {
