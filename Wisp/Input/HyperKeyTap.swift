@@ -58,6 +58,11 @@ final class HyperKeyTap {
     fileprivate func reenable() {
         // macOS disables slow or interrupted taps; turn it straight back on.
         if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+        // Key-ups may have been missed while it was off. A stale Hyper would turn every press
+        // of the shelf key into a toggle, and a stale swallowed key-up would eat a real one.
+        hyperDown = false
+        chordUsed = true
+        swallowedKeyUps.removeAll()
     }
 
     /// Decides whether a key event is swallowed (true) or passed on (false).
