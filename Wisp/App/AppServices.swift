@@ -208,6 +208,8 @@ final class AppServices {
     }
 
     func start() {
+        // So the Automation row shows its status straight away; asking never prompts.
+        Task { await AutomationPermission.refresh() }
         // Light and Dark switches retint the accent now rather than on the next minute.
         themeObserver = DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
