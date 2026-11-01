@@ -26,7 +26,8 @@ struct PermissionSettings: View {
                                 }
                             }
                         } else {
-                            Button("Open Settings") { permission.openSettings() }
+                            // No status to read (it's per app), but asking still lists Wisp.
+                            Button("Allow") { permission.request() }
                         }
                     }
                     .id("\(permission.rawValue)-\(refresh)")

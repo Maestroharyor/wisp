@@ -84,7 +84,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .fullDiskAccess:
             // No prompt, and Wisp isn't listed until added by hand: show a guide to drag it in.
             FullDiskAccessGuide.shared.show()
-        case .automation: openSettings()
+        case .automation: AutomationPermission.request()
         }
     }
 
