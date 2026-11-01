@@ -71,7 +71,11 @@ enum Permission: String, CaseIterable, Identifiable {
         }
     }
 
+    /// When Allow was last clicked, so a grant that answers it can bring Wisp forward.
+    @MainActor static var lastRequest: Date?
+
     @MainActor func request() {
+        Self.lastRequest = .now
         switch self {
         case .accessibility: AccessibilityPermission.requestAccess()
         // macOS asks only the first time; after that the switch is in System Settings.

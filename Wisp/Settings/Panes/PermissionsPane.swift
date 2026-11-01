@@ -3,67 +3,59 @@ import SwiftUI
 import WispCore
 
 struct PermissionSettings: View {
-    /// Re-reads the sidebar badge after a grant.
-    let onChange: () -> Void
-    @State private var refresh = 0
-    /// Screen Recording reaches Wisp only after a relaunch, so once asked, offer one.
+    /// Holds the statuses; the Settings window re-reads them every second.
+    let model: SettingsModel
+    /// Screen Recording may reach Wisp only after a relaunch, so once asked, offer one.
     @State private var askedScreenRecording = false
 
     var body: some View {
         Form {
             Section {
                 ForEach(Permission.allCases) { permission in
+                    let status = model.statuses[permission.rawValue] ?? nil
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(permission.title)
                             Text(permission.purpose).font(.caption).foregroundStyle(.secondary)
-                            if needsReopen(permission) {
-                                Text("Takes effect after Wisp reopens").font(.caption).foregroundStyle(.orange)
+                            if offersReopen(permission, status: status) {
+                                Text(reopenHint).font(.caption).foregroundStyle(.orange)
                             }
                         }
                         Spacer()
-                        if let granted = permission.isGranted {
-                            StatusDot(granted: granted)
-                            if needsReopen(permission) {
-                                Button("Reopen Wisp") { Relaunch.now() }
-                            } else if !granted {
-                                Button("Allow") {
-                                    permission.request()
-                                    if permission == .screenRecording { askedScreenRecording = true }
-                                    onChange()
-                                }
+                        if let status { StatusDot(granted: status) }
+                        if offersReopen(permission, status: status), Relaunch.isAvailable {
+                            Button("Reopen Wisp") { Relaunch.now() }
+                        }
+                        // With no status (Automation while nothing can answer), asking still lists Wisp.
+                        if status != true {
+                            Button("Allow") {
+                                permission.request()
+                                if permission == .screenRecording { askedScreenRecording = true }
+                                model.refreshHealth()
                             }
-                        } else {
-                            // No status to read (it's per app), but asking still lists Wisp.
-                            Button("Allow") { permission.request() }
                         }
                     }
-                    .id("\(permission.rawValue)-\(refresh)")
                 }
             } footer: {
                 Button("Refresh") {
-                    refresh += 1
-                    onChange()
+                    Task {
+                        await AutomationPermission.refresh()
+                        model.refreshHealth()
+                    }
                 }
             }
         }
         .formStyle(.grouped)
-        // Grants happen in System Settings, so follow them while this pane is open.
-        .task {
-            var last = Permission.statuses
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                let now = Permission.statuses
-                guard now != last else { continue }
-                last = now
-                refresh += 1
-                onChange()
-            }
-        }
     }
 
-    private func needsReopen(_ permission: Permission) -> Bool {
-        permission == .screenRecording && askedScreenRecording && permission.isGranted == false
+    private var reopenHint: String {
+        Relaunch.isAvailable
+            ? "If you switched it on, reopen Wisp to apply it"
+            : "If you switched it on, move Wisp to Applications and open it again"
+    }
+
+    private func offersReopen(_ permission: Permission, status: Bool?) -> Bool {
+        permission == .screenRecording && askedScreenRecording && status == false
     }
 }
 

@@ -51,6 +51,9 @@ final class SettingsModel {
         }
     }
     private(set) var missing: [Permission] = []
+    /// Every permission's status by id, read once per check and shared by the sidebar badge
+    /// and the Permissions pane.
+    private(set) var statuses: [String: Bool?] = [:]
 
     let preferences: Preferences
 
@@ -63,15 +66,20 @@ final class SettingsModel {
     var visiblePanes: [SettingsPaneID] { SettingsIndex.panes(matching: query) }
 
     /// Permissions are granted in System Settings, so this is re-read while the window shows.
-    func refreshHealth() {
+    /// Returns the ids granted since the last check.
+    @discardableResult func refreshHealth() -> [String] {
+        let now = Permission.statuses
+        let newlyGranted = PermissionWatch.newlyGranted(before: statuses, after: now)
+        if now != statuses { statuses = now }
         let widgets = preferences.enabledWidgets
         let needed = SetupHealth.needed(
             notifications: preferences.notificationsEnabled,
             calendarWidgets: widgets.contains(.calendar) || widgets.contains(.dayProgress),
             mirror: widgets.contains(.mirror))
-        let ids = SetupHealth.missing(granted: Permission.statuses, needed: needed)
+        let ids = SetupHealth.missing(granted: now, needed: needed)
         let next = ids.compactMap(Permission.init(rawValue:))
         if next != missing { missing = next }
+        return newlyGranted
     }
 }
 

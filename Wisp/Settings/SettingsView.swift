@@ -7,6 +7,7 @@ import WispCore
 @MainActor
 final class SettingsWindowController {
     private var window: NSWindow?
+    private var closeObserver: NSObjectProtocol?
     private let services: AppServices
     private let hotkeys: HotkeyCenter
 
@@ -39,12 +40,18 @@ final class SettingsWindowController {
         window.setFrameAutosaveName("WispSettings")
         // Drop the window on close so its view, and the permission checks it runs every
         // second, stop. The next show builds a fresh one; the frame and pane are saved.
-        NotificationCenter.default.addObserver(
+        closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.window = nil }
+            MainActor.assumeIsolated { self?.release() }
         }
         return window
+    }
+
+    private func release() {
+        if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+        closeObserver = nil
+        window = nil
     }
 
     /// Permissions are switched on in System Settings, which covers this window, and a menu
@@ -104,14 +111,12 @@ struct SettingsView: View {
         .task {
             // Grants happen in System Settings; keep the health badge current while open, and
             // come back to the front when one goes through.
-            await AutomationPermission.refresh()
-            var last = Permission.statuses
             while !Task.isCancelled {
                 await AutomationPermission.refresh()
-                model.refreshHealth()
-                let now = Permission.statuses
-                if !PermissionWatch.newlyGranted(before: last, after: now).isEmpty { granted() }
-                last = now
+                let newlyGranted = model.refreshHealth()
+                let answersAllow = PermissionWatch.shouldBringForward(
+                    newlyGranted: newlyGranted, lastRequest: Permission.lastRequest, now: .now)
+                if answersAllow { granted() }
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -149,7 +154,7 @@ struct SettingsView: View {
         case .clipboard: ClipboardSettings(preferences: preferences, store: services.clipboard)
         case .notifications: NotificationSettings(preferences: preferences, monitor: services.notifications)
         case .agents: AgentSettings(hub: services.agents, preferences: preferences)
-        case .permissions: PermissionSettings(onChange: model.refreshHealth)
+        case .permissions: PermissionSettings(model: model)
         case .about: AboutSettings(preferences: preferences, updater: services.updater, runSetup: services.openSetup)
         }
     }

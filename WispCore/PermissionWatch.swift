@@ -9,4 +9,14 @@ public enum PermissionWatch {
         }
         .sorted()
     }
+
+    /// How long after an Allow click a grant still counts as the answer to it.
+    public static let requestWindow: TimeInterval = 5 * 60
+
+    /// Only grants that answer a recent Allow bring Wisp forward. Others (System Events
+    /// starting, a grant made elsewhere) must not take focus from whatever the person is doing.
+    public static func shouldBringForward(newlyGranted: [String], lastRequest: Date?, now: Date) -> Bool {
+        guard !newlyGranted.isEmpty, let lastRequest else { return false }
+        return now.timeIntervalSince(lastRequest) <= requestWindow
+    }
 }

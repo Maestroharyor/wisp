@@ -26,4 +26,18 @@ final class PermissionWatchTests: XCTestCase {
         let after: [String: Bool?] = ["b": true, "a": true]
         XCTAssertEqual(PermissionWatch.newlyGranted(before: before, after: after), ["a", "b"])
     }
+
+    func testBringsForwardOnlySoonAfterAnAllow() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let asked = now.addingTimeInterval(-60)
+        XCTAssertTrue(PermissionWatch.shouldBringForward(newlyGranted: ["camera"], lastRequest: asked, now: now))
+        XCTAssertFalse(PermissionWatch.shouldBringForward(newlyGranted: [], lastRequest: asked, now: now))
+    }
+
+    func testNoAllowOrAnOldOneDoesNotBringForward() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        XCTAssertFalse(PermissionWatch.shouldBringForward(newlyGranted: ["automation"], lastRequest: nil, now: now))
+        let old = now.addingTimeInterval(-(PermissionWatch.requestWindow + 1))
+        XCTAssertFalse(PermissionWatch.shouldBringForward(newlyGranted: ["camera"], lastRequest: old, now: now))
+    }
 }
