@@ -347,8 +347,12 @@ final class NotchController {
             model.editingHome = false
             model.soloWidget = nil
             model.dragging = false
-            // Re-sync with the smaller closed region so the next hover is detected cleanly.
-            pointerInside = model.contains(NSEvent.mouseLocation)
+            // Re-sync with the smaller closed region so the next hover is detected cleanly, and
+            // so click-through doesn't wait for the pointer to move.
+            let mouse = NSEvent.mouseLocation
+            pointerInside = model.contains(mouse)
+            pointerOverBubble = model.bubble(at: mouse) != nil
+            updateClickThrough()
         }
     }
 }
