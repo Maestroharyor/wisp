@@ -55,7 +55,7 @@ final class NotchModel {
     var soloWidget: WidgetKind?
     var editingHome = false
     /// Widget order when customising began, restored on cancel.
-    var homeSnapshot: (layout: HomeLayout, enabled: [WidgetKind])?
+    var homeSnapshot: (layout: HomeLayout, enabled: [WidgetKind], profile: String)?
     /// A file drag is over the notch: show the quick-action tiles.
     var dragging = false
     /// Whether this display shows live activities.

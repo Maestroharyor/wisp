@@ -96,7 +96,9 @@ struct HomePage: View {
                 .padding(.top, 6)
             }
             Button {
-                if let snapshot = model.homeSnapshot {
+                // After a profile switch the snapshot belongs to the old profile; restoring it
+                // would save it into the new one.
+                if let snapshot = model.homeSnapshot, snapshot.profile == preferences.homeProfile {
                     preferences.homeLayout = snapshot.layout
                     preferences.enabledWidgets = snapshot.enabled
                 }

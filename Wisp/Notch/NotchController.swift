@@ -274,7 +274,9 @@ final class NotchController {
 
     private func customiseHome() {
         model.page = .home
-        model.homeSnapshot = (services.preferences.homeLayout, services.preferences.enabledWidgets)
+        model.homeSnapshot = (
+            services.preferences.homeLayout, services.preferences.enabledWidgets, services.preferences.homeProfile
+        )
         model.editingHome = true
         if machine.phase != .open { send(.hotkey) }
     }
