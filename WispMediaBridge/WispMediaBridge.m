@@ -88,16 +88,19 @@ static void refresh(void) {
                 if (app.localizedName) message[@"app"] = app.localizedName;
 
                 // Artwork is large; send it only when it or the track changes. Wisp clears the
-                // cover on a new track, so tracks sharing an album cover must still get it.
+                // cover on a new track (including the same song in another app), so tracks sharing
+                // an album cover must still get it. The track is remembered even without artwork,
+                // so going back to a previous song sends its cover again.
                 // -isEqualToData: compares every byte; -hash only looks at the first 80.
                 id artwork = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
-                NSString *track = [NSString stringWithFormat:@"%@\n%@\n%@", title, message[@"artist"], message[@"album"]];
-                if ([artwork isKindOfClass:[NSData class]]
-                    && (![track isEqualToString:lastArtworkTrack] || ![artwork isEqualToData:lastArtwork])) {
-                    lastArtwork = artwork;
-                    lastArtworkTrack = track;
-                    message[@"artwork"] = [artwork base64EncodedStringWithOptions:0];
+                NSString *track = [NSString stringWithFormat:@"%@\n%@\n%@\n%@", title, message[@"artist"],
+                                                             message[@"album"], app.bundleIdentifier ?: @""];
+                NSData *data = [artwork isKindOfClass:[NSData class]] ? artwork : nil;
+                if (data && (![track isEqualToString:lastArtworkTrack] || ![data isEqualToData:lastArtwork])) {
+                    message[@"artwork"] = [data base64EncodedStringWithOptions:0];
                 }
+                lastArtwork = data;
+                lastArtworkTrack = track;
                 emit(message);
             });
         });
