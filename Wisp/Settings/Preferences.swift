@@ -148,7 +148,10 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
 @Observable
 final class Preferences {
     static let shared: Preferences = {
-        importLegacyDefaults(into: .standard)
+        // Wisp Dev starts from scratch, so it shows first-run setup like a new install.
+        #if !DEBUG
+            importLegacyDefaults(into: .standard)
+        #endif
         return Preferences()
     }()
 
