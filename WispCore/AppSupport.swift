@@ -17,7 +17,7 @@ public enum AppSupport {
             .appendingPathComponent("agents.sock")
     }
 
-    /// The app a helper lives in: `<App>.app/Contents/Helpers/<helper>` gives `<App>.app`.
+    /// The app a helper lives in: `<App>.app/Contents/MacOS/<helper>` gives `<App>.app`.
     public static func appBundle(containingHelper helper: URL) -> URL {
         helper.resolvingSymlinksInPath().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()

@@ -20,7 +20,7 @@ final class AppSupportTests: XCTestCase {
     }
 
     func testTheAppAroundAHelper() {
-        let helper = URL(fileURLWithPath: "/Applications/Wisp.app/Contents/Helpers/wisp-agent")
+        let helper = URL(fileURLWithPath: "/Applications/Wisp.app/Contents/MacOS/wisp-agent")
         XCTAssertEqual(AppSupport.appBundle(containingHelper: helper).path, "/Applications/Wisp.app")
     }
 }
