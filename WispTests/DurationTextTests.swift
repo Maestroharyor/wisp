@@ -23,6 +23,12 @@ final class DurationTextTests: XCTestCase {
         XCTAssertNil(DurationText.seconds(from: "h"))
     }
 
+    func testRejectsValuesThatOverflow() {
+        XCTAssertNil(DurationText.seconds(from: "999999999999999999"))
+        XCTAssertNil(DurationText.seconds(from: "9999999999999999h"))
+        XCTAssertNil(DurationText.seconds(from: "9223372036854775807s1s"))
+    }
+
     func testFormatsForEditing() {
         XCTAssertEqual(DurationText.text(for: 8100), "2h 15m")
         XCTAssertEqual(DurationText.text(for: 300), "5m")
