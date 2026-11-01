@@ -61,9 +61,10 @@ public struct TrayList: Sendable, Equatable {
 public enum ArchiveNaming {
     public static func name(for urls: [URL], existing: Set<String>) -> String {
         let base = urls.count == 1 ? (urls.first?.deletingPathExtension().lastPathComponent ?? "Archive") : "Archive"
+        let taken = FileNameKey.keys(existing)
         var candidate = "\(base).zip"
         var index = 2
-        while existing.contains(candidate) {
+        while taken.contains(FileNameKey.key(candidate)) {
             candidate = "\(base) \(index).zip"
             index += 1
         }
@@ -71,7 +72,7 @@ public enum ArchiveNaming {
     }
 
     /// Names for files gathered into one folder before zipping. Files with the same name
-    /// from different folders get " 2", " 3" before the extension instead of clashing.
+    /// from different folders (or differing only in case) get " 2", " 3" before the extension.
     public static func stagedNames(for urls: [URL]) -> [String] {
         var used: Set<String> = []
         return urls.map { url in
@@ -80,11 +81,11 @@ public enum ArchiveNaming {
             let stem = url.deletingPathExtension().lastPathComponent
             var candidate = name
             var index = 2
-            while used.contains(candidate) {
+            while used.contains(FileNameKey.key(candidate)) {
                 candidate = ext.isEmpty ? "\(stem) \(index)" : "\(stem) \(index).\(ext)"
                 index += 1
             }
-            used.insert(candidate)
+            used.insert(FileNameKey.key(candidate))
             return candidate
         }
     }

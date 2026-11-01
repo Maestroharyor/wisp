@@ -57,6 +57,20 @@ final class TransformAndShakeTests: XCTestCase {
             "Photo converted.heic", "never overwrite the original")
     }
 
+    func testOutputNameAvoidsFilesDifferingOnlyInCase() {
+        let source = URL(fileURLWithPath: "/tmp/IMG_0001.HEIC")
+        XCTAssertEqual(
+            TransformNaming.output(for: source, suffix: nil, ext: "jpg", existing: ["IMG_0001.HEIC", "IMG_0001.JPG"])
+                .lastPathComponent,
+            "IMG_0001 2.jpg")
+        let decomposed = "Cafe\u{301}.png"
+        XCTAssertEqual(
+            TransformNaming.output(
+                for: URL(fileURLWithPath: "/tmp/Café.heic"), suffix: nil, ext: "png", existing: [decomposed]
+            ).lastPathComponent,
+            "Café 2.png")
+    }
+
     func testRenamePattern() {
         let date = Date(timeIntervalSince1970: 1_761_696_000)  // 2025-10-29 UTC
         XCTAssertEqual(

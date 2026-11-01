@@ -68,4 +68,10 @@ final class TrayListTests: XCTestCase {
         let urls = [URL(fileURLWithPath: "/a/Photos"), URL(fileURLWithPath: "/b/Photos")]
         XCTAssertEqual(ArchiveNaming.stagedNames(for: urls), ["Photos", "Photos 2"])
     }
+
+    func testNamesDifferingOnlyInCaseClash() {
+        XCTAssertEqual(ArchiveNaming.name(for: [a, b], existing: ["archive.ZIP"]), "Archive 2.zip")
+        let urls = [URL(fileURLWithPath: "/a/README.md"), URL(fileURLWithPath: "/b/Readme.md")]
+        XCTAssertEqual(ArchiveNaming.stagedNames(for: urls), ["README.md", "Readme 2.md"])
+    }
 }
