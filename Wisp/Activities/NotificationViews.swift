@@ -8,7 +8,6 @@ struct NotificationCardView: View {
     let item: NotificationItem
     let model: NotchModel
 
-    @State private var reply = ""
     @State private var sending = false
     @State private var failed = false
     @FocusState private var fieldFocused: Bool
@@ -19,6 +18,10 @@ struct NotificationCardView: View {
     }
 
     private var replying: Bool { model.replyingTo?.id == item.id }
+
+    private var draft: Binding<String> {
+        Binding(get: { model.replyDraft }, set: { model.replyDraft = $0 })
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -56,11 +59,13 @@ struct NotificationCardView: View {
         }
         .foregroundStyle(.white)
         .onChange(of: replying) { _, now in fieldFocused = now }
+        // Rebuilt after another alert took its place: focus the field again.
+        .onAppear { if replying { fieldFocused = true } }
     }
 
     private var replyBar: some View {
         HStack(spacing: 8) {
-            TextField(failed ? "Couldn't send. Try again" : placeholder, text: $reply)
+            TextField(failed ? "Couldn't send. Try again" : placeholder, text: draft)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($fieldFocused)
@@ -76,7 +81,7 @@ struct NotificationCardView: View {
                     .background(Circle().fill(Color.accentColor))
             }
             .buttonStyle(.plain)
-            .disabled(reply.trimmingCharacters(in: .whitespaces).isEmpty || sending)
+            .disabled(model.replyDraft.trimmingCharacters(in: .whitespaces).isEmpty || sending)
         }
     }
 
@@ -90,7 +95,7 @@ struct NotificationCardView: View {
     }
 
     private func send() {
-        let text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = model.replyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !sending else { return }
         sending = true
         failed = false

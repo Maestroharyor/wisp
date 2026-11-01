@@ -221,6 +221,7 @@ final class NotchController {
 
     private func endReply() {
         model.replyingTo = nil
+        model.replyDraft = ""
         panel.resignKey()
         updateClickThrough()
     }
