@@ -26,7 +26,13 @@ public enum AgentSource: String, Equatable, Sendable {
     /// Events whose hooks only report and never answer, so Claude Code may run them in the
     /// background (`"async": true`). Codex documents no such option.
     public var backgroundHookEvents: Set<String> {
-        self == .claude ? ["PreCompact", "PostCompact"] : []
+        self == .claude ? Set(["PreCompact", "PostCompact"] + toolHookEvents) : []
+    }
+
+    /// Tool activity hooks, added only when the user turns tool activity on. They fire on
+    /// every tool call, so they always run in the background. Codex's come in a later phase.
+    public var toolHookEvents: [String] {
+        self == .claude ? ["PreToolUse", "PostToolUse", "SubagentStop"] : []
     }
 }
 
@@ -41,6 +47,9 @@ public struct AgentEvent: Equatable, Sendable {
         case sessionEnd = "SessionEnd"
         case preCompact = "PreCompact"
         case postCompact = "PostCompact"
+        case preToolUse = "PreToolUse"
+        case postToolUse = "PostToolUse"
+        case subagentStop = "SubagentStop"
         case other
     }
 
@@ -49,6 +58,9 @@ public struct AgentEvent: Equatable, Sendable {
     /// The working folder's name, the label people recognise a session by.
     public let project: String
     public let toolName: String?
+    /// Pairs a PreToolUse with its PostToolUse.
+    public let toolUseID: String?
+    public let toolInput: ToolInput
     /// The command, file or description the tool call is about.
     public let summary: String
     public let message: String?
@@ -78,6 +90,8 @@ public struct AgentEvent: Equatable, Sendable {
         self.sessionID = json["session_id"]?.stringValue ?? "unknown"
         self.project = Self.projectName(cwd: cwd, source: source)
         self.toolName = json["tool_name"]?.stringValue
+        self.toolUseID = json["tool_use_id"]?.stringValue
+        self.toolInput = ToolInput(json: input)
         self.summary =
             input?["command"]?.stringValue ?? input?["file_path"]?.stringValue ?? input?["url"]?.stringValue
             ?? input?["description"]?.stringValue ?? ""
@@ -97,6 +111,40 @@ public struct AgentEvent: Equatable, Sendable {
     public static func projectName(cwd: String, source: AgentSource) -> String {
         let folder = URL(fileURLWithPath: cwd).lastPathComponent
         return cwd.isEmpty || folder == "/" ? (source == .codex ? "Codex" : "Claude") : folder
+    }
+}
+
+/// The parts of a tool call's input that tool activity labels are made from.
+public struct ToolInput: Equatable, Sendable {
+    public var command: String?
+    public var filePath: String?
+    public var notebookPath: String?
+    public var url: String?
+    public var pattern: String?
+    public var query: String?
+    public var description: String?
+    public var subagentType: String?
+
+    public init(
+        command: String? = nil, filePath: String? = nil, notebookPath: String? = nil, url: String? = nil,
+        pattern: String? = nil, query: String? = nil, description: String? = nil, subagentType: String? = nil
+    ) {
+        self.command = command
+        self.filePath = filePath
+        self.notebookPath = notebookPath
+        self.url = url
+        self.pattern = pattern
+        self.query = query
+        self.description = description
+        self.subagentType = subagentType
+    }
+
+    init(json: JSONValue?) {
+        self.init(
+            command: json?["command"]?.stringValue, filePath: json?["file_path"]?.stringValue,
+            notebookPath: json?["notebook_path"]?.stringValue, url: json?["url"]?.stringValue,
+            pattern: json?["pattern"]?.stringValue, query: json?["query"]?.stringValue,
+            description: json?["description"]?.stringValue, subagentType: json?["subagent_type"]?.stringValue)
     }
 }
 

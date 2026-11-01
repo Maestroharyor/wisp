@@ -20,10 +20,13 @@ public enum HookInstaller {
     /// Seconds a permission prompt waits for the notch before Claude Code shows its own.
     public static let approvalTimeout = 120
 
-    public static func install(into settings: Data, command: String, source: AgentSource = .claude) throws -> Data {
+    /// `tools` adds the tool activity hooks too; without it they're taken out.
+    public static func install(
+        into settings: Data, command: String, source: AgentSource = .claude, tools: Bool = false
+    ) throws -> Data {
         var root = try object(settings)
         var hooks = stripped(root["hooks"])
-        for event in source.hookEvents {
+        for event in source.hookEvents + (tools ? source.toolHookEvents : []) {
             let timeout = event == "PermissionRequest" ? approvalTimeout : 5
             var handler: [String: JSONValue] = [
                 "type": .string("command"), "command": .string(command), "timeout": .number(Double(timeout)),
@@ -82,7 +85,15 @@ public enum HookInstaller {
         if commands.isEmpty { return .none }
         let mine = command(helper: helper, source: source)
         guard commands.allSatisfy({ $0.command == mine }) else { return .other }
-        return Set(commands.map(\.event)) == Set(source.hookEvents) ? .this : .outdated
+        let installed = Set(commands.map(\.event))
+        let base = Set(source.hookEvents)
+        return installed == base || installed == base.union(source.toolHookEvents) ? .this : .outdated
+    }
+
+    /// Whether Wisp's tool activity hooks are in the file.
+    public static func toolsInstalled(in settings: Data) throws -> Bool {
+        let events = Set(try wispCommands(in: settings).map(\.event))
+        return !events.isDisjoint(with: AgentSource.claude.toolHookEvents)
     }
 
     public static func isInstalled(in settings: Data) throws -> Bool {
