@@ -129,7 +129,12 @@ final class NotificationMonitor {
     }
 
     private func pollFocus() {
-        guard hasAccess else { return }
+        guard hasAccess else {
+            // Without access Focus can't be read, so rules mustn't act on the last reading.
+            if lastFocus?.isOn == true { onFocusState(FocusModeState(isOn: false, name: nil, symbol: nil)) }
+            lastFocus = nil
+            return
+        }
         let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/DoNotDisturb/DB")
         guard let assertions = try? Data(contentsOf: folder.appendingPathComponent("Assertions.json")),
             let state = FocusModeState.parse(
