@@ -30,7 +30,8 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
 
 - **Coding agents in the notch**
   - Claude Code and Codex, connected from setup or Settings › Agents. Wisp edits `~/.claude/settings.json` or `~/.codex/hooks.json` and keeps a backup.
-  - A pill while a session works, Done when it finishes, and Needs you when it waits.
+  - A pill while a session works, Done when it finishes, and Needs you when it waits. With several sessions going, the most urgent one (just finished or waiting on you, then working) takes the pill and a "+N" badge counts the rest.
+  - **Tool activity** (opt-in, Claude Code): the pill shows what the session is doing, such as a terminal icon with `npm test` or a pencil with the file being edited, and the details list the current tool, tools used and subagents running. Secrets in commands (tokens, passwords, keys in URLs) are masked. Settings › Agents › Tool activity adds background hooks that never make a tool call wait.
   - Permission prompts become an Allow, Allow All or Deny card (a bar when the shelf is open), with a soft sound. Several at once queue up ("1 of 2") instead of replacing each other; prompts you leave fall back to the terminal.
   - Each project gets its own colour; each session shows its tokens and cost. Claude Code reports its own cost, model and lines changed; otherwise the cost is estimated from the transcript.
   - A ring around the agent's mark shows how full the context window is (amber from 70%, red from 90%), with an alert when it passes a level you pick and a "Compacting…" pill while the context is compacted.
@@ -201,7 +202,7 @@ Wisp has no account, no analytics and no server of its own. It only goes online 
 | Spotify | Nothing new: Wisp loads the cover from the URL the Spotify app gives it | Spotify is playing | Quit Spotify |
 | GitHub | A request for `appcast.xml` | Update checks; Wisp asks before checking automatically | Settings › About › "Check for updates automatically" |
 
-Agent hooks and the Claude Code status bar talk to Wisp over a Unix socket on your Mac; nothing about your sessions leaves it. Private mode checks which apps hold the microphone on your Mac; it sends nothing anywhere.
+Agent hooks and the Claude Code status bar talk to Wisp over a Unix socket on your Mac; nothing about your sessions leaves it. Tool activity labels are made and masked on your Mac too. Private mode checks which apps hold the microphone on your Mac; it sends nothing anywhere.
 
 Lyrics and artwork are on by default because the Now Playing feature looks broken without them. They follow the "feature lookups" rule in [AGENTS.md](AGENTS.md): visible feature only, minimum data, public endpoint, cached, own switch, listed here. Everything else that goes online stays off until you turn it on.
 

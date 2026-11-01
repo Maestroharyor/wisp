@@ -73,7 +73,7 @@ A new user gets permission prompts with no context.
 - "Jump to terminal" on a session.
 - Token and cost readout from the transcript.
 - A per-project colour.
-- Live figures from Claude Code's status bar (real cost, model, context window, lines changed), a terminal bar of Wisp's own and compaction in the pill. Transcripts, a 7-day spend trend and a private mode that hides commands and file names during calls. The rest of the Agent Bar (tool activity, CLI, alerts, Codex parity) is tracked in `PLAN.md`.
+- Live figures from Claude Code's status bar (real cost, model, context window, lines changed), a terminal bar of Wisp's own and compaction in the pill. Transcripts, a 7-day spend trend and a private mode that hides commands and file names during calls. Opt-in tool activity in the pill with masked secrets, and the most urgent session winning the pill with a count. The rest of the Agent Bar (CLI, alerts, Codex parity) is tracked in `PLAN.md`.
 
 ### I. Distribution
 
