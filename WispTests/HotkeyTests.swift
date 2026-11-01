@@ -35,6 +35,14 @@ final class HotkeyTests: XCTestCase {
         }
     }
 
+    func testKeysOutsideTheTableRoundTrip() {
+        let f5 = Hotkey(keyCode: 96, modifiers: [.command, .shift])
+        XCTAssertEqual(f5.stringValue, "shift+cmd+key96")
+        XCTAssertEqual(Hotkey(string: f5.stringValue), f5)
+        XCTAssertNil(Hotkey(string: "cmd+key"))
+        XCTAssertNil(Hotkey(string: "cmd+key99999"))
+    }
+
     func testClipboardShortcuts() {
         XCTAssertEqual(KeyCodes.v, 9)
         XCTAssertEqual(Hotkey.clipboardHyper, Hotkey(keyCode: 9, modifiers: .hyper))

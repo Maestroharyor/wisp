@@ -100,8 +100,12 @@ public enum KeyCodes {
         return letters.map { ($0.0, $0.1, $0.0.uppercased()) } + digits.map { ($0.0, $0.1, $0.0) } + named
     }()
 
+    /// Also reads the `key<code>` form that `name(for:)` writes for keys outside the table,
+    /// so any recorded shortcut survives a relaunch.
     public static func code(for name: String) -> UInt16? {
-        table.first { $0.name == name }?.code
+        if let code = table.first(where: { $0.name == name })?.code { return code }
+        guard name.hasPrefix("key") else { return nil }
+        return UInt16(name.dropFirst(3))
     }
 
     public static func name(for code: UInt16) -> String {
