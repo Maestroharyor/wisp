@@ -269,8 +269,16 @@ final class Preferences {
 
     /// Every look setting; saved as one JSON value.
     var appearance: Appearance {
-        didSet { defaults.set(try? JSONEncoder().encode(appearance), forKey: Key.appearance) }
+        didSet {
+            defaults.set(try? JSONEncoder().encode(appearance), forKey: Key.appearance)
+            // An edit by hand (a theme, a slider, a look) is the new base, so the next profile
+            // switch must not put an older look back over it.
+            if !applyingProfileLook { lookBeforeProfile = nil }
+        }
     }
+
+    /// Set while a profile puts on (or takes off) its own look, which isn't an edit by hand.
+    @ObservationIgnored private var applyingProfileLook = false
 
     /// Looks saved under a name in Settings › Appearance.
     var lookPresets: [AppearancePreset] {
@@ -361,6 +369,8 @@ final class Preferences {
     /// keeps the current Home. Used by automatic switches.
     func applySurface(_ profile: Profile) {
         activeProfile = profile.name
+        applyingProfileLook = true
+        defer { applyingProfileLook = false }
         if let name = profile.look, let preset = lookPreset(named: name) {
             if lookBeforeProfile == nil { lookBeforeProfile = appearance }
             appearance = preset.appearance.keepingSounds(of: appearance)
@@ -395,8 +405,6 @@ final class Preferences {
     func applyLook(_ look: Appearance) {
         let next = look.keepingSounds(of: appearance)
         appearance = next
-        // A look picked by hand is the new base; a profile switch must not put an older one back.
-        lookBeforeProfile = nil
         updateActiveProfile { $0.surface = next.surface.rawValue }
     }
 
