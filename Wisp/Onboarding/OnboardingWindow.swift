@@ -8,6 +8,8 @@ import WispCore
 final class OnboardingWindowController {
     private var window: NSWindow?
     private let services: AppServices
+    /// Long enough for the setup window to go before the shelf opens.
+    private static let shelfDelay = Duration.milliseconds(400)
 
     init(services: AppServices) {
         self.services = services
@@ -22,7 +24,9 @@ final class OnboardingWindowController {
     }
 
     private func makeWindow() -> NSWindow {
-        let view = OnboardingView(services: services) { [weak self] in self?.finish() }
+        let view = OnboardingView(services: services, granted: { [weak self] in self?.bringForward() }) { [weak self] in
+            self?.finish()
+        }
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Welcome to Wisp"
         window.styleMask = [.titled, .closable, .fullSizeContentView]
@@ -45,11 +49,25 @@ final class OnboardingWindowController {
         window?.orderOut(nil)
         // The hotkey waits for Accessibility; ask now if setup was skipped.
         if !AccessibilityPermission.isTrusted { AccessibilityPermission.requestAccess() }
+        // Show where Wisp lives, once the window has gone.
+        Task { [services] in
+            try? await Task.sleep(for: Self.shelfDelay)
+            services.openShelf(.home)
+        }
+    }
+
+    /// Accessibility is switched on in System Settings, which covers this window, and a menu
+    /// bar app has no Dock icon to get back with.
+    fileprivate func bringForward() {
+        guard let window, window.isVisible else { return }
+        window.orderFrontRegardless()
+        NSApp.activate()
     }
 }
 
 private struct OnboardingView: View {
     let services: AppServices
+    let granted: () -> Void
     let done: () -> Void
 
     @State private var step = OnboardingStep.accessibility
@@ -77,7 +95,10 @@ private struct OnboardingView: View {
             // Accessibility is granted in System Settings; watch for it.
             while !Task.isCancelled {
                 let now = AccessibilityPermission.isTrusted
-                if now != trusted { trusted = now }
+                if now != trusted {
+                    trusted = now
+                    if now { granted() }
+                }
                 try? await Task.sleep(for: .seconds(1))
             }
         }

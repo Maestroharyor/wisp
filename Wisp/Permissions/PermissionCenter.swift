@@ -3,6 +3,7 @@ import AppKit
 import Contacts
 import CoreGraphics
 import EventKit
+import WispCore
 
 /// Every macOS permission Wisp can use, with a status check and a deep link.
 enum Permission: String, CaseIterable, Identifiable {
@@ -41,17 +42,22 @@ enum Permission: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Nil when macOS offers no way to check (Automation is granted per target app).
+    /// Nil when macOS can't say yet (Automation, while neither Finder nor System Events can answer).
     @MainActor var isGranted: Bool? {
         switch self {
         case .accessibility: AccessibilityPermission.isTrusted
         case .fullDiskAccess: Self.hasFullDiskAccess
         case .screenRecording: CGPreflightScreenCaptureAccess()
         case .contacts: CNContactStore.authorizationStatus(for: .contacts) == .authorized
-        case .automation: nil
+        case .automation: AutomationPermission.status
         case .calendars: EKEventStore.authorizationStatus(for: .event) == .fullAccess
         case .camera: AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         }
+    }
+
+    /// Every status by id, for spotting changes.
+    @MainActor static var statuses: [String: Bool?] {
+        Dictionary(uniqueKeysWithValues: allCases.map { ($0.rawValue, $0.isGranted) })
     }
 
     private var settingsAnchor: String {
@@ -66,7 +72,11 @@ enum Permission: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The last Allow clicked, so the grant that answers it can bring Wisp forward.
+    @MainActor static var lastRequest: PermissionRequest?
+
     @MainActor func request() {
+        Self.lastRequest = PermissionRequest(id: rawValue, at: .now)
         switch self {
         case .accessibility: AccessibilityPermission.requestAccess()
         // macOS asks only the first time; after that the switch is in System Settings.

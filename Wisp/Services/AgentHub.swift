@@ -34,8 +34,11 @@ final class AgentHub {
     private(set) var queue = ApprovalQueue<UUID>()
     private var pending: [UUID: AgentApproval] = [:]
     var approvals: [AgentApproval] { queue.items.compactMap { pending[$0] } }
-    /// Agents whose hooks point at Wisp.
+    /// Sources whose hooks call this copy's helper.
     private(set) var connected: Set<AgentSource> = []
+    /// Sources whose hooks call another copy's helper (a dev build, a moved app), which
+    /// sends events to that copy instead of this one.
+    private(set) var connectedElsewhere: Set<AgentSource> = []
     private(set) var listening = false
     /// Estimated spend per day across every session, kept for a month.
     private(set) var spend: DailySpend
@@ -368,12 +371,19 @@ final class AgentHub {
     func isConnected(_ source: AgentSource) -> Bool { connected.contains(source) }
 
     func refreshInstalled() {
-        var next: Set<AgentSource> = []
+        var here: Set<AgentSource> = []
+        var elsewhere: Set<AgentSource> = []
+        let helper = Self.helperURL?.path ?? ""
         for source in [AgentSource.claude, .codex] {
             let data = (try? Data(contentsOf: Self.settingsURL(source))) ?? Data()
-            if (try? HookInstaller.isInstalled(in: data)) == true { next.insert(source) }
+            switch (try? HookInstaller.link(in: data, helper: helper, source: source)) ?? HookLink.none {
+            case .this: here.insert(source)
+            case .other: elsewhere.insert(source)
+            case .none: break
+            }
         }
-        if next != connected { connected = next }
+        if here != connected { connected = here }
+        if elsewhere != connectedElsewhere { connectedElsewhere = elsewhere }
     }
 
     private func displayPath(_ source: AgentSource) -> String {
@@ -389,16 +399,26 @@ final class AgentHub {
         let url = Self.settingsURL(source)
         let path = displayPath(source)
         let original = (try? Data(contentsOf: url)) ?? Data()
-        let quoted = "'" + helper.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        let command = source == .claude ? quoted : quoted + " --source codex"
+        let command = HookInstaller.command(helper: helper.path, source: source)
         guard let updated = try? HookInstaller.install(into: original, command: command, source: source) else {
             alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
             return
         }
         let events = source.hookEvents.joined(separator: ", ")
         let trust = source == .codex ? " Codex asks you to trust new hooks once: run /hooks in Codex." : ""
-        guard
-            confirm(
+        // Hooks from another copy (a dev build, a moved app) are replaced, not added to.
+        let hasWispHooks = (try? HookInstaller.isInstalled(in: original)) ?? false
+        let confirmed =
+            hasWispHooks
+            ? confirm(
+                "Point \(source.displayName)'s hooks at this Wisp?",
+                detail: """
+                    Wisp's hooks in \(path) call another copy of Wisp, so this one doesn't see your sessions. \
+                    They'll call this copy instead. Your other settings and hooks stay as they are, though the \
+                    file is rewritten with sorted keys.\(trust)
+                    """,
+                action: "Use This Wisp")
+            : confirm(
                 "Add Wisp's hooks to \(source.displayName)?",
                 detail: """
                     Wisp adds a command hook for \(events) to \(path). Your other settings and hooks stay as they \
@@ -407,13 +427,12 @@ final class AgentHub {
                     the notch, then fall back to the terminal.\(trust)
                     """,
                 action: "Add Hooks")
-        else { return }
+        guard confirmed else { return }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             // Back up only a file Wisp hasn't touched yet; reinstalling would otherwise replace the
             // user's original with a copy that already has Wisp's hooks.
-            let hasWispHooks = (try? HookInstaller.isInstalled(in: original)) ?? false
             if !original.isEmpty, !hasWispHooks {
                 try original.write(to: url.appendingPathExtension("wisp-backup"), options: .atomic)
             }

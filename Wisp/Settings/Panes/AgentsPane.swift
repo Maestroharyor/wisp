@@ -63,14 +63,20 @@ private struct AgentConnection: View {
 
     var body: some View {
         let connected = hub.isConnected(source)
+        let elsewhere = hub.connectedElsewhere.contains(source)
         Section(source.displayName) {
             LabeledContent("Status") {
                 HStack(spacing: 6) {
-                    Circle().fill(connected ? Color.green : Color.secondary).frame(width: 8, height: 8)
-                    Text(connected ? "Connected" : "Not connected")
+                    Circle().fill(connected ? Color.green : elsewhere ? Color.orange : Color.secondary)
+                        .frame(width: 8, height: 8)
+                    Text(connected ? "Connected" : elsewhere ? "Hooks point at another copy of Wisp" : "Not connected")
                 }
             }
             if connected {
+                Button("Disconnect \(source.displayName)") { hub.removeHooks(source) }
+            } else if elsewhere {
+                // Its events go to that copy, so this one shows no sessions until switched.
+                Button("Use this Wisp") { hub.installHooks(source) }
                 Button("Disconnect \(source.displayName)") { hub.removeHooks(source) }
             } else {
                 Button("Connect \(source.displayName)") { hub.installHooks(source) }

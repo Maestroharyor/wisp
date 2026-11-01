@@ -162,6 +162,62 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertEqual(try json(HookInstaller.remove(from: existing)), try json(existing))
     }
 
+    func testCommandQuotesTheHelperAndTagsCodex() {
+        XCTAssertEqual(HookInstaller.command(helper: "/A/wisp-agent", source: .claude), "'/A/wisp-agent'")
+        XCTAssertEqual(
+            HookInstaller.command(helper: "/A/wisp-agent", source: .codex), "'/A/wisp-agent' --source codex")
+        XCTAssertEqual(HookInstaller.command(helper: "/It's/wisp-agent", source: .claude), #"'/It'\''s/wisp-agent'"#)
+    }
+
+    func testLinkSeesNoHooks() throws {
+        XCTAssertEqual(try HookInstaller.link(in: Data("{}".utf8), helper: installedHelper, source: .claude), .none)
+    }
+
+    func testLinkSeesThisCopy() throws {
+        for source in [AgentSource.claude, .codex] {
+            let settings = try installed(helper: installedHelper, source: source)
+            XCTAssertEqual(try HookInstaller.link(in: settings, helper: installedHelper, source: source), .this)
+        }
+    }
+
+    func testLinkSeesAnotherCopy() throws {
+        let settings = try installed(helper: devHelper, source: .claude)
+        XCTAssertEqual(try HookInstaller.link(in: settings, helper: installedHelper, source: .claude), .other)
+        XCTAssertEqual(try HookInstaller.link(in: settings, helper: devHelper, source: .claude), .this)
+    }
+
+    func testLinkHandlesAQuoteInThePath() throws {
+        let helper = "/Users/o'neil/Wisp.app/Contents/MacOS/wisp-agent"
+        let settings = try installed(helper: helper, source: .claude)
+        XCTAssertEqual(try HookInstaller.link(in: settings, helper: helper, source: .claude), .this)
+    }
+
+    func testAMixOfCopiesIsAnotherCopy() throws {
+        let this = HookInstaller.command(helper: installedHelper, source: .claude)
+        let other = HookInstaller.command(helper: devHelper, source: .claude)
+        let settings: JSONValue = .object([
+            "hooks": .object([
+                "Stop": .array(
+                    [this, other].map { command in
+                        .object([
+                            "matcher": .string(""),
+                            "hooks": .array([.object(["type": .string("command"), "command": .string(command)])]),
+                        ])
+                    })
+            ])
+        ])
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertEqual(try HookInstaller.link(in: data, helper: installedHelper, source: .claude), .other)
+    }
+
+    private let installedHelper = "/Applications/Wisp.app/Contents/MacOS/wisp-agent"
+    private let devHelper = "/Users/me/wisp/build/Build/Products/Debug/Wisp.app/Contents/MacOS/wisp-agent"
+
+    private func installed(helper: String, source: AgentSource) throws -> Data {
+        try HookInstaller.install(
+            into: Data("{}".utf8), command: HookInstaller.command(helper: helper, source: source), source: source)
+    }
+
     func testRemoveKeepsTheUsersEmptyEntries() throws {
         let existing = Data(#"{"hooks":{"PreToolUse":[]}}"#.utf8)
         let installed = try HookInstaller.install(into: existing, command: command)

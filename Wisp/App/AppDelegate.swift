@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         services.openSettings = { [weak self] in self?.showSettings() }
         services.openClipboard = { [weak self] in self?.toggleClipboard() }
         services.openSetup = { [weak self] in self?.onboarding.show() }
+        services.openShelf = { [weak self] page in self?.coordinator.openShelf(page: page) }
         services.start()
         coordinator.start()
         hotkeys.onToggle = { [weak self] in self?.toggleShelf() }
