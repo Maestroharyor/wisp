@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// Runs a command off the main thread and returns what it printed.
 enum ProcessRunner {
@@ -9,6 +10,8 @@ enum ProcessRunner {
     }
 
     struct TimedOut: Error {}
+
+    private static let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "process")
 
     /// GUI apps get a bare PATH; add the usual install places so `{tool}` resolves the way
     /// it does in Terminal.
@@ -70,6 +73,9 @@ enum ProcessRunner {
         // (`daemon &`), past any timeout, so give it a moment and then stop listening.
         for _ in 0..<50 where !collected.reachedEnd {
             try? await Task.sleep(for: .milliseconds(20))
+        }
+        if !collected.reachedEnd {
+            log.notice("\(path, privacy: .public) exited but its output stayed open; stopped reading")
         }
         output.fileHandleForReading.readabilityHandler = nil
         if collected.timedOut { throw TimedOut() }
