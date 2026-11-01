@@ -109,9 +109,9 @@ struct SettingsView: View {
         }
         .frame(minWidth: 700, minHeight: 480)
         .task {
-            // Grants happen in System Settings; keep the health badge current while open, and
-            // come back to the front when one goes through.
-            // Its own snapshot, so a Refresh click in the pane can't hide a change from it.
+            // Grants happen in System Settings: keep the badge current and come forward for the
+            // grant that answers Allow. The loop keeps its own snapshot so a Refresh click in the
+            // pane can't hide a change from it.
             var last = model.statuses
             while !Task.isCancelled {
                 await AutomationPermission.refresh()
@@ -120,7 +120,11 @@ struct SettingsView: View {
                 last = model.statuses
                 let answersAllow = PermissionWatch.shouldBringForward(
                     newlyGranted: newlyGranted, request: Permission.lastRequest, now: .now)
-                if answersAllow { granted() }
+                if answersAllow {
+                    // Once per Allow; a later revoke and re-grant shouldn't pull Wisp forward again.
+                    Permission.lastRequest = nil
+                    granted()
+                }
                 try? await Task.sleep(for: .seconds(1))
             }
         }
