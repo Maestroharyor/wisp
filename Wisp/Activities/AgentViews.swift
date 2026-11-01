@@ -367,7 +367,8 @@ private struct SessionDetail: View {
                     }
                 }
                 .onAppear { proxy.scrollTo(session.timeline.last?.id, anchor: .bottom) }
-                .onChange(of: session.timeline.count) { proxy.scrollTo(session.timeline.last?.id, anchor: .bottom) }
+                // The timeline keeps the latest 40 entries, so its count stops changing; its last id doesn't.
+                .onChange(of: session.timeline.last?.id) { proxy.scrollTo(session.timeline.last?.id, anchor: .bottom) }
             }
             HStack(spacing: 6) {
                 TextField(note ?? "Draft a prompt…", text: $draft)
