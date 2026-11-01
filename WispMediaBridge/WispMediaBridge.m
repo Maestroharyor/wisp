@@ -95,12 +95,15 @@ static void refresh(void) {
                 id artwork = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
                 NSString *track = [NSString stringWithFormat:@"%@\n%@\n%@\n%@", title, message[@"artist"],
                                                              message[@"album"], app.bundleIdentifier ?: @""];
-                NSData *data = [artwork isKindOfClass:[NSData class]] ? artwork : nil;
-                if (data && (![track isEqualToString:lastArtworkTrack] || ![data isEqualToData:lastArtwork])) {
-                    message[@"artwork"] = [data base64EncodedStringWithOptions:0];
-                }
-                lastArtwork = data;
+                // Updates without artwork (elapsed time, rate) keep the cached cover, so it isn't
+                // sent again when the next update includes it.
+                if (![track isEqualToString:lastArtworkTrack]) lastArtwork = nil;
                 lastArtworkTrack = track;
+                NSData *data = [artwork isKindOfClass:[NSData class]] ? artwork : nil;
+                if (data && ![data isEqualToData:lastArtwork]) {
+                    message[@"artwork"] = [data base64EncodedStringWithOptions:0];
+                    lastArtwork = data;
+                }
                 emit(message);
             });
         });
