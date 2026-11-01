@@ -100,7 +100,6 @@ targets:
         NSContactsUsageDescription: Wisp shows contact photos on notifications.
         SUFeedURL: https://github.com/Maestroharyor/wisp/releases/latest/download/appcast.xml
         SUPublicEDKey: uWF1jHIoXFoGaVJMhVj3Y6lG9o6EXOzkfqqJED1WbIc=
-        SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
         NSCameraUsageDescription: Wisp shows your camera in the Mirror widget so you can check yourself before a call.
     entitlements:

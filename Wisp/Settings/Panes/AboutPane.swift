@@ -66,7 +66,7 @@ struct AboutSettings: View {
                 Text("Updates")
             } footer: {
                 Text(
-                    "Wisp checks GitHub Releases once a day. Updates are signed, and your settings and permissions are kept."
+                    "With automatic checks on, Wisp looks at GitHub Releases once a day. Updates are signed, and your settings and permissions are kept."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
