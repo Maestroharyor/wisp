@@ -114,10 +114,13 @@ struct WidgetSettings: View {
         Binding(
             get: { preferences.worldClockZones.indices.contains(index) ? preferences.worldClockZones[index] : "" },
             set: { identifier in
-                var zones = preferences.worldClockZones
+                // Slots stay put (an empty one is kept as ""; the widget skips it), and a city
+                // picked twice moves rather than showing twice.
+                var zones = preferences.worldClockZones.map { $0 == identifier ? "" : $0 }
                 while zones.count <= index { zones.append("") }
                 zones[index] = identifier
-                preferences.worldClockZones = zones.filter { !$0.isEmpty }
+                while zones.last == "" { zones.removeLast() }
+                preferences.worldClockZones = zones
             })
     }
 
