@@ -69,7 +69,7 @@ private struct AgentConnection: View {
                 HStack(spacing: 6) {
                     Circle().fill(connected ? Color.green : elsewhere ? Color.orange : Color.secondary)
                         .frame(width: 8, height: 8)
-                    Text(connected ? "Connected" : elsewhere ? "Connected to another copy of Wisp" : "Not connected")
+                    Text(connected ? "Connected" : elsewhere ? "Hooks point at another copy of Wisp" : "Not connected")
                 }
             }
             if connected {
