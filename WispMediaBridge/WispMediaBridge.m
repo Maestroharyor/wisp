@@ -34,6 +34,8 @@ static NSString *lastArtworkTrack;
 static BOOL refreshQueued;
 
 static void emit(NSDictionary *message) {
+    // dataWithJSONObject: throws (rather than failing) on NaN or infinity, which would kill the host.
+    if (![NSJSONSerialization isValidJSONObject:message]) return;
     NSData *json = [NSJSONSerialization dataWithJSONObject:message options:0 error:nil];
     if (!json) return;
     fwrite(json.bytes, 1, json.length, stdout);
@@ -45,8 +47,10 @@ static NSString *stringValue(id value) {
     return [value isKindOfClass:[NSString class]] ? value : @"";
 }
 
+// Live streams can report an infinite duration; JSON has no way to say that.
 static double numberValue(id value) {
-    return [value isKindOfClass:[NSNumber class]] ? [value doubleValue] : 0;
+    double number = [value isKindOfClass:[NSNumber class]] ? [value doubleValue] : 0;
+    return isfinite(number) ? number : 0;
 }
 
 static void refresh(void) {
