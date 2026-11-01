@@ -4,22 +4,32 @@ import Foundation
 public struct AgentFact: Equatable, Sendable, Identifiable {
     public let label: String
     public let value: String
+    /// Gives away work (a path, a name, an ID), so it's hidden in private mode.
+    public let isPrivate: Bool
 
     public var id: String { label }
 
-    public init(_ label: String, _ value: String) {
+    public init(_ label: String, _ value: String, isPrivate: Bool = false) {
         self.label = label
         self.value = value
+        self.isPrivate = isPrivate
     }
 }
 
 extension AgentSession {
     /// Everything known about the session, most useful first. Facts nobody reported are
-    /// left out, so a session without Claude Code's status bar shows fewer.
-    public func facts(now: Date) -> [AgentFact] {
+    /// left out, so a session without Claude Code's status bar shows fewer. When `hidden`,
+    /// private facts keep their place but show a placeholder.
+    public func facts(now: Date, hidden: Bool = false) -> [AgentFact] {
+        let all = allFacts(now: now)
+        guard hidden else { return all }
+        return all.map { $0.isPrivate ? AgentFact($0.label, AgentPrivacy.placeholder, isPrivate: true) : $0 }
+    }
+
+    private func allFacts(now: Date) -> [AgentFact] {
         var result: [AgentFact] = []
         let live = extras
-        if let name = live.sessionName, !name.isEmpty { result.append(AgentFact("Name", name)) }
+        if let name = live.sessionName, !name.isEmpty { result.append(AgentFact("Name", name, isPrivate: true)) }
         if let model = displayModel {
             var detail = [model]
             if let effort = live.effort { detail.append("\(effort) effort") }
@@ -70,12 +80,12 @@ extension AgentSession {
         }
         if let style = live.outputStyle, style != "default" { result.append(AgentFact("Output style", style)) }
         if autoApprove { result.append(AgentFact("Approvals", "Allow All is on")) }
-        if !cwd.isEmpty { result.append(AgentFact("Folder", cwd)) }
+        if !cwd.isEmpty { result.append(AgentFact("Folder", cwd, isPrivate: true)) }
         var agent = source.displayName
         if let version = live.version { agent += " \(version)" }
         result.append(AgentFact("Agent", agent))
         result.append(AgentFact("Last activity", Self.ago(now.timeIntervalSince(updated))))
-        result.append(AgentFact("Session ID", id))
+        result.append(AgentFact("Session ID", id, isPrivate: true))
         return result
     }
 

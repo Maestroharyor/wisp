@@ -20,7 +20,9 @@ final class AgentTimelineTests: XCTestCase {
         sessions.apply(try event("Stop"), at: start)
         let timeline = try XCTUnwrap(sessions.session("s")?.timeline)
         XCTAssertEqual(timeline.map(\.kind), [.started, .prompt, .request, .allowed, .done])
-        XCTAssertEqual(timeline[2].text, "Bash: npm test")
+        XCTAssertEqual(timeline[2].display(hidden: false), "Bash: npm test")
+        XCTAssertEqual(timeline[2].display(hidden: true), "Bash")
+        XCTAssertEqual(timeline[0].display(hidden: true), "Session started")
     }
 
     func testTimelineIsCapped() throws {
@@ -64,6 +66,25 @@ final class DailySpendTests: XCTestCase {
         XCTAssertEqual(spend.total(on: day, calendar: calendar), 0)
         for offset in 0..<40 { spend.add(1, on: day.addingTimeInterval(Double(-offset) * 86_400), calendar: calendar) }
         XCTAssertEqual(spend.days.count, DailySpend.keptDays)
+    }
+
+    func testRecentDaysOldestFirstWithGaps() {
+        var spend = DailySpend()
+        spend.add(1, on: day, calendar: calendar)
+        spend.add(3, on: day.addingTimeInterval(-2 * 86_400), calendar: calendar)
+        spend.add(9, on: day.addingTimeInterval(-7 * 86_400), calendar: calendar)
+        XCTAssertEqual(spend.recent(days: 7, ending: day, calendar: calendar), [0, 0, 0, 0, 3, 0, 1])
+        XCTAssertEqual(spend.total(lastDays: 7, ending: day, calendar: calendar), 4, accuracy: 1e-9)
+        XCTAssertEqual(spend.total(lastDays: 8, ending: day, calendar: calendar), 13, accuracy: 1e-9)
+    }
+
+    func testRecentDaysCrossAMonthAndCanBeEmpty() {
+        var spend = DailySpend()
+        let firstOfMonth = Date(timeIntervalSince1970: 1_793_491_200)  // 1 Nov 2026, UTC
+        spend.add(2, on: firstOfMonth.addingTimeInterval(-86_400), calendar: calendar)
+        XCTAssertEqual(spend.recent(days: 3, ending: firstOfMonth, calendar: calendar), [0, 2, 0])
+        XCTAssertEqual(DailySpend().recent(days: 7, ending: day, calendar: calendar), Array(repeating: 0, count: 7))
+        XCTAssertEqual(spend.recent(days: 0, ending: day, calendar: calendar), [])
     }
 
     func testRoundTripsThroughJSON() throws {

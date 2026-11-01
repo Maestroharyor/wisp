@@ -92,7 +92,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .agents:
             [
                 "claude", "claude code", "codex", "ai", "hooks", "approve", "allow", "deny", "sessions", "sound",
-                "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact",
+                "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
+                "private", "hide", "call", "screen share", "transcript",
             ]
         case .permissions:
             ["accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera"]
