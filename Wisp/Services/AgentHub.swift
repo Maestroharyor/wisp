@@ -414,7 +414,8 @@ final class AgentHub {
                 "Point \(source.displayName)'s hooks at this Wisp?",
                 detail: """
                     Wisp's hooks in \(path) call another copy of Wisp, so this one doesn't see your sessions. \
-                    They'll call this copy instead; your other settings and hooks stay as they are.\(trust)
+                    They'll call this copy instead. Your other settings and hooks stay as they are, though the \
+                    file is rewritten with sorted keys.\(trust)
                     """,
                 action: "Use This Wisp")
             : confirm(
