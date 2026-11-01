@@ -11,8 +11,14 @@ final class Updater {
     private(set) var canCheckForUpdates = false
     private(set) var lastCheck: Date?
 
+    // Wisp Dev never checks: an update would replace the development build with the release.
+    #if DEBUG
+        private static let startsUpdater = false
+    #else
+        private static let startsUpdater = true
+    #endif
     @ObservationIgnored private let controller = SPUStandardUpdaterController(
-        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        startingUpdater: Updater.startsUpdater, updaterDelegate: nil, userDriverDelegate: nil)
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
 
     init() {
