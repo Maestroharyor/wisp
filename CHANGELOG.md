@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Maestroharyor/wisp/compare/v0.1.0...v0.1.1) (2026-11-01)
+
+
+### Bug fixes
+
+* mic pill, permission prompts and a separate Wisp Dev ([a9d4ee6](https://github.com/Maestroharyor/wisp/commit/a9d4ee686cd3b2e92890a9ac750ecc765a3e5c69))
+
 ## [0.1.0](https://github.com/Maestroharyor/wisp/compare/v0.1.0...v0.1.0) (2026-11-01)
 
 
