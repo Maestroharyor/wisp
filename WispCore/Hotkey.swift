@@ -29,6 +29,12 @@ public struct Hotkey: Sendable, Hashable, CustomStringConvertible {
 
     public var usesHyper: Bool { modifiers.contains(.hyper) }
 
+    /// Shift alone would swallow capitals in every app, so a shortcut needs ⌃, ⌥, ⌘ or
+    /// Caps Lock, unless it's on a function key.
+    public var isUsable: Bool {
+        !modifiers.isDisjoint(with: [.control, .option, .command, .hyper]) || KeyCodes.isFunctionKey(keyCode)
+    }
+
     /// Serialised form, e.g. "hyper+space" or "cmd+shift+k".
     public var stringValue: String {
         (Self.modifierNames.filter { modifiers.contains($0.modifier) }.map(\.name) + [KeyCodes.name(for: keyCode)])
@@ -42,7 +48,7 @@ public struct Hotkey: Sendable, Hashable, CustomStringConvertible {
         return usesHyper ? "\(symbols) \(key)" : symbols + key
     }
 
-    /// Parses `stringValue`. Needs at least one modifier and exactly one known key.
+    /// Parses `stringValue`. Needs exactly one known key and modifiers that make it usable.
     public init?(string: String) {
         var modifiers: Modifiers = []
         var keyCode: UInt16?
@@ -55,7 +61,9 @@ public struct Hotkey: Sendable, Hashable, CustomStringConvertible {
                 return nil
             }
         }
-        guard let keyCode, !modifiers.isEmpty else { return nil }
+        guard let keyCode, !modifiers.isEmpty, Hotkey(keyCode: keyCode, modifiers: modifiers).isUsable else {
+            return nil
+        }
         self.init(keyCode: keyCode, modifiers: modifiers)
     }
 
@@ -76,6 +84,11 @@ public enum KeyCodes {
     public static let f18: UInt16 = 79
     public static let escape: UInt16 = 53
     public static let v: UInt16 = 9
+
+    /// F1 to F20.
+    public static func isFunctionKey(_ code: UInt16) -> Bool {
+        [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, 105, 107, 113, 106, 64, 79, 80, 90].contains(code)
+    }
 
     /// 1–9 on the number row, for Hyper+digit shortcuts.
     public static func digit(forKeyCode code: UInt16) -> Int? {

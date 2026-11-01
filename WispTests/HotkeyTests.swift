@@ -26,6 +26,15 @@ final class HotkeyTests: XCTestCase {
         XCTAssertNil(Hotkey(string: ""))
     }
 
+    func testShiftAloneOnlyWorksOnFunctionKeys() throws {
+        let s = try XCTUnwrap(KeyCodes.code(for: "s"))
+        XCTAssertFalse(Hotkey(keyCode: s, modifiers: .shift).isUsable, "would swallow every capital S")
+        XCTAssertNil(Hotkey(string: "shift+s"))
+        XCTAssertTrue(Hotkey(keyCode: s, modifiers: [.shift, .option]).isUsable)
+        XCTAssertTrue(Hotkey(keyCode: 96, modifiers: .shift).isUsable, "⇧F5")
+        XCTAssertTrue(Hotkey.hyperSpace.isUsable)
+    }
+
     func testEveryNamedKeyRoundTrips() {
         for name in ["a", "z", "0", "9", "space", "return", "tab", "escape", "up"] {
             guard let code = KeyCodes.code(for: name) else {
