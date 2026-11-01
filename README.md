@@ -86,10 +86,12 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
 make build   # generate the Xcode project and build
 make test    # unit tests (WispCore)
 make lint    # swift-format --strict
-make run     # build and launch
+make run     # build and launch Wisp Dev (quits any running Wisp first)
 make release # universal Release DMG and Sparkle zip in build/release
 make hooks   # install the lefthook git hooks
 ```
+
+Debug builds are a separate app, **Wisp Dev** (`com.ayomideodewale.wisp.dev`). It has its own settings, permissions, clipboard history and agent socket, starts with first-run setup, and never checks for updates, so it never touches the installed Wisp. Each one needs its own permission grants. `make run` quits the installed Wisp too, because two copies would draw two notches and both claim Caps Lock; reopen it when you're done. If you connect agents from Wisp Dev, its hooks replace the installed Wisp's until you connect them again there.
 
 `scripts/release.sh` builds a universal Release and writes a DMG, the zip Sparkle installs, checksums, a Homebrew cask and (with a Sparkle key) `appcast.xml`. It signs with "Wisp Dev" without the hardened runtime, or with a Developer ID plus hardened runtime and notarisation when `DEVELOPER_ID` and `NOTARY_PROFILE` are set. See the comments at the top of the script.
 

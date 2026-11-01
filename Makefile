@@ -29,6 +29,8 @@ lint:
 format:
 	xcrun swift-format format --in-place --recursive $(SOURCES)
 
+# Quits any running Wisp first, the installed one included: two copies would draw two
+# notches and both claim Caps Lock. Reopen the installed Wisp when you're done.
 run: build
 	-pkill -x Wisp
 	@while pgrep -x Wisp >/dev/null; do sleep 0.2; done
