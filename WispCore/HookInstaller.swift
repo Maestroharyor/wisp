@@ -1,5 +1,12 @@
 import Foundation
 
+/// Where Wisp's agent hooks lead.
+public enum HookLink: Equatable, Sendable {
+    case none
+    case this
+    case other
+}
+
 /// Adds and removes Wisp's hooks in Claude Code's settings.json or Codex's hooks.json
 /// (the same shape) without touching the user's own settings or hooks. Wisp's entries
 /// are recognised by the helper's name.
@@ -39,13 +46,32 @@ public enum HookInstaller {
         return try encode(.object(root))
     }
 
+    /// The hook command for `helper`: the path in POSIX single quotes, tagged for Codex.
+    public static func command(helper: String, source: AgentSource) -> String {
+        let quoted = "'" + helper.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        return source == .claude ? quoted : quoted + " --source codex"
+    }
+
+    /// Whether the hooks call this copy's helper, another copy's (a dev build, a moved app),
+    /// or no Wisp at all. Another copy's helper talks to that copy, so this one hears nothing.
+    public static func link(in settings: Data, helper: String, source: AgentSource) throws -> HookLink {
+        let commands = try wispCommands(in: settings)
+        if commands.isEmpty { return .none }
+        let mine = command(helper: helper, source: source)
+        return commands.allSatisfy { $0 == mine } ? .this : .other
+    }
+
     public static func isInstalled(in settings: Data) throws -> Bool {
+        try !wispCommands(in: settings).isEmpty
+    }
+
+    private static func wispCommands(in settings: Data) throws -> [String] {
         let root = try object(settings)
-        return hooksObject(root["hooks"]).values.contains { value in
-            guard case .array(let groups) = value else { return false }
-            return groups.contains { group in
-                guard case .array(let handlers) = group["hooks"] else { return false }
-                return handlers.contains(where: isWisp)
+        return hooksObject(root["hooks"]).values.flatMap { value -> [String] in
+            guard case .array(let groups) = value else { return [] }
+            return groups.flatMap { group -> [String] in
+                guard case .array(let handlers) = group["hooks"] else { return [] }
+                return handlers.filter(isWisp).compactMap { $0["command"]?.stringValue }
             }
         }
     }

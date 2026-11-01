@@ -35,7 +35,11 @@ final class AgentHub {
     private var pending: [UUID: AgentApproval] = [:]
     var approvals: [AgentApproval] { queue.items.compactMap { pending[$0] } }
     /// Agents whose hooks point at Wisp.
+    /// Sources whose hooks call this copy's helper.
     private(set) var connected: Set<AgentSource> = []
+    /// Sources whose hooks call another copy's helper (a dev build, a moved app), which
+    /// sends events to that copy instead of this one.
+    private(set) var connectedElsewhere: Set<AgentSource> = []
     private(set) var listening = false
     /// Estimated spend per day across every session, kept for a month.
     private(set) var spend: DailySpend
@@ -368,12 +372,19 @@ final class AgentHub {
     func isConnected(_ source: AgentSource) -> Bool { connected.contains(source) }
 
     func refreshInstalled() {
-        var next: Set<AgentSource> = []
+        var here: Set<AgentSource> = []
+        var elsewhere: Set<AgentSource> = []
+        let helper = Self.helperURL?.path ?? ""
         for source in [AgentSource.claude, .codex] {
             let data = (try? Data(contentsOf: Self.settingsURL(source))) ?? Data()
-            if (try? HookInstaller.isInstalled(in: data)) == true { next.insert(source) }
+            switch (try? HookInstaller.link(in: data, helper: helper, source: source)) ?? HookLink.none {
+            case .this: here.insert(source)
+            case .other: elsewhere.insert(source)
+            case .none: break
+            }
         }
-        if next != connected { connected = next }
+        if here != connected { connected = here }
+        if elsewhere != connectedElsewhere { connectedElsewhere = elsewhere }
     }
 
     private func displayPath(_ source: AgentSource) -> String {
@@ -389,8 +400,7 @@ final class AgentHub {
         let url = Self.settingsURL(source)
         let path = displayPath(source)
         let original = (try? Data(contentsOf: url)) ?? Data()
-        let quoted = "'" + helper.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        let command = source == .claude ? quoted : quoted + " --source codex"
+        let command = HookInstaller.command(helper: helper.path, source: source)
         guard let updated = try? HookInstaller.install(into: original, command: command, source: source) else {
             alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
             return
