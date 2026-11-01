@@ -106,8 +106,9 @@ final class AgentHub {
     @ObservationIgnored private var pendingSnapshots:
         [String: (snapshot: StatusLineSnapshot, source: AgentSource, terminal: String?)] = [:]
     @ObservationIgnored private var flushTask: Task<Void, Never>?
-    /// Picks the pill again when a Done or Needs you stops outranking other work.
-    @ObservationIgnored private var momentTask: Task<Void, Never>?
+    /// Picks the pill again when a Done or Needs you stops outranking other work, or a
+    /// finished tool's label stops lingering.
+    @ObservationIgnored private var repickTask: Task<Void, Never>?
     @ObservationIgnored private var unsupportedLogged: Set<String> = []
     private let liveInterval: Duration = .milliseconds(250)
 
@@ -253,8 +254,12 @@ final class AgentHub {
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
         sessions.apply(event, at: .now)
-        sessions.prune(now: .now, olderThan: 6 * 3600)
-        if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
+        // Tool activity comes several times a second; the branch and pruning can wait for the
+        // next prompt, stop or status bar snapshot.
+        if !event.kind.isToolActivity {
+            sessions.prune(now: .now, olderThan: 6 * 3600)
+            if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
+        }
 
         if event.isResume {
             ledger.startRun(session: event.sessionID, at: .now)
@@ -391,24 +396,25 @@ final class AgentHub {
         let all = sessions.list
         let now = Date.now
         let pick = AgentUrgency.pick(all, now: now)
-        momentTask?.cancel()
-        momentTask = nil
-        if let ends = AgentUrgency.momentEnds(all, now: now) {
-            momentTask = Task { [weak self] in
+        repickTask?.cancel()
+        repickTask = nil
+        let wake = [AgentUrgency.momentEnds(all, now: now), pick.primary?.toolLingerEnds(now: now)].compactMap { $0 }
+        if let ends = wake.min() {
+            repickTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(max(0, ends.timeIntervalSince(.now)) + 0.1))
                 guard !Task.isCancelled else { return }
                 self?.publishStatus()
             }
         }
-        onStatus(pick.primary.map { status(for: $0, others: pick.others) })
+        onStatus(pick.primary.map { status(for: $0, others: pick.others, now: now) })
     }
 
-    private func status(for session: AgentSession, others: Int) -> AgentStatus {
+    private func status(for session: AgentSession, others: Int, now: Date) -> AgentStatus {
         AgentStatus(
             sessionID: session.id, project: session.project, source: session.source, state: session.state,
             started: session.turnStarted, contextPercent: session.contextPercent?.rounded(),
             compacting: session.compacting,
-            tool: session.state == .running ? session.currentTool?.description(hidden: detailsHidden) : nil,
+            tool: session.state == .running ? session.pillTool(now: now)?.description(hidden: detailsHidden) : nil,
             others: others)
     }
 
@@ -693,10 +699,11 @@ final class AgentHub {
             toolActivity = on
             return true
         }
+        let refresh = outdated.contains(.claude) ? " It also brings Wisp's other hooks up to date." : ""
         let change =
-            on
-            ? "Wisp adds three hooks (PreToolUse, PostToolUse and SubagentStop) to ~/.claude/settings.json. They run in the background, so tool calls never wait for them."
-            : "Wisp removes its three tool hooks from ~/.claude/settings.json."
+            (on
+                ? "Wisp adds three hooks (PreToolUse, PostToolUse and SubagentStop) to ~/.claude/settings.json. They run in the background, so tool calls never wait for them."
+                : "Wisp removes its three tool hooks from ~/.claude/settings.json.") + refresh
         guard
             confirm(
                 on ? "Show Claude Code's tool activity?" : "Stop showing tool activity?",

@@ -67,12 +67,13 @@ struct AgentGlyph: View {
             .overlay(alignment: .topTrailing) {
                 if others > 0 {
                     Text("+\(others)")
-                        .font(.system(size: 7, weight: .bold)).monospacedDigit()
+                        .font(.system(size: 8, weight: .bold)).monospacedDigit()
                         .foregroundStyle(.white)
                         .padding(.horizontal, 2.5)
                         .frame(minHeight: 10)
                         .background(Capsule().fill(Color.wispViolet))
-                        .offset(x: 7, y: -5)
+                        .fixedSize()
+                        .offset(x: 10, y: -7)
                         .accessibilityHidden(true)
                 }
             }
