@@ -232,7 +232,8 @@ final class NowPlayingMonitor {
             return
         }
         if let failed = failedLookups[trackID], Date.now.timeIntervalSince(failed) < 60 { return }
-        guard looksUpArtwork(), !searchedTracks.contains(trackID),
+        // A feature lookup: only for a song that's actually playing (see AGENTS.md).
+        guard info.isPlaying, looksUpArtwork(), !searchedTracks.contains(trackID),
             let url = ArtworkQuery.url(title: info.title, artist: info.artist)
         else { return }
         searchedTracks.insert(trackID)
