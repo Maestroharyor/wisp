@@ -9,6 +9,8 @@ final class QuickPocket {
     private let services: AppServices
     private var panel: NSPanel?
     private var hideTask: Task<Void, Never>?
+    /// Fading out; a show() meanwhile cancels the pending orderOut.
+    private var hiding = false
 
     private let size = CGSize(width: 236, height: 236)
 
@@ -22,7 +24,8 @@ final class QuickPocket {
         hideTask?.cancel()
         let panel = panel ?? makePanel()
         self.panel = panel
-        guard !panel.isVisible else { return }
+        guard !panel.isVisible || hiding else { return }
+        hiding = false
         // Up and to the right of the pointer, kept on screen.
         let screen = NSScreen.screens.first { $0.frame.contains(point) }?.visibleFrame ?? .zero
         var origin = CGPoint(x: point.x + 24, y: point.y - size.height / 2)
@@ -49,12 +52,17 @@ final class QuickPocket {
     }
 
     func hide() {
-        guard let panel, panel.isVisible else { return }
+        guard let panel, panel.isVisible, !hiding else { return }
+        hiding = true
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.14
             panel.animator().alphaValue = 0
-        } completionHandler: {
-            MainActor.assumeIsolated { panel.orderOut(nil) }
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.hiding else { return }
+                self.hiding = false
+                panel.orderOut(nil)
+            }
         }
     }
 

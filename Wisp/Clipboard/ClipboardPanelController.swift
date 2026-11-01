@@ -48,7 +48,11 @@ final class ClipboardPanelController {
         model = ClipboardPanelModel(store: services.clipboard)
     }
 
-    var isVisible: Bool { panel?.isVisible ?? false }
+    /// Fading out; a show() meanwhile cancels the pending orderOut.
+    private var hiding = false
+
+    /// False while fading out, so the shortcut pressed again during the fade shows it.
+    var isVisible: Bool { (panel?.isVisible ?? false) && !hiding }
 
     func toggle() {
         if isVisible { hide() } else { show() }
@@ -57,6 +61,7 @@ final class ClipboardPanelController {
     func show() {
         let panel = panel ?? makePanel()
         self.panel = panel
+        hiding = false
         model.query = ""
         model.selectedID = model.items.first?.id
 
@@ -78,12 +83,17 @@ final class ClipboardPanelController {
 
     func hide() {
         removeKeyMonitor()
-        guard let panel, panel.isVisible else { return }
+        guard let panel, panel.isVisible, !hiding else { return }
+        hiding = true
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.12
             panel.animator().alphaValue = 0
-        } completionHandler: {
-            MainActor.assumeIsolated { panel.orderOut(nil) }
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.hiding else { return }
+                self.hiding = false
+                panel.orderOut(nil)
+            }
         }
     }
 

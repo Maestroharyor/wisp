@@ -191,7 +191,9 @@ struct NotchPetLayer: View {
                 let spot = position
                 TimelineView(.animation(minimumInterval: 1 / 15, paused: asleep)) { context in
                     let mood = currentMood(now: context.date)
-                    WispSprite(mood: mood, time: context.date.timeIntervalSinceReferenceDate, tint: model.accent)
+                    // A fixed time holds the sprite still under Reduce Motion; its mood still shows.
+                    let time = model.reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
+                    WispSprite(mood: mood, time: time, tint: model.accent)
                         .frame(width: 14, height: 18)
                         .rotationEffect(rotation)
                         .position(spot)

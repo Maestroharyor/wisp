@@ -85,9 +85,12 @@ final class QuickActions {
         Task {
             // Let the shelf animate away first.
             try? await Task.sleep(for: .milliseconds(350))
+            // A cancelled capture leaves the pasteboard alone, which may already hold an image.
+            let before = NSPasteboard.general.changeCount
             _ = try? await ProcessRunner.run("/usr/sbin/screencapture", ["-i", "-c"])
-            if NSPasteboard.general.types?.contains(.png) ?? false
-                || NSPasteboard.general.types?.contains(.tiff) ?? false
+            let pasteboard = NSPasteboard.general
+            if pasteboard.changeCount != before,
+                pasteboard.types?.contains(.png) ?? false || pasteboard.types?.contains(.tiff) ?? false
             {
                 onNotice("camera.viewfinder", "Screenshot copied")
             }

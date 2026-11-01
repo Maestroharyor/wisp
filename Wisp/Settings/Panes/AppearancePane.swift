@@ -37,7 +37,7 @@ struct AppearanceSettings: View {
             idle
             fun
             Section {
-                Button("Reset the look to default", role: .destructive) { preferences.appearance = .standard }
+                Button("Reset the look to default", role: .destructive) { preferences.applyLook(.standard) }
             }
         }
         .formStyle(.grouped)
@@ -70,8 +70,8 @@ struct AppearanceSettings: View {
         Section("Presets") {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 10)], spacing: 10) {
                 ForEach(preferences.allLookPresets) { preset in
-                    PresetChip(preset: preset, selected: preset.appearance == preferences.appearance) {
-                        preferences.appearance = preset.appearance
+                    PresetChip(preset: preset, selected: preferences.isCurrentLook(preset.appearance)) {
+                        preferences.applyLook(preset.appearance)
                     }
                     .contextMenu {
                         Button("Export…") { export(preset.appearance, name: preset.name) }
@@ -335,7 +335,7 @@ struct AppearanceSettings: View {
         do {
             let file = try LookFile.decode(try Data(contentsOf: url))
             let name = preferences.addLook(file)
-            if let preset = preferences.lookPreset(named: name) { preferences.appearance = preset.appearance }
+            if let preset = preferences.lookPreset(named: name) { preferences.applyLook(preset.appearance) }
         } catch LookFile.ReadError.newerVersion {
             importError = "It was made by a newer version of Wisp."
         } catch {

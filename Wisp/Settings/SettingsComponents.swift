@@ -40,7 +40,14 @@ final class SettingsModel {
     var query = "" {
         didSet {
             let matches = visiblePanes
-            if let selection, !matches.contains(selection) { self.selection = matches.first }
+            if let selection {
+                if !matches.contains(selection) { self.selection = matches.first }
+            } else {
+                // A search that matched nothing cleared the selection; pick one again as
+                // soon as something matches, the last pane shown if it's among them.
+                let last = preferences.lastSettingsPane
+                self.selection = matches.contains(last) ? last : matches.first
+            }
         }
     }
     private(set) var missing: [Permission] = []

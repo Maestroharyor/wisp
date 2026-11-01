@@ -70,14 +70,23 @@ enum Permission: String, CaseIterable, Identifiable {
         switch self {
         case .accessibility: AccessibilityPermission.requestAccess()
         case .screenRecording: CGRequestScreenCaptureAccess()
-        case .contacts: Task { _ = try? await CNContactStore().requestAccess(for: .contacts) }
-        case .camera: Task { _ = await AVCaptureDevice.requestAccess(for: .video) }
+        // macOS asks only once. After that, and for a denial, the switch is in System Settings,
+        // which lists an app only once it has asked.
+        case .contacts:
+            guard CNContactStore.authorizationStatus(for: .contacts) == .notDetermined else { return openSettings() }
+            Task { _ = try? await CNContactStore().requestAccess(for: .contacts) }
+        case .camera:
+            guard AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined else { return openSettings() }
+            Task { _ = await AVCaptureDevice.requestAccess(for: .video) }
+        case .calendars:
+            guard EKEventStore.authorizationStatus(for: .event) == .notDetermined else { return openSettings() }
+            Task { _ = try? await EKEventStore().requestFullAccessToEvents() }
         case .fullDiskAccess:
             // Full Disk Access has no prompt and Wisp isn't listed until added by hand:
             // show Wisp in Finder so it can be dragged into the list.
             openSettings()
             NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
-        case .automation, .calendars: openSettings()
+        case .automation: openSettings()
         }
     }
 

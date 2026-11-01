@@ -141,6 +141,20 @@ final class PlacementTests: XCTestCase {
         )
     }
 
+    func testRightHitRegionIncludesTheLastColumnButNotTheDock() {
+        // The pointer pushed against the right edge sits at exactly maxX.
+        let right = layout(bare, .right)
+        XCTAssertTrue(
+            right.hitRegion(for: right.closedRect).contains(CGPoint(x: bare.frame.maxX, y: right.closedRect.midY)))
+
+        let dockOnRight = ScreenMetrics(
+            frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1840, height: 1056)
+        )
+        let docked = layout(dockOnRight, .right)
+        XCTAssertEqual(docked.hitRegion(for: docked.closedRect).maxX, 1840)
+    }
+
     func testSideDockPushesTheTabInward() {
         let dockOnLeft = ScreenMetrics(
             frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),

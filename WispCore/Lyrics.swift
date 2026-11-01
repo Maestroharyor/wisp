@@ -14,13 +14,15 @@ public struct Lyrics: Equatable, Sendable {
     /// Timed LRC text ("[mm:ss.xx] words") if there is any, otherwise plain text.
     public static func parse(synced: String?, plain: String?) -> Lyrics? {
         if let synced {
-            let lines = synced.split(separator: "\n").compactMap(timedLine).sorted { ($0.time ?? 0) < ($1.time ?? 0) }
+            // `\.isNewline` also splits "\r\n", which Swift treats as one Character.
+            let lines = synced.split(whereSeparator: \.isNewline).flatMap(timedLines)
+                .sorted { ($0.time ?? 0) < ($1.time ?? 0) }
             if !lines.isEmpty { return Lyrics(lines: lines) }
         }
         let text = (plain ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
         return Lyrics(
-            lines: text.split(separator: "\n", omittingEmptySubsequences: false).map {
+            lines: text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map {
                 Line(time: nil, text: $0.trimmingCharacters(in: .whitespaces))
             })
     }
@@ -31,12 +33,18 @@ public struct Lyrics: Equatable, Sendable {
         return lines.lastIndex { ($0.time ?? 0) <= position }
     }
 
-    private static func timedLine(_ raw: Substring) -> Line? {
-        guard raw.hasPrefix("["), let close = raw.firstIndex(of: "]") else { return nil }
-        let stamp = raw[raw.index(after: raw.startIndex)..<close].split(separator: ":")
-        guard stamp.count == 2, let minutes = Double(stamp[0]), let seconds = Double(stamp[1]) else { return nil }
-        let text = raw[raw.index(after: close)...].trimmingCharacters(in: .whitespaces)
-        return Line(time: minutes * 60 + seconds, text: text)
+    /// One line per leading stamp: a repeated chorus is written "[00:12.00][00:45.00] words".
+    private static func timedLines(_ raw: Substring) -> [Line] {
+        var times: [TimeInterval] = []
+        var rest = raw
+        while rest.hasPrefix("["), let close = rest.firstIndex(of: "]") {
+            let stamp = rest[rest.index(after: rest.startIndex)..<close].split(separator: ":")
+            guard stamp.count == 2, let minutes = Double(stamp[0]), let seconds = Double(stamp[1]) else { break }
+            times.append(minutes * 60 + seconds)
+            rest = rest[rest.index(after: close)...]
+        }
+        let text = rest.trimmingCharacters(in: .whitespaces)
+        return times.map { Line(time: $0, text: text) }
     }
 }
 

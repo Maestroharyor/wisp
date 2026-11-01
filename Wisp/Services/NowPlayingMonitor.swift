@@ -216,7 +216,8 @@ final class NowPlayingMonitor {
             }
             let trackID = info.trackID
             Task { [weak self] in
-                let data = try? await URLSession.shared.data(from: url).0
+                // Spotify's own cover URL, so no opt-in; bounded so a slow CDN can't pile up requests.
+                let data = try? await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 10)).0
                 guard let self, self.artworkTrackID == trackID else { return }
                 self.setArtwork(data.flatMap(NSImage.init(data:)))
             }

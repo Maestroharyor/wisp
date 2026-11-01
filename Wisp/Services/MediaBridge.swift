@@ -79,13 +79,19 @@ final class MediaBridge {
         }
         process.terminationHandler = { [weak self] finished in
             let status = finished.terminationStatus
-            Task { @MainActor in self?.terminated(status: status) }
+            let pid = finished.processIdentifier
+            Task { @MainActor in self?.terminated(pid: pid, status: status) }
         }
 
         do {
             try process.run()
         } catch {
             log.error("could not start media bridge: \(error.localizedDescription, privacy: .public)")
+            stdout.fileHandleForReading.readabilityHandler = nil
+            stderr.fileHandleForReading.readabilityHandler = nil
+            continuation.finish()
+            reader?.cancel()
+            reader = nil
             return false
         }
         self.process = process
@@ -134,7 +140,9 @@ final class MediaBridge {
     }
 
     /// Restarts after a crash, at most three times a minute; then reports unavailable.
-    private func terminated(status: Int32) {
+    private func terminated(pid: Int32, status: Int32) {
+        // A stop and restart can run before this queued call; leave the new bridge alone.
+        guard process?.processIdentifier == pid else { return }
         process = nil
         detachPipes()
         buffer.removeAll()

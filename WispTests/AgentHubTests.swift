@@ -156,6 +156,18 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertTrue(try HookInstaller.isInstalled(in: HookInstaller.install(into: Data("{}".utf8), command: command)))
     }
 
+    func testEmptyUserEntriesDoNotCountAsInstalled() throws {
+        let existing = Data(#"{"hooks":{"PreToolUse":[],"Stop":[{"matcher":"","hooks":[]}]}}"#.utf8)
+        XCTAssertFalse(try HookInstaller.isInstalled(in: existing))
+        XCTAssertEqual(try json(HookInstaller.remove(from: existing)), try json(existing))
+    }
+
+    func testRemoveKeepsTheUsersEmptyEntries() throws {
+        let existing = Data(#"{"hooks":{"PreToolUse":[]}}"#.utf8)
+        let installed = try HookInstaller.install(into: existing, command: command)
+        XCTAssertEqual(try json(HookInstaller.remove(from: installed)), try json(existing))
+    }
+
     func testRejectsNonObjectSettings() {
         XCTAssertThrowsError(try HookInstaller.install(into: Data("[]".utf8), command: command))
     }

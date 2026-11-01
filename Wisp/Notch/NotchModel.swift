@@ -62,6 +62,9 @@ final class NotchModel {
     var showsActivities = true
     /// Set while the user types a reply to a notification card.
     var replyingTo: NotificationItem?
+    /// The reply typed so far. Kept here, not in the card, because a higher-priority alert
+    /// (volume, Caps Lock, an approval) replaces the card for a moment.
+    var replyDraft = ""
     /// Called by the card when a reply is sent or abandoned.
     var onReplyEnded: () -> Void = {}
 

@@ -127,4 +127,14 @@ final class ProfileLookTests: XCTestCase {
             name: "Play", home: HomeLayout(slots: []), defaultPage: "home", surface: "black", look: "Arcade")
         XCTAssertEqual(try JSONDecoder().decode(Profile.self, from: JSONEncoder().encode(profile)).look, "Arcade")
     }
+
+    func testPresetsKeepTheUsersCustomSounds() {
+        var mine = Appearance()
+        mine.customSounds = ["open": "/Sounds/pop.aiff"]
+        XCTAssertEqual(Appearance.standard.keepingSounds(of: mine).customSounds, mine.customSounds)
+
+        var saved = Appearance()
+        saved.customSounds = ["open": "/Sounds/click.aiff"]
+        XCTAssertEqual(saved.keepingSounds(of: mine).customSounds, saved.customSounds)
+    }
 }

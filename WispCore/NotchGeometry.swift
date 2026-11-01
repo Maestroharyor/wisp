@@ -181,11 +181,14 @@ public struct NotchLayout: Sendable, Equatable {
         var maxX = region.maxX
         var minY = region.minY
         var maxY = region.maxY
+        // CGRect.contains leaves out the max edges, yet a pointer pushed against the top or
+        // right of a screen sits exactly on them, so those sides reach one point further
+        // when the line is the screen's edge (not a menu bar or Dock, which stay free).
         switch edge {
-        case .top: maxY = edgeLine
+        case .top: maxY = edgeLine == screenFrame.maxY ? edgeLine + 1 : edgeLine
         case .bottom: minY = edgeLine
         case .left: minX = edgeLine
-        case .right: maxX = edgeLine
+        case .right: maxX = edgeLine == screenFrame.maxX ? edgeLine + 1 : edgeLine
         }
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }

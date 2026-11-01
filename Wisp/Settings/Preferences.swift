@@ -241,6 +241,7 @@ final class Preferences {
         static let worldClockZones = "worldClockZones"
         static let appearance = "appearance"
         static let lookPresets = "lookPresets"
+        static let lookBeforeProfile = "lookBeforeProfile"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -310,6 +311,8 @@ final class Preferences {
     /// Keys that hold the user's content rather than settings; a reset keeps them.
     private static let contentKeys: Set<String> = [
         "trayPaths", "notesText", "webChatStore.whatsApp", "webChatStore.telegram",
+        // Not content, but without it the next launch imports the old build's settings again.
+        LegacyDefaults.importedFlagKey,
     ]
 
     /// Clears every Wisp setting but keeps content (tray, notes, chat logins). The caller
@@ -360,7 +363,7 @@ final class Preferences {
         activeProfile = profile.name
         if let name = profile.look, let preset = lookPreset(named: name) {
             if lookBeforeProfile == nil { lookBeforeProfile = appearance }
-            appearance = preset.appearance
+            appearance = preset.appearance.keepingSounds(of: appearance)
         } else {
             if let earlier = lookBeforeProfile {
                 appearance = earlier
@@ -371,8 +374,13 @@ final class Preferences {
     }
 
     /// The look in use before a profile applied its own, put back by the next profile
-    /// that has none.
-    @ObservationIgnored private var lookBeforeProfile: Appearance?
+    /// that has none. Saved, because the profile's look is saved as `appearance`: losing
+    /// this on quit would leave the profile's look in place for good.
+    @ObservationIgnored private var lookBeforeProfile: Appearance? {
+        didSet {
+            defaults.set(lookBeforeProfile.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.lookBeforeProfile)
+        }
+    }
 
     // MARK: Looks
 
@@ -380,6 +388,19 @@ final class Preferences {
     var allLookPresets: [AppearancePreset] { AppearancePreset.builtIns + lookPresets }
 
     func lookPreset(named name: String) -> AppearancePreset? { allLookPresets.first { $0.name == name } }
+
+    /// Applies a look chosen in Settings. Keeps the user's custom sound files, and saves the
+    /// surface to the active profile as the surface picker does, so the profile doesn't put
+    /// the old one back later.
+    func applyLook(_ look: Appearance) {
+        let next = look.keepingSounds(of: appearance)
+        appearance = next
+        // A look picked by hand is the new base; a profile switch must not put an older one back.
+        lookBeforeProfile = nil
+        updateActiveProfile { $0.surface = next.surface.rawValue }
+    }
+
+    func isCurrentLook(_ look: Appearance) -> Bool { look.keepingSounds(of: appearance) == appearance }
 
     /// Saves the current look under a name and returns the name used.
     @discardableResult
@@ -746,6 +767,9 @@ final class Preferences {
             defaults.data(forKey: Key.lookPresets).flatMap {
                 try? JSONDecoder().decode([AppearancePreset].self, from: $0)
             } ?? []
+        lookBeforeProfile = defaults.data(forKey: Key.lookBeforeProfile).flatMap {
+            try? JSONDecoder().decode(Appearance.self, from: $0)
+        }
         externalStyle = defaults.string(forKey: Key.externalStyle).flatMap(ExternalStyle.init(rawValue:)) ?? .notch
         contextAware = defaults.bool(forKey: Key.contextAware)
         lastSettingsPane =

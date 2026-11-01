@@ -38,19 +38,15 @@ struct AgentGlyph: View {
     let state: AgentSession.State
     let source: AgentSource
     let project: String
-    @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    // A symbol effect follows `state` both ways. The earlier repeatForever animation started
+    // only on appear, so it stuck dimmed after running → waiting → running.
     var body: some View {
         Image(systemName: state == .finished ? "checkmark.circle.fill" : source.symbol)
             .foregroundStyle(state == .finished ? state.tint : Color.project(project))
             .frame(width: 16)
-            .scaleEffect(state == .running && pulse ? 0.8 : 1)
-            .opacity(state == .running && pulse ? 0.6 : 1)
-            .animation(
-                state == .running ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
-                value: pulse
-            )
-            .onAppear { pulse = true }
+            .symbolEffect(.pulse, options: .repeating, isActive: state == .running && !reduceMotion)
     }
 }
 

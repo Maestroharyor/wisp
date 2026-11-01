@@ -29,7 +29,8 @@ static MRGetIsPlaying getIsPlaying;
 static MRGetApplicationPID getPID;
 static MRSendCommand sendCommand;
 static MRSetElapsedTime setElapsed;
-static NSUInteger lastArtworkHash;
+static NSData *lastArtwork;
+static NSString *lastArtworkTrack;
 static BOOL refreshQueued;
 
 static void emit(NSDictionary *message) {
@@ -53,7 +54,8 @@ static void refresh(void) {
     getInfo(dispatch_get_main_queue(), ^(NSDictionary *info) {
         NSString *title = stringValue(info[@"kMRMediaRemoteNowPlayingInfoTitle"]);
         if (title.length == 0) {
-            lastArtworkHash = 0;
+            lastArtwork = nil;
+            lastArtworkTrack = nil;
             emit(@{@"type" : @"none"});
             return;
         }
@@ -81,10 +83,15 @@ static void refresh(void) {
                 if (app.bundleIdentifier) message[@"bundle"] = app.bundleIdentifier;
                 if (app.localizedName) message[@"app"] = app.localizedName;
 
-                // Artwork is large; send it only when it changes.
+                // Artwork is large; send it only when it or the track changes. Wisp clears the
+                // cover on a new track, so tracks sharing an album cover must still get it.
+                // -isEqualToData: compares every byte; -hash only looks at the first 80.
                 id artwork = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
-                if ([artwork isKindOfClass:[NSData class]] && [artwork hash] != lastArtworkHash) {
-                    lastArtworkHash = [artwork hash];
+                NSString *track = [NSString stringWithFormat:@"%@\n%@\n%@", title, message[@"artist"], message[@"album"]];
+                if ([artwork isKindOfClass:[NSData class]]
+                    && (![track isEqualToString:lastArtworkTrack] || ![artwork isEqualToData:lastArtwork])) {
+                    lastArtwork = artwork;
+                    lastArtworkTrack = track;
                     message[@"artwork"] = [artwork base64EncodedStringWithOptions:0];
                 }
                 emit(message);

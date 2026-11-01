@@ -12,6 +12,7 @@ final class NotchController {
     private let services: AppServices
     private var machine = NotchMachine()
     private var pointerInside = false
+    private var pointerOverBubble = false
     private var dwellTask: Task<Void, Never>?
     private var closeTask: Task<Void, Never>?
     private var dragEndTask: Task<Void, Never>?
@@ -62,8 +63,17 @@ final class NotchController {
         }
     }
 
+    /// Setting ignoresMouseEvents to false makes the whole transparent panel catch clicks
+    /// (AppKit passes clicks through transparent areas only while the property is untouched),
+    /// so a closed panel takes the mouse only while the pointer is over something it handles.
     private func updateClickThrough() {
-        panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !isReplying && !showsApproval
+        let overControls = pointerInside && (isReplying || showsApproval || showsMeetingPill)
+        panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble
+    }
+
+    /// The meeting pill's microphone end mutes on click.
+    private var showsMeetingPill: Bool {
+        if case .meeting = model.activity { true } else { false }
     }
 
     var isReplying: Bool { model.replyingTo != nil }
@@ -83,6 +93,13 @@ final class NotchController {
     }
 
     func pointerMoved(to location: CGPoint) {
+        // Bubbles sit outside the hit regions (hovering one doesn't open the shelf), but a
+        // click on one must not also reach the menu bar item underneath.
+        let overBubble = machine.phase != .open && model.bubble(at: location) != nil
+        if overBubble != pointerOverBubble {
+            pointerOverBubble = overBubble
+            updateClickThrough()
+        }
         let inside = model.contains(location)
         guard inside != pointerInside else { return }
         pointerInside = inside
@@ -206,7 +223,11 @@ final class NotchController {
         if services.notifications.canReply(to: item) {
             services.beginReply(to: item)
             model.replyingTo = item
-            panel.ignoresMouseEvents = false
+            // Hovering onto the card started the hover timer; opening the shelf now would
+            // hide the reply field and leave the reply hanging.
+            dwellTask?.cancel()
+            dwellTask = nil
+            updateClickThrough()
             panel.makeKey()
         } else {
             services.notifications.openApp(for: item)
@@ -217,6 +238,7 @@ final class NotchController {
 
     private func endReply() {
         model.replyingTo = nil
+        model.replyDraft = ""
         panel.resignKey()
         updateClickThrough()
     }
@@ -281,8 +303,9 @@ final class NotchController {
         switch effect {
         case .scheduleDwell:
             dwellTask?.cancel()
-            // Hovering onto an approval card is reaching for its buttons, not opening the shelf.
-            if showsApproval { break }
+            // Hovering onto an approval card is reaching for its buttons, not opening the shelf;
+            // the same goes for a reply in progress.
+            if showsApproval || isReplying { break }
             let delay = Duration.milliseconds(Int(services.preferences.hoverDelay * 1000))
             dwellTask = schedule(after: delay, .dwellElapsed)
         case .cancelDwell:
@@ -324,8 +347,12 @@ final class NotchController {
             model.editingHome = false
             model.soloWidget = nil
             model.dragging = false
-            // Re-sync with the smaller closed region so the next hover is detected cleanly.
-            pointerInside = model.contains(NSEvent.mouseLocation)
+            // Re-sync with the smaller closed region so the next hover is detected cleanly, and
+            // so click-through doesn't wait for the pointer to move.
+            let mouse = NSEvent.mouseLocation
+            pointerInside = model.contains(mouse)
+            pointerOverBubble = model.bubble(at: mouse) != nil
+            updateClickThrough()
         }
     }
 }

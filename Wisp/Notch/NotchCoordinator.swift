@@ -70,7 +70,7 @@ final class NotchCoordinator {
 
     private func targetController() -> NotchController? {
         let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
         return screen?.displayUUID.flatMap { controllers[$0] }
             ?? controllers.values.first { $0.layout.style == .notch }
             ?? controllers.values.first
@@ -122,13 +122,16 @@ final class NotchCoordinator {
         }
     }
 
+    /// NSMouseInRect counts the top edge, where the pointer sits when pushed against it.
     private func displayUUID(at point: CGPoint) -> String? {
-        NSScreen.screens.first { $0.frame.contains(point) }?.displayUUID
+        NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) }?.displayUUID
     }
 
     /// Activities follow the pointer between displays when that option is on.
     private func pointerMovedAcrossDisplays(_ location: CGPoint) {
         guard preferences.activityDisplay == .pointer else { return }
+        // A reply's card and field live on one display; moving them would strand the reply.
+        guard !controllers.values.contains(where: \.isReplying) else { return }
         let display = displayUUID(at: location)
         guard let display, display != pointerDisplay else { return }
         pointerDisplay = display

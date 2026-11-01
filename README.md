@@ -20,7 +20,7 @@ With Homebrew, each release also carries a cask file (`wisp.rb`) for a personal 
 
 Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Releases.
 
-- **Daily check.** Wisp reads `appcast.xml` from the latest release once a day. When there's a newer version, a window shows the release notes with Install, Skip and Remind Me Later.
+- **Daily check.** On its second launch Wisp asks whether to check for updates automatically; you can change this in Settings › About. When on, it reads `appcast.xml` from the latest release once a day. When there's a newer version, a window shows the release notes with Install, Skip and Remind Me Later.
 - **By hand.** Choose **Check for Updates…** from the menu bar icon, from the notch's right-click menu, or from Settings › About.
 - **Settings › About › Updates** has two switches: check automatically, and download and install automatically. With the second on, Wisp downloads in the background and installs the next time it quits.
 - **Installing.** Sparkle checks the download's EdDSA signature against the key built into Wisp, swaps the app in place and relaunches it. Updates don't need "Open Anyway".

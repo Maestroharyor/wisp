@@ -243,6 +243,15 @@ public struct Appearance: Equatable, Sendable {
 
     public init() {}
 
+    /// This look, keeping `current`'s custom sound files when it has none of its own.
+    /// Built-in presets carry no files, so trying one must not throw away the user's.
+    public func keepingSounds(of current: Appearance) -> Appearance {
+        guard customSounds.isEmpty else { return self }
+        var merged = self
+        merged.customSounds = current.customSounds
+        return merged
+    }
+
     public static let standard = Appearance()
 
     public static let roundnessRange: ClosedRange<Double> = 0.5...1.5

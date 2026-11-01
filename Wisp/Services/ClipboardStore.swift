@@ -89,10 +89,11 @@ final class ClipboardStore {
     }
 
     private func check() {
-        guard preferences.clipboardEnabled else { return }
         let count = pasteboard.changeCount
         guard count != lastChangeCount else { return }
         lastChangeCount = count
+        // Tracked even while off, so turning history on never records what was copied before.
+        guard preferences.clipboardEnabled else { return }
 
         let types = Set((pasteboard.types ?? []).map(\.rawValue))
         guard types.isDisjoint(with: Self.ignoredTypes) else { return }

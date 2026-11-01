@@ -65,7 +65,7 @@ final class NotificationMonitor {
 
     func reply(to item: NotificationItem, text: String) async -> Bool {
         switch item.channel {
-        case .iMessage: MessagesReply.send(text, title: item.title, body: item.body)
+        case .iMessage: await MessagesReply.send(text, title: item.title, body: item.body)
         case .whatsApp: await whatsApp.send(text, to: item.title)
         case .telegram: await telegram.send(text, to: item.title)
         case nil: false
@@ -98,7 +98,11 @@ final class NotificationMonitor {
     }
 
     private func pollNotifications() {
-        guard preferences.notificationsEnabled, hasAccess else { return }
+        guard preferences.notificationsEnabled, hasAccess else {
+            // Start from "now" when polling resumes, rather than replaying what arrived meanwhile.
+            if feed.cursor != nil { feed = NotificationFeed(ownBundleID: feed.ownBundleID) }
+            return
+        }
         if database == nil { database = NotificationDatabase() }
         guard let database else { return }
         do {
