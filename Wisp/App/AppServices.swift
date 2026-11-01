@@ -380,8 +380,9 @@ final class AppServices {
     }
 
     private func offerUpcomingMeeting() {
-        guard preferences.meetingActivity, calendar.access == .fullAccess else { return }
+        guard preferences.meetingActivity else { return }
         calendar.refreshIfStale()
+        guard calendar.access == .fullAccess else { return }
         guard let next = Meetings.upcoming(meetingEvents, now: .now, within: 120), let link = next.link,
             offeredMeetings[next.id] == nil
         else { return }

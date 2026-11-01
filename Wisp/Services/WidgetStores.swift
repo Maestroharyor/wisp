@@ -125,7 +125,9 @@ final class CalendarStore {
     /// Edits arrive through EKEventStoreChanged, so a fresh query is only needed when the
     /// cached week has aged (a new day, finished events) rather than on every check.
     func refreshIfStale() {
-        if let lastRefresh, Calendar.current.isDateInToday(lastRefresh), Date.now.timeIntervalSince(lastRefresh) < 600 {
+        if let lastRefresh, Calendar.current.isDateInToday(lastRefresh), Date.now.timeIntervalSince(lastRefresh) < 600,
+            EKEventStore.authorizationStatus(for: .event) == access
+        {
             return
         }
         refresh()
@@ -133,7 +135,13 @@ final class CalendarStore {
 
     func refresh() {
         access = EKEventStore.authorizationStatus(for: .event)
-        guard access == .fullAccess else { return }
+        guard access == .fullAccess else {
+            // Access was revoked: stop showing (and offering Join cards for) the cached week.
+            upcoming = []
+            dayEvents = []
+            lastRefresh = nil
+            return
+        }
         lastRefresh = .now
         if observer == nil {
             observer = NotificationCenter.default.addObserver(
