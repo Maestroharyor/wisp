@@ -28,7 +28,13 @@ struct WidgetCard: View {
             case .mirror: MirrorWidget(camera: services.camera)
             case .dayProgress: DayProgressWidget(calendar: services.calendar, preferences: services.preferences)
             case .worldClocks: WorldClocksWidget(preferences: services.preferences)
-            case .agents: AgentsWidget(hub: services.agents)
+            case .agents:
+                // Wide fills the shelf: room for the sessions and the selected one's details side by side.
+                if services.preferences.size(of: .agents) == .wide {
+                    AgentsDetail(hub: services.agents, model: model)
+                } else {
+                    AgentsWidget(hub: services.agents)
+                }
             case .script: ScriptWidget(store: services.script, preferences: services.preferences)
             }
         }

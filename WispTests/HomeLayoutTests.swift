@@ -29,9 +29,15 @@ final class HomeLayoutTests: XCTestCase {
     }
 
     func testSizeCyclesAndWidths() {
-        XCTAssertEqual(WidgetSize.small.next, .medium)
-        XCTAssertEqual(WidgetSize.medium.next, .large)
-        XCTAssertEqual(WidgetSize.large.next, .small)
+        XCTAssertEqual(WidgetSize.small.next(in: WidgetSize.standard), .medium)
+        XCTAssertEqual(WidgetSize.medium.next(in: WidgetSize.standard), .large)
+        XCTAssertEqual(WidgetSize.large.next(in: WidgetSize.standard), .small)
+    }
+
+    func testUnknownSizeReadsAsLarge() throws {
+        let layout = try JSONDecoder().decode(
+            HomeLayout.self, from: Data(#"{"slots":[{"id":"agents","size":"giant"},{"id":"x","size":"wide"}]}"#.utf8))
+        XCTAssertEqual(layout.slots.map(\.size), [.large, .wide])
         XCTAssertLessThan(WidgetSize.small.width, WidgetSize.medium.width)
         XCTAssertLessThan(WidgetSize.medium.width, WidgetSize.large.width)
     }

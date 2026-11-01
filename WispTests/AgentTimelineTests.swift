@@ -106,4 +106,55 @@ final class SpendLedgerTests: XCTestCase {
         XCTAssertEqual(ledger.counted(for: "/t/old.jsonl"), 0)
         XCTAssertEqual(ledger.counted(for: "/t/new.jsonl"), 1)
     }
+
+    func testRealCostIsKeptPerSession() {
+        var ledger = SpendLedger()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(ledger.record(total: 2, session: "a", transcript: "/t", at: now), 2)
+        XCTAssertEqual(ledger.record(total: 2.5, session: "a", transcript: "/t", at: now), 0.5)
+        // Resumed into the same transcript: the cost starts again and still counts.
+        XCTAssertEqual(ledger.record(total: 0.3, session: "b", transcript: "/t", at: now), 0.3)
+    }
+
+    func testAResumedSessionKeepingItsIDStartsANewRun() {
+        var ledger = SpendLedger()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(ledger.record(total: 2.5, session: "a", transcript: "/t", at: now), 2.5)
+        XCTAssertEqual(ledger.record(total: 0.3, session: "a", transcript: "/t", at: now), 0.3, accuracy: 1e-9)
+        XCTAssertEqual(ledger.record(total: 0.5, session: "a", transcript: "/t", at: now), 0.2, accuracy: 1e-9)
+    }
+
+    func testRealCostBelowTheEstimateUsesUpTheCreditFirst() {
+        var ledger = SpendLedger()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(ledger.record(total: 1, for: "/t", at: now), 1)
+        XCTAssertEqual(ledger.record(total: 0.8, session: "a", transcript: "/t", at: now), 0)
+        XCTAssertEqual(ledger.record(total: 1.1, session: "a", transcript: "/t", at: now), 0.1, accuracy: 1e-9)
+    }
+
+    func testAResumeSeenOnlyByItsHookStillStartsANewRun() {
+        var ledger = SpendLedger()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(ledger.record(total: 2.5, session: "a", transcript: "/t", at: now), 2.5)
+        ledger.startRun(session: "a", at: now)
+        // Wisp missed the drop to zero; the first figure it sees is already above the old total.
+        XCTAssertEqual(ledger.record(total: 3, session: "a", transcript: "/t", at: now), 3)
+    }
+
+    // Pins the saved format on purpose: renaming `entries` or changing how dates encode
+    // would lose every user's ledger, not just fail this test.
+    func testEntriesSavedBeforeCreditsStillLoad() throws {
+        let old = Data(#"{"entries":{"/t":{"cost":1,"seen":0}}}"#.utf8)
+        var ledger = try JSONDecoder().decode(SpendLedger.self, from: old)
+        XCTAssertEqual(ledger.counted(for: "/t"), 1)
+        XCTAssertEqual(
+            ledger.record(total: 1.5, session: "a", transcript: "/t", at: Date(timeIntervalSince1970: 1)), 0.5)
+    }
+
+    func testEstimateAlreadyCountedIsntCountedAgain() {
+        var ledger = SpendLedger()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(ledger.record(total: 1, for: "/t", at: now), 1)
+        XCTAssertEqual(ledger.record(total: 1.2, session: "a", transcript: "/t", at: now), 0.2, accuracy: 1e-9)
+    }
 }

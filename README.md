@@ -32,10 +32,12 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
   - Claude Code and Codex, connected from setup or Settings › Agents. Wisp edits `~/.claude/settings.json` or `~/.codex/hooks.json` and keeps a backup.
   - A pill while a session works, Done when it finishes, and Needs you when it waits.
   - Permission prompts become an Allow, Allow All or Deny card (a bar when the shelf is open), with a soft sound. Several at once queue up ("1 of 2") instead of replacing each other; prompts you leave fall back to the terminal.
-  - Each project gets its own colour; each session shows its tokens and estimated cost, read from the transcript.
-  - Click a session to bring its terminal or editor forward.
-  - Open the Agents widget for each session's timeline, today's estimated spend, and a box to draft the next prompt and paste it into that terminal (it never presses Return for you).
-- **Profiles that follow you**: saved Home layouts, start page and surface. Switch with Caps Lock + 1–9 or the notch menu. Rules switch the start page and surface automatically by front app, music or a waiting agent; a Focus rule can swap Home too.
+  - Each project gets its own colour; each session shows its tokens and cost. Claude Code reports its own cost, model and lines changed; otherwise the cost is estimated from the transcript.
+  - A ring around the agent's mark shows how full the context window is (amber from 70%, red from 90%), with an alert when it passes a level you pick and a "Compacting…" pill while the context is compacted.
+  - **Terminal bar:** Claude Code gets a status bar under its prompt with the project, branch, context used, model, cost and lines changed. If you already have a status bar, choose to keep yours (Wisp reads the figures through it) or replace it; turning Wisp's off puts yours back exactly. Settings › Agents › Terminal bar.
+  - Each session shows as a status bar with its project, branch, model, state, context, cost, tokens and lines changed, and keeps them after it finishes. Click a bar to bring its terminal or editor forward.
+  - At its Wide size (the Code profile's only widget) the Agents widget lists sessions on the left and the selected one's details on the right: model with effort and thinking, context used of the window, cost, tokens, lines, last turn and session length, branch and pull request, cache hits, usage limits, folder, Claude Code version and session ID, then its timeline and a box to draft the next prompt and paste it into that terminal (it never presses Return for you). Opened from the Widgets page it shows the same, with today's spend.
+- **Profiles that follow you**: saved Home layouts, start page and surface. Wisp starts with Everyday, Work, Code (just your agents), Stats (System Stats, Timer and Day Progress), Music and Meeting. Switch with Caps Lock + 1–9 or the notch menu. Rules switch the start page and surface automatically by front app, music or a waiting agent; a Focus rule can swap Home too.
 - **Notch shell**
   - One non-activating panel per display. The black shell grows out of the notch into the shelf, like a box resizing, and shrinks back into it when it closes.
   - Opens on hover or click; Caps Lock + Space toggles it. Once open it closes when the pointer leaves, when you click elsewhere, or only with Esc and the shortcut; you choose in Settings › Notch. Right-click the notch to open any page directly.
@@ -197,6 +199,8 @@ Wisp has no account, no analytics and no server of its own. It only goes online 
 | Apple (Core Location) | Your location, to name the town under the weather | Along with the weather | Same as above |
 | Spotify | Nothing new: Wisp loads the cover from the URL the Spotify app gives it | Spotify is playing | Quit Spotify |
 | GitHub | A request for `appcast.xml` | Update checks; Wisp asks before checking automatically | Settings › About › "Check for updates automatically" |
+
+Agent hooks and the Claude Code status bar talk to Wisp over a Unix socket on your Mac; nothing about your sessions leaves it.
 
 Lyrics and artwork are on by default because the Now Playing feature looks broken without them. They follow the "feature lookups" rule in [AGENTS.md](AGENTS.md): visible feature only, minimum data, public endpoint, cached, own switch, listed here. Everything else that goes online stays off until you turn it on.
 

@@ -66,7 +66,8 @@ struct CompactActivityView: View {
             Image(systemName: state.symbol ?? "moon.fill").foregroundStyle(.indigo)
         case .agent(let status):
             HStack(spacing: ActivityMetrics.contentSpacing) {
-                AgentGlyph(state: status.state, source: status.source, project: status.project)
+                AgentGlyph(
+                    state: status.state, source: status.source, project: status.project, context: status.contextPercent)
                 Text(status.project).lineLimit(1)
             }
         case .device(let device):
@@ -278,7 +279,8 @@ struct ActivityGlyph: View {
         case .focus(let state):
             Image(systemName: state.symbol ?? "moon.fill").foregroundStyle(.indigo)
         case .agent(let status):
-            AgentGlyph(state: status.state, source: status.source, project: status.project)
+            AgentGlyph(
+                state: status.state, source: status.source, project: status.project, context: status.contextPercent)
         case .device(let device):
             Image(systemName: device.symbol)
         case .meeting:

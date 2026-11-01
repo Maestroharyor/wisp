@@ -42,7 +42,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .profiles: "Saved setups, and switching them automatically"
         case .clipboard: "Clipboard history"
         case .notifications: "Notifications in the notch, and quick replies"
-        case .agents: "Claude Code and Codex sessions and approvals"
+        case .agents: "Claude Code and Codex sessions, approvals and status bar"
         case .permissions: "What Wisp can access, and why"
         case .about: "Version, updates, shortcuts and reset"
         }
@@ -92,7 +92,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .agents:
             [
                 "claude", "claude code", "codex", "ai", "hooks", "approve", "allow", "deny", "sessions", "sound",
-                "spend", "cost", "tokens",
+                "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact",
             ]
         case .permissions:
             ["accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera"]

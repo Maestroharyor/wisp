@@ -73,6 +73,7 @@ A new user gets permission prompts with no context.
 - "Jump to terminal" on a session.
 - Token and cost readout from the transcript.
 - A per-project colour.
+- Live figures from Claude Code's status bar (real cost, model, context window, lines changed), a terminal bar of Wisp's own and compaction in the pill. The rest of the Agent Bar (tool activity, CLI, alerts, Codex parity) is tracked in `PLAN.md`.
 
 ### I. Distribution
 

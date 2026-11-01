@@ -71,7 +71,7 @@ struct HomePage: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 Button {
-                    preferences.homeLayout.resize(kind.rawValue, to: preferences.size(of: kind).next)
+                    preferences.homeLayout.resize(kind.rawValue, to: preferences.size(of: kind).next(in: kind.sizes))
                 } label: {
                     Label(preferences.size(of: kind).rawValue.capitalized, systemImage: "arrow.left.and.right")
                         .font(.system(size: 10, weight: .semibold))
@@ -347,6 +347,9 @@ private struct SoloWidgetView: View {
 extension WidgetKind {
     /// Opened on its own, this widget gets the wide page with a list and details.
     var hasDetailPage: Bool { self == .agents || self == .calendar }
+
+    /// Sizes the resize button offers. Agents can also fill the shelf.
+    var sizes: [WidgetSize] { self == .agents ? WidgetSize.allCases : WidgetSize.standard }
 
     /// Icon tint on the Widgets page grid.
     var tint: Color {

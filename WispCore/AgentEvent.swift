@@ -10,9 +10,23 @@ public enum AgentSource: String, Equatable, Sendable {
     /// Hook events Wisp listens to. Codex has no Notification event.
     public var hookEvents: [String] {
         switch self {
-        case .claude: ["SessionStart", "UserPromptSubmit", "PermissionRequest", "Notification", "Stop", "SessionEnd"]
-        case .codex: ["SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "SessionEnd"]
+        case .claude:
+            [
+                "SessionStart", "UserPromptSubmit", "PermissionRequest", "Notification", "Stop", "SessionEnd",
+                "PreCompact", "PostCompact",
+            ]
+        case .codex:
+            [
+                "SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "SessionEnd", "PreCompact",
+                "PostCompact",
+            ]
         }
+    }
+
+    /// Events whose hooks only report and never answer, so Claude Code may run them in the
+    /// background (`"async": true`). Codex documents no such option.
+    public var backgroundHookEvents: Set<String> {
+        self == .claude ? ["PreCompact", "PostCompact"] : []
     }
 }
 
@@ -25,6 +39,8 @@ public struct AgentEvent: Equatable, Sendable {
         case notification = "Notification"
         case stop = "Stop"
         case sessionEnd = "SessionEnd"
+        case preCompact = "PreCompact"
+        case postCompact = "PostCompact"
         case other
     }
 
@@ -43,29 +59,44 @@ public struct AgentEvent: Equatable, Sendable {
     /// The working folder's full path.
     public let cwd: String
     public let transcriptPath: String?
+    /// For SessionStart: how the session began ("startup", "resume", "clear", "compact", ...).
+    public let startSource: String?
 
+    /// Today's hook format: the hook's JSON tagged with `wisp_source` and `wisp_terminal`.
     public static func decode(_ data: Data) throws -> AgentEvent {
         let json = try JSONDecoder().decode(JSONValue.self, from: data)
+        return AgentEvent(
+            json: json,
+            source: json["wisp_source"]?.stringValue.flatMap(AgentSource.init(rawValue:)) ?? .claude,
+            terminal: json["wisp_terminal"]?.stringValue)
+    }
+
+    public init(json: JSONValue, source: AgentSource, terminal: String?) {
         let cwd = json["cwd"]?.stringValue ?? ""
-        let folder = URL(fileURLWithPath: cwd).lastPathComponent
-        let source = json["wisp_source"]?.stringValue.flatMap(AgentSource.init(rawValue:)) ?? .claude
         let input = json["tool_input"]
-        let summary =
+        self.kind = json["hook_event_name"]?.stringValue.flatMap(Kind.init(rawValue:)) ?? .other
+        self.sessionID = json["session_id"]?.stringValue ?? "unknown"
+        self.project = Self.projectName(cwd: cwd, source: source)
+        self.toolName = json["tool_name"]?.stringValue
+        self.summary =
             input?["command"]?.stringValue ?? input?["file_path"]?.stringValue ?? input?["url"]?.stringValue
             ?? input?["description"]?.stringValue ?? ""
-        return AgentEvent(
-            kind: json["hook_event_name"]?.stringValue.flatMap(Kind.init(rawValue:)) ?? .other,
-            sessionID: json["session_id"]?.stringValue ?? "unknown",
-            project: cwd.isEmpty || folder == "/" ? (source == .codex ? "Codex" : "Claude") : folder,
-            toolName: json["tool_name"]?.stringValue,
-            summary: summary,
-            message: json["message"]?.stringValue,
-            notificationType: json["notification_type"]?.stringValue,
-            source: source,
-            terminal: json["wisp_terminal"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 },
-            cwd: cwd,
-            transcriptPath: json["transcript_path"]?.stringValue
-        )
+        self.message = json["message"]?.stringValue
+        self.notificationType = json["notification_type"]?.stringValue
+        self.source = source
+        self.terminal = terminal.flatMap { $0.isEmpty ? nil : $0 }
+        self.cwd = cwd
+        self.transcriptPath = json["transcript_path"]?.stringValue
+        self.startSource = json["source"]?.stringValue
+    }
+
+    /// A session picked up again with `--resume`: its process, and the cost it reports, start over.
+    public var isResume: Bool { kind == .sessionStart && startSource == "resume" }
+
+    /// The working folder's name, or the agent's name when there's no usable folder.
+    public static func projectName(cwd: String, source: AgentSource) -> String {
+        let folder = URL(fileURLWithPath: cwd).lastPathComponent
+        return cwd.isEmpty || folder == "/" ? (source == .codex ? "Codex" : "Claude") : folder
     }
 }
 

@@ -1,6 +1,6 @@
 # Wisp plan and status
 
-The status below is as of 2026-10-30. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 376 tests. For what comes next, see `docs/REVIEW.md`.
+The status below is as of 2026-11-01. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 507 tests. For what comes next, see `docs/REVIEW.md`.
 
 ## Done
 
@@ -25,6 +25,23 @@ The status below is as of 2026-10-30. Testing approach: decision logic lives in 
 | Position | Top, top-left, top-right, bottom, left or right edge, globally or per display. Corners sit under the menu bar and bottom sits above the Dock as islands; left and right attach a notch on its side with upright pills (glyph over value) and bubbles stacked along the edge. Swipes, nav pill, hit regions and gradients follow the edge |
 | Appearance | Its own Settings pane over one `Appearance` value (migrated from the old look keys). Presets (Default, Calm, Arcade, Minimal, Neon), saved looks, a look per profile, `.wisplook` import and export, reset. Roundness, shadow, opacity, shelf size (content zoom), glow strength and reach, grain, shimmer, outline width, page switcher style, minimal pill, number font, hover grow/glow/wobble with strength, idle ears, breathing and music glow (simulated beat), time-of-day accent, sound packs (macOS sounds or your files), confetti, notch pet |
 | Activity motion and bubbles | Compact content is clipped to the growing shell and resolves out of a blur after it, contracting toward the camera on the way out; extra live activities pinch off into up to two round bubbles (gooey split and merge), and clicking one swaps it into the pill |
+
+## In progress: Agent Bar
+
+Live status for coding agents: a Claude Code `statusLine` bar in the terminal, live session data, context window %, tool activity, git branch, a `wisp` CLI and alerts. Each phase is its own PR. Phase A is being built on `feat/agent-statusline`.
+
+| Phase | Scope | Status |
+|---|---|---|
+| A | Also pulled in from B at review: Code profile is one Wide Agents widget (sessions left, details right, every figure Claude Code reports); new Stats profile for System Stats, Timer and Day Progress; saved profiles and Home upgraded once when untouched. `wisp-agent statusline` (Wisp's bar by default; an existing bar is chained, never replaced; "Keep my bar" and "Off" restore it exactly). Snapshots forwarded fire-and-forget to Wisp: model, real cost, lines +/−, durations, context %. Context ring in the pill, context alert (default 80%), "Compacting…" via PreCompact/PostCompact. Versioned socket envelope (`docs/agent-protocol.md`). `GitHead` branch parsing. "Update hooks" card for existing installs | In progress |
+| B | Open transcript; 7-day spend sparkline; hide details during a call (session cards, folder and copy ID landed in A). Screen-share detection has no public API: options to be decided | Not started |
+| C | Opt-in tool activity: PreToolUse/PostToolUse/SubagentStop (`async` for Claude), `ToolLabel` with secret masking, pill label, most-urgent session wins the pill with a count badge | Not started |
+| D | `wisp status`, `--json`, `watch`, `spend` over a `query` message; `~/.local/bin/wisp` symlink install/uninstall; per-project `DailySpend` | Not started |
+| E | Alerts: long-running tool, re-nudge, daily budget (USD) at 80% and 100%. Notices only, never blocking | Not started |
+| F | Codex parity: context % from rollout `token_count` (`model_context_window`), OpenAI prices for estimates, compaction and tool hooks, verified parity table | Not started |
+
+Untested: `WispAgent/SocketSend.swift` (the helper's fire-and-forget send) has no automated test because the helper target isn't in the test bundle; it was checked by hand against Wisp Dev. Everything the helper renders is tested in `StatusBarRenderer`.
+
+Decided against the original brief: no `ModelLimits` table (Claude Code's snapshot and Codex's rollouts both report the window size); no current-tool segment in the terminal bar (the helper is stateless); Codex gets no terminal bar (it has no external status line command, openai/codex#17827).
 
 ## Not done
 

@@ -175,7 +175,14 @@ final class AppServices {
             }
             activities.post(.agent(status), slot: .agent, duration: 4)
         case .waiting: activities.post(.agent(status), slot: .agent, duration: 4)
-        case .idle: activities.remove(.agent)
+        case .idle:
+            // A /compact between turns is the one thing an idle session shows. Limited, in case
+            // the compaction fails and PostCompact never comes.
+            if status.compacting {
+                activities.post(.agent(status), slot: .agent, duration: 120)
+            } else {
+                activities.remove(.agent)
+            }
         case .needsApproval: break
         }
     }
@@ -276,6 +283,10 @@ final class AppServices {
         agents.onNotice = { [weak self] text in
             self?.activities.post(.notice(symbol: "checkmark.shield.fill", text: text), slot: .notice, duration: 2)
         }
+        agents.onContextAlert = { [weak self] text in
+            self?.activities.post(
+                .notice(symbol: "gauge.with.dots.needle.67percent", text: text), slot: .notice, duration: 3)
+        }
         agents.start()
 
         context.onSwitch = { [weak self] profile, swapsHome in self?.applyProfile(profile, swapsHome: swapsHome) }
@@ -311,16 +322,22 @@ final class AppServices {
     /// wallpaper glow is on, and an idle timer takes a newly chosen default length. Only the
     /// settings are tracked; reading the timer here would undo every +/- in the widget.
     private func syncPreferenceEffects() {
-        let (wallpaperOn, timerLength, needsClock, switches) = withObservationTracking {
+        let (wallpaperOn, timerLength, needsClock, switches, agentPrefs) = withObservationTracking {
             let look = preferences.appearance
             let timeEars = [look.leftEar, look.rightEar].contains { [.time, .date, .meeting, .weather].contains($0) }
             return (
                 preferences.wallpaperTint, preferences.defaultTimerSeconds, look.timeOfDay != .off || timeEars,
-                (media: preferences.mediaActivity, meeting: preferences.meetingActivity)
+                (media: preferences.mediaActivity, meeting: preferences.meetingActivity),
+                (
+                    bar: preferences.terminalBarMode,
+                    threshold: preferences.contextAlert ? Double(preferences.contextThreshold) : nil
+                )
             )
         } onChange: { [weak self] in
             Task { @MainActor in self?.syncPreferenceEffects() }
         }
+        agents.terminalBarMode = agentPrefs.bar
+        agents.contextThreshold = agentPrefs.threshold
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
         if needsClock { startClock() } else { stopClock() }
         if timerLength != appliedTimerLength {
