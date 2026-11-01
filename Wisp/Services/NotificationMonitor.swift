@@ -13,7 +13,11 @@ final class NotificationMonitor {
     private(set) var seenApps: [String: String] = [:]
 
     @ObservationIgnored var onNotification: (NotificationItem) -> Void = { _ in }
-    @ObservationIgnored var onFocus: (FocusModeState) -> Void = { _ in }
+    /// The current Focus, including the first reading, for profile rules. Read whether or not
+    /// the Focus pill is on.
+    @ObservationIgnored var onFocusState: (FocusModeState) -> Void = { _ in }
+    /// Focus changed after launch and the Focus pill is on.
+    @ObservationIgnored var onFocusChange: (FocusModeState) -> Void = { _ in }
     @ObservationIgnored let avatars = ContactAvatars()
 
     @ObservationIgnored private let preferences: Preferences
@@ -125,17 +129,19 @@ final class NotificationMonitor {
     }
 
     private func pollFocus() {
-        guard preferences.focusActivity, hasAccess else { return }
+        guard hasAccess else { return }
         let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/DoNotDisturb/DB")
         guard let assertions = try? Data(contentsOf: folder.appendingPathComponent("Assertions.json")),
             let state = FocusModeState.parse(
                 assertions: assertions,
                 modes: try? Data(contentsOf: folder.appendingPathComponent("ModeConfigurations.json")))
         else { return }
-        defer { lastFocus = state }
-        // The first reading is the starting point, not a change.
-        guard let lastFocus, lastFocus.isOn != state.isOn || lastFocus.name != state.name else { return }
-        onFocus(state)
+        let previous = lastFocus
+        lastFocus = state
+        guard previous?.isOn != state.isOn || previous?.name != state.name else { return }
+        onFocusState(state)
+        // The first reading is the starting point, not a change to announce.
+        if previous != nil, preferences.focusActivity { onFocusChange(state) }
     }
 
     private func appName(for bundleID: String) -> String {

@@ -290,8 +290,10 @@ final class AppServices {
         }
 
         notifications.onNotification = { [weak self] item in self?.showNotification(item) }
-        notifications.onFocus = { [weak self] state in
+        notifications.onFocusState = { [weak self] state in
             self?.context.update { $0.focus = state.isOn ? state.name : nil }
+        }
+        notifications.onFocusChange = { [weak self] state in
             self?.activities.post(.focus(state), slot: .focus, duration: 2.2)
         }
         notifications.start()
