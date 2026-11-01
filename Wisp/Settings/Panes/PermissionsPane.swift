@@ -6,6 +6,8 @@ struct PermissionSettings: View {
     /// Re-reads the sidebar badge after a grant.
     let onChange: () -> Void
     @State private var refresh = 0
+    /// Screen Recording reaches Wisp only after a relaunch, so once asked, offer one.
+    @State private var askedScreenRecording = false
 
     var body: some View {
         Form {
@@ -15,13 +17,19 @@ struct PermissionSettings: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(permission.title)
                             Text(permission.purpose).font(.caption).foregroundStyle(.secondary)
+                            if needsReopen(permission) {
+                                Text("Takes effect after Wisp reopens").font(.caption).foregroundStyle(.orange)
+                            }
                         }
                         Spacer()
                         if let granted = permission.isGranted {
                             StatusDot(granted: granted)
-                            if !granted {
+                            if needsReopen(permission) {
+                                Button("Reopen Wisp") { Relaunch.now() }
+                            } else if !granted {
                                 Button("Allow") {
                                     permission.request()
+                                    if permission == .screenRecording { askedScreenRecording = true }
                                     onChange()
                                 }
                             }
@@ -42,10 +50,10 @@ struct PermissionSettings: View {
         .formStyle(.grouped)
         // Grants happen in System Settings, so follow them while this pane is open.
         .task {
-            var last = Self.statuses
+            var last = Permission.statuses
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
-                let now = Self.statuses
+                try? await Task.sleep(for: .seconds(1))
+                let now = Permission.statuses
                 guard now != last else { continue }
                 last = now
                 refresh += 1
@@ -54,7 +62,9 @@ struct PermissionSettings: View {
         }
     }
 
-    private static var statuses: [Bool?] { Permission.allCases.map(\.isGranted) }
+    private func needsReopen(_ permission: Permission) -> Bool {
+        permission == .screenRecording && askedScreenRecording && permission.isGranted == false
+    }
 }
 
 struct StatusDot: View {
