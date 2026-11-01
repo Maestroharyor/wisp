@@ -39,6 +39,9 @@ final class HotkeyCenter {
     @ObservationIgnored private var accessWaiter: Task<Void, Never>?
     /// Notices Accessibility being switched off while Hyper is active.
     @ObservationIgnored private var trustWatcher: Task<Void, Never>?
+    /// The user switched Accessibility off while Hyper was on: don't prompt again for a choice
+    /// they just made. Settings still shows the status, and turning it back on resumes.
+    @ObservationIgnored private var accessRevoked = false
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "hotkey")
 
     init(preferences: Preferences) {
@@ -90,7 +93,7 @@ final class HotkeyCenter {
             disableRemap()
             status = .needsAccessibility
             // During first-launch setup, the setup window asks, with an explanation.
-            if preferences.onboarded { AccessibilityPermission.requestAccess() }
+            if preferences.onboarded, !accessRevoked { AccessibilityPermission.requestAccess() }
             accessWaiter = Task { [weak self] in
                 await AccessibilityPermission.waitUntilTrusted()
                 guard !Task.isCancelled else { return }
@@ -129,6 +132,7 @@ final class HotkeyCenter {
             return
         }
         status = .active
+        accessRevoked = false
         watchTrust()
     }
 
@@ -140,6 +144,7 @@ final class HotkeyCenter {
                 try? await Task.sleep(for: .seconds(3))
                 guard !Task.isCancelled, !AccessibilityPermission.isTrusted else { continue }
                 self?.log.notice("Accessibility was turned off; restoring Caps Lock")
+                self?.accessRevoked = true
                 self?.configure()
                 return
             }
