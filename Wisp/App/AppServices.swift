@@ -379,16 +379,20 @@ final class AppServices {
         }
     }
 
-    /// The meeting pill while the microphone is live, named after the event in progress.
+    /// The pill while the microphone is live: a call (named after the event in progress) when a
+    /// call app has the mic or a meeting is on, otherwise "Recording".
     private func updateMeeting() {
         guard preferences.meetingActivity, microphone.inUse else {
             activities.remove(.meeting)
             return
         }
         calendar.refreshIfStale()
-        let title = Meetings.current(meetingEvents, now: .now)?.title ?? "On a call"
+        let event = Meetings.current(meetingEvents, now: .now)
+        let kind = MicUse.classify(inputBundleIDs: microphone.inputApps, meetingInProgress: event != nil)
+        let title = kind == .recording ? "Recording" : event?.title ?? "On a call"
         activities.post(
-            .meeting(MeetingStatus(title: title, started: microphone.since ?? .now)), slot: .meeting, duration: nil)
+            .meeting(MeetingStatus(title: title, started: microphone.since ?? .now, kind: kind)), slot: .meeting,
+            duration: nil)
     }
 
     private func offerUpcomingMeeting() {

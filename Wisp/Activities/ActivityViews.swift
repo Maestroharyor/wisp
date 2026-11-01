@@ -76,9 +76,12 @@ struct CompactActivityView: View {
             }
         case .meeting(let status):
             HStack(spacing: ActivityMetrics.contentSpacing) {
-                Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
-                    .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
-                    .frame(width: 16)
+                Image(
+                    systemName: model.services.microphone.muted
+                        ? "mic.slash.fill" : status.kind == .recording ? "record.circle.fill" : "mic.fill"
+                )
+                .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
+                .frame(width: 16)
                 Text(status.title).lineLimit(1)
             }
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:

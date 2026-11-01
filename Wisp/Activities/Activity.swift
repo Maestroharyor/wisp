@@ -108,10 +108,12 @@ enum Activity: Sendable, Equatable {
     }
 }
 
-/// A live call: what it is (from the calendar, if anything) and when the mic came on.
+/// The microphone in use: a call (named from the calendar, if anything) or a recording,
+/// and when the mic came on.
 struct MeetingStatus: Sendable, Equatable {
     let title: String
     let started: Date
+    let kind: MicActivity
 }
 
 /// A call that's about to start, with its link.

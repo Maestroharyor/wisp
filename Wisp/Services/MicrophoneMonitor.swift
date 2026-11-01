@@ -2,14 +2,16 @@ import CoreAudio
 import Foundation
 import Observation
 
-/// Whether any app is using the default microphone (a call, a recording), checked every
-/// two seconds through CoreAudio, plus a mute toggle for it. Wisp never records.
+/// Whether any app is using the default microphone (a call, a recording) and which apps,
+/// checked every two seconds through CoreAudio, plus a mute toggle for it. Wisp never records.
 @MainActor
 @Observable
 final class MicrophoneMonitor {
     private(set) var inUse = false
     private(set) var since: Date?
     private(set) var muted = false
+    /// Bundle ids of the apps recording from any input right now (empty when macOS doesn't say).
+    private(set) var inputApps: [String] = []
 
     @ObservationIgnored var onChange: (Bool) -> Void = { _ in }
     @ObservationIgnored private var task: Task<Void, Never>?
@@ -49,11 +51,49 @@ final class MicrophoneMonitor {
         let now = (running ?? 0) != 0
         if let volume: Float32 = SystemVolume.read(device, Self.volumeAddress), volume > 0 { restoreVolume = volume }
         if let mute: UInt32 = SystemVolume.read(device, Self.muteAddress) { muted = mute != 0 }
-        guard now != inUse else { return }
+        // Which apps only matters while the mic is on; the list is read only then.
+        let apps = now ? Self.appsUsingInput() : []
+        guard now != inUse || apps != inputApps else { return }
+        if now != inUse { since = now ? .now : nil }
         inUse = now
-        since = now ? .now : nil
+        inputApps = apps
         onChange(now)
     }
+
+    /// CoreAudio's per-process view (macOS 14): the processes with an input stream running.
+    private static func appsUsingInput() -> [String] {
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyProcessObjectList,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr, size > 0 else { return [] }
+        var processes = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &processes) == noErr else { return [] }
+        return processes.compactMap { process in
+            let running: UInt32? = SystemVolume.read(process, runningInputAddress)
+            guard running == 1, let id: Unmanaged<CFString> = SystemVolume.read(process, bundleIDAddress) else {
+                return nil
+            }
+            let bundleID = id.takeRetainedValue() as String
+            return bundleID.isEmpty ? nil : bundleID
+        }
+        .sorted()
+    }
+
+    private static let runningInputAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioProcessPropertyIsRunningInput,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+
+    private static let bundleIDAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioProcessPropertyBundleID,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
 
     private static var defaultInput: AudioObjectID? {
         var address = AudioObjectPropertyAddress(
