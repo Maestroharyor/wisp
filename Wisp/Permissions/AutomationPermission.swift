@@ -31,7 +31,9 @@ enum AutomationPermission {
             let targets = systemTargets + running
             await Task.detached { for target in targets { _ = ask(target) } }.value
             await refresh()
-            Permission.automation.openSettings()
+            // Once allowed there's nothing left to do in System Settings; open it only to
+            // switch a denied app back on.
+            if status != true { Permission.automation.openSettings() }
         }
     }
 
