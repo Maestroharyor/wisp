@@ -451,6 +451,12 @@ final class Preferences {
         }
     }
 
+    /// Puts back a profile's Home that was edited while it was showing, without showing it.
+    func restoreHome(_ layout: HomeLayout, toProfile name: String) {
+        guard let index = profiles.firstIndex(where: { $0.name == name }) else { return }
+        profiles[index].home = layout
+    }
+
     func setDefaultPage(_ page: String, for name: String) {
         guard let index = profiles.firstIndex(where: { $0.name == name }) else { return }
         profiles[index].defaultPage = page

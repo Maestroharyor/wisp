@@ -97,11 +97,15 @@ struct HomePage: View {
                 .padding(.top, 6)
             }
             Button {
-                // After a profile switch the snapshot belongs to the old profile; restoring it
-                // would save it into the new one.
-                if let snapshot = model.homeSnapshot, snapshot.profile == preferences.homeProfile {
-                    preferences.homeLayout = snapshot.layout
-                    preferences.enabledWidgets = snapshot.enabled
+                if let snapshot = model.homeSnapshot {
+                    if snapshot.profile == preferences.homeProfile {
+                        preferences.homeLayout = snapshot.layout
+                        preferences.enabledWidgets = snapshot.enabled
+                    } else {
+                        // A profile switch happened meanwhile: put the old profile's Home back
+                        // into that profile, and leave the one now showing alone.
+                        preferences.restoreHome(snapshot.layout, toProfile: snapshot.profile)
+                    }
                 }
                 endEditing()
             } label: {
