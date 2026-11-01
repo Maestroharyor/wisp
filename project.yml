@@ -86,7 +86,8 @@ targets:
     info:
       path: Wisp/Resources/Info.plist
       properties:
-        CFBundleDisplayName: Wisp
+        CFBundleDisplayName: $(WISP_DISPLAY_NAME)
+        CFBundleName: $(WISP_DISPLAY_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.utilities
@@ -117,6 +118,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp
         PRODUCT_NAME: Wisp
+        WISP_DISPLAY_NAME: Wisp
         # Only notarisation needs the hardened runtime. Self-signed builds ("Wisp Dev"
         # has no Team ID) leave it off, or library validation refuses Sparkle.framework.
         # scripts/release.sh turns it on for Developer ID builds.
@@ -127,6 +129,12 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      configs:
+        # Development builds are a separate app ("Wisp Dev") with their own settings,
+        # permissions and files, so they never touch the installed Wisp.
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp.dev
+          WISP_DISPLAY_NAME: Wisp Dev
 
   WispTests:
     type: bundle.unit-test
