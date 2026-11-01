@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Decisions for installing `wisp` as a link to the helper in `~/.local/bin`, which needs
@@ -44,11 +45,29 @@ public enum CommandLineTool {
         switch state(at: link, helper: helper) {
         case .installed: return
         case .foreign: throw Problem.taken
-        case .otherApp: try manager.removeItem(at: link)
-        case .notInstalled: break
+        case .otherApp, .notInstalled: break
         }
-        try manager.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try manager.createSymbolicLink(at: link, withDestinationURL: helper)
+        let folder = link.deletingLastPathComponent()
+        try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+        // Made beside it, then renamed over it in one step, so a failure never leaves the
+        // other copy's link gone with nothing in its place.
+        let temporary = folder.appendingPathComponent(".wisp-\(UUID().uuidString)")
+        try manager.createSymbolicLink(at: temporary, withDestinationURL: helper)
+        guard rename(temporary.path, link.path) == 0 else {
+            let code = errno
+            try? manager.removeItem(at: temporary)
+            throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
+        }
+    }
+
+    /// Where to put `~/.local/bin` on PATH for the shell at `shell` (`$SHELL`): the file to
+    /// edit and the line to add.
+    public static func pathAdvice(shell: String?) -> (file: String, line: String) {
+        switch URL(fileURLWithPath: shell ?? "").lastPathComponent {
+        case "bash": ("~/.bash_profile", #"export PATH="$HOME/.local/bin:$PATH""#)
+        case "fish": ("~/.config/fish/config.fish", "fish_add_path ~/.local/bin")
+        default: ("~/.zshrc", #"export PATH="$HOME/.local/bin:$PATH""#)
+        }
     }
 
     /// Removes `link` when it's Wisp's link to `helper`; anything else is left alone.

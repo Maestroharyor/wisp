@@ -62,6 +62,12 @@ final class CommandLineInstaller {
         return CommandLineTool.state(at: link, helper: helper)
     }
 
+    /// After you change your PATH.
+    func checkPathAgain() {
+        path = .unchecked
+        checkPathOnce()
+    }
+
     private func checkPathOnce() {
         guard state == .installed, path == .unchecked else { return }
         path = .checking

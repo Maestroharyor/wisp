@@ -263,15 +263,20 @@ private struct CommandLineSettings: View {
                 Label(problem, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
             }
             if installer.state == .installed, installer.path == .notOnPath {
+                let advice = CommandLineTool.pathAdvice(shell: ProcessInfo.processInfo.environment["SHELL"])
                 VStack(alignment: .leading, spacing: 4) {
                     Label(
-                        "~/.local/bin isn't on your PATH. Add this line to ~/.zshrc:",
+                        "~/.local/bin isn't on your PATH. Add this line to \(advice.file), then open a new terminal:",
                         systemImage: "exclamationmark.triangle"
                     )
                     .foregroundStyle(.orange)
-                    Text(#"export PATH="$HOME/.local/bin:$PATH""#)
-                        .font(.system(size: 11, design: .monospaced))
-                        .textSelection(.enabled)
+                    HStack {
+                        Text(advice.line)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button("Check again") { installer.checkPathAgain() }
+                    }
                 }
                 .font(.caption)
             }

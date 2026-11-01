@@ -224,6 +224,10 @@ final class CommandLineToolTests: XCTestCase {
             CommandLineTool.path(fromShellOutput: "Welcome!\n<<wisp-path>>/usr/bin:/bin<</wisp-path>>\n"),
             "/usr/bin:/bin")
         XCTAssertNil(CommandLineTool.path(fromShellOutput: "no markers"))
+        XCTAssertEqual(CommandLineTool.pathAdvice(shell: "/bin/zsh").file, "~/.zshrc")
+        XCTAssertEqual(CommandLineTool.pathAdvice(shell: nil).file, "~/.zshrc")
+        XCTAssertEqual(CommandLineTool.pathAdvice(shell: "/opt/homebrew/bin/bash").file, "~/.bash_profile")
+        XCTAssertEqual(CommandLineTool.pathAdvice(shell: "/opt/homebrew/bin/fish").line, "fish_add_path ~/.local/bin")
         XCTAssertEqual(CommandLineTool.printPathCommand, #"printf '<<wisp-path>>%s<</wisp-path>>' "$PATH""#)
     }
 }
@@ -263,6 +267,9 @@ final class CommandLineInstallTests: XCTestCase {
         XCTAssertEqual(CommandLineTool.state(at: link, helper: helper), .otherApp(other.path))
         try CommandLineTool.install(at: link, helper: helper)
         XCTAssertEqual(CommandLineTool.state(at: link, helper: helper), .installed)
+        // Nothing is left behind from the swap.
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: link.deletingLastPathComponent().path), ["wisp"])
     }
 
     func testSomeoneElsesWispIsNeverTouched() throws {
