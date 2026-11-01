@@ -105,8 +105,8 @@ public enum ToolLabel {
         rule(#"\b(bearer\s+)(?!•)[^\s'"]+"#, "$1\(mask)", caseInsensitive: true),
         // X-Api-Key: x, X-Auth-Token: x (Authorization is handled above)
         rule(#"\b((?:x-)?[a-z-]*(?:key|token|secret)\s*:\s*)(?!•)[^\s'"]+"#, "$1\(mask)", caseInsensitive: true),
-        // curl -u user:password, sshpass -p password
-        rule(#"((?:^|\s)(?:-u|--user)\s+[^:\s'"]+:)[^\s'"]+"#, "$1\(mask)", caseInsensitive: false),
+        // curl -u user:password, sshpass -p password (not docker's numeric -u uid:gid)
+        rule(#"((?:^|\s)(?:-u|--user)\s+[^:\s'"]+:)(?!\d+(?:\s|$))[^\s'"]+"#, "$1\(mask)", caseInsensitive: false),
         rule(#"(\bsshpass\s+-p\s*)\S+"#, "$1\(mask)", caseInsensitive: false),
         // https://user:password@host
         rule(#"(://)[^/\s:@]+:[^/\s@]+@"#, "$1\(mask)@", caseInsensitive: false),

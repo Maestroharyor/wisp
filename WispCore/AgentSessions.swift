@@ -283,6 +283,17 @@ public struct AgentSessions: Sendable {
         }
     }
 
+    /// The denied call is the newest running one with the requested tool's name (the
+    /// request's timeline entry); parallel calls to other tools carry on.
+    private static func dropDeniedTool(in session: inout AgentSession) {
+        let requested = session.timeline.last { $0.kind == .request }?.text
+        guard
+            let index = session.runningTools.lastIndex(where: { $0.name == requested })
+                ?? session.runningTools.indices.last
+        else { return }
+        session.runningTools.remove(at: index)
+    }
+
     /// Ends the call with `id`, or the newest one when the hook carried no id.
     private static func endTool(id: String?, in session: inout AgentSession, at date: Date) {
         let index =
@@ -363,7 +374,7 @@ public struct AgentSessions: Sendable {
         guard var session = sessions[id] else { return }
         Self.append(kind, text, to: &session, at: date)
         // A denied tool never runs, so no PostToolUse comes to clear it.
-        if kind == .denied, !session.runningTools.isEmpty { session.runningTools.removeLast() }
+        if kind == .denied { Self.dropDeniedTool(in: &session) }
         sessions[id] = session
     }
 
@@ -403,6 +414,7 @@ public struct AgentSessions: Sendable {
     public func session(_ id: String) -> AgentSession? { sessions[id] }
 
     public mutating func prune(now: Date, olderThan age: TimeInterval) {
-        sessions = sessions.filter { now.timeIntervalSince($0.value.updated) < age }
+        // Tool activity counts: a long turn of tool calls is still a live session.
+        sessions = sessions.filter { now.timeIntervalSince($0.value.lastActivity ?? $0.value.updated) < age }
     }
 }

@@ -32,7 +32,7 @@ public enum AgentSource: String, Equatable, Sendable {
     /// Tool activity hooks, added only when the user turns tool activity on. They fire on
     /// every tool call, so they always run in the background. Codex's come in a later phase.
     public var toolHookEvents: [String] {
-        self == .claude ? ["PreToolUse", "PostToolUse", "SubagentStop"] : []
+        self == .claude ? AgentEvent.Kind.toolActivity.map(\.rawValue) : []
     }
 }
 
@@ -53,7 +53,8 @@ public struct AgentEvent: Equatable, Sendable {
         case other
 
         /// Tool activity: frequent, and only about the tool, not the session's state.
-        public var isToolActivity: Bool { [.preToolUse, .postToolUse, .subagentStop].contains(self) }
+        public static let toolActivity: [Kind] = [.preToolUse, .postToolUse, .subagentStop]
+        public var isToolActivity: Bool { Self.toolActivity.contains(self) }
     }
 
     public let kind: Kind

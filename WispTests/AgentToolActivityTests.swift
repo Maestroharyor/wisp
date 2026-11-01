@@ -103,7 +103,7 @@ final class ToolLabelTests: XCTestCase {
             "npm test", "mkdir -p build/out", "git commit -m 'Fix the key handler'", "ls -la ~/Documents",
             "swift build -c release", "make keyboard-test",
             "cat /Users/me/Documents/rea/wisp/WispCore/AgentEvent.swift",
-            "open https://github.com/Maestroharyor/wisp/pull/14",
+            "open https://github.com/Maestroharyor/wisp/pull/14", "docker run -u 1000:1000 alpine",
         ] {
             XCTAssertEqual(ToolLabel.mask(command), command)
         }
@@ -241,6 +241,27 @@ final class AgentToolSessionTests: XCTestCase {
         sessions.apply(try event("PermissionRequest", extra: #","tool_name":"Bash""#), at: start + 1)
         sessions.record(.denied, "Denied", session: "s1", at: start + 2)
         XCTAssertNil(sessions.session("s1")?.currentTool)
+    }
+
+    func testADenialDropsTheRequestedToolNotAParallelOne() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(try tool("PreToolUse", "Bash", id: "b", input: #"{"command":"rm x"}"#), at: start)
+        sessions.apply(try tool("PreToolUse", "Read", id: "r", input: #"{"file_path":"/a/R.swift"}"#), at: start)
+        sessions.apply(try event("PermissionRequest", extra: #","tool_name":"Bash""#), at: start + 1)
+        sessions.record(.denied, "Denied", session: "s1", at: start + 2)
+        XCTAssertEqual(sessions.session("s1")?.runningTools.map(\.name), ["Read"])
+    }
+
+    func testLastActivityAndPruningCountToolCalls() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(try tool("PreToolUse", "Read", id: "t"), at: start + 7200)
+        let session = try XCTUnwrap(sessions.session("s1"))
+        let facts = Dictionary(uniqueKeysWithValues: session.facts(now: start + 7205).map { ($0.label, $0.value) })
+        XCTAssertEqual(facts["Last activity"], "just now")
+        sessions.prune(now: start + 7300, olderThan: 3600)
+        XCTAssertNotNil(sessions.session("s1"), "a session busy with tools isn't pruned")
     }
 
     func testToolFactsUseTheHiddenLabelInPrivate() throws {
