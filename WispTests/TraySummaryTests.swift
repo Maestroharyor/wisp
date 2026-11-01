@@ -11,6 +11,9 @@ final class TraySummaryTests: XCTestCase {
         XCTAssertEqual(TraySummary.bytes(3_420_000), "3.4 MB")
         XCTAssertEqual(TraySummary.bytes(12_000_000), "12 MB")
         XCTAssertEqual(TraySummary.bytes(1_500_000_000), "1.5 GB")
+        XCTAssertEqual(TraySummary.bytes(9_960), "10 KB", "rounding up to 10 drops the decimal")
+        XCTAssertEqual(TraySummary.bytes(999_600), "1 MB", "rounding up to 1000 moves to the next unit")
+        XCTAssertEqual(TraySummary.bytes(1_040), "1 KB")
     }
 
     func testHeaderCountsFilesAndTotalSize() {

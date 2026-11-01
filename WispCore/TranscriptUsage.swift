@@ -32,7 +32,8 @@ public struct TokenUsage: Equatable, Sendable {
     private static func compact(_ count: Int) -> String {
         switch count {
         case ..<1_000: "\(count)"
-        case ..<1_000_000: "\(Int((Double(count) / 1_000).rounded()))k"
+        // Below 999,500 so rounding never shows "1000k".
+        case ..<999_500: "\(Int((Double(count) / 1_000).rounded()))k"
         default: String(format: "%.1fM", Double(count) / 1_000_000)
         }
     }

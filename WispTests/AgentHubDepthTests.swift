@@ -136,6 +136,8 @@ final class TranscriptUsageTests: XCTestCase {
         XCTAssertEqual(TokenUsage(input: 182_000, output: 400).summary(cost: 0.41), "182k tokens · ~$0.41")
         XCTAssertEqual(TokenUsage(input: 900, output: 0).summary(cost: nil), "900 tokens")
         XCTAssertEqual(TokenUsage(input: 2_400_000).summary(cost: 12.5), "2.4M tokens · ~$12.50")
+        XCTAssertEqual(TokenUsage(input: 999_499).summary(cost: nil), "999k tokens")
+        XCTAssertEqual(TokenUsage(input: 999_700).summary(cost: nil), "1.0M tokens")
     }
 }
 
