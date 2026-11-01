@@ -53,7 +53,7 @@ struct NotificationCardView: View {
                 replyBar
                     .padding(.horizontal, 14)
                     .frame(height: SurfaceSizing.replyBarHeight)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(model.motion.expands ? .opacity.combined(with: .move(edge: .top)) : .opacity)
             }
             Spacer(minLength: 0)
         }

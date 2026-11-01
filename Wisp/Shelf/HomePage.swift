@@ -37,7 +37,7 @@ struct HomePage: View {
                 }
             }
             if model.editingHome {
-                pickerRow.transition(.opacity.combined(with: .move(edge: .bottom)))
+                pickerRow.transition(model.motion.expands ? .opacity.combined(with: .move(edge: .bottom)) : .opacity)
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.85), value: preferences.homeLayout)
@@ -189,20 +189,23 @@ struct WidgetsPage: View {
     var body: some View {
         ZStack {
             if let solo = model.soloWidget {
-                SoloWidgetView(kind: solo, model: model, zoom: zoom)
+                SoloWidgetView(kind: solo, model: model, zoom: zoomSpace)
                     .transition(.opacity)
             } else {
-                WidgetGridView(model: model, zoom: zoom)
+                WidgetGridView(model: model, zoom: zoomSpace)
                     .transition(.opacity)
             }
         }
         .animation(model.surfaceAnimation, value: model.soloWidget)
     }
+
+    /// No zoom from tile to card with Reduce Motion; the pages just cross-fade.
+    private var zoomSpace: Namespace.ID? { model.motion.expands ? zoom : nil }
 }
 
 private struct WidgetGridView: View {
     let model: NotchModel
-    let zoom: Namespace.ID
+    let zoom: Namespace.ID?
 
     var body: some View {
         let preferences = model.preferences
@@ -247,7 +250,7 @@ private struct WidgetGridView: View {
 private struct WidgetIconCell: View {
     let kind: WidgetKind
     let metrics: WidgetGrid.Metrics
-    let zoom: Namespace.ID
+    let zoom: Namespace.ID?
     let open: () -> Void
     @State private var hovering = false
 
@@ -255,7 +258,7 @@ private struct WidgetIconCell: View {
         Button(action: open) {
             VStack(spacing: metrics.captionGap) {
                 WidgetIconTile(kind: kind, size: metrics.tileSize)
-                    .matchedGeometryEffect(id: kind, in: zoom)
+                    .zoomSource(id: kind, in: zoom)
                     .scaleEffect(hovering ? 1.05 : 1)
                 Text(kind.title)
                     .font(.system(size: metrics.captionSize, weight: .semibold))
@@ -293,7 +296,7 @@ private struct WidgetIconTile: View {
 private struct SoloWidgetView: View {
     let kind: WidgetKind
     let model: NotchModel
-    let zoom: Namespace.ID
+    let zoom: Namespace.ID?
 
     var body: some View {
         Group {
@@ -308,7 +311,7 @@ private struct SoloWidgetView: View {
                 ? SurfaceSizing.wideSoloWidth : ShellMetrics.soloCardWidth(notchStyle: model.isNotchStyle),
             height: SurfaceSizing.shelfContentHeight
         )
-        .matchedGeometryEffect(id: kind, in: zoom)
+        .zoomSource(id: kind, in: zoom)
         .overlay(alignment: .topLeading) {
             Button {
                 model.soloWidget = nil
@@ -386,5 +389,13 @@ struct MediaPage: View {
             }
         }
         .frame(width: SurfaceSizing.mediaPageWidth, height: SurfaceSizing.shelfContentHeight)
+    }
+}
+
+extension View {
+    /// The tile-to-card zoom, left out when there's no namespace (Reduce Motion).
+    @ViewBuilder
+    fileprivate func zoomSource(id: WidgetKind, in namespace: Namespace.ID?) -> some View {
+        if let namespace { matchedGeometryEffect(id: id, in: namespace) } else { self }
     }
 }

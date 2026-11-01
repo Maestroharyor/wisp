@@ -148,6 +148,7 @@ struct ApprovalButtons: View {
 
 /// A permission request while the shelf is open, where the card under the notch can't show.
 struct ApprovalBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let approval: AgentApproval
     let hub: AgentHub
 
@@ -174,7 +175,7 @@ struct ApprovalBar: View {
                 .fill(Color(white: 0.12))
                 .shadow(color: .black.opacity(0.5), radius: 10, y: -2)
         )
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     }
 }
 
