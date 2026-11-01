@@ -206,6 +206,10 @@ final class NotchController {
         if services.notifications.canReply(to: item) {
             services.beginReply(to: item)
             model.replyingTo = item
+            // Hovering onto the card started the hover timer; opening the shelf now would
+            // hide the reply field and leave the reply hanging.
+            dwellTask?.cancel()
+            dwellTask = nil
             panel.ignoresMouseEvents = false
             panel.makeKey()
         } else {
@@ -281,8 +285,9 @@ final class NotchController {
         switch effect {
         case .scheduleDwell:
             dwellTask?.cancel()
-            // Hovering onto an approval card is reaching for its buttons, not opening the shelf.
-            if showsApproval { break }
+            // Hovering onto an approval card is reaching for its buttons, not opening the shelf;
+            // the same goes for a reply in progress.
+            if showsApproval || isReplying { break }
             let delay = Duration.milliseconds(Int(services.preferences.hoverDelay * 1000))
             dwellTask = schedule(after: delay, .dwellElapsed)
         case .cancelDwell:
