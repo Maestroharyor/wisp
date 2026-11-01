@@ -677,6 +677,8 @@ private final class ClickPlayer {
     private let node = AVAudioPlayerNode()
     private let minor: AVAudioPCMBuffer
     private let major: AVAudioPCMBuffer
+    /// Stops the engine once scrubbing pauses; a running engine keeps the output device awake.
+    private var idleStop: Task<Void, Never>?
 
     init?() {
         guard let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1),
@@ -695,6 +697,13 @@ private final class ClickPlayer {
         }
         node.scheduleBuffer(isMajor ? major : minor, at: nil, options: .interrupts)
         if !node.isPlaying { node.play() }
+        idleStop?.cancel()
+        idleStop = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            self.node.stop()
+            self.engine.stop()
+        }
     }
 
     private static func buffer(_ samples: [Float], format: AVAudioFormat) -> AVAudioPCMBuffer? {
