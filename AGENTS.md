@@ -22,11 +22,11 @@ Wisp is a macOS notch app (shelf, live activities, coding-agent hub) written in 
 ## Commands
 
 ```sh
-make build    # xcodegen + Debug build (signed "Wisp Dev" when that certificate exists)
+make build    # xcodegen + Debug build: the separate "Wisp Dev" app (com.ayomideodewale.wisp.dev), own settings and permissions
 make test     # WispCore unit tests
 make lint     # swift-format lint --strict
 make format   # swift-format in place
-make run      # build, quit the running copy, launch
+make run      # build Wisp Dev, quit any running Wisp (installed too), launch
 make release  # universal Release DMG and Sparkle zip in build/release
 make hooks    # install the lefthook git hooks
 ```

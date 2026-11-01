@@ -55,7 +55,7 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
   - Headphones: when AirPods or other Bluetooth headphones take over the sound, a pill shows them with their battery and case levels.
   - Battery: charging, unplugged, low (at a level you pick) and full.
   - Timers and Pomodoro; Now Playing from any app, including browsers. When a browser gives no album art, Wisp finds it on iTunes (only the title and artist are sent; switch it off in Settings › Live Activities).
-  - Meetings: a pill while the microphone is on, named after the calendar event, with elapsed time and a mute button. A Join card appears two minutes before a call with a Zoom, Meet, Teams or Webex link.
+  - Calls and recordings: a pill while the microphone is on, with elapsed time and a mute button. It says "On a call" (or the calendar event's name) when a call app such as Zoom, Teams, FaceTime, Slack or Discord has the mic, or a meeting is on the calendar; otherwise it says "Recording". A Join card appears two minutes before a call with a Zoom, Meet, Teams or Webex link.
   - Focus changes, tray count and file-action notices.
   - **Bubbles:** with more than one live activity, the extras pinch off the pill into round bubbles, one on each side, as on iPhone. Click a bubble to swap it into the pill. The first bubble can sit on either side.
 - **Notifications** in the notch, with quick replies to iMessage, WhatsApp and Telegram, and the system banner hidden.
@@ -86,10 +86,12 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
 make build   # generate the Xcode project and build
 make test    # unit tests (WispCore)
 make lint    # swift-format --strict
-make run     # build and launch
+make run     # build and launch Wisp Dev (quits any running Wisp first)
 make release # universal Release DMG and Sparkle zip in build/release
 make hooks   # install the lefthook git hooks
 ```
+
+Debug builds are a separate app, **Wisp Dev** (`com.ayomideodewale.wisp.dev`). It has its own settings, permissions, clipboard history and agent socket, starts with first-run setup, and never checks for updates, so it never touches the installed Wisp. Each one needs its own permission grants. `make run` quits the installed Wisp too, because two copies would draw two notches and both claim Caps Lock; reopen it when you're done. If you connect agents from Wisp Dev, its hooks replace the installed Wisp's until you connect them again there.
 
 `scripts/release.sh` builds a universal Release and writes a DMG, the zip Sparkle installs, checksums, a Homebrew cask and (with a Sparkle key) `appcast.xml`. It signs with "Wisp Dev" without the hardened runtime, or with a Developer ID plus hardened runtime and notarisation when `DEVELOPER_ID` and `NOTARY_PROFILE` are set. See the comments at the top of the script.
 

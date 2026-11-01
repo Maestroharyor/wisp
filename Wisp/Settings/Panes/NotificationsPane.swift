@@ -14,7 +14,7 @@ struct NotificationSettings: View {
                     HStack {
                         StatusDot(granted: monitor.hasAccess)
                         if !monitor.hasAccess {
-                            Button("Open Settings") { Permission.fullDiskAccess.openSettings() }
+                            Button("Allow") { Permission.fullDiskAccess.request() }
                         }
                     }
                 }

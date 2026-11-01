@@ -33,7 +33,7 @@ struct ActivitySettings: View {
                     isOn: $preferences.artworkLookup)
                 Toggle("Player on the lock screen, where macOS allows it", isOn: $preferences.lockScreenPlayer)
                 Toggle(
-                    "Meetings: a pill while the microphone is on, and a Join card before calls",
+                    "Calls and recordings: a pill while the microphone is on, and a Join card before calls",
                     isOn: $preferences.meetingActivity)
                 Toggle("Battery and charging", isOn: $preferences.batteryHUD)
                 Picker("Warn when the battery reaches", selection: $preferences.batteryLowThreshold) {

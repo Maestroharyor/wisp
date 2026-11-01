@@ -41,7 +41,8 @@ final class ClipboardStore {
         let base =
             FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("Wisp/Clipboard", isDirectory: true)
+        return base.appendingPathComponent(AppSupport.folderName(bundleID: Bundle.main.bundleIdentifier))
+            .appendingPathComponent("Clipboard", isDirectory: true)
     }
 
     func start() {

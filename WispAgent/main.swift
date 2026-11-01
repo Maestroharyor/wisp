@@ -7,8 +7,13 @@ import WispCore
 // JSON with the agent (`--source codex`, otherwise Claude Code) and the terminal app it
 // runs in. Any failure exits 0 with no output, so the agent carries on as if no hook ran.
 
-let socketPath = FileManager.default.homeDirectoryForCurrentUser
-    .appendingPathComponent("Library/Application Support/Wisp/agents.sock").path
+// The socket belongs to the app this helper ships in, so a hook pointing at Wisp Dev
+// talks to Wisp Dev and one pointing at Wisp talks to Wisp.
+let appBundleID = Bundle.main.executableURL.map(AppSupport.appBundle(containingHelper:)).flatMap(Bundle.init(url:))?
+    .bundleIdentifier
+let socketPath = AppSupport.socketURL(
+    home: FileManager.default.homeDirectoryForCurrentUser, bundleID: appBundleID
+).path
 guard FileManager.default.fileExists(atPath: socketPath) else { exit(0) }
 
 let arguments = CommandLine.arguments

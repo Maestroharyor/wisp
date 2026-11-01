@@ -78,8 +78,8 @@ final class AgentHub {
     private let approvalWait: Duration = .seconds(HookInstaller.approvalTimeout - 10)
 
     static var socketURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Wisp/agents.sock")
+        AppSupport.socketURL(
+            home: FileManager.default.homeDirectoryForCurrentUser, bundleID: Bundle.main.bundleIdentifier)
     }
 
     /// Where each agent keeps its hooks: Claude Code in its settings, Codex in hooks.json.
