@@ -80,6 +80,16 @@ final class AgentReportTests: XCTestCase {
         XCTAssertEqual(row["branch"], .null)
     }
 
+    func testFiguresAreRoundedForScripts() throws {
+        var session = try running()
+        session.contextPercent = 42.3999999
+        session.cost = 0.123456789
+        let row = AgentReport.row(session, now: now + 0.4, hidden: false)
+        XCTAssertEqual(row.contextPercent, 42.4)
+        XCTAssertEqual(row.cost, 0.1235)
+        XCTAssertEqual(row.toolSeconds, 12)
+    }
+
     func testQueryMessagesDecode() throws {
         let status = try XCTUnwrap(
             AgentProtocol.envelope(kind: .query, source: .claude, terminal: nil, payload: AgentQuery.status.payload))
@@ -135,9 +145,16 @@ final class AgentCLITests: XCTestCase {
         let report = AgentReport(
             generated: now, hidden: nil,
             sessions: [row("a-very-long-project-name", tool: "Running a fairly long command line here")], spend: nil)
-        let lines = AgentCLI.table(report, width: 80).split(separator: "\n")
-        XCTAssertTrue(lines.allSatisfy { $0.count <= 80 }, "\(lines)")
-        XCTAssertTrue(lines[1].contains("…"))
+        // At 100 the tool alone gives way.
+        let wide = AgentCLI.table(report, width: 100).split(separator: "\n")
+        XCTAssertTrue(wide.allSatisfy { $0.count <= 100 }, "\(wide)")
+        XCTAssertTrue(wide[1].hasPrefix("a-very-long-project-name  "))
+        XCTAssertFalse(wide[1].contains("command line here"))
+        // At 80 the tool is down to its least, then the project gives way; the rest stay whole.
+        let narrow = AgentCLI.table(report, width: 80).split(separator: "\n")
+        XCTAssertTrue(narrow.allSatisfy { $0.count <= 80 }, "\(narrow)")
+        XCTAssertFalse(narrow[1].contains("a-very-long-project-name"))
+        XCTAssertTrue(narrow[1].contains("Claude  working  Opus"))
     }
 
     func testEmptyAndHidden() {
@@ -208,5 +225,55 @@ final class CommandLineToolTests: XCTestCase {
             "/usr/bin:/bin")
         XCTAssertNil(CommandLineTool.path(fromShellOutput: "no markers"))
         XCTAssertEqual(CommandLineTool.printPathCommand, #"printf '<<wisp-path>>%s<</wisp-path>>' "$PATH""#)
+    }
+}
+
+final class CommandLineInstallTests: XCTestCase {
+    // XCTest makes a new instance for each test, so each gets its own folder.
+    private let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    private var helper: URL { folder.appendingPathComponent("Wisp.app/Contents/MacOS/wisp-agent") }
+    private var link: URL { folder.appendingPathComponent("home/.local/bin/wisp") }
+
+    override func setUpWithError() throws {
+        try FileManager.default.createDirectory(
+            at: helper.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: helper)
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(at: folder)
+    }
+
+    func testInstallCreatesTheFolderAndUninstallRemovesOnlyTheLink() throws {
+        try CommandLineTool.install(at: link, helper: helper)
+        XCTAssertEqual(CommandLineTool.state(at: link, helper: helper), .installed)
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), helper.path)
+        try CommandLineTool.install(at: link, helper: helper)
+        try CommandLineTool.uninstall(at: link, helper: helper)
+        XCTAssertEqual(CommandLineTool.state(at: link, helper: helper), .notInstalled)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: helper.path))
+    }
+
+    func testAnotherCopysLinkIsRepointedButNotRemoved() throws {
+        let other = folder.appendingPathComponent("Old/Wisp.app/Contents/MacOS/wisp-agent")
+        try FileManager.default.createDirectory(
+            at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: other)
+        try CommandLineTool.uninstall(at: link, helper: helper)
+        XCTAssertEqual(CommandLineTool.state(at: link, helper: helper), .otherApp(other.path))
+        try CommandLineTool.install(at: link, helper: helper)
+        XCTAssertEqual(CommandLineTool.state(at: link, helper: helper), .installed)
+    }
+
+    func testSomeoneElsesWispIsNeverTouched() throws {
+        try FileManager.default.createDirectory(
+            at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("#!/bin/sh\n".utf8).write(to: link)
+        do {
+            try CommandLineTool.install(at: link, helper: helper)
+            XCTFail("installed over someone else's file")
+        } catch CommandLineTool.Problem.taken {}
+        try CommandLineTool.uninstall(at: link, helper: helper)
+        XCTAssertEqual(try Data(contentsOf: link), Data("#!/bin/sh\n".utf8))
     }
 }

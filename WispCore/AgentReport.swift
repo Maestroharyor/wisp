@@ -124,9 +124,11 @@ public struct AgentReport: Codable, Equatable, Sendable {
         return Row(
             id: hidden ? nil : session.id, project: session.project, branch: session.branch,
             agent: session.source.displayName, state: stateName(session), model: session.displayModel,
-            contextPercent: session.contextPercent, cost: session.cost, costIsReal: session.costIsReal,
-            tool: tool?.label(hidden: hidden), toolSeconds: tool.map { max(0, now.timeIntervalSince($0.started)) },
-            turnSeconds: turn, folder: hidden || session.cwd.isEmpty ? nil : session.cwd)
+            contextPercent: session.contextPercent.map { ($0 * 10).rounded() / 10 },
+            cost: session.cost.map { ($0 * 10_000).rounded() / 10_000 }, costIsReal: session.costIsReal,
+            tool: tool?.label(hidden: hidden),
+            toolSeconds: tool.map { max(0, now.timeIntervalSince($0.started)).rounded() },
+            turnSeconds: turn.map { $0.rounded() }, folder: hidden || session.cwd.isEmpty ? nil : session.cwd)
     }
 
     static func stateName(_ session: AgentSession) -> String {

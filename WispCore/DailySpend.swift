@@ -93,8 +93,9 @@ public struct DailySpend: Codable, Equatable, Sendable {
 
     private func dayKeys(_ count: Int, ending date: Date, calendar: Calendar) -> [String] {
         guard count > 0 else { return [] }
-        return (0..<count).reversed().compactMap { back in
-            calendar.date(byAdding: .day, value: -back, to: date).map { Self.key($0, calendar) }
+        // A date that can't be worked out gets a key no day has, so there are always `count`.
+        return (0..<count).reversed().map { back in
+            calendar.date(byAdding: .day, value: -back, to: date).map { Self.key($0, calendar) } ?? ""
         }
     }
 
