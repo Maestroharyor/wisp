@@ -12,6 +12,7 @@ final class NotchController {
     private let services: AppServices
     private var machine = NotchMachine()
     private var pointerInside = false
+    private var pointerOverBubble = false
     private var dwellTask: Task<Void, Never>?
     private var closeTask: Task<Void, Never>?
     private var dragEndTask: Task<Void, Never>?
@@ -63,7 +64,8 @@ final class NotchController {
     }
 
     private func updateClickThrough() {
-        panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !isReplying && !showsApproval
+        panel.ignoresMouseEvents =
+            machine.phase == .closed && !model.dragging && !isReplying && !showsApproval && !pointerOverBubble
     }
 
     var isReplying: Bool { model.replyingTo != nil }
@@ -83,6 +85,13 @@ final class NotchController {
     }
 
     func pointerMoved(to location: CGPoint) {
+        // Bubbles sit outside the hit regions (hovering one doesn't open the shelf), but a
+        // click on one must not also reach the menu bar item underneath.
+        let overBubble = machine.phase != .open && model.bubble(at: location) != nil
+        if overBubble != pointerOverBubble {
+            pointerOverBubble = overBubble
+            updateClickThrough()
+        }
         let inside = model.contains(location)
         guard inside != pointerInside else { return }
         pointerInside = inside
