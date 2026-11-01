@@ -15,6 +15,11 @@ final class ClipboardStore {
     @ObservationIgnored private let pasteboard = NSPasteboard.general
     @ObservationIgnored private var lastChangeCount: Int
     @ObservationIgnored private var pollTask: Task<Void, Never>?
+    /// The last copy still being stored (an image encodes off the main thread); later copies
+    /// wait for it so history keeps the order things were copied in.
+    @ObservationIgnored private var storing: Task<Void, Never>?
+    /// Counts stores, so only the latest one clears `storing` when it finishes.
+    @ObservationIgnored private var storeCount = 0
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "clipboard")
 
     /// Marker types from nspasteboard.org that ask clipboard managers to stay away.
@@ -32,7 +37,7 @@ final class ClipboardStore {
         load()
     }
 
-    static var folder: URL {
+    nonisolated static var folder: URL {
         let base =
             FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
@@ -99,36 +104,72 @@ final class ClipboardStore {
         guard types.isDisjoint(with: Self.ignoredTypes) else { return }
         let app = NSWorkspace.shared.frontmostApplication
 
-        var item: ClipItem?
+        let source = (name: app?.localizedName, bundleID: app?.bundleIdentifier)
+        let copied = Date.now
+        let previous = storing
         if let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
-            item = ClipItem(kind: ClipClassifier.kind(for: text), text: text, date: .now)
-        } else if types.contains(NSPasteboard.PasteboardType.png.rawValue)
-            || types.contains(NSPasteboard.PasteboardType.tiff.rawValue),
-            let image = NSImage(pasteboard: pasteboard)
-        {
-            item = storeImage(image)
+            let item = ClipItem(kind: ClipClassifier.kind(for: text), text: text, date: copied)
+            guard let previous else { return record(item, source: source) }
+            let number = nextStore()
+            storing = Task { [weak self] in
+                await previous.value
+                self?.record(item, source: source)
+                self?.finishStore(number)
+            }
+        } else if let data = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff) {
+            // A screenshot on a big display is tens of megabytes; encoding it on the main
+            // thread would stall the key taps that run there.
+            let number = nextStore()
+            storing = Task { [weak self] in
+                let stored = await Task.detached { Result { try Self.storeImage(data) } }.value
+                await previous?.value
+                guard let self else { return }
+                defer { self.finishStore(number) }
+                switch stored {
+                case .success(var item):
+                    item.date = copied
+                    self.record(item, source: source)
+                case .failure(let error):
+                    self.log.error("could not store clipboard image: \(error.localizedDescription, privacy: .public)")
+                }
+            }
         }
-        guard var item else { return }
-        item.sourceApp = app?.localizedName
-        item.sourceBundleID = app?.bundleIdentifier
+    }
+
+    private func nextStore() -> Int {
+        storeCount += 1
+        return storeCount
+    }
+
+    /// Once the latest store is done, text copies go straight in again.
+    private func finishStore(_ number: Int) {
+        if number == storeCount { storing = nil }
+    }
+
+    private func record(_ item: ClipItem, source: (name: String?, bundleID: String?)) {
+        // History may have been switched off while an image was being stored.
+        guard preferences.clipboardEnabled else { return deleteFiles(of: [item]) }
+        var item = item
+        item.sourceApp = source.name
+        item.sourceBundleID = source.bundleID
         history.limit = preferences.clipboardLimit
         deleteFiles(of: history.add(item))
         save()
     }
 
-    private func storeImage(_ image: NSImage) -> ClipItem? {
-        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
-            let png = bitmap.representation(using: .png, properties: [:])
-        else { return nil }
-        let name = "\(UUID().uuidString).png"
-        do {
-            try FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
-            try png.write(to: Self.folder.appendingPathComponent(name))
-        } catch {
-            log.error("could not store clipboard image: \(error.localizedDescription, privacy: .public)")
-            return nil
+    private struct UnreadableImage: Error {}
+
+    /// Writes the image as a PNG file, reusing the pasteboard's PNG bytes when it has them.
+    private nonisolated static func storeImage(_ data: Data) throws -> ClipItem {
+        guard let bitmap = NSBitmapImageRep(data: data) else { throw UnreadableImage() }
+        let isPNG = data.starts(with: [0x89, 0x50, 0x4E, 0x47])
+        guard let png = isPNG ? data : bitmap.representation(using: .png, properties: [:]) else {
+            throw UnreadableImage()
         }
+        let name = "\(UUID().uuidString).png"
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try png.write(to: folder.appendingPathComponent(name))
         return ClipItem(
             kind: .image, imageFile: name,
             imagePixelSize: CGSize(width: bitmap.pixelsWide, height: bitmap.pixelsHigh), date: .now)

@@ -71,6 +71,8 @@ struct TransformOptions: Sendable, Equatable {
     var format: ImageFormat = .jpeg
     var quality: Double = 0.8
     var longestSide: Double = 2048
+    /// Compress also shrinks to this longest side when set (the web ready preset).
+    var compressLongestSide: Double?
     /// Degrees clockwise: 90, 180 or 270.
     var rotation: Int = 90
 }
@@ -92,15 +94,30 @@ enum TransformError: LocalizedError {
 /// File transforms. Everything here is pure file-in, file-out and runs off the main
 /// thread; outputs land next to the originals and never overwrite them.
 enum TransformEngine {
-    static func run(_ operation: TransformOperation, urls: [URL], options: TransformOptions) async throws -> [URL] {
+    /// The files written, and the first problem if some files failed. Files already written
+    /// are kept and reported even when a later one fails.
+    struct Outcome: Sendable {
+        var outputs: [URL]
+        var problem: String?
+    }
+
+    static func run(_ operation: TransformOperation, urls: [URL], options: TransformOptions) async throws -> Outcome {
         try await Task.detached(priority: .userInitiated) {
             switch operation {
             case .combinePDF:
-                return [try combinePDF(urls)]
+                return Outcome(outputs: [try combinePDF(urls)])
             case .zip:
-                return []  // Handled by TrayStore.zip, which already runs ditto.
+                return Outcome(outputs: [])  // Handled by TrayStore.zip, which already runs ditto.
             default:
-                return try urls.map { try transformFile($0, operation: operation, options: options) }
+                var result = Outcome(outputs: [])
+                for url in urls {
+                    do {
+                        result.outputs.append(try transformFile(url, operation: operation, options: options))
+                    } catch {
+                        result.problem = result.problem ?? error.localizedDescription
+                    }
+                }
+                return result
             }
         }.value
     }
@@ -120,7 +137,7 @@ enum TransformEngine {
             let image = try decode(source, url: url, maxPixel: nil)
             return try write(image, like: url, format: options.format, quality: options.quality, suffix: nil)
         case .compress:
-            let image = try decode(source, url: url, maxPixel: nil)
+            let image = try decode(source, url: url, maxPixel: options.compressLongestSide)
             let format: ImageFormat = sourceType.conforms(to: .png) ? .png : .jpeg
             return try write(image, like: url, format: format, quality: options.quality, suffix: "compressed")
         case .resize:

@@ -75,7 +75,8 @@ enum ProcessRunner {
             try? await Task.sleep(for: .milliseconds(20))
         }
         if !collected.reachedEnd {
-            log.notice("\(path, privacy: .public) exited but its output stayed open; stopped reading")
+            // The program can be a user's own script or a dropped file, so its path stays private.
+            log.notice("\(path, privacy: .private) exited but its output stayed open; stopped reading")
         }
         output.fileHandleForReading.readabilityHandler = nil
         if collected.timedOut { throw TimedOut() }

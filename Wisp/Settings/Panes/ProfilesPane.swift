@@ -41,6 +41,8 @@ struct ProfileSettings: View {
                                 Image(systemName: "trash")
                             }
                             .buttonStyle(.borderless)
+                            .accessibilityLabel("Delete \(profile.name)")
+                            .help("Delete profile")
                         }
                     }
                 }

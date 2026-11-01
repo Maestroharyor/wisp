@@ -36,11 +36,16 @@ public struct DayProgress: Sendable {
     }
 
     private func bounds(on date: Date) -> (Date, Date) {
-        let midnight = calendar.startOfDay(for: date)
-        return (
-            midnight.addingTimeInterval(TimeInterval(startHour * 3600)),
-            midnight.addingTimeInterval(TimeInterval(endHour * 3600))
-        )
+        // Wall-clock hours, not seconds after midnight, so a DST change doesn't shift the day.
+        let start = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: date) ?? date
+        let end =
+            endHour == 24
+            ? nextMidnight(after: date) : calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: date)
+        return (start, end ?? start.addingTimeInterval(TimeInterval((endHour - startHour) * 3600)))
+    }
+
+    private func nextMidnight(after date: Date) -> Date? {
+        calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date)).map(calendar.startOfDay(for:))
     }
 
     private func clamp(_ value: Double) -> Double { min(max(value, 0), 1) }

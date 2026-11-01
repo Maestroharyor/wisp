@@ -148,7 +148,12 @@ jobs:
         run: |
           gh release upload "$TAG" build/release/*.dmg build/release/*.zip build/release/*.sha256 \
             build/release/appcast.xml build/release/wisp.rb --clobber
-          gh release edit "$TAG" --draft=false --latest
+          # Only the newest version becomes Latest. Rebuilding an older tag must not point
+          # releases/latest (the Sparkle feed and the cask) back at it.
+          newest=$( { gh release list --exclude-drafts --exclude-pre-releases --limit 100 \
+            --json tagName --jq '.[].tagName'; echo "$TAG"; } | sort -V | tail -1)
+          if [ "$newest" = "$TAG" ]; then latest=true; else latest=false; fi
+          gh release edit "$TAG" --draft=false --latest="$latest"
 
       - name: Remove the signing keychain
         if: always()

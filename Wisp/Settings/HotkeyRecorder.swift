@@ -2,14 +2,16 @@ import AppKit
 import SwiftUI
 import WispCore
 
-/// Click, then press a shortcut. Needs at least one of ⌃⌥⇧⌘; Esc cancels.
+/// Click, then press a shortcut. Needs ⌃, ⌥ or ⌘ (⇧ alone only on a function key); Esc cancels.
 struct HotkeyRecorder: View {
     @Binding var hotkey: Hotkey
     @State private var recording = false
+    /// Set when a key was pressed with only Shift, so the button can say why nothing happened.
+    @State private var needsModifier = false
     @State private var monitor: Any?
 
     var body: some View {
-        Button(recording ? "Press a shortcut…" : hotkey.description) {
+        Button(recording ? (needsModifier ? "Add ⌃, ⌥ or ⌘…" : "Press a shortcut…") : hotkey.description) {
             recording ? stop() : start()
         }
         .onDisappear(perform: stop)
@@ -23,9 +25,11 @@ struct HotkeyRecorder: View {
             MainActor.assumeIsolated {
                 if keyCode == KeyCodes.escape {
                     stop()
-                } else if !modifiers.isEmpty {
+                } else if !modifiers.isEmpty, Hotkey(keyCode: keyCode, modifiers: modifiers).isUsable {
                     hotkey = Hotkey(keyCode: keyCode, modifiers: modifiers)
                     stop()
+                } else if modifiers == .shift {
+                    needsModifier = true
                 }
             }
             return nil
@@ -36,6 +40,7 @@ struct HotkeyRecorder: View {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
         recording = false
+        needsModifier = false
     }
 
     private static func modifiers(from flags: NSEvent.ModifierFlags) -> Hotkey.Modifiers {

@@ -6,6 +6,7 @@ struct GeneralSettings: View {
     @Bindable var preferences: Preferences
     let hotkeys: HotkeyCenter
     let accent: Color
+    let glow: Color
     let missing: [Permission]
     let fixPermissions: () -> Void
 
@@ -15,7 +16,7 @@ struct GeneralSettings: View {
     var body: some View {
         Form {
             Section {
-                NotchPreview(preferences: preferences, accent: accent)
+                NotchPreview(preferences: preferences, accent: accent, glow: glow)
                 if !missing.isEmpty {
                     HealthBanner(missing: missing, fix: fixPermissions)
                 }

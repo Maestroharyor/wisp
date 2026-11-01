@@ -83,12 +83,16 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             [
                 "home", "grid", "rows", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
-                "timer length", "script", "command", "output",
+                "timer length", "script", "command", "output", "do not disturb", "dnd", "workday",
             ]
         case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
         case .clipboard: ["history", "copy", "paste", "limit", "pinned"]
         case .notifications: ["messages", "imessage", "whatsapp", "telegram", "reply", "banner", "apps", "focus"]
-        case .agents: ["claude", "claude code", "codex", "ai", "hooks", "approve", "allow", "deny", "sessions"]
+        case .agents:
+            [
+                "claude", "claude code", "codex", "ai", "hooks", "approve", "allow", "deny", "sessions", "sound",
+                "spend", "cost", "tokens",
+            ]
         case .permissions:
             ["accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera"]
         case .about: ["version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release"]

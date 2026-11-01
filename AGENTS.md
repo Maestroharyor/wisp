@@ -59,7 +59,16 @@ Test results: `xcrun xcresulttool get test-results summary --path "$(/bin/ls -td
 
 - The only third-party package is Sparkle (updates). Ask before adding any dependency or changing the stack.
 - Ask before using a private Apple API or anything that needs permissions beyond Accessibility, Full Disk Access, Calendar, Notifications, Camera (Mirror) and Microphone status.
-- Network calls are opt-in and minimal (LRCLIB lyrics, weather). Send only what the feature needs.
+- Network calls are opt-in and minimal. Send only what the feature needs.
+- **Feature lookups** are the one exception: they may be on by default only if all of these hold.
+  1. They power a visible feature the user is using (lyrics and artwork while music plays), never in the background otherwise.
+  2. They send the minimum data needed (track title, artist, album, length). Never files, clipboard contents, device identifiers or anything personal.
+  3. They go to a public endpoint that needs no account or API key.
+  4. Results are cached, so the same song isn't looked up twice.
+  5. Each one has its own off switch in Settings.
+  6. Each one is listed in the README's Privacy section: which service, what's sent and why.
+
+  Anything that fails one of these stays opt-in. The only feature lookups today are LRCLIB (lyrics) and iTunes Search (artwork).
 - Never edit `.env`, credentials, certificates or signing secrets.
 
 ## Clean room

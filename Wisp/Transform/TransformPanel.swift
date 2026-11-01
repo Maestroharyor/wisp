@@ -86,7 +86,8 @@ final class TransformPanelController {
         let options = model.options
         Task {
             do {
-                let outputs = try await TransformEngine.run(operation, urls: files, options: options)
+                let result = try await TransformEngine.run(operation, urls: files, options: options)
+                let outputs = result.outputs
                 model.outputs = outputs
                 services.tray.add(outputs)
                 let before = files.reduce(0) { $0 + TransformModel.size(of: $1) }
@@ -95,6 +96,9 @@ final class TransformPanelController {
                     [.compress, .resize, .convert].contains(operation)
                     ? TransformMath.savingsText(before: before, after: after)
                     : "Done: \(outputs.count) file\(outputs.count == 1 ? "" : "s") added to the tray"
+                if let problem = result.problem {
+                    model.message = outputs.isEmpty ? problem : "\(problem). \(outputs.count) done, added to the tray."
+                }
             } catch {
                 model.message = error.localizedDescription
             }
@@ -215,9 +219,10 @@ private struct TransformView: View {
             qualitySlider
         case .compress:
             qualitySlider
+            Toggle("Shrink to 2048 px on the longest side", isOn: shrinksForWeb)
             Button("Web ready preset") {
                 model.options.quality = 0.75
-                model.options.longestSide = 2048
+                model.options.compressLongestSide = 2048
             }
             .controlSize(.small)
         case .resize:
@@ -248,6 +253,12 @@ private struct TransformView: View {
             Text("Packs the files into one zip archive next to them.")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
+    }
+
+    private var shrinksForWeb: Binding<Bool> {
+        Binding(
+            get: { model.options.compressLongestSide != nil },
+            set: { model.options.compressLongestSide = $0 ? 2048 : nil })
     }
 
     private var qualitySlider: some View {

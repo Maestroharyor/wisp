@@ -19,6 +19,12 @@ final class DropActionTests: XCTestCase {
         XCTAssertEqual(CommandLineText.split("echo $(rm -rf ~) | cat"), ["echo", "$(rm", "-rf", "~)", "|", "cat"])
     }
 
+    func testBackslashInDoubleQuotesOnlyEscapesShellCharacters() {
+        XCTAssertEqual(CommandLineText.split(#"grep -l "foo\.bar" "\d+""#), ["grep", "-l", #"foo\.bar"#, #"\d+"#])
+        XCTAssertEqual(CommandLineText.split(#"echo "a \"b\" \\ \$HOME""#), ["echo", #"a "b" \ $HOME"#])
+        XCTAssertEqual(CommandLineText.split(#"echo foo\.bar"#), ["echo", "foo.bar"])
+    }
+
     func testUnclosedQuotesAreRejected() {
         XCTAssertNil(CommandLineText.split(#"say "oops"#))
     }

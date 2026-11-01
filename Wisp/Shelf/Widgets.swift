@@ -596,7 +596,7 @@ struct WeatherWidget: View {
                             ForEach(reading.hours) { hour in
                                 VStack(spacing: 1) {
                                     Text("\(hour.hour)").font(.system(size: 8)).opacity(0.8)
-                                    Image(systemName: WeatherCode.describe(hour.code, isDay: reading.isDay).symbol)
+                                    Image(systemName: WeatherCode.describe(hour.code, isDay: hour.isDay).symbol)
                                         .symbolRenderingMode(.multicolor).font(.system(size: 10))
                                     Text("\(Int(hour.temperature.rounded()))°").font(
                                         .system(size: 8, weight: .semibold))

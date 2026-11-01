@@ -73,3 +73,37 @@ final class DailySpendTests: XCTestCase {
         XCTAssertEqual(decoded.total(on: day, calendar: calendar), 1.5)
     }
 }
+
+final class SpendLedgerTests: XCTestCase {
+    private let start = Date(timeIntervalSince1970: 0)
+
+    func testOnlyTheIncreaseIsNew() {
+        var ledger = SpendLedger()
+        XCTAssertEqual(ledger.record(total: 1.5, for: "/t/a.jsonl", at: start), 1.5)
+        XCTAssertEqual(ledger.record(total: 2.0, for: "/t/a.jsonl", at: start), 0.5)
+        XCTAssertEqual(ledger.record(total: 0.25, for: "/t/b.jsonl", at: start), 0.25)
+    }
+
+    func testReadingATranscriptAgainAddsNothing() {
+        var ledger = SpendLedger()
+        _ = ledger.record(total: 3, for: "/t/a.jsonl", at: start)
+        XCTAssertEqual(ledger.record(total: 3, for: "/t/a.jsonl", at: start.addingTimeInterval(7 * 3600)), 0)
+        XCTAssertEqual(ledger.record(total: 2, for: "/t/a.jsonl", at: start), 0, "a partial read never goes negative")
+        XCTAssertEqual(ledger.counted(for: "/t/a.jsonl"), 3)
+    }
+
+    func testSurvivesARelaunch() throws {
+        var ledger = SpendLedger()
+        _ = ledger.record(total: 4, for: "/t/a.jsonl", at: start)
+        var decoded = try JSONDecoder().decode(SpendLedger.self, from: JSONEncoder().encode(ledger))
+        XCTAssertEqual(decoded.record(total: 4.5, for: "/t/a.jsonl", at: start), 0.5)
+    }
+
+    func testOldTranscriptsAreForgotten() {
+        var ledger = SpendLedger()
+        _ = ledger.record(total: 4, for: "/t/old.jsonl", at: start)
+        _ = ledger.record(total: 1, for: "/t/new.jsonl", at: start.addingTimeInterval(SpendLedger.keptSeconds))
+        XCTAssertEqual(ledger.counted(for: "/t/old.jsonl"), 0)
+        XCTAssertEqual(ledger.counted(for: "/t/new.jsonl"), 1)
+    }
+}

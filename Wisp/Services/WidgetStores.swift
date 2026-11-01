@@ -87,7 +87,10 @@ final class SystemStatsStore {
 @Observable
 final class CalendarStore {
     struct Event: Identifiable, Equatable {
+        /// One occurrence: recurring events repeat `eventID` with a different start.
         let id: String
+        /// The calendar's id for the event, used to open it in Calendar.
+        let eventID: String
         let title: String
         let start: Date
         let end: Date
@@ -122,7 +125,9 @@ final class CalendarStore {
     /// Edits arrive through EKEventStoreChanged, so a fresh query is only needed when the
     /// cached week has aged (a new day, finished events) rather than on every check.
     func refreshIfStale() {
-        if let lastRefresh, Calendar.current.isDateInToday(lastRefresh), Date.now.timeIntervalSince(lastRefresh) < 600 {
+        if let lastRefresh, Calendar.current.isDateInToday(lastRefresh), Date.now.timeIntervalSince(lastRefresh) < 600,
+            EKEventStore.authorizationStatus(for: .event) == access
+        {
             return
         }
         refresh()
@@ -130,7 +135,13 @@ final class CalendarStore {
 
     func refresh() {
         access = EKEventStore.authorizationStatus(for: .event)
-        guard access == .fullAccess else { return }
+        guard access == .fullAccess else {
+            // Access was revoked: stop showing (and offering Join cards for) the cached week.
+            upcoming = []
+            dayEvents = []
+            lastRefresh = nil
+            return
+        }
         lastRefresh = .now
         if observer == nil {
             observer = NotificationCenter.default.addObserver(
@@ -153,8 +164,10 @@ final class CalendarStore {
             .filter { $0.endDate > now }
             .prefix(30)
             .map {
-                Event(
-                    id: $0.eventIdentifier ?? UUID().uuidString, title: $0.title ?? "Event", start: $0.startDate,
+                let eventID = $0.eventIdentifier ?? UUID().uuidString
+                return Event(
+                    id: Meetings.occurrenceID(eventID: eventID, start: $0.startDate), eventID: eventID,
+                    title: $0.title ?? "Event", start: $0.startDate,
                     end: $0.endDate, isAllDay: $0.isAllDay,
                     color: Color(nsColor: $0.calendar.color ?? .systemPurple),
                     link: MeetingLink.find(in: [$0.url?.absoluteString, $0.location, $0.notes]))
@@ -163,7 +176,7 @@ final class CalendarStore {
 
     /// Opens the event in Calendar.
     func open(_ event: Event) {
-        let id = event.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? event.id
+        let id = event.eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? event.eventID
         if let url = URL(string: "ical://ekevent/\(id)?method=show&options=more"), NSWorkspace.shared.open(url) {
             return
         }
@@ -181,6 +194,8 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
         let hour: Int
         let temperature: Double
         let code: Int
+        /// Each hour's own day or night, so evening hours don't show a sun.
+        let isDay: Bool
         var id: Int { hour }
     }
 
@@ -252,6 +267,7 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
             let time: [String]
             let temperature_2m: [Double]
             let weather_code: [Int]
+            let is_day: [Int]?
         }
         let current: Current
         let daily: Daily
@@ -269,7 +285,7 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
             URLQueryItem(name: "longitude", value: String(format: "%.3f", longitude)),
             URLQueryItem(name: "current", value: "temperature_2m,weather_code,is_day"),
             URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
-            URLQueryItem(name: "hourly", value: "temperature_2m,weather_code"),
+            URLQueryItem(name: "hourly", value: "temperature_2m,weather_code,is_day"),
             URLQueryItem(name: "forecast_hours", value: "5"),
             URLQueryItem(name: "forecast_days", value: "1"),
             URLQueryItem(name: "timezone", value: "auto"),
@@ -279,21 +295,26 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
             let (data, _) = try await URLSession.shared.data(from: url)
             let response = try JSONDecoder().decode(Response.self, from: data)
             let place = try? await CLGeocoder().reverseGeocodeLocation(location).first?.locality
-            let hourly = response.hourly
-            let hours = (hourly.map { zip(zip($0.time, $0.temperature_2m), $0.weather_code) } ?? zip(zip([], []), []))
-                .dropFirst()
-                .prefix(4)
-                .map { pair, code in
-                    // Times look like "2026-10-29T17:00".
-                    Hour(hour: Int(pair.0.suffix(5).prefix(2)) ?? 0, temperature: pair.1, code: code)
-                }
+            let isDayNow = response.current.is_day == 1
+            let hours: [Hour] =
+                response.hourly.map { hourly in
+                    let count = min(hourly.time.count, hourly.temperature_2m.count, hourly.weather_code.count)
+                    return (0..<count).dropFirst().prefix(4).map { index in
+                        Hour(
+                            // Times look like "2026-10-29T17:00".
+                            hour: Int(hourly.time[index].suffix(5).prefix(2)) ?? 0,
+                            temperature: hourly.temperature_2m[index], code: hourly.weather_code[index],
+                            isDay: hourly.is_day.flatMap { $0.indices.contains(index) ? $0[index] == 1 : nil }
+                                ?? isDayNow)
+                    }
+                } ?? []
             reading = Reading(
-                hours: Array(hours),
+                hours: hours,
                 temperature: response.current.temperature_2m,
                 high: response.daily.temperature_2m_max.first ?? response.current.temperature_2m,
                 low: response.daily.temperature_2m_min.first ?? response.current.temperature_2m,
                 code: response.current.weather_code,
-                isDay: response.current.is_day == 1,
+                isDay: isDayNow,
                 place: place ?? ""
             )
             lastFetch = .now

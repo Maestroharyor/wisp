@@ -61,6 +61,7 @@ struct TrayPage: View {
             Spacer(minLength: 8)
             TrayAction(symbol: allSelected ? "checkmark.circle.fill" : "checkmark.circle") { tray.toggleSelectAll() }
                 .help(allSelected ? "Deselect all" : "Select all")
+                .accessibilityLabel(allSelected ? "Deselect all" : "Select all")
             TrayAction(symbol: "airplayaudio", title: "AirDrop") { tray.airDrop(list.actionTargets) }
             TrayAction(symbol: "wand.and.stars", title: "Transform") {
                 model.services.openTransform(list.actionTargets)
@@ -68,6 +69,7 @@ struct TrayPage: View {
             TrayAction(symbol: "doc.zipper", title: "Zip") { tray.zip(list.actionTargets) }
             TrayAction(symbol: "trash") { tray.removeSelectedOrAll() }
                 .help(list.selected.isEmpty ? "Clear tray" : "Remove selected")
+                .accessibilityLabel(list.selected.isEmpty ? "Clear tray" : "Remove selected")
         }
         .frame(height: 24)
         .animation(.easeOut(duration: 0.15), value: tray.header)

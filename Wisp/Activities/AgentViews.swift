@@ -148,6 +148,7 @@ struct ApprovalButtons: View {
 
 /// A permission request while the shelf is open, where the card under the notch can't show.
 struct ApprovalBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let approval: AgentApproval
     let hub: AgentHub
 
@@ -174,7 +175,7 @@ struct ApprovalBar: View {
                 .fill(Color(white: 0.12))
                 .shadow(color: .black.opacity(0.5), radius: 10, y: -2)
         )
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     }
 }
 
@@ -271,9 +272,9 @@ private struct SessionRow: View {
 /// tokens and a prompt draft on the right.
 struct AgentsDetail: View {
     let hub: AgentHub
+    let model: NotchModel
 
     @State private var selection: String?
-    @State private var draft = ""
     @State private var note: String?
 
     var body: some View {
@@ -300,13 +301,20 @@ struct AgentsDetail: View {
             .frame(width: 190)
 
             if let selected {
-                SessionDetail(session: selected, hub: hub, draft: $draft, note: $note)
+                SessionDetail(session: selected, hub: hub, draft: draft(for: selected.id), note: $note)
             } else {
                 Spacer()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { hub.refreshInstalled() }
+        .onChange(of: selected?.id) { note = nil }
+    }
+
+    private func draft(for session: String) -> Binding<String> {
+        Binding(
+            get: { model.agentDrafts[session] ?? "" },
+            set: { model.agentDrafts[session] = $0.isEmpty ? nil : $0 })
     }
 }
 
@@ -367,7 +375,8 @@ private struct SessionDetail: View {
                     }
                 }
                 .onAppear { proxy.scrollTo(session.timeline.last?.id, anchor: .bottom) }
-                .onChange(of: session.timeline.count) { proxy.scrollTo(session.timeline.last?.id, anchor: .bottom) }
+                // The timeline keeps the latest 40 entries, so its count stops changing; its last id doesn't.
+                .onChange(of: session.timeline.last?.id) { proxy.scrollTo(session.timeline.last?.id, anchor: .bottom) }
             }
             HStack(spacing: 6) {
                 TextField(note ?? "Draft a prompt…", text: $draft)

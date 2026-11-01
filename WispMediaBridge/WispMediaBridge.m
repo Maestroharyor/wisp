@@ -34,6 +34,8 @@ static NSString *lastArtworkTrack;
 static BOOL refreshQueued;
 
 static void emit(NSDictionary *message) {
+    // dataWithJSONObject: throws (rather than failing) on NaN or infinity, which would kill the host.
+    if (![NSJSONSerialization isValidJSONObject:message]) return;
     NSData *json = [NSJSONSerialization dataWithJSONObject:message options:0 error:nil];
     if (!json) return;
     fwrite(json.bytes, 1, json.length, stdout);
@@ -45,8 +47,10 @@ static NSString *stringValue(id value) {
     return [value isKindOfClass:[NSString class]] ? value : @"";
 }
 
+// Live streams can report an infinite duration; JSON has no way to say that.
 static double numberValue(id value) {
-    return [value isKindOfClass:[NSNumber class]] ? [value doubleValue] : 0;
+    double number = [value isKindOfClass:[NSNumber class]] ? [value doubleValue] : 0;
+    return isfinite(number) ? number : 0;
 }
 
 static void refresh(void) {
@@ -84,15 +88,21 @@ static void refresh(void) {
                 if (app.localizedName) message[@"app"] = app.localizedName;
 
                 // Artwork is large; send it only when it or the track changes. Wisp clears the
-                // cover on a new track, so tracks sharing an album cover must still get it.
+                // cover on a new track (including the same song in another app), so tracks sharing
+                // an album cover must still get it. The track is remembered even without artwork,
+                // so going back to a previous song sends its cover again.
                 // -isEqualToData: compares every byte; -hash only looks at the first 80.
                 id artwork = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
-                NSString *track = [NSString stringWithFormat:@"%@\n%@\n%@", title, message[@"artist"], message[@"album"]];
-                if ([artwork isKindOfClass:[NSData class]]
-                    && (![track isEqualToString:lastArtworkTrack] || ![artwork isEqualToData:lastArtwork])) {
-                    lastArtwork = artwork;
-                    lastArtworkTrack = track;
-                    message[@"artwork"] = [artwork base64EncodedStringWithOptions:0];
+                NSString *track = [NSString stringWithFormat:@"%@\n%@\n%@\n%@", title, message[@"artist"],
+                                                             message[@"album"], app.bundleIdentifier ?: @""];
+                // Updates without artwork (elapsed time, rate) keep the cached cover, so it isn't
+                // sent again when the next update includes it.
+                if (![track isEqualToString:lastArtworkTrack]) lastArtwork = nil;
+                lastArtworkTrack = track;
+                NSData *data = [artwork isKindOfClass:[NSData class]] ? artwork : nil;
+                if (data && ![data isEqualToData:lastArtwork]) {
+                    message[@"artwork"] = [data base64EncodedStringWithOptions:0];
+                    lastArtwork = data;
                 }
                 emit(message);
             });

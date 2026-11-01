@@ -11,10 +11,15 @@ public enum TraySummary {
             value /= 1_000
             unit += 1
         }
-        if unit == 0 || value >= 10 || value == value.rounded() {
-            return "\(Int(value.rounded())) \(units[unit])"
+        // Round before choosing the unit, so 999.6 KB reads "1 MB" rather than "1000 KB".
+        if value.rounded() >= 1_000, unit < units.count - 1 {
+            value /= 1_000
+            unit += 1
         }
-        return String(format: "%.1f %@", value, units[unit])
+        let tenths = (value * 10).rounded() / 10
+        if unit == 0 || tenths >= 10 { return "\(Int(value.rounded())) \(units[unit])" }
+        if tenths == tenths.rounded() { return "\(Int(tenths)) \(units[unit])" }
+        return String(format: "%.1f %@", tenths, units[unit])
     }
 
     /// "2 files · 3.4 MB", or "1 selected · 1.2 MB" while files are selected.

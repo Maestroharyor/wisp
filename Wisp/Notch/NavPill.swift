@@ -36,10 +36,12 @@ struct NavPill: View {
 
     private var tabs: some View {
         HStack(spacing: 4) {
-            tab("house.fill", selected: model.page == .home) { model.page = .home }
-            tab("tray.fill", selected: model.page == .tray, badge: model.services.tray.count) { model.page = .tray }
-            tab("music.note", selected: model.page == .media) { model.page = .media }
-            tab("square.grid.2x2.fill", selected: model.page == .widgets) { model.page = .widgets }
+            tab("house.fill", name: "Home", selected: model.page == .home) { model.page = .home }
+            tab("tray.fill", name: "Tray", selected: model.page == .tray, badge: model.services.tray.count) {
+                model.page = .tray
+            }
+            tab("music.note", name: "Media", selected: model.page == .media) { model.page = .media }
+            tab("square.grid.2x2.fill", name: "Widgets", selected: model.page == .widgets) { model.page = .widgets }
         }
         .padding(4)
         .background(
@@ -50,7 +52,9 @@ struct NavPill: View {
         .foregroundStyle(.white)
     }
 
-    private func tab(_ symbol: String, selected: Bool, badge: Int = 0, action: @escaping () -> Void) -> some View {
+    private func tab(
+        _ symbol: String, name: String, selected: Bool, badge: Int = 0, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
@@ -73,5 +77,7 @@ struct NavPill: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(badge > 0 ? "\(name), \(badge) file\(badge == 1 ? "" : "s")" : name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

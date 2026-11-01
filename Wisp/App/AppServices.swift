@@ -44,7 +44,8 @@ final class AppServices {
     @ObservationIgnored private var themeObserver: NSObjectProtocol?
     @ObservationIgnored private var agentStates: [String: AgentSession.State] = [:]
     /// Calls already offered with a Join card, so each is offered once.
-    @ObservationIgnored private var offeredMeetings: Set<String> = []
+    /// Meeting occurrences already offered a Join card, with their start times.
+    @ObservationIgnored private var offeredMeetings: [String: Date] = [:]
     @ObservationIgnored private var meetingTask: Task<Void, Never>?
     /// The notification being replied to; new notifications wait until it is done.
     private(set) var replyingTo: NotificationItem?
@@ -52,6 +53,8 @@ final class AppServices {
     private var waitingNotification: NotificationItem?
     /// The default timer length last given to the timer, so only a change resets it.
     private var appliedTimerLength: Double?
+    /// The Now Playing and Meeting switches as last applied, so flipping one updates its pill now.
+    private var appliedActivitySwitches: (media: Bool, meeting: Bool)?
 
     private(set) lazy var transform = TransformPanelController(services: self)
     private(set) lazy var pocket = QuickPocket(services: self)
@@ -289,8 +292,10 @@ final class AppServices {
         }
 
         notifications.onNotification = { [weak self] item in self?.showNotification(item) }
-        notifications.onFocus = { [weak self] state in
+        notifications.onFocusState = { [weak self] state in
             self?.context.update { $0.focus = state.isOn ? state.name : nil }
+        }
+        notifications.onFocusChange = { [weak self] state in
             self?.activities.post(.focus(state), slot: .focus, duration: 2.2)
         }
         notifications.start()
@@ -303,10 +308,13 @@ final class AppServices {
     /// wallpaper glow is on, and an idle timer takes a newly chosen default length. Only the
     /// settings are tracked; reading the timer here would undo every +/- in the widget.
     private func syncPreferenceEffects() {
-        let (wallpaperOn, timerLength, needsClock) = withObservationTracking {
+        let (wallpaperOn, timerLength, needsClock, switches) = withObservationTracking {
             let look = preferences.appearance
             let timeEars = [look.leftEar, look.rightEar].contains { [.time, .date, .meeting, .weather].contains($0) }
-            return (preferences.wallpaperTint, preferences.defaultTimerSeconds, look.timeOfDay != .off || timeEars)
+            return (
+                preferences.wallpaperTint, preferences.defaultTimerSeconds, look.timeOfDay != .off || timeEars,
+                (media: preferences.mediaActivity, meeting: preferences.meetingActivity)
+            )
         } onChange: { [weak self] in
             Task { @MainActor in self?.syncPreferenceEffects() }
         }
@@ -316,6 +324,11 @@ final class AppServices {
             appliedTimerLength = timerLength
             timers.applyDefaultLength(seconds: timerLength)
         }
+        if let applied = appliedActivitySwitches {
+            if applied.media != switches.media { mediaChanged(nowPlaying.info) }
+            if applied.meeting != switches.meeting { updateMeeting() }
+        }
+        appliedActivitySwitches = switches
     }
 
     /// Ticks on each minute boundary.
@@ -379,12 +392,14 @@ final class AppServices {
     }
 
     private func offerUpcomingMeeting() {
-        guard preferences.meetingActivity, calendar.access == .fullAccess else { return }
+        guard preferences.meetingActivity else { return }
         calendar.refreshIfStale()
+        guard calendar.access == .fullAccess else { return }
         guard let next = Meetings.upcoming(meetingEvents, now: .now, within: 120), let link = next.link,
-            !offeredMeetings.contains(next.id)
+            offeredMeetings[next.id] == nil
         else { return }
-        offeredMeetings.insert(next.id)
+        offeredMeetings = offeredMeetings.filter { $0.value > .now.addingTimeInterval(-86_400) }
+        offeredMeetings[next.id] = next.start
         activities.post(
             .meetingSoon(MeetingInvite(id: next.id, title: next.title, link: link, start: next.start)),
             slot: .meetingSoon, duration: 90)

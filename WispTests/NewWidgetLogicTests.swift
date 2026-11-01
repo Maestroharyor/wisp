@@ -70,6 +70,33 @@ final class DayProgressTests: XCTestCase {
         XCTAssertEqual(day.startHour, 9)
         XCTAssertEqual(day.endHour, 17)
     }
+
+    private func newYork(_ month: Int, _ day: Int, _ hour: Int) throws -> (Calendar, Date) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        let date = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour)))
+        return (calendar, date)
+    }
+
+    func testClocksGoingForwardKeepLocalHours() throws {
+        let (calendar, onePM) = try newYork(3, 8, 13)
+        let day = DayProgress(startHour: 9, endHour: 17, calendar: calendar)
+        XCTAssertEqual(day.fraction(at: onePM), 0.5)
+        XCTAssertEqual(day.minutesLeft(at: onePM), 240)
+    }
+
+    func testClocksGoingBackKeepLocalHours() throws {
+        let (calendar, onePM) = try newYork(11, 1, 13)
+        let day = DayProgress(startHour: 9, endHour: 17, calendar: calendar)
+        XCTAssertEqual(day.fraction(at: onePM), 0.5)
+        XCTAssertEqual(day.minutesLeft(at: onePM), 240)
+    }
+
+    func testADayEndingAtMidnight() throws {
+        let (calendar, sixPM) = try newYork(3, 8, 18)
+        let day = DayProgress(startHour: 12, endHour: 24, calendar: calendar)
+        XCTAssertEqual(day.fraction(at: sixPM), 0.5)
+    }
 }
 
 final class WorldClockTests: XCTestCase {

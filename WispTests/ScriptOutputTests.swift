@@ -15,6 +15,12 @@ final class ScriptOutputTests: XCTestCase {
         XCTAssertEqual(ScriptOutput.lines(from: "\u{1B}[32mOK\u{1B}[0m 12 ms", limit: 3), ["OK 12 ms"])
     }
 
+    func testStripsHyperlinksAndTitles() {
+        let link = "\u{1B}]8;;https://example.com\u{1B}\\docs\u{1B}]8;;\u{1B}\\ ready"
+        XCTAssertEqual(ScriptOutput.lines(from: link, limit: 3), ["docs ready"])
+        XCTAssertEqual(ScriptOutput.lines(from: "\u{1B}]0;build\u{07}done", limit: 3), ["done"])
+    }
+
     func testTrimsVeryLongLines() {
         let line = String(repeating: "a", count: 300)
         XCTAssertEqual(ScriptOutput.lines(from: line, limit: 1).first?.count, ScriptOutput.maxLineLength)

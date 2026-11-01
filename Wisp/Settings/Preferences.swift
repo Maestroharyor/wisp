@@ -269,8 +269,16 @@ final class Preferences {
 
     /// Every look setting; saved as one JSON value.
     var appearance: Appearance {
-        didSet { defaults.set(try? JSONEncoder().encode(appearance), forKey: Key.appearance) }
+        didSet {
+            defaults.set(try? JSONEncoder().encode(appearance), forKey: Key.appearance)
+            // An edit by hand (a theme, a slider, a look) is the new base, so the next profile
+            // switch must not put an older look back over it.
+            if !applyingProfileLook { lookBase.editedByHand() }
+        }
     }
+
+    /// Set while a profile puts on (or takes off) its own look, which isn't an edit by hand.
+    @ObservationIgnored private var applyingProfileLook = false
 
     /// Looks saved under a name in Settings › Appearance.
     var lookPresets: [AppearancePreset] {
@@ -361,14 +369,12 @@ final class Preferences {
     /// keeps the current Home. Used by automatic switches.
     func applySurface(_ profile: Profile) {
         activeProfile = profile.name
+        applyingProfileLook = true
+        defer { applyingProfileLook = false }
         if let name = profile.look, let preset = lookPreset(named: name) {
-            if lookBeforeProfile == nil { lookBeforeProfile = appearance }
-            appearance = preset.appearance.keepingSounds(of: appearance)
+            appearance = lookBase.putOn(preset.appearance, over: appearance)
         } else {
-            if let earlier = lookBeforeProfile {
-                appearance = earlier
-                lookBeforeProfile = nil
-            }
+            if let earlier = lookBase.takeOff() { appearance = earlier }
             surfaceStyle = SurfaceStyle(rawValue: profile.surface) ?? surfaceStyle
         }
     }
@@ -376,9 +382,10 @@ final class Preferences {
     /// The look in use before a profile applied its own, put back by the next profile
     /// that has none. Saved, because the profile's look is saved as `appearance`: losing
     /// this on quit would leave the profile's look in place for good.
-    @ObservationIgnored private var lookBeforeProfile: Appearance? {
+    @ObservationIgnored private var lookBase: LookBase {
         didSet {
-            defaults.set(lookBeforeProfile.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.lookBeforeProfile)
+            guard lookBase != oldValue else { return }
+            defaults.set(lookBase.base.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.lookBeforeProfile)
         }
     }
 
@@ -395,8 +402,6 @@ final class Preferences {
     func applyLook(_ look: Appearance) {
         let next = look.keepingSounds(of: appearance)
         appearance = next
-        // A look picked by hand is the new base; a profile switch must not put an older one back.
-        lookBeforeProfile = nil
         updateActiveProfile { $0.surface = next.surface.rawValue }
     }
 
@@ -439,9 +444,17 @@ final class Preferences {
     func deleteProfile(named name: String) {
         guard name != ContextEngineState.baseProfile else { return }
         profiles.removeAll { $0.name == name }
+        // A rule that switches to a missing profile would do nothing but still show as on.
+        contextRules.removeAll { $0.profile == name }
         if activeProfile == name || homeProfile == name, let base = profile(named: ContextEngineState.baseProfile) {
             apply(base)
         }
+    }
+
+    /// Puts back a profile's Home that was edited while it was showing, without showing it.
+    func restoreHome(_ layout: HomeLayout, toProfile name: String) {
+        guard let index = profiles.firstIndex(where: { $0.name == name }) else { return }
+        profiles[index].home = layout
     }
 
     func setDefaultPage(_ page: String, for name: String) {
@@ -767,9 +780,10 @@ final class Preferences {
             defaults.data(forKey: Key.lookPresets).flatMap {
                 try? JSONDecoder().decode([AppearancePreset].self, from: $0)
             } ?? []
-        lookBeforeProfile = defaults.data(forKey: Key.lookBeforeProfile).flatMap {
-            try? JSONDecoder().decode(Appearance.self, from: $0)
-        }
+        lookBase = LookBase(
+            base: defaults.data(forKey: Key.lookBeforeProfile).flatMap {
+                try? JSONDecoder().decode(Appearance.self, from: $0)
+            })
         externalStyle = defaults.string(forKey: Key.externalStyle).flatMap(ExternalStyle.init(rawValue:)) ?? .notch
         contextAware = defaults.bool(forKey: Key.contextAware)
         lastSettingsPane =

@@ -134,15 +134,20 @@ extension AnyTransition {
 
     /// Nav pill drifts out from under the shelf (`drift`) after the content settles. On close
     /// it rides back with the surface (`ride`) and fades into the notch.
+    /// With Reduce Motion it only fades in place.
     static func navDrop(_ motion: NotchMotion, ride: CGSize, drift: CGSize) -> AnyTransition {
-        .asymmetric(
+        let drift = motion.expands ? drift : .zero
+        let ride = motion.expands ? ride : .zero
+        return .asymmetric(
             insertion: .modifier(
-                active: MistModifier(blur: 6, opacity: 0, offsetY: drift.height, offsetX: drift.width),
+                active: MistModifier(
+                    blur: motion.expands ? 6 : 0, opacity: 0, offsetY: drift.height, offsetX: drift.width),
                 identity: MistModifier(blur: 0, opacity: 1)
             )
             .animation(motion.navIn),
             removal: .modifier(
-                active: MistModifier(blur: 4, opacity: 0, offsetY: ride.height, offsetX: ride.width),
+                active: MistModifier(
+                    blur: motion.expands ? 4 : 0, opacity: 0, offsetY: ride.height, offsetX: ride.width),
                 identity: MistModifier(blur: 0, opacity: 1)
             )
             .animation(motion.surfaceClose)

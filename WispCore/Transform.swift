@@ -51,9 +51,10 @@ public enum TransformNaming {
         let base = source.deletingPathExtension().lastPathComponent
         var stem = suffix.map { "\(base) \($0)" } ?? base
         if suffix == nil, ext.lowercased() == source.pathExtension.lowercased() { stem = "\(base) converted" }
+        let taken = FileNameKey.keys(existing)
         var name = "\(stem).\(ext)"
         var index = 2
-        while existing.contains(name) {
+        while taken.contains(FileNameKey.key(name)) {
             name = "\(stem) \(index).\(ext)"
             index += 1
         }

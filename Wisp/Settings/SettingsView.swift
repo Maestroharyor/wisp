@@ -107,7 +107,8 @@ struct SettingsView: View {
         switch pane {
         case .general:
             GeneralSettings(
-                preferences: preferences, hotkeys: hotkeys, accent: services.accent, missing: model.missing
+                preferences: preferences, hotkeys: hotkeys, accent: services.accent, glow: services.glow,
+                missing: model.missing
             ) {
                 model.selection = .permissions
             }

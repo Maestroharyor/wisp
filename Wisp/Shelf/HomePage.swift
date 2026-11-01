@@ -37,7 +37,7 @@ struct HomePage: View {
                 }
             }
             if model.editingHome {
-                pickerRow.transition(.opacity.combined(with: .move(edge: .bottom)))
+                pickerRow.transition(model.motion.expands ? .opacity.combined(with: .move(edge: .bottom)) : .opacity)
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.85), value: preferences.homeLayout)
@@ -66,6 +66,7 @@ struct HomePage: View {
                         .foregroundStyle(.white, .red)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(kind.title) from Home")
                 .offset(x: -2, y: -4)
             }
             .overlay(alignment: .bottomTrailing) {
@@ -97,8 +98,19 @@ struct HomePage: View {
             }
             Button {
                 if let snapshot = model.homeSnapshot {
-                    preferences.homeLayout = snapshot.layout
-                    preferences.enabledWidgets = snapshot.enabled
+                    if snapshot.profile == preferences.homeProfile {
+                        preferences.homeLayout = snapshot.layout
+                        preferences.enabledWidgets = snapshot.enabled
+                    } else {
+                        // A profile switch happened meanwhile: put the old profile's Home back
+                        // into that profile, and leave the one now showing alone.
+                        preferences.restoreHome(snapshot.layout, toProfile: snapshot.profile)
+                        // Widgets this edit switched on go off again, unless the Home now showing uses them.
+                        let added = Set(preferences.enabledWidgets).subtracting(snapshot.enabled)
+                        for kind in added where !preferences.homeLayout.contains(kind.rawValue) {
+                            preferences.disable(kind)
+                        }
+                    }
                 }
                 endEditing()
             } label: {
@@ -106,11 +118,15 @@ struct HomePage: View {
                     .frame(width: 28, height: 28).background(Circle().fill(.white.opacity(0.14)))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Cancel")
+            .help("Cancel")
             Button(action: endEditing) {
                 Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
                     .frame(width: 28, height: 28).background(Circle().fill(Color.accentColor))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Done")
+            .help("Done")
         }
         .frame(height: SurfaceSizing.pickerRowHeight - 12)
     }
@@ -122,7 +138,7 @@ struct HomePage: View {
         return Button {
             if onHome {
                 preferences.homeLayout.remove(kind.rawValue)
-            } else {
+            } else if !full {
                 preferences.enable(kind)
             }
         } label: {
@@ -187,20 +203,23 @@ struct WidgetsPage: View {
     var body: some View {
         ZStack {
             if let solo = model.soloWidget {
-                SoloWidgetView(kind: solo, model: model, zoom: zoom)
+                SoloWidgetView(kind: solo, model: model, zoom: zoomSpace)
                     .transition(.opacity)
             } else {
-                WidgetGridView(model: model, zoom: zoom)
+                WidgetGridView(model: model, zoom: zoomSpace)
                     .transition(.opacity)
             }
         }
         .animation(model.surfaceAnimation, value: model.soloWidget)
     }
+
+    /// No zoom from tile to card with Reduce Motion; the pages just cross-fade.
+    private var zoomSpace: Namespace.ID? { model.motion.expands ? zoom : nil }
 }
 
 private struct WidgetGridView: View {
     let model: NotchModel
-    let zoom: Namespace.ID
+    let zoom: Namespace.ID?
 
     var body: some View {
         let preferences = model.preferences
@@ -245,7 +264,7 @@ private struct WidgetGridView: View {
 private struct WidgetIconCell: View {
     let kind: WidgetKind
     let metrics: WidgetGrid.Metrics
-    let zoom: Namespace.ID
+    let zoom: Namespace.ID?
     let open: () -> Void
     @State private var hovering = false
 
@@ -253,7 +272,7 @@ private struct WidgetIconCell: View {
         Button(action: open) {
             VStack(spacing: metrics.captionGap) {
                 WidgetIconTile(kind: kind, size: metrics.tileSize)
-                    .matchedGeometryEffect(id: kind, in: zoom)
+                    .zoomSource(id: kind, in: zoom)
                     .scaleEffect(hovering ? 1.05 : 1)
                 Text(kind.title)
                     .font(.system(size: metrics.captionSize, weight: .semibold))
@@ -291,12 +310,12 @@ private struct WidgetIconTile: View {
 private struct SoloWidgetView: View {
     let kind: WidgetKind
     let model: NotchModel
-    let zoom: Namespace.ID
+    let zoom: Namespace.ID?
 
     var body: some View {
         Group {
             if kind == .agents {
-                AgentsDetail(hub: model.services.agents)
+                AgentsDetail(hub: model.services.agents, model: model)
             } else {
                 WidgetCard(kind: kind, model: model)
             }
@@ -306,7 +325,7 @@ private struct SoloWidgetView: View {
                 ? SurfaceSizing.wideSoloWidth : ShellMetrics.soloCardWidth(notchStyle: model.isNotchStyle),
             height: SurfaceSizing.shelfContentHeight
         )
-        .matchedGeometryEffect(id: kind, in: zoom)
+        .zoomSource(id: kind, in: zoom)
         .overlay(alignment: .topLeading) {
             Button {
                 model.soloWidget = nil
@@ -318,6 +337,7 @@ private struct SoloWidgetView: View {
             }
             .buttonStyle(.plain)
             .offset(x: -26, y: 2)
+            .accessibilityLabel("Back to widgets")
             .help("Back to widgets")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -354,10 +374,10 @@ extension WidgetKind {
 /// A large player on its own page.
 struct MediaPage: View {
     let model: NotchModel
-    @State private var showsLyrics = false
 
     var body: some View {
         let services = model.services
+        let showsLyrics = model.showsLyrics
         HStack(spacing: 6) {
             Group {
                 if showsLyrics, services.nowPlaying.info != nil {
@@ -376,7 +396,7 @@ struct MediaPage: View {
                     ShelfButton(
                         symbol: showsLyrics ? "quote.bubble.fill" : "quote.bubble", size: 12,
                         tint: showsLyrics ? .accentColor : .white
-                    ) { withAnimation(.easeOut(duration: 0.2)) { showsLyrics.toggle() } }
+                    ) { withAnimation(.easeOut(duration: 0.2)) { model.showsLyrics.toggle() } }
                     .help("Lyrics (from LRCLIB)")
                 }
                 ShelfButton(symbol: "pip", size: 12) { services.miniPlayer.toggle() }
@@ -384,5 +404,13 @@ struct MediaPage: View {
             }
         }
         .frame(width: SurfaceSizing.mediaPageWidth, height: SurfaceSizing.shelfContentHeight)
+    }
+}
+
+extension View {
+    /// The tile-to-card zoom, left out when there's no namespace (Reduce Motion).
+    @ViewBuilder
+    fileprivate func zoomSource(id: WidgetKind, in namespace: Namespace.ID?) -> some View {
+        if let namespace { matchedGeometryEffect(id: id, in: namespace) } else { self }
     }
 }

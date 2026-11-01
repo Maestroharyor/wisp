@@ -11,6 +11,8 @@ final class MiniPlayerController {
     /// Where the pointer grabbed the panel, relative to its origin, during a drag.
     private var dragAnchor: CGPoint?
     private let services: AppServices
+    /// Fading out; a show() meanwhile cancels the pending orderOut.
+    private var hiding = false
 
     private static let size = CGSize(width: 320, height: 118)
 
@@ -18,7 +20,7 @@ final class MiniPlayerController {
         self.services = services
     }
 
-    var isVisible: Bool { panel?.isVisible == true }
+    var isVisible: Bool { panel?.isVisible == true && !hiding }
 
     func toggle() {
         if isVisible { hide() } else { show() }
@@ -27,6 +29,7 @@ final class MiniPlayerController {
     func show() {
         let panel = panel ?? makePanel()
         self.panel = panel
+        hiding = false
         panel.setFrameOrigin(savedOrigin() ?? defaultOrigin())
         panel.alphaValue = 0
         panel.orderFrontRegardless()
@@ -37,12 +40,17 @@ final class MiniPlayerController {
     }
 
     func hide() {
-        guard let panel else { return }
+        guard let panel, panel.isVisible, !hiding else { return }
+        hiding = true
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
             panel.animator().alphaValue = 0
-        } completionHandler: {
-            MainActor.assumeIsolated { panel.orderOut(nil) }
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.hiding else { return }
+                self.hiding = false
+                panel.orderOut(nil)
+            }
         }
     }
 

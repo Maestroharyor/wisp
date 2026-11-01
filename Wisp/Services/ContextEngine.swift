@@ -26,7 +26,7 @@ final class ContextEngine {
 
     func start() {
         state.frontApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        state.externalDisplay = NSScreen.screens.count > 1
+        state.externalDisplay = Self.hasExternalDisplay
         let workspace = NSWorkspace.shared.notificationCenter
         observers.append(
             workspace.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) {
@@ -40,9 +40,13 @@ final class ContextEngine {
             NotificationCenter.default.addObserver(
                 forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
             ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.update { $0.externalDisplay = NSScreen.screens.count > 1 } }
+                MainActor.assumeIsolated { self?.update { $0.externalDisplay = Self.hasExternalDisplay } }
             })
     }
+
+    /// Any display that isn't the built-in one: right with the lid closed, on a desktop Mac
+    /// and when mirroring, where counting screens is not.
+    private static var hasExternalDisplay: Bool { NSScreen.screens.contains { !$0.isBuiltIn } }
 
     func update(_ change: (inout ContextState) -> Void) {
         var next = state
