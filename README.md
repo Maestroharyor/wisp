@@ -14,6 +14,18 @@ Builds are not notarised yet, so the first launch is blocked:
 
 Or run `xattr -dr com.apple.quarantine /Applications/Wisp.app` once. A first-launch setup then walks you through Accessibility, how the shelf opens and connecting your agents.
 
+With Homebrew, each release also carries a cask file (`wisp.rb`) for a personal tap.
+
+## Updates
+
+Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Releases.
+
+- **Daily check.** Wisp reads `appcast.xml` from the latest release once a day. When there's a newer version, a window shows the release notes with Install, Skip and Remind Me Later.
+- **By hand.** Choose **Check for Updates…** from the menu bar icon, from the notch's right-click menu, or from Settings › About.
+- **Settings › About › Updates** has two switches: check automatically, and download and install automatically. With the second on, Wisp downloads in the background and installs the next time it quits.
+- **Installing.** Sparkle checks the download's EdDSA signature against the key built into Wisp, swaps the app in place and relaunches it. Updates don't need "Open Anyway".
+- **Permissions are kept.** Every release is signed with the same certificate, so Accessibility and the other grants carry over. The one exception is moving to the `com.ayomideodewale.wisp` bundle ID (0.2.0): macOS ties permissions to the bundle ID, so grant them once more after that update. Your settings are copied over from the old ID automatically.
+
 ## Features
 
 - **Coding agents in the notch**
@@ -75,14 +87,16 @@ make build   # generate the Xcode project and build
 make test    # unit tests (WispCore)
 make lint    # swift-format --strict
 make run     # build and launch
-make release # universal Release DMG in build/release
+make release # universal Release DMG and Sparkle zip in build/release
+make hooks   # install the lefthook git hooks
 ```
 
-`scripts/release.sh` signs with a Developer ID and notarises when `DEVELOPER_ID` and `NOTARY_PROFILE` are set (see the script). Without them it signs with "Wisp Dev" or ad-hoc. It also writes a Homebrew cask for a personal tap.
+`scripts/release.sh` builds a universal Release and writes a DMG, the zip Sparkle installs, checksums, a Homebrew cask and (with a Sparkle key) `appcast.xml`. It signs with "Wisp Dev" without the hardened runtime, or with a Developer ID plus hardened runtime and notarisation when `DEVELOPER_ID` and `NOTARY_PROFILE` are set. See the comments at the top of the script.
 
 GitHub Actions:
-- `ci.yml` lints and tests every push to `main` and every pull request.
-- `release.yml` runs on a `v*` tag, builds the DMG and attaches it to a GitHub release. Add the secrets listed at the top of that file to sign and notarise; without them the DMG is signed ad-hoc.
+- `ci.yml` lints and tests every push to `main` and every pull request (the `test` check).
+- `pr-title.yml` checks that a pull request's title is a conventional commit (the `pr-title` check).
+- `release.yml` runs release-please on every push to `main` and builds and publishes a release when its release PR is merged. See [Releasing](#releasing).
 
 The app icon comes from `design/logo/wisp-icon.svg`; `design/logo/export.sh` renders it into the asset catalog.
 
@@ -90,6 +104,69 @@ Signing:
 - Without a "Wisp Dev" code-signing certificate, builds are ad-hoc signed.
 - That means macOS asks for Accessibility again after every rebuild.
 - Create a self-signed "Wisp Dev" certificate in Keychain Access to keep the grant.
+
+## Contributing
+
+`main` is protected: every change goes through a pull request, and the `test` and `pr-title` checks must pass. Pull requests are squash merged.
+
+1. Install the git hooks once:
+   ```sh
+   brew install lefthook
+   make hooks
+   ```
+2. Work on a branch: `feat/short-description` or `fix/short-description`.
+3. Commit with conventional messages (`feat: ...`, `fix: ...`, `docs: ...`).
+4. Push the branch and open a pull request. The template asks for a summary, how you tested and a one-line release note.
+5. Give the pull request a conventional title. Squash merging keeps only the title on `main`, and that title decides the next version: `fix:` and `feat:` bump the patch, and `!` (as in `feat!:`) marks a breaking change, which bumps the minor version.
+
+The hooks (`lefthook.yml`):
+
+| Hook | What it does |
+|---|---|
+| pre-commit | Formats the staged Swift files with swift-format, adds the fixes to the commit, then lints them with `--strict` |
+| commit-msg | Rejects messages that aren't conventional commits (`scripts/check-commit-msg.sh`). Merge and revert messages pass |
+| pre-push | Refuses any push to `main` (`scripts/block-main-push.sh`), then runs `make test` |
+
+`git commit --no-verify` and `git push --no-verify` skip the hooks, but CI runs the same lint and tests, and GitHub refuses direct pushes to `main` anyway.
+
+## Releasing
+
+Releases come from `main` through [release-please](https://github.com/googleapis/release-please).
+
+1. **Release PR.** Every merge to `main` updates an open "chore(main): release x.y.z" pull request. It bumps `MARKETING_VERSION` in `project.yml` and adds the merged PR titles to `CHANGELOG.md`.
+2. **Version.** Below 1.0, `feat` and `fix` bump the patch (0.1.0 → 0.1.1) and `!` bumps the minor version (0.1.3 → 0.2.0). `docs`, `chore`, `ci` and `test` alone don't make a release. The first release is pinned to 0.1.0 with `release-as` in `release-please-config.json`; remove that line once v0.1.0 is out, or every release stays 0.1.0.
+3. **Merge to release.** When you're ready to ship, check the release PR (there's a checklist in `.github/PULL_REQUEST_TEMPLATE/release.md`) and merge it. release-please tags `vX.Y.Z` and creates a **draft** GitHub release with the notes.
+4. **Build and publish.** The `build` job in `release.yml` checks out the tag and runs `scripts/release.sh`, which signs the app and the Sparkle zip and writes `appcast.xml`. It uploads the DMG, zip, checksums, appcast and cask, and only then publishes the release and marks it Latest. Installed copies find the update through `releases/latest/download/appcast.xml`, which never points at a release without its files.
+5. **Re-running.** If the build fails, fix the cause and run Actions › Release › Run workflow with the tag (for example `v0.2.0`). It rebuilds and replaces the files.
+
+The build number (`CFBundleVersion`) is `major × 10000 + minor × 100 + patch`, so 0.2.0 is 200 and 1.0.3 is 10003. Sparkle compares this number, so minor and patch stay below 100.
+
+### Pulling a bad release
+
+1. Stop new installs: in GitHub Releases, mark the previous good release as Latest (`gh release edit v0.2.0 --latest`), or delete the bad release. The appcast URL then points back at the good one.
+2. Ship a fix as a new, higher version. Sparkle never downgrades, so people who already installed the bad build stay on it until the fix arrives.
+3. Merge the fix and its release PR as usual; the new release becomes Latest again.
+
+### Maintainer setup (once)
+
+These secrets live in the repository settings (Settings › Secrets and variables › Actions). Run the commands yourself so keys never pass through anyone else.
+
+1. **Signing certificate.** Export "Wisp Dev" from Keychain Access (right-click › Export, `.p12`, with a password), then:
+   ```sh
+   base64 -i WispDev.p12 | gh secret set WISP_DEV_P12
+   gh secret set WISP_DEV_P12_PASSWORD
+   ```
+   Every release must use this same certificate, or installed copies lose their permissions.
+2. **Sparkle key.** The EdDSA key is in your login Keychain under the account `wisp`. Its public half is `SUPublicEDKey` in `project.yml`. Get Sparkle's tools from its [releases](https://github.com/sparkle-project/Sparkle/releases) (same version as in `project.yml`), then:
+   ```sh
+   ./bin/generate_keys --account wisp -x sparkle-key.txt
+   gh secret set SPARKLE_PRIVATE_KEY < sparkle-key.txt
+   ```
+   Keep a backup of `sparkle-key.txt` somewhere safe, such as a password manager, then delete the file. **If this key is lost, installed copies can never verify another update.**
+3. **release-please token.** Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) for this repository only, with Contents, Pull requests and Issues set to Read and write. Then `gh secret set RELEASE_PLEASE_TOKEN`. release-please opens its PR as you, so CI runs on it; the default `GITHUB_TOKEN` would not trigger CI. Leave "Allow GitHub Actions to create and approve pull requests" off. If you give the token an expiry, set a reminder before it lapses: an expired token makes release PRs stop updating without any error you'd notice. Revoke it if it ever leaks.
+4. **Notarisation (optional, later).** With a paid Apple Developer account, add `DEVELOPER_ID_P12`, `DEVELOPER_ID_P12_PASSWORD`, `DEVELOPER_ID`, `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD`. The workflow then signs with the Developer ID, turns on the hardened runtime and notarises, and the first install no longer needs "Open Anyway".
+
+**Switching to a Developer ID later:** Sparkle accepts an update signed with a new certificate as long as the EdDSA key stays the same. Change the certificate or the Sparkle key in a release, never both at once. People grant Accessibility once more after that update, because the signing identity changes.
 
 ## Permissions
 
@@ -121,7 +198,7 @@ Settings › Permissions shows each one's status, and General warns when a featu
 | `Wisp/Settings` | Preferences, the Settings window and its panes (`Panes/`) |
 | `Wisp/Onboarding` | First-launch setup |
 | `WispAgent/` | `wisp-agent`, the Claude Code and Codex hook command that tags events with the agent and terminal and forwards them to Wisp over a Unix socket |
-| `scripts/` | Release script and the cask template |
+| `scripts/` | Release and appcast scripts, git hook scripts and the cask template |
 | `design/logo/` | Icon and menu bar glyph sources |
 | `WispMediaBridge/` | Objective-C library run inside `/usr/bin/perl` to read system-wide Now Playing; macOS only answers that query for Apple-signed processes |
 

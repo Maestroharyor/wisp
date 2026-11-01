@@ -17,7 +17,7 @@ final class MediaBridge {
     private var reader: Task<Void, Never>?
     private var buffer = Data()
     private var restarts: [Date] = []
-    private let log = Logger(subsystem: "com.maestro.wisp", category: "media")
+    private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "media")
 
     /// Installs the library as a Perl XSUB and calls it. The library path is argv[0].
     private static let loader = """

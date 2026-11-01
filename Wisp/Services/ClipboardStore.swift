@@ -15,7 +15,7 @@ final class ClipboardStore {
     @ObservationIgnored private let pasteboard = NSPasteboard.general
     @ObservationIgnored private var lastChangeCount: Int
     @ObservationIgnored private var pollTask: Task<Void, Never>?
-    @ObservationIgnored private let log = Logger(subsystem: "com.maestro.wisp", category: "clipboard")
+    @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "clipboard")
 
     /// Marker types from nspasteboard.org that ask clipboard managers to stay away.
     private static let ignoredTypes: Set<String> = [

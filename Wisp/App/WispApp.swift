@@ -10,6 +10,8 @@ struct WispApp: App {
         MenuBarExtra(isInserted: $preferences.showMenuBarIcon) {
             Button("Toggle Shelf") { appDelegate.toggleShelf() }
             Button("Clipboard History") { appDelegate.toggleClipboard() }
+            Button("Check for Updates…") { appDelegate.services.updater.checkForUpdates() }
+                .disabled(!appDelegate.services.updater.canCheckForUpdates)
             Button("Settings…") { appDelegate.showSettings() }
                 .keyboardShortcut(",")
             Divider()

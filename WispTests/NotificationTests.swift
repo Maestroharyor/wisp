@@ -68,14 +68,14 @@ final class NotificationTests: XCTestCase {
     // MARK: Feed
 
     func testFirstIngestLocksBaselineSilently() {
-        var feed = NotificationFeed(ownBundleID: "com.maestro.wisp")
+        var feed = NotificationFeed(ownBundleID: "com.ayomideodewale.wisp")
         XCTAssertNil(feed.cursor)
         XCTAssertEqual(feed.ingest([record(1), record(5)], baseline: 5), [])
         XCTAssertEqual(feed.cursor, 5)
     }
 
     func testOnlyNewerRecordsPassAndCursorAdvances() {
-        var feed = NotificationFeed(ownBundleID: "com.maestro.wisp")
+        var feed = NotificationFeed(ownBundleID: "com.ayomideodewale.wisp")
         _ = feed.ingest([], baseline: 5)
         let shown = feed.ingest([record(4), record(6), record(7)], baseline: nil)
         XCTAssertEqual(shown.map(\.recID), [6, 7])
@@ -84,7 +84,7 @@ final class NotificationTests: XCTestCase {
     }
 
     func testFloodKeepsNewest() {
-        var feed = NotificationFeed(ownBundleID: "com.maestro.wisp", maxPerPoll: 2)
+        var feed = NotificationFeed(ownBundleID: "com.ayomideodewale.wisp", maxPerPoll: 2)
         _ = feed.ingest([], baseline: 0)
         let shown = feed.ingest((1...5).map { record($0) }, baseline: nil)
         XCTAssertEqual(shown.map(\.recID), [4, 5])
@@ -92,11 +92,11 @@ final class NotificationTests: XCTestCase {
     }
 
     func testBlockedOwnAndDuplicateUUIDsAreDropped() {
-        var feed = NotificationFeed(ownBundleID: "com.maestro.wisp", blockedApps: ["com.spam"])
+        var feed = NotificationFeed(ownBundleID: "com.ayomideodewale.wisp", blockedApps: ["com.spam"])
         _ = feed.ingest([], baseline: 0)
         let shown = feed.ingest(
             [
-                record(1, app: "com.spam"), record(2, app: "com.maestro.wisp"), record(3, uuid: "same"),
+                record(1, app: "com.spam"), record(2, app: "com.ayomideodewale.wisp"), record(3, uuid: "same"),
                 record(4, uuid: "same"),
             ], baseline: nil)
         XCTAssertEqual(shown.map(\.recID), [3])

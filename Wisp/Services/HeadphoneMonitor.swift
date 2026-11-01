@@ -18,7 +18,7 @@ final class HeadphoneMonitor {
     private var block: AudioObjectPropertyListenerBlock?
     private var lastOutput: AudioObjectID?
     private var lookup: Task<Void, Never>?
-    private let log = Logger(subsystem: "com.maestro.wisp", category: "headphones")
+    private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "headphones")
 
     func start() {
         guard block == nil else { return }

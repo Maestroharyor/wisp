@@ -122,7 +122,7 @@ struct SettingsView: View {
         case .notifications: NotificationSettings(preferences: preferences, monitor: services.notifications)
         case .agents: AgentSettings(hub: services.agents, preferences: preferences)
         case .permissions: PermissionSettings(onChange: model.refreshHealth)
-        case .about: AboutSettings(preferences: preferences, runSetup: services.openSetup)
+        case .about: AboutSettings(preferences: preferences, updater: services.updater, runSetup: services.openSetup)
         }
     }
 }

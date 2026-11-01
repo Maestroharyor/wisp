@@ -53,7 +53,7 @@ final class AgentHub {
     @ObservationIgnored private var restartTask: Task<Void, Never>?
     @ObservationIgnored private var waiting: [UUID: NWConnection] = [:]
     @ObservationIgnored private var timeouts: [UUID: Task<Void, Never>] = [:]
-    @ObservationIgnored private let log = Logger(subsystem: "com.maestro.wisp", category: "agents")
+    @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "agents")
     /// Per session: how far into the transcript Wisp has read, and the totals so far.
     @ObservationIgnored private var transcripts: [String: (offset: UInt64, usage: TranscriptUsage)] = [:]
     @ObservationIgnored private var reading: Set<String> = []

@@ -13,7 +13,7 @@ final class WebChatSession: NSObject {
 
     private var webView: WKWebView?
     private var window: NSWindow?
-    private let log = Logger(subsystem: "com.maestro.wisp", category: "webchat")
+    private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "webchat")
 
     init(channel: ReplyChannel) {
         self.channel = channel

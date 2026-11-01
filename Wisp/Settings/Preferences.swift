@@ -147,7 +147,20 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
 @MainActor
 @Observable
 final class Preferences {
-    static let shared = Preferences()
+    static let shared: Preferences = {
+        importLegacyDefaults(into: .standard)
+        return Preferences()
+    }()
+
+    /// Copies settings saved under the old bundle ID once, before anything reads them.
+    private static func importLegacyDefaults(into defaults: UserDefaults) {
+        guard !defaults.bool(forKey: LegacyDefaults.importedFlagKey) else { return }
+        let old = defaults.persistentDomain(forName: LegacyDefaults.oldDomain)
+        for (key, value) in LegacyDefaults.entriesToCopy(from: old ?? [:]) where defaults.object(forKey: key) == nil {
+            defaults.set(value, forKey: key)
+        }
+        defaults.set(true, forKey: LegacyDefaults.importedFlagKey)
+    }
 
     private enum Key {
         static let hotkey = "hotkey"

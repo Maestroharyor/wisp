@@ -37,7 +37,7 @@ final class HotkeyCenter {
     @ObservationIgnored private let clipboardCarbon = CarbonHotkey(id: 2)
     @ObservationIgnored private var keyboardWatcher: KeyboardWatcher?
     @ObservationIgnored private var accessWaiter: Task<Void, Never>?
-    @ObservationIgnored private let log = Logger(subsystem: "com.maestro.wisp", category: "hotkey")
+    @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "hotkey")
 
     init(preferences: Preferences) {
         self.preferences = preferences

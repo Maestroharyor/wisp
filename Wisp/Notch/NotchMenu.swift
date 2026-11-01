@@ -16,6 +16,9 @@ enum NotchMenu {
         menu.addItem(item("Mini Player", symbol: "pip") { services.miniPlayer.toggle() })
         menu.addItem(profilesItem(services: services))
         menu.addItem(.separator())
+        let update = item("Check for Updates…", symbol: "arrow.down.circle") { services.updater.checkForUpdates() }
+        update.isEnabled = services.updater.canCheckForUpdates
+        menu.addItem(update)
         menu.addItem(item("Settings…", symbol: "gearshape", action: services.openSettings))
         menu.addItem(item("Quit Wisp", symbol: "power") { NSApp.terminate(nil) })
         menu.popUp(positioning: nil, at: location, in: nil)

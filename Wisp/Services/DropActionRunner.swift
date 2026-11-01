@@ -7,7 +7,7 @@ import WispCore
 @MainActor
 final class DropActionRunner {
     var onNotice: (String, String) -> Void = { _, _ in }
-    private let log = Logger(subsystem: "com.maestro.wisp", category: "drop-actions")
+    private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "drop-actions")
 
     func run(_ action: DropAction, on urls: [URL]) {
         guard let runs = action.invocations(for: urls.map(\.path)) else {

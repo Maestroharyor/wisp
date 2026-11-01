@@ -1,0 +1,30 @@
+# Local git hooks. Install once with `brew install lefthook && make hooks`.
+# CI runs the same lint and tests, and GitHub blocks direct pushes to main, so
+# skipping a hook with --no-verify only moves the failure to the pull request.
+
+pre-commit:
+  commands:
+    format:
+      glob: "*.swift"
+      run: xcrun swift-format format --in-place {staged_files}
+      stage_fixed: true
+      priority: 1
+    lint:
+      glob: "*.swift"
+      run: xcrun swift-format lint --strict {staged_files}
+      priority: 2
+
+commit-msg:
+  commands:
+    conventional:
+      run: scripts/check-commit-msg.sh {1}
+
+pre-push:
+  commands:
+    no-main:
+      use_stdin: true
+      run: scripts/block-main-push.sh
+      priority: 1
+    test:
+      run: make test
+      priority: 2
