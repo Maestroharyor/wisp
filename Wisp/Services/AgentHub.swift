@@ -267,7 +267,13 @@ final class AgentHub {
     }
 
     private func publishStatus(for sessionID: String) {
-        guard let session = sessions.list.first(where: { $0.id == sessionID }) ?? sessions.list.first else {
+        // When the session is gone (it ended), fall back only to one that's still live, never
+        // to an old "Done" from another session.
+        let live: Set<AgentSession.State> = [.running, .waiting, .needsApproval]
+        guard
+            let session = sessions.list.first(where: { $0.id == sessionID })
+                ?? sessions.list.first(where: { live.contains($0.state) })
+        else {
             onStatus(nil)
             return
         }
