@@ -395,6 +395,8 @@ final class Preferences {
     func applyLook(_ look: Appearance) {
         let next = look.keepingSounds(of: appearance)
         appearance = next
+        // A look picked by hand is the new base; a profile switch must not put an older one back.
+        lookBeforeProfile = nil
         updateActiveProfile { $0.surface = next.surface.rawValue }
     }
 
