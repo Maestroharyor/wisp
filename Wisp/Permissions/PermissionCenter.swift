@@ -32,7 +32,7 @@ enum Permission: String, CaseIterable, Identifiable {
         switch self {
         case .accessibility: "Caps Lock shortcut, volume and brightness keys, pasting, hiding system banners"
         case .fullDiskAccess:
-            "Reading notifications, Messages chats and Focus status. Drag Wisp into the list, then switch it on"
+            "Reading notifications, Messages chats and Focus status. Click + or drag Wisp into the list, then switch it on"
         case .screenRecording: "Recording the screen from the notch"
         case .contacts: "Photos and names on notifications"
         case .automation: "Replying in Messages, meeting controls, Music fallback"
@@ -82,10 +82,8 @@ enum Permission: String, CaseIterable, Identifiable {
             guard EKEventStore.authorizationStatus(for: .event) == .notDetermined else { return openSettings() }
             Task { _ = try? await EKEventStore().requestFullAccessToEvents() }
         case .fullDiskAccess:
-            // Full Disk Access has no prompt and Wisp isn't listed until added by hand:
-            // show Wisp in Finder so it can be dragged into the list.
-            openSettings()
-            NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+            // No prompt, and Wisp isn't listed until added by hand: show a guide to drag it in.
+            FullDiskAccessGuide.shared.show()
         case .automation: openSettings()
         }
     }
