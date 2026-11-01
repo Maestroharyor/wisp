@@ -6,6 +6,8 @@ import WispCore
 /// answer. What gets printed is built by `AgentCLI`; this is only the I/O.
 enum CLICommand {
     private static let timeout: TimeInterval = 2
+    /// Under the redraw interval, so Ctrl-C (handled on the same queue) never waits long.
+    private static let watchTimeout: TimeInterval = 0.8
 
     static func run(_ command: AgentCLI.Command, socketPath: String, environment: [String: String]) -> Never {
         switch command {
@@ -32,7 +34,7 @@ enum CLICommand {
         case problem(String)
     }
 
-    private static func ask(_ query: AgentQuery, socketPath: String) -> Outcome {
+    private static func ask(_ query: AgentQuery, socketPath: String, timeout: TimeInterval = timeout) -> Outcome {
         guard let message = AgentProtocol.envelope(kind: .query, source: .claude, terminal: nil, payload: query.payload)
         else { return .problem(AgentCLI.tooOld) }
         switch SocketSend.request(message, to: socketPath, timeout: timeout) {
@@ -62,7 +64,7 @@ enum CLICommand {
         }
         func draw() {
             let body: String
-            switch ask(.status, socketPath: socketPath) {
+            switch ask(.status, socketPath: socketPath, timeout: watchTimeout) {
             case .report(let report): body = AgentCLI.table(report, width: width(environment))
             // Wisp may come back; keep trying.
             case .problem(let message): body = message + "\n"
