@@ -39,6 +39,7 @@ enum ProcessRunner {
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
+                collected.reachedEnd = true
             } else {
                 collected.append(data)
             }
@@ -64,8 +65,13 @@ enum ProcessRunner {
                 }
             }
         }
+        // The handler reads the last chunks and then sees end of file. Waiting for it with
+        // readToEnd() would block for as long as a background child holds the pipe open
+        // (`daemon &`), past any timeout, so give it a moment and then stop listening.
+        for _ in 0..<50 where !collected.reachedEnd {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
         output.fileHandleForReading.readabilityHandler = nil
-        if let rest = try? output.fileHandleForReading.readToEnd() { collected.append(rest) }
         if collected.timedOut { throw TimedOut() }
         let text = collected.text
         guard status == 0 else { throw Failure(status: status, output: text) }
@@ -79,6 +85,7 @@ private final class OutputBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var data = Data()
     private var flagged = false
+    private var ended = false
     private let limit: Int
 
     init(limit: Int) {
@@ -95,6 +102,11 @@ private final class OutputBuffer: @unchecked Sendable {
     var timedOut: Bool {
         get { lock.withLock { flagged } }
         set { lock.withLock { flagged = newValue } }
+    }
+
+    var reachedEnd: Bool {
+        get { lock.withLock { ended } }
+        set { lock.withLock { ended = newValue } }
     }
 
     var text: String { lock.withLock { String(decoding: data, as: UTF8.self) } }
