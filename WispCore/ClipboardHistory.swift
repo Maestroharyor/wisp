@@ -59,12 +59,15 @@ public struct ClipboardHistory: Codable, Sendable, Equatable {
         self.limit = limit
     }
 
-    /// Inserts at the front. A duplicate moves to the front and keeps its pin.
+    /// Inserts at the front. A duplicate, or the same item copied again from history,
+    /// moves to the front and keeps its pin.
     /// Returns items evicted by the cap so the owner can delete their files.
     @discardableResult
     public mutating func add(_ item: ClipItem) -> [ClipItem] {
         var item = item
-        if let index = items.firstIndex(where: { $0.isDuplicate(of: item) }) {
+        // Matching by id too: images are never duplicates by content, and two entries
+        // sharing one image file would delete it from under each other.
+        if let index = items.firstIndex(where: { $0.id == item.id || $0.isDuplicate(of: item) }) {
             item.pinned = items[index].pinned
             item.id = items[index].id
             items.remove(at: index)

@@ -27,6 +27,18 @@ final class ClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(history.items[0].id, id)
     }
 
+    func testImageCopiedAgainFromHistoryMovesToFront() {
+        var history = ClipboardHistory(limit: 2)
+        history.add(ClipItem(kind: .image, imageFile: "a.png", date: now))
+        history.add(text("b", 1))
+        var again = history.items[1]
+        again.date = now.addingTimeInterval(2)
+        let evicted = history.add(again)
+        XCTAssertEqual(evicted, [])
+        XCTAssertEqual(history.items.map(\.imageFile), ["a.png", nil])
+        XCTAssertEqual(Set(history.items.map(\.id)).count, 2)
+    }
+
     func testLimitEvictsOldestUnpinned() {
         var history = ClipboardHistory(limit: 2)
         history.add(text("a"))
