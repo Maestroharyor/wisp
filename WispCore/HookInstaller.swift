@@ -41,10 +41,21 @@ public enum HookInstaller {
 
     public static func isInstalled(in settings: Data) throws -> Bool {
         let root = try object(settings)
-        return root["hooks"].map { stripped($0) != hooksObject($0) } ?? false
+        return hooksObject(root["hooks"]).values.contains { value in
+            guard case .array(let groups) = value else { return false }
+            return groups.contains { group in
+                guard case .array(let handlers) = group["hooks"] else { return false }
+                return handlers.contains(where: isWisp)
+            }
+        }
     }
 
-    /// The hooks object minus Wisp's handlers, dropping groups and events left empty.
+    private static func isWisp(_ handler: JSONValue) -> Bool {
+        handler["command"]?.stringValue?.contains(helperName) ?? false
+    }
+
+    /// The hooks object minus Wisp's handlers, dropping groups and events that only held
+    /// Wisp's. The user's own empty entries stay as they were.
     private static func stripped(_ hooks: JSONValue?) -> [String: JSONValue] {
         var result: [String: JSONValue] = [:]
         for (event, value) in hooksObject(hooks) {
@@ -53,15 +64,15 @@ public enum HookInstaller {
                 continue
             }
             let kept = groups.compactMap(strippedGroup)
-            if !kept.isEmpty { result[event] = .array(kept) }
+            if !kept.isEmpty || groups.isEmpty { result[event] = .array(kept) }
         }
         return result
     }
 
     private static func strippedGroup(_ group: JSONValue) -> JSONValue? {
         guard case .object(var fields) = group, case .array(let handlers) = fields["hooks"] else { return group }
-        let kept = handlers.filter { !($0["command"]?.stringValue?.contains(helperName) ?? false) }
-        if kept.isEmpty { return nil }
+        let kept = handlers.filter { !isWisp($0) }
+        if kept.isEmpty, !handlers.isEmpty { return nil }
         fields["hooks"] = .array(kept)
         return .object(fields)
     }
