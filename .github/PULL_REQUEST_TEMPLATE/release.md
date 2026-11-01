@@ -10,7 +10,7 @@ own description; paste this below it, or open a PR with ?template=release.md.
 - [ ] `project.yml` MARKETING_VERSION matches the new version
 - [ ] CI is green on this PR (test and pr-title)
 - [ ] Secrets are still set: RELEASE_PLEASE_TOKEN, WISP_DEV_P12, WISP_DEV_P12_PASSWORD, SPARKLE_PRIVATE_KEY
-- [ ] RELEASE_PLEASE_TOKEN does not expire within the next month
+- [ ] RELEASE_PLEASE_TOKEN is still valid (if it has an expiry, it is not due within the next month)
 
 ## After merging
 
