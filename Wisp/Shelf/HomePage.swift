@@ -105,6 +105,11 @@ struct HomePage: View {
                         // A profile switch happened meanwhile: put the old profile's Home back
                         // into that profile, and leave the one now showing alone.
                         preferences.restoreHome(snapshot.layout, toProfile: snapshot.profile)
+                        // Widgets this edit switched on go off again, unless the Home now showing uses them.
+                        let added = Set(preferences.enabledWidgets).subtracting(snapshot.enabled)
+                        for kind in added where !preferences.homeLayout.contains(kind.rawValue) {
+                            preferences.disable(kind)
+                        }
                     }
                 }
                 endEditing()
