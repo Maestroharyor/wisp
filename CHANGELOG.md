@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Maestroharyor/wisp/compare/v0.1.1...v0.1.2) (2026-11-01)
+
+
+### Bug fixes
+
+* permission flow and opening the notch after setup ([#8](https://github.com/Maestroharyor/wisp/issues/8)) ([6961963](https://github.com/Maestroharyor/wisp/commit/6961963b15706c9ac5f0be143edcb31bedab34f4))
+
 ## [0.1.1](https://github.com/Maestroharyor/wisp/compare/v0.1.0...v0.1.1) (2026-11-01)
 
 
