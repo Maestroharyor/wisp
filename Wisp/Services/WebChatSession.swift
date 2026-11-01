@@ -12,7 +12,10 @@ final class WebChatSession: NSObject {
     let channel: ReplyChannel
 
     private var webView: WKWebView?
-    private var window: NSWindow?
+    /// Off-screen window that keeps the page running between replies.
+    private var hiddenWindow: NSWindow?
+    /// The visible window for scanning the login code; the page moves into it while shown.
+    private var loginWindow: NSWindow?
     private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "webchat")
 
     init(channel: ReplyChannel) {
@@ -44,7 +47,7 @@ final class WebChatSession: NSObject {
         guard let site else { return }
         let view = ensureWebView()
         let window =
-            window
+            loginWindow
             ?? NSWindow(
                 contentRect: CGRect(x: 0, y: 0, width: 960, height: 720),
                 styleMask: [.titled, .closable, .resizable],
@@ -53,9 +56,12 @@ final class WebChatSession: NSObject {
             )
         window.title = "\(site.title) for Wisp"
         window.isReleasedWhenClosed = false
+        window.delegate = self
+        hiddenWindow?.contentView = nil
+        hiddenWindow?.orderOut(nil)
         window.contentView = view
         window.center()
-        self.window = window
+        loginWindow = window
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }
@@ -91,17 +97,21 @@ final class WebChatSession: NSObject {
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
         if let site { view.load(URLRequest(url: site.url)) }
         webView = view
-        if window == nil {
-            // Pages only run while in a window; keep one off-screen until login is shown.
-            let hidden = NSWindow(
+        hide(view)
+        return view
+    }
+
+    /// Pages only run while in a window; keep the page in one off-screen.
+    private func hide(_ view: WKWebView) {
+        let hidden =
+            hiddenWindow
+            ?? NSWindow(
                 contentRect: CGRect(x: -10_000, y: -10_000, width: 960, height: 720), styleMask: [.borderless],
                 backing: .buffered, defer: false)
-            hidden.isReleasedWhenClosed = false
-            hidden.contentView = view
-            hidden.orderBack(nil)
-            window = hidden
-        }
-        return view
+        hidden.isReleasedWhenClosed = false
+        hidden.contentView = view
+        hidden.orderBack(nil)
+        hiddenWindow = hidden
     }
 
     /// Each service keeps its own cookies so logins persist across launches.
@@ -162,4 +172,14 @@ final class WebChatSession: NSObject {
         send.click();
         return 'ok';
         """
+}
+
+extension WebChatSession: NSWindowDelegate {
+    /// Closing the login window (the only one with this delegate) puts the page back
+    /// off-screen so the session keeps running.
+    func windowWillClose(_ notification: Notification) {
+        guard let webView else { return }
+        loginWindow?.contentView = nil
+        hide(webView)
+    }
 }
