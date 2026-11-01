@@ -75,7 +75,9 @@ public enum CommandLineText {
         var escaped = false
         for character in line {
             if escaped {
-                current.append(character)
+                // As in a POSIX shell, a backslash inside double quotes only escapes these.
+                if quote == "\"", !"$`\"\\\n".contains(character) { current.append("\\") }
+                if character != "\n" || quote != "\"" { current.append(character) }
                 escaped = false
                 inWord = true
                 continue
