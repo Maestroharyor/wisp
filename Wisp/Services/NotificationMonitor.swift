@@ -98,7 +98,11 @@ final class NotificationMonitor {
     }
 
     private func pollNotifications() {
-        guard preferences.notificationsEnabled, hasAccess else { return }
+        guard preferences.notificationsEnabled, hasAccess else {
+            // Start from "now" when polling resumes, rather than replaying what arrived meanwhile.
+            if feed.cursor != nil { feed = NotificationFeed(ownBundleID: feed.ownBundleID) }
+            return
+        }
         if database == nil { database = NotificationDatabase() }
         guard let database else { return }
         do {
