@@ -8,6 +8,8 @@ import WispCore
 final class OnboardingWindowController {
     private var window: NSWindow?
     private let services: AppServices
+    /// Long enough for the setup window to go before the shelf opens.
+    private static let shelfDelay = Duration.milliseconds(400)
 
     init(services: AppServices) {
         self.services = services
@@ -49,7 +51,7 @@ final class OnboardingWindowController {
         if !AccessibilityPermission.isTrusted { AccessibilityPermission.requestAccess() }
         // Show where Wisp lives, once the window has gone.
         Task { [services] in
-            try? await Task.sleep(for: .milliseconds(400))
+            try? await Task.sleep(for: Self.shelfDelay)
             services.openShelf(.home)
         }
     }
