@@ -14,9 +14,7 @@ struct AgentSettings: View {
                         Button("Update Hooks") { hub.installHooks(source) }
                     } label: {
                         Text("Agents has new features")
-                        Text(
-                            "Update \(source.displayName)'s hooks to see the context window fill up, compaction in the notch and, for Claude Code, a status bar in the terminal."
-                        )
+                        Text("Update \(source.displayName)'s hooks so the notch gets everything this version shows.")
                     }
                 }
             }
@@ -31,6 +29,29 @@ struct AgentSettings: View {
                     "Wisp adds hooks to ~/.codex/hooks.json for the same pill, Done and Allow or Deny card. Codex asks you to trust new hooks once: run /hooks in Codex after connecting."
             )
             TerminalBarSettings(hub: hub, preferences: preferences)
+            Section {
+                Toggle(
+                    "Show tool activity",
+                    isOn: Binding(
+                        get: { preferences.agentToolActivity },
+                        set: { on in
+                            if hub.setToolActivity(on) { preferences.agentToolActivity = on }
+                        }))
+                if hub.isConnected(.claude), hub.toolsInstalled != preferences.agentToolActivity {
+                    Label(
+                        "Claude Code's settings don't match this choice. Turn it off and on again to apply it.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption).foregroundStyle(.orange)
+                }
+            } header: {
+                Text("Tool activity")
+            } footer: {
+                Text(
+                    "Shows what Claude Code is doing in the notch, such as the command it's running or the file it's editing, and how many other sessions are going. Adds background hooks for tool calls, so they never wait for Wisp. Secrets in commands are masked, the privacy setting below applies, and nothing leaves your Mac."
+                        + (hub.isConnected(.claude) ? "" : " Applies when you connect Claude Code.")
+                )
+            }
             Section("Alerts and spend") {
                 Toggle("Play a sound when an agent asks for permission", isOn: $preferences.approvalSound)
                 Toggle("Alert when a session's context is nearly full", isOn: $preferences.contextAlert)

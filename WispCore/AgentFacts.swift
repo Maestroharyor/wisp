@@ -21,15 +21,24 @@ extension AgentSession {
     /// left out, so a session without Claude Code's status bar shows fewer. When `hidden`,
     /// private facts keep their place but show a placeholder.
     public func facts(now: Date, hidden: Bool = false) -> [AgentFact] {
-        let all = allFacts(now: now)
+        let all = allFacts(now: now, hidden: hidden)
         guard hidden else { return all }
         return all.map { $0.isPrivate ? AgentFact($0.label, AgentPrivacy.placeholder, isPrivate: true) : $0 }
     }
 
-    private func allFacts(now: Date) -> [AgentFact] {
+    /// The current tool's label is already masked and has its own private form, so it isn't
+    /// marked private.
+    private func allFacts(now: Date, hidden: Bool) -> [AgentFact] {
         var result: [AgentFact] = []
         let live = extras
         if let name = live.sessionName, !name.isEmpty { result.append(AgentFact("Name", name, isPrivate: true)) }
+        if let tool = currentTool {
+            result.append(
+                AgentFact(
+                    "Current tool", "\(tool.label(hidden: hidden)) · \(Self.time(now.timeIntervalSince(tool.started)))")
+            )
+        }
+        if subagents > 0 { result.append(AgentFact("Subagents running", "\(subagents)")) }
         if let model = displayModel {
             var detail = [model]
             if let effort = live.effort { detail.append("\(effort) effort") }
@@ -79,12 +88,13 @@ extension AgentSession {
             result.append(AgentFact("Usage limits", parts.joined(separator: " · ")))
         }
         if let style = live.outputStyle, style != "default" { result.append(AgentFact("Output style", style)) }
+        if toolCount > 0 { result.append(AgentFact("Tools used", "\(toolCount)")) }
         if autoApprove { result.append(AgentFact("Approvals", "Allow All is on")) }
         if !cwd.isEmpty { result.append(AgentFact("Folder", cwd, isPrivate: true)) }
         var agent = source.displayName
         if let version = live.version { agent += " \(version)" }
         result.append(AgentFact("Agent", agent))
-        result.append(AgentFact("Last activity", Self.ago(now.timeIntervalSince(updated))))
+        result.append(AgentFact("Last activity", Self.ago(now.timeIntervalSince(latestActivity))))
         result.append(AgentFact("Session ID", id, isPrivate: true))
         return result
     }

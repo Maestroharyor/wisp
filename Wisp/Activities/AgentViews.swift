@@ -50,6 +50,8 @@ struct AgentGlyph: View {
     let source: AgentSource
     let project: String
     var context: Double? = nil
+    /// Other live sessions, shown as a "+N" badge.
+    var others = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // A symbol effect follows `state` both ways. The earlier repeatForever animation started
@@ -62,7 +64,27 @@ struct AgentGlyph: View {
             .overlay {
                 if let context, state != .finished { ContextRing(percent: context).frame(width: 19, height: 19) }
             }
-            .accessibilityValue(context.map { "\(Int($0.rounded()))% context used" } ?? "")
+            .overlay(alignment: .topTrailing) {
+                if others > 0 {
+                    Text("+\(others)")
+                        .font(.system(size: 8, weight: .bold)).monospacedDigit()
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 2.5)
+                        .frame(minHeight: 10)
+                        .background(Capsule().fill(Color.wispViolet))
+                        .fixedSize()
+                        .offset(x: 10, y: -7)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityValue(accessibilityValue)
+    }
+
+    private var accessibilityValue: String {
+        [
+            context.map { "\(Int($0.rounded()))% context used" },
+            others > 0 ? "\(others) more \(others == 1 ? "session" : "sessions")" : nil,
+        ].compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -101,13 +123,24 @@ struct ContextBar: View {
     }
 }
 
-/// The pill's right side: elapsed time while working, otherwise the state.
+/// The pill's right side: the running tool (with tool activity on) or the elapsed time
+/// while working, otherwise the state. The upright pill on a side edge is too narrow for
+/// a tool, so it passes `showsTool: false`.
 struct AgentStateLabel: View {
     let status: AgentStatus
+    var showsTool = true
 
     var body: some View {
         if status.compacting {
             Text("Compacting…").lineLimit(1).foregroundStyle(Color.wispViolet)
+        } else if showsTool, let tool = status.tool {
+            HStack(spacing: 4) {
+                Image(systemName: tool.symbol).font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(status.state.tint)
+                Text(tool.short).lineLimit(1).truncationMode(.middle)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(tool.label)
         } else if status.state == .running {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 ValueText(

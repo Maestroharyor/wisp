@@ -23,6 +23,10 @@ struct AgentStatus: Sendable, Equatable {
     let started: Date
     var contextPercent: Double? = nil
     var compacting = false
+    /// The tool running now, already in its private form when details are hidden.
+    var tool: ToolDescription? = nil
+    /// Other live sessions, for the count badge.
+    var others = 0
 }
 
 /// Receives Claude Code and Codex hook events and Claude Code status bar snapshots from the
@@ -50,12 +54,23 @@ final class AgentHub {
     var terminalBarMode: TerminalBarMode = .wisp
     /// Context percentage that triggers an alert; nil turns the alert off. Set from Preferences.
     var contextThreshold: Double? = ContextUsage.defaultThreshold
+    /// Whether Claude Code's tool hooks are wanted. Set from Preferences.
+    var toolActivity = false
+    /// Wisp's tool hooks are in Claude Code's settings.
+    private(set) var toolsInstalled = false
+    // A change republishes the pill so a tool label hides the moment a call starts.
     /// When agent details are hidden. Set from Preferences.
-    var privacyMode: AgentPrivacy.Mode = .default
+    var privacyMode: AgentPrivacy.Mode = .default {
+        didSet { if privacyMode != oldValue { publishStatus() } }
+    }
     /// A call is on (from the microphone). Set by AppServices.
-    var onCall = false
+    var onCall = false {
+        didSet { if onCall != oldValue { publishStatus() } }
+    }
     /// Hide details now, whatever the mode; lasts until Wisp quits.
-    var hideNow = false
+    var hideNow = false {
+        didSet { if hideNow != oldValue { publishStatus() } }
+    }
     /// Commands, file paths and session names stay off screen.
     var detailsHidden: Bool { AgentPrivacy.hidden(mode: privacyMode, onCall: onCall, manual: hideNow) }
     /// Why details are hidden, or nil when they're shown.
@@ -91,6 +106,9 @@ final class AgentHub {
     @ObservationIgnored private var pendingSnapshots:
         [String: (snapshot: StatusLineSnapshot, source: AgentSource, terminal: String?)] = [:]
     @ObservationIgnored private var flushTask: Task<Void, Never>?
+    /// Picks the pill again when a Done or Needs you stops outranking other work, or a
+    /// finished tool's label stops lingering.
+    @ObservationIgnored private var repickTask: Task<Void, Never>?
     @ObservationIgnored private var unsupportedLogged: Set<String> = []
     private let liveInterval: Duration = .milliseconds(250)
 
@@ -236,8 +254,12 @@ final class AgentHub {
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
         sessions.apply(event, at: .now)
-        sessions.prune(now: .now, olderThan: 6 * 3600)
-        if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
+        // Tool activity comes several times a second; the branch and pruning can wait for the
+        // next prompt, stop or status bar snapshot.
+        if !event.kind.isToolActivity {
+            sessions.prune(now: .now, olderThan: 6 * 3600)
+            if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
+        }
 
         if event.isResume {
             ledger.startRun(session: event.sessionID, at: .now)
@@ -269,7 +291,7 @@ final class AgentHub {
         } else {
             reply(connection, nil)
         }
-        publishStatus(for: event.sessionID)
+        publishStatus()
     }
 
     // MARK: Live status
@@ -305,7 +327,7 @@ final class AgentHub {
             {
                 onContextAlert("\(project) is at \(Int(percent.rounded()))% context")
             }
-            if pillChanged { publishStatus(for: id) }
+            if pillChanged { publishStatus() }
         }
     }
 
@@ -339,7 +361,7 @@ final class AgentHub {
             sessions.resolveApproval(session: approval.sessionID, at: .now)
         }
         onApproval(approvals.first)
-        publishStatus(for: approval.sessionID)
+        publishStatus()
     }
 
     /// Allows this request and every later one from the same session, until it ends.
@@ -369,25 +391,31 @@ final class AgentHub {
             completion: .contentProcessed { _ in connection.cancel() })
     }
 
-    private func publishStatus(for sessionID: String) {
-        // When the session is gone (it ended), fall back only to one that's still live, never
-        // to an old "Done" from another session.
-        let live: Set<AgentSession.State> = [.running, .waiting, .needsApproval]
-        guard
-            let session = sessions.list.first(where: { $0.id == sessionID })
-                ?? sessions.list.first(where: { live.contains($0.state) })
-        else {
-            onStatus(nil)
-            return
+    /// Shows the most urgent session (see `AgentUrgency`), with a count of the others.
+    private func publishStatus() {
+        let all = sessions.list
+        let now = Date.now
+        let pick = AgentUrgency.pick(all, now: now)
+        repickTask?.cancel()
+        repickTask = nil
+        let wake = [AgentUrgency.momentEnds(all, now: now), pick.primary?.toolLingerEnds(now: now)].compactMap { $0 }
+        if let ends = wake.min() {
+            repickTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(max(0, ends.timeIntervalSince(.now)) + 0.1))
+                guard !Task.isCancelled else { return }
+                self?.publishStatus()
+            }
         }
-        onStatus(status(for: session))
+        onStatus(pick.primary.map { status(for: $0, others: pick.others, now: now) })
     }
 
-    private func status(for session: AgentSession) -> AgentStatus {
+    private func status(for session: AgentSession, others: Int, now: Date) -> AgentStatus {
         AgentStatus(
             sessionID: session.id, project: session.project, source: session.source, state: session.state,
             started: session.turnStarted, contextPercent: session.contextPercent?.rounded(),
-            compacting: session.compacting)
+            compacting: session.compacting,
+            tool: session.state == .running ? session.pillTool(now: now)?.description(hidden: detailsHidden) : nil,
+            others: others)
     }
 
     // MARK: Token use
@@ -511,6 +539,8 @@ final class AgentHub {
             if source == .claude {
                 let bar = (try? StatusLineChain.state(in: data)) ?? .none
                 if bar != statusLine { statusLine = bar }
+                let tools = (try? HookInstaller.toolsInstalled(in: data)) ?? false
+                if tools != toolsInstalled { toolsInstalled = tools }
             }
         }
         if here != connected { connected = here }
@@ -534,13 +564,15 @@ final class AgentHub {
         let command = HookInstaller.command(helper: helper.path, source: source)
         guard
             let updated = try? withStatusLine(
-                HookInstaller.install(into: original, command: command, source: source),
+                HookInstaller.install(
+                    into: original, command: command, source: source, tools: source == .claude && toolActivity),
                 source: source, helper: helper.path)
         else {
             alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
             return
         }
         let events = source.hookEvents.joined(separator: ", ")
+        let tools = source == .claude && toolActivity ? Self.toolSentence : ""
         let bar = source == .claude ? barSentence(terminalBarMode, original: original) : ""
         let trust = source == .codex ? " Codex asks you to trust new hooks once: run /hooks in Codex." : ""
         let link = (try? HookInstaller.link(in: original, helper: helper.path, source: source)) ?? HookLink.none
@@ -550,7 +582,7 @@ final class AgentHub {
             confirmed = confirm(
                 "Add Wisp's hooks to \(source.displayName)?",
                 detail: """
-                    Wisp adds a command hook for \(events) to \(path).\(bar) Your other settings and hooks stay as \
+                    Wisp adds a command hook for \(events) to \(path).\(tools)\(bar) Your other settings and hooks stay as \
                     they are, though the file is rewritten with sorted keys. A backup is saved next to it with \
                     .wisp-backup on the end. Permission prompts wait up to \(HookInstaller.approvalTimeout) s for \
                     the notch, then fall back to the terminal.\(trust)
@@ -560,8 +592,8 @@ final class AgentHub {
             confirmed = confirm(
                 "Update Wisp's hooks for \(source.displayName)?",
                 detail: """
-                    Wisp adds hooks for compaction to \(path), so the notch can show when the context is being \
-                    compacted.\(bar) The current file is saved next to it with .wisp-previous on the end.\(trust)
+                    Wisp brings its hooks in \(path) up to date for this version.\(tools)\(bar) The current file \
+                    is saved next to it with .wisp-previous on the end.\(trust)
                     """,
                 action: "Update Hooks")
         case .other:
@@ -641,6 +673,44 @@ final class AgentHub {
                 action: "Change")
         else { return false }
         terminalBarMode = mode
+        write(updated, to: url)
+        return true
+    }
+
+    private static let toolSentence =
+        " Background hooks for tool calls show what Claude is doing in the notch; they never make a tool call wait."
+
+    /// Adds or removes Claude Code's tool hooks after the user confirms, like `setTerminalBar`.
+    /// False when the user cancelled.
+    func setToolActivity(_ on: Bool) -> Bool {
+        guard connected.contains(.claude), let helper = Self.helperURL else {
+            toolActivity = on
+            return true
+        }
+        let url = Self.settingsURL(.claude)
+        let original = (try? Data(contentsOf: url)) ?? Data()
+        let command = HookInstaller.command(helper: helper.path, source: .claude)
+        guard let updated = try? HookInstaller.install(into: original, command: command, source: .claude, tools: on)
+        else {
+            alert("Couldn't read ~/.claude/settings.json", detail: "Fix the file's JSON, then try again.")
+            return false
+        }
+        guard updated != original else {
+            toolActivity = on
+            return true
+        }
+        let refresh = outdated.contains(.claude) ? " It also brings Wisp's other hooks up to date." : ""
+        let change =
+            (on
+                ? "Wisp adds three hooks (PreToolUse, PostToolUse and SubagentStop) to ~/.claude/settings.json. They run in the background, so tool calls never wait for them."
+                : "Wisp removes its three tool hooks from ~/.claude/settings.json.") + refresh
+        guard
+            confirm(
+                on ? "Show Claude Code's tool activity?" : "Stop showing tool activity?",
+                detail: change + " The current file is saved next to it with .wisp-previous on the end.",
+                action: on ? "Add Hooks" : "Remove Hooks")
+        else { return false }
+        toolActivity = on
         write(updated, to: url)
         return true
     }

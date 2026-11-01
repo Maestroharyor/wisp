@@ -2,7 +2,7 @@ import Foundation
 
 /// One message on Wisp's agent socket, decoded.
 public enum AgentMessage: Equatable, Sendable {
-    /// A hook call. Only PermissionRequest waits for a reply.
+    /// A hook call (or tool activity, sent as `tool`). Only PermissionRequest waits for a reply.
     case hook(AgentEvent)
     /// A statusLine snapshot. Never answered.
     case statusline(StatusLineSnapshot, source: AgentSource, terminal: String?)
@@ -36,6 +36,13 @@ public enum AgentProtocol {
         return try? JSONEncoder().encode(JSONValue.object(fields))
     }
 
+    /// How the helper sends a hook's JSON: tool activity is `tool`, sent without waiting for
+    /// a reply, so a tool call never waits on Wisp. Everything else is `hook`.
+    public static func kind(forHook payload: Data) -> Kind {
+        let name = (try? JSONDecoder().decode(JSONValue.self, from: payload))?["hook_event_name"]?.stringValue
+        return name.map { AgentSource.claude.toolHookEvents.contains($0) } == true ? .tool : .hook
+    }
+
     public static func decode(_ data: Data) throws -> AgentMessage {
         let json = try JSONDecoder().decode(JSONValue.self, from: data)
         guard let version = json["v"]?.intValue else { return .hook(try AgentEvent.decode(data)) }
@@ -46,10 +53,10 @@ public enum AgentProtocol {
         let source = json["source"]?.stringValue.flatMap(AgentSource.init(rawValue:)) ?? .claude
         let terminal = json["terminal"]?.stringValue
         switch kind {
-        case .hook: return .hook(AgentEvent(json: payload, source: source, terminal: terminal))
+        case .hook, .tool: return .hook(AgentEvent(json: payload, source: source, terminal: terminal))
         case .statusline:
             return .statusline(StatusLineSnapshot(json: payload), source: source, terminal: terminal)
-        case .tool, .query: return .unsupported("\(kindName) v\(version)")
+        case .query: return .unsupported("\(kindName) v\(version)")
         }
     }
 }

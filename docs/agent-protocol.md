@@ -39,7 +39,7 @@ Every message is a JSON object:
 |---|---|---|
 | `hook` | The hook's stdin JSON from Claude Code or Codex. | Only for `PermissionRequest`: the hook's stdout (an allow or deny decision), or empty to let the agent ask in the terminal. Wisp holds the connection open until the user answers, up to 110 s. |
 | `statusline` | Claude Code's statusLine stdin JSON (`session_id`, `model`, `cost`, `context_window`, `workspace`, ...). | None. |
-| `tool` | Reserved for tool activity (PreToolUse/PostToolUse). | None. Not handled yet. |
+| `tool` | Tool activity: the stdin JSON of PreToolUse, PostToolUse or SubagentStop. The helper sends it without waiting (50 ms, like `statusline`), so a tool call never waits on Wisp. | None. |
 | `query` | Reserved for `wisp status`. | Yes. Not handled yet. |
 
 ## Older format
@@ -48,7 +48,7 @@ Before the envelope, the helper sent the hook's JSON directly with two keys adde
 
 ## Hooks Wisp installs
 
-Claude Code (`~/.claude/settings.json`): SessionStart, UserPromptSubmit, PermissionRequest (120 s timeout), Notification, Stop, SessionEnd, PreCompact and PostCompact (both `"async": true`), plus `statusLine` running `wisp-agent statusline`.
+Claude Code (`~/.claude/settings.json`): SessionStart, UserPromptSubmit, PermissionRequest (120 s timeout), Notification, Stop, SessionEnd, PreCompact and PostCompact (both `"async": true`), with tool activity on PreToolUse, PostToolUse and SubagentStop (all `"async": true`), plus `statusLine` running `wisp-agent statusline`.
 
 Codex (`~/.codex/hooks.json`): the same hooks without Notification, and no status bar (Codex has no external status line command).
 

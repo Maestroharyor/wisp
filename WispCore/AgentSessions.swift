@@ -30,6 +30,22 @@ public struct AgentTimelineEntry: Equatable, Sendable, Identifiable {
     }
 }
 
+/// The tool call a session is running, from its PreToolUse.
+public struct ActiveTool: Equatable, Sendable {
+    public let id: String?
+    public let name: String
+    /// Masked, for the pill and details.
+    public let shown: ToolDescription
+    /// For private mode: the verb without the input.
+    public let hidden: ToolDescription
+    public let started: Date
+
+    public func description(hidden isHidden: Bool) -> ToolDescription { isHidden ? hidden : shown }
+    public func label(hidden isHidden: Bool) -> String { description(hidden: isHidden).label }
+    public var label: String { shown.label }
+    public var hiddenLabel: String { hidden.label }
+}
+
 public struct AgentSession: Equatable, Identifiable, Sendable {
     public enum State: Equatable, Sendable {
         case idle
@@ -70,6 +86,23 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     /// The latest status bar snapshot, for everything else it reports.
     public var extras = StatusLineSnapshot.Extras()
     public var state: State
+    /// When `state` last changed; nil until a hook changes it.
+    public var stateSince: Date?
+    /// The last hook of any kind, tool activity included, so the busiest session wins the
+    /// pill; `updated` leaves tool activity out to keep the sessions list steady.
+    public var lastActivity: Date?
+
+    /// The later of the last hook and the last change the status bar reported.
+    public var latestActivity: Date { max(lastActivity ?? updated, updated) }
+    /// With tool activity on: tools running now (several run in parallel), oldest first.
+    public var runningTools: [ActiveTool] = []
+    /// The last tool to finish and when, so the pill can hold its label for a moment
+    /// instead of flickering back to the timer between calls.
+    public var lastTool: ActiveTool?
+    public var toolEnded: Date?
+    /// Calls so far and subagents still working.
+    public var toolCount = 0
+    public var subagents = 0
     /// What happened in this session, oldest first, capped at `AgentSessions.timelineLimit`.
     public var timeline: [AgentTimelineEntry] = []
     /// "Allow All" was chosen: later requests are allowed without asking.
@@ -82,6 +115,32 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
 }
 
 extension AgentSession {
+    /// How long a finished tool's label stays in the pill when nothing follows it.
+    public static let toolLinger: TimeInterval = 1.5
+
+    /// The newest tool still running.
+    public var currentTool: ActiveTool? { runningTools.last }
+
+    /// The tool for the pill: the newest one running, or the last one to finish while it lingers.
+    public func pillTool(now: Date) -> ActiveTool? {
+        if let currentTool { return currentTool }
+        guard let lastTool, let toolEnded, now.timeIntervalSince(toolEnded) < Self.toolLinger else { return nil }
+        return lastTool
+    }
+
+    /// When a lingering label goes, so the pill can be redrawn then.
+    public func toolLingerEnds(now: Date) -> Date? {
+        guard currentTool == nil, lastTool != nil, let toolEnded else { return nil }
+        let ends = toolEnded + Self.toolLinger
+        return ends > now ? ends : nil
+    }
+
+    mutating func clearTools() {
+        runningTools = []
+        lastTool = nil
+        toolEnded = nil
+    }
+
     /// What a status bar snapshot can change.
     struct LiveFigures: Equatable {
         let cost: Double?
@@ -143,9 +202,24 @@ public struct AgentSessions: Sendable {
         if let terminal = event.terminal { session.terminal = terminal }
         if !event.cwd.isEmpty { session.cwd = event.cwd }
         if let path = event.transcriptPath { session.transcriptPath = path }
-        session.updated = date
+        let stateBefore = session.state
+        session.lastActivity = date
+        // Tool activity fires many times a turn; only a change of state counts as news, so the
+        // sessions list (newest activity first) doesn't reshuffle on every tool call.
+        if !event.kind.isToolActivity { session.updated = date }
+        defer {
+            if session.state != stateBefore {
+                session.stateSince = date
+                session.updated = date
+            }
+            sessions[event.sessionID] = session
+        }
         // Compaction never outlives a turn; a PostCompact that never came mustn't leave it showing.
-        if [.sessionStart, .userPromptSubmit, .stop].contains(event.kind) { session.compacting = false }
+        if [.sessionStart, .userPromptSubmit, .stop].contains(event.kind) {
+            session.compacting = false
+            session.clearTools()
+        }
+        if [.sessionStart, .stop].contains(event.kind) { session.subagents = 0 }
         switch event.kind {
         case .sessionStart:
             session.state = .idle
@@ -162,6 +236,7 @@ public struct AgentSessions: Sendable {
         case .notification:
             if event.notificationType == "idle_prompt" || event.notificationType == "elicitation_dialog" {
                 session.state = .waiting
+                session.clearTools()
                 Self.append(.waiting, "Needs you", to: &session, at: date)
             }
         case .stop:
@@ -177,9 +252,56 @@ public struct AgentSessions: Sendable {
             // Claude Code reports no figure until the next request; the old one is wrong now.
             session.contextPercent = nil
             Self.append(.compacted, "Context compacted", to: &session, at: date)
+        case .preToolUse:
+            Self.startTool(event, in: &session, at: date)
+        case .postToolUse:
+            Self.endTool(id: event.toolUseID, in: &session, at: date)
+        case .subagentStop:
+            session.subagents = max(0, session.subagents - 1)
         case .sessionEnd, .other: break
         }
-        sessions[event.sessionID] = session
+    }
+
+    /// Tools aren't added to the timeline: they'd push out the entries worth keeping.
+    private static func startTool(_ event: AgentEvent, in session: inout AgentSession, at date: Date) {
+        let name = event.toolName ?? "Tool"
+        session.runningTools.append(
+            ActiveTool(
+                id: event.toolUseID, name: name,
+                shown: ToolLabel.describe(tool: name, input: event.toolInput, hidden: false),
+                hidden: ToolLabel.describe(tool: name, input: event.toolInput, hidden: true), started: date))
+        // A call whose PostToolUse never came (it failed) mustn't pile up.
+        if session.runningTools.count > 16 { session.runningTools.removeFirst() }
+        session.toolCount += 1
+        if name == "Task" || name == "Agent" { session.subagents += 1 }
+        switch session.state {
+        case .running, .needsApproval: break
+        case .idle, .waiting, .finished:
+            // A tool means work: a turn Wisp missed the start of, or an answer given in the terminal.
+            if session.state != .waiting {
+                session.turnStarted = date
+                session.turnEnded = nil
+            }
+            session.state = .running
+        }
+    }
+
+    /// The denied call is the newest running one with the requested tool's name (the
+    /// request's timeline entry); parallel calls to other tools carry on.
+    private static func dropDeniedTool(in session: inout AgentSession) {
+        let requested = session.timeline.last { $0.kind == .request }?.text
+        // A call Wisp never saw start (it launched mid-call) leaves the others alone.
+        guard let index = session.runningTools.lastIndex(where: { $0.name == requested }) else { return }
+        session.runningTools.remove(at: index)
+    }
+
+    /// Ends the call with `id`, or the newest one when the hook carried no id.
+    private static func endTool(id: String?, in session: inout AgentSession, at date: Date) {
+        let index =
+            if let id { session.runningTools.lastIndex { $0.id == id } } else { session.runningTools.indices.last }
+        guard let index else { return }
+        session.lastTool = session.runningTools.remove(at: index)
+        session.toolEnded = date
     }
 
     /// Live figures from Claude Code's status bar. Creates the session when Wisp started
@@ -252,6 +374,8 @@ public struct AgentSessions: Sendable {
     public mutating func record(_ kind: AgentTimelineEntry.Kind, _ text: String, session id: String, at date: Date) {
         guard var session = sessions[id] else { return }
         Self.append(kind, text, to: &session, at: date)
+        // A denied tool never runs, so no PostToolUse comes to clear it.
+        if kind == .denied { Self.dropDeniedTool(in: &session) }
         sessions[id] = session
     }
 
@@ -291,6 +415,7 @@ public struct AgentSessions: Sendable {
     public func session(_ id: String) -> AgentSession? { sessions[id] }
 
     public mutating func prune(now: Date, olderThan age: TimeInterval) {
-        sessions = sessions.filter { now.timeIntervalSince($0.value.updated) < age }
+        // Tool activity counts: a long turn of tool calls is still a live session.
+        sessions = sessions.filter { now.timeIntervalSince($0.value.latestActivity) < age }
     }
 }

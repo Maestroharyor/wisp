@@ -200,6 +200,7 @@ final class Preferences {
         static let contextAlert = "contextAlert"
         static let contextThreshold = "contextThreshold"
         static let agentPrivacy = "agentPrivacy"
+        static let agentToolActivity = "agentToolActivity"
         static let lyrics = "lyrics"
         static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
@@ -606,6 +607,8 @@ final class Preferences {
     var agentPrivacy: AgentPrivacy.Mode {
         didSet { defaults.set(agentPrivacy.rawValue, forKey: Key.agentPrivacy) }
     }
+    /// The tool an agent is running shows in the pill; needs Claude Code's tool hooks.
+    var agentToolActivity: Bool { didSet { defaults.set(agentToolActivity, forKey: Key.agentToolActivity) } }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
     /// Look up album art on iTunes when the player gives none (sends title and artist).
@@ -742,6 +745,7 @@ final class Preferences {
             Key.contextAlert: true,
             Key.contextThreshold: Int(ContextUsage.defaultThreshold),
             Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
+            Key.agentToolActivity: false,
             Key.lyrics: true,
             Key.artworkLookup: true,
             Key.meetingActivity: true,
@@ -837,6 +841,7 @@ final class Preferences {
         contextThreshold = min(max(defaults.integer(forKey: Key.contextThreshold), 50), 95)
         agentPrivacy =
             defaults.string(forKey: Key.agentPrivacy).flatMap(AgentPrivacy.Mode.init(rawValue:)) ?? .default
+        agentToolActivity = defaults.bool(forKey: Key.agentToolActivity)
         lyrics = defaults.bool(forKey: Key.lyrics)
         artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)

@@ -200,7 +200,8 @@ private struct BubbleGlyph: View {
                 }
             case .agent(let status):
                 AgentGlyph(
-                    state: status.state, source: status.source, project: status.project, context: status.contextPercent)
+                    state: status.state, source: status.source, project: status.project, context: status.contextPercent,
+                    others: status.others)
             case .meeting:
                 Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
                     .font(.system(size: glyph * 0.6, weight: .semibold))
