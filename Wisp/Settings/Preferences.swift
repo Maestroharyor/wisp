@@ -241,6 +241,7 @@ final class Preferences {
         static let worldClockZones = "worldClockZones"
         static let appearance = "appearance"
         static let lookPresets = "lookPresets"
+        static let lookBeforeProfile = "lookBeforeProfile"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -373,8 +374,13 @@ final class Preferences {
     }
 
     /// The look in use before a profile applied its own, put back by the next profile
-    /// that has none.
-    @ObservationIgnored private var lookBeforeProfile: Appearance?
+    /// that has none. Saved, because the profile's look is saved as `appearance`: losing
+    /// this on quit would leave the profile's look in place for good.
+    @ObservationIgnored private var lookBeforeProfile: Appearance? {
+        didSet {
+            defaults.set(lookBeforeProfile.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.lookBeforeProfile)
+        }
+    }
 
     // MARK: Looks
 
@@ -748,6 +754,9 @@ final class Preferences {
             defaults.data(forKey: Key.lookPresets).flatMap {
                 try? JSONDecoder().decode([AppearancePreset].self, from: $0)
             } ?? []
+        lookBeforeProfile = defaults.data(forKey: Key.lookBeforeProfile).flatMap {
+            try? JSONDecoder().decode(Appearance.self, from: $0)
+        }
         externalStyle = defaults.string(forKey: Key.externalStyle).flatMap(ExternalStyle.init(rawValue:)) ?? .notch
         contextAware = defaults.bool(forKey: Key.contextAware)
         lastSettingsPane =
