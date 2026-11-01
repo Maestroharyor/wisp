@@ -100,6 +100,8 @@ final class NotchGeometryTests: XCTestCase {
         let layout = NotchGeometry.layout(for: notched)
         let region = layout.hitRegion(for: layout.closedRect)
         XCTAssertTrue(region.contains(CGPoint(x: layout.closedRect.midX, y: notched.frame.maxY - 0.5)))
+        // NSEvent.mouseLocation reports exactly maxY with the pointer pushed against the top.
+        XCTAssertTrue(region.contains(CGPoint(x: layout.closedRect.midX, y: notched.frame.maxY)))
         XCTAssertFalse(region.contains(CGPoint(x: 100, y: 960)))
     }
 
