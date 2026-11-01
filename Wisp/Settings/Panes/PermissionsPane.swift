@@ -40,7 +40,21 @@ struct PermissionSettings: View {
             }
         }
         .formStyle(.grouped)
+        // Grants happen in System Settings, so follow them while this pane is open.
+        .task {
+            var last = Self.statuses
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                let now = Self.statuses
+                guard now != last else { continue }
+                last = now
+                refresh += 1
+                onChange()
+            }
+        }
     }
+
+    private static var statuses: [Bool?] { Permission.allCases.map(\.isGranted) }
 }
 
 struct StatusDot: View {
