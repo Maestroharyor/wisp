@@ -71,9 +71,14 @@ struct AboutSettings: View {
                 .font(.caption).foregroundStyle(.secondary)
             }
             Section("Keyboard shortcuts") {
-                ShortcutRow(keys: hyper("Space"), action: "Open or close the shelf")
-                ShortcutRow(keys: hyper("V"), action: "Clipboard history")
-                ShortcutRow(keys: hyper("1–9"), action: "Switch profile")
+                ShortcutRow(keys: preferences.hotkey.description, action: "Open or close the shelf")
+                // Without Hyper, clipboard history has its own shortcut and profiles have none.
+                if preferences.hotkey.usesHyper {
+                    ShortcutRow(keys: "⇪ V", action: "Clipboard history")
+                    ShortcutRow(keys: "⇪ 1–9", action: "Switch profile")
+                } else {
+                    ShortcutRow(keys: Hotkey.clipboardFallback.description, action: "Clipboard history")
+                }
                 ShortcutRow(keys: "Esc", action: "Back to the grid, or close the shelf")
                 ShortcutRow(keys: "Right-click the notch", action: "Menu: Customise Home, profiles, Settings")
             }
@@ -88,10 +93,6 @@ struct AboutSettings: View {
             }
         }
         .formStyle(.grouped)
-    }
-
-    private func hyper(_ key: String) -> String {
-        preferences.hotkey.usesHyper ? "⇪ \(key)" : "⇧⌘ \(key)"
     }
 
     private static var version: String {
