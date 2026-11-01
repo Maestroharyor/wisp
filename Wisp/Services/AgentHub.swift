@@ -39,6 +39,8 @@ final class AgentHub {
     private(set) var listening = false
     /// Estimated spend per day across every session, kept for a month.
     private(set) var spend: DailySpend
+    /// Cost already added to `spend` per transcript, so a transcript read again isn't counted twice.
+    @ObservationIgnored private var ledger: SpendLedger
 
     /// Shows or clears the agent activities.
     var onStatus: (AgentStatus?) -> Void = { _ in }
@@ -60,12 +62,16 @@ final class AgentHub {
 
     @ObservationIgnored private let defaults: UserDefaults
     private static let spendKey = "agentSpend"
+    private static let ledgerKey = "agentSpendLedger"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         spend =
             defaults.data(forKey: Self.spendKey).flatMap { try? JSONDecoder().decode(DailySpend.self, from: $0) }
             ?? DailySpend()
+        ledger =
+            defaults.data(forKey: Self.ledgerKey).flatMap { try? JSONDecoder().decode(SpendLedger.self, from: $0) }
+            ?? SpendLedger()
     }
 
     /// Answer before Claude Code's hook timeout so it can still show its own prompt.
@@ -285,7 +291,9 @@ final class AgentHub {
             guard sessions.session(id) != nil else { return }
             transcripts[id] = next
             let cost = next.usage.cost()
-            let increase = (cost ?? 0) - (sessions.session(id)?.cost ?? 0)
+            // The transcript's cost is cumulative; count only what this transcript hasn't added yet.
+            let increase = ledger.record(total: cost ?? 0, for: path, at: .now)
+            defaults.set(try? JSONEncoder().encode(ledger), forKey: Self.ledgerKey)
             if increase > 0 {
                 spend.add(increase, on: .now)
                 defaults.set(try? JSONEncoder().encode(spend), forKey: Self.spendKey)
