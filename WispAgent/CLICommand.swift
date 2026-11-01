@@ -50,21 +50,17 @@ enum CLICommand {
         }
     }
 
-    /// Redraws every second on the alternate screen until Ctrl-C, which puts the terminal back.
+    /// Redraws every second on the alternate screen until Ctrl-C, which puts the terminal
+    /// back, as do a hangup, SIGTERM and Ctrl-Z. Piped, it prints each table in turn instead.
     private static func watch(socketPath: String, environment: [String: String]) -> Never {
+        let terminal = isatty(STDOUT_FILENO) == 1
+        let enter = "\u{1B}[?1049h\u{1B}[?25l"
         let leave = "\u{1B}[?25h\u{1B}[?1049l"
-        print("\u{1B}[?1049h\u{1B}[?25l", terminator: "")
-        signal(SIGINT, SIG_IGN)
-        let interrupt = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
-        interrupt.setEventHandler {
-            print(leave, terminator: "")
+        func write(_ text: String) {
+            print(text, terminator: "")
             fflush(stdout)
-            exit(0)
         }
-        interrupt.resume()
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now(), repeating: 1)
-        timer.setEventHandler {
+        func draw() {
             let body: String
             switch ask(.status, socketPath: socketPath) {
             case .report(let report): body = AgentCLI.table(report, width: width(environment))
@@ -72,12 +68,41 @@ enum CLICommand {
             case .problem(let message): body = message + "\n"
             }
             let clock = Date.now.formatted(date: .omitted, time: .standard)
-            print("\u{1B}[H\u{1B}[2J" + "wisp watch · \(clock) · Ctrl-C to stop\n\n" + body, terminator: "")
-            fflush(stdout)
+            let title = "wisp watch · \(clock)" + (terminal ? " · Ctrl-C to stop" : "")
+            write(terminal ? "\u{1B}[H\u{1B}[2J\(title)\n\n\(body)" : "\(title)\n\(body)\n")
         }
+        var sources: [DispatchSourceSignal] = []
+        func on(_ signalNumber: Int32, _ handler: @escaping () -> Void) {
+            signal(signalNumber, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .main)
+            source.setEventHandler(handler: handler)
+            source.resume()
+            sources.append(source)
+        }
+        if terminal {
+            write(enter)
+            for quit in [SIGINT, SIGTERM, SIGHUP] {
+                on(quit) {
+                    write(leave)
+                    exit(0)
+                }
+            }
+            // Ctrl-Z: give the shell its screen back, stop, and take it again on `fg`.
+            on(SIGTSTP) {
+                write(leave)
+                kill(getpid(), SIGSTOP)
+            }
+            on(SIGCONT) {
+                write(enter)
+                draw()
+            }
+        }
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now(), repeating: 1)
+        timer.setEventHandler(handler: draw)
         timer.resume()
-        // Keep both sources alive for as long as the main queue runs.
-        withExtendedLifetime((interrupt, timer)) { dispatchMain() }
+        // Keep the sources alive for as long as the main queue runs.
+        withExtendedLifetime((sources, timer)) { dispatchMain() }
     }
 
     /// The terminal's width: the window size, then `COLUMNS`, then 100.
