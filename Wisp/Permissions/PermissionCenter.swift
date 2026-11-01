@@ -69,7 +69,8 @@ enum Permission: String, CaseIterable, Identifiable {
     @MainActor func request() {
         switch self {
         case .accessibility: AccessibilityPermission.requestAccess()
-        case .screenRecording: CGRequestScreenCaptureAccess()
+        // macOS asks only the first time; after that the switch is in System Settings.
+        case .screenRecording: if !CGRequestScreenCaptureAccess() { openSettings() }
         // macOS asks only once. After that, and for a denial, the switch is in System Settings,
         // which lists an app only once it has asked.
         case .contacts:
