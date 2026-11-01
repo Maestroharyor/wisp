@@ -63,6 +63,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.TAG }}
+          # Full history and tags, to find the pull requests since the previous release.
+          fetch-depth: 0
       - name: Use the newest Xcode on the runner
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
       - name: Install XcodeGen
@@ -116,12 +118,19 @@ jobs:
           tar -xf "$RUNNER_TEMP/sparkle/Sparkle-$SPARKLE_VERSION.tar.xz" -C "$RUNNER_TEMP/sparkle"
           echo "SPARKLE_BIN=$RUNNER_TEMP/sparkle/bin" >> "$GITHUB_ENV"
 
+      # Sparkle's window shows each merged pull request's "Release note" line, written for people
+      # who use Wisp. If that can't be built, it falls back to the GitHub release body; notes
+      # never fail a release.
       - name: Render the release notes for Sparkle's window
         run: |
-          gh release view "$TAG" --json body --jq .body > "$RUNNER_TEMP/notes.md"
-          gh api markdown -f text="$(cat "$RUNNER_TEMP/notes.md")" -f mode=gfm -f context="$GITHUB_REPOSITORY" \
-            > "$RUNNER_TEMP/notes.html"
-          echo "WISP_NOTES_HTML=$RUNNER_TEMP/notes.html" >> "$GITHUB_ENV"
+          notes="$RUNNER_TEMP/notes.html"
+          if ! scripts/release-notes.sh "$TAG" > "$notes"; then
+            echo "::warning::Couldn't build the notes from pull requests; using the release body."
+            gh release view "$TAG" --json body --jq .body > "$RUNNER_TEMP/notes.md"
+            gh api markdown -f text="$(cat "$RUNNER_TEMP/notes.md")" -f mode=gfm -f context="$GITHUB_REPOSITORY" \
+              > "$notes"
+          fi
+          echo "WISP_NOTES_HTML=$notes" >> "$GITHUB_ENV"
 
       - name: Build the DMG, zip and appcast
         env:
