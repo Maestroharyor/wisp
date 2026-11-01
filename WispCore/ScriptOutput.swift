@@ -19,26 +19,32 @@ public enum ScriptOutput {
         min(max(seconds, 10), 3600)
     }
 
-    /// Removes ANSI escape sequences such as colour codes.
+    private enum EscapeState { case text, escape, control, command, commandEscape }
+
+    /// Removes ANSI escape sequences: colour codes (`ESC [ ... m`) and commands such as
+    /// hyperlinks and window titles (`ESC ] ... BEL` or `ESC ] ... ESC \`).
     private static func stripColours(_ text: String) -> String {
         var result = ""
-        var inEscape = false
-        var sawBracket = false
+        var state = EscapeState.text
         for scalar in text.unicodeScalars {
-            if inEscape {
-                if !sawBracket, scalar == "[" {
-                    sawBracket = true
-                } else if (0x40...0x7E).contains(scalar.value) {
-                    inEscape = false
+            switch state {
+            case .text:
+                if scalar == "\u{1B}" { state = .escape } else { result.unicodeScalars.append(scalar) }
+            case .escape:
+                if scalar == "[" {
+                    state = .control
+                } else if scalar == "]" {
+                    state = .command
+                } else if !(0x20...0x2F).contains(scalar.value) {
+                    state = .text
                 }
-                continue
+            case .control:
+                if (0x40...0x7E).contains(scalar.value) { state = .text }
+            case .command:
+                if scalar == "\u{07}" { state = .text } else if scalar == "\u{1B}" { state = .commandEscape }
+            case .commandEscape:
+                state = scalar == "\\" ? .text : .command
             }
-            if scalar == "\u{1B}" {
-                inEscape = true
-                sawBracket = false
-                continue
-            }
-            result.unicodeScalars.append(scalar)
         }
         return result
     }
