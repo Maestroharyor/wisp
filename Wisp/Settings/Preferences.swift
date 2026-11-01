@@ -310,6 +310,8 @@ final class Preferences {
     /// Keys that hold the user's content rather than settings; a reset keeps them.
     private static let contentKeys: Set<String> = [
         "trayPaths", "notesText", "webChatStore.whatsApp", "webChatStore.telegram",
+        // Not content, but without it the next launch imports the old build's settings again.
+        LegacyDefaults.importedFlagKey,
     ]
 
     /// Clears every Wisp setting but keeps content (tray, notes, chat logins). The caller
