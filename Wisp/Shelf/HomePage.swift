@@ -66,6 +66,7 @@ struct HomePage: View {
                         .foregroundStyle(.white, .red)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(kind.title) from Home")
                 .offset(x: -2, y: -4)
             }
             .overlay(alignment: .bottomTrailing) {
@@ -108,11 +109,15 @@ struct HomePage: View {
                     .frame(width: 28, height: 28).background(Circle().fill(.white.opacity(0.14)))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Cancel")
+            .help("Cancel")
             Button(action: endEditing) {
                 Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
                     .frame(width: 28, height: 28).background(Circle().fill(Color.accentColor))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Done")
+            .help("Done")
         }
         .frame(height: SurfaceSizing.pickerRowHeight - 12)
     }
@@ -323,6 +328,7 @@ private struct SoloWidgetView: View {
             }
             .buttonStyle(.plain)
             .offset(x: -26, y: 2)
+            .accessibilityLabel("Back to widgets")
             .help("Back to widgets")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

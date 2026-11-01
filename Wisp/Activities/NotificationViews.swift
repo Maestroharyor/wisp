@@ -81,6 +81,7 @@ struct NotificationCardView: View {
                     .background(Circle().fill(Color.accentColor))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(sending ? "Sending" : "Send reply")
             .disabled(model.replyDraft.trimmingCharacters(in: .whitespaces).isEmpty || sending)
         }
     }
