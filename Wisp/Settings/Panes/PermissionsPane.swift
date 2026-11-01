@@ -31,7 +31,6 @@ struct PermissionSettings: View {
                             Button("Allow") {
                                 permission.request()
                                 if permission == .screenRecording { askedScreenRecording = true }
-                                model.refreshHealth()
                             }
                         }
                     }

@@ -111,11 +111,15 @@ struct SettingsView: View {
         .task {
             // Grants happen in System Settings; keep the health badge current while open, and
             // come back to the front when one goes through.
+            // Its own snapshot, so a Refresh click in the pane can't hide a change from it.
+            var last = model.statuses
             while !Task.isCancelled {
                 await AutomationPermission.refresh()
-                let newlyGranted = model.refreshHealth()
+                model.refreshHealth()
+                let newlyGranted = PermissionWatch.newlyGranted(before: last, after: model.statuses)
+                last = model.statuses
                 let answersAllow = PermissionWatch.shouldBringForward(
-                    newlyGranted: newlyGranted, lastRequest: Permission.lastRequest, now: .now)
+                    newlyGranted: newlyGranted, request: Permission.lastRequest, now: .now)
                 if answersAllow { granted() }
                 try? await Task.sleep(for: .seconds(1))
             }

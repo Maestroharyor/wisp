@@ -66,10 +66,8 @@ final class SettingsModel {
     var visiblePanes: [SettingsPaneID] { SettingsIndex.panes(matching: query) }
 
     /// Permissions are granted in System Settings, so this is re-read while the window shows.
-    /// Returns the ids granted since the last check.
-    @discardableResult func refreshHealth() -> [String] {
+    func refreshHealth() {
         let now = Permission.statuses
-        let newlyGranted = PermissionWatch.newlyGranted(before: statuses, after: now)
         if now != statuses { statuses = now }
         let widgets = preferences.enabledWidgets
         let needed = SetupHealth.needed(
@@ -79,7 +77,6 @@ final class SettingsModel {
         let ids = SetupHealth.missing(granted: now, needed: needed)
         let next = ids.compactMap(Permission.init(rawValue:))
         if next != missing { missing = next }
-        return newlyGranted
     }
 }
 

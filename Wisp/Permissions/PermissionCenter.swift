@@ -3,6 +3,7 @@ import AppKit
 import Contacts
 import CoreGraphics
 import EventKit
+import WispCore
 
 /// Every macOS permission Wisp can use, with a status check and a deep link.
 enum Permission: String, CaseIterable, Identifiable {
@@ -71,11 +72,11 @@ enum Permission: String, CaseIterable, Identifiable {
         }
     }
 
-    /// When Allow was last clicked, so a grant that answers it can bring Wisp forward.
-    @MainActor static var lastRequest: Date?
+    /// The last Allow clicked, so the grant that answers it can bring Wisp forward.
+    @MainActor static var lastRequest: PermissionRequest?
 
     @MainActor func request() {
-        Self.lastRequest = .now
+        Self.lastRequest = PermissionRequest(id: rawValue, at: .now)
         switch self {
         case .accessibility: AccessibilityPermission.requestAccess()
         // macOS asks only the first time; after that the switch is in System Settings.
