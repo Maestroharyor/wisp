@@ -51,6 +51,9 @@ public struct AgentEvent: Equatable, Sendable {
         case postToolUse = "PostToolUse"
         case subagentStop = "SubagentStop"
         case other
+
+        /// Tool activity: frequent, and only about the tool, not the session's state.
+        public var isToolActivity: Bool { [.preToolUse, .postToolUse, .subagentStop].contains(self) }
     }
 
     public let kind: Kind

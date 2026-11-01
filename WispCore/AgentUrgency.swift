@@ -1,8 +1,8 @@
 import Foundation
 
 /// Which session the notch pill shows when several are going: a moment that just happened
-/// (Done, Needs you) first, then work in progress, then a pending approval (its card has its
-/// own slot, so the pill stays as it was). Ties go to the most recently updated session.
+/// first (Needs you before Done, since it asks for something), then work in progress, then a pending approval (its card has its
+/// own slot, so the pill stays as it was). Ties go to the session that sent a hook last.
 public enum AgentUrgency {
     /// How long Done or Needs you outranks work, matching how long the pill shows it.
     public static let moment: TimeInterval = 4
@@ -10,7 +10,7 @@ public enum AgentUrgency {
     public static func pick(_ sessions: [AgentSession], now: Date) -> (primary: AgentSession?, others: Int) {
         let ranked = sessions.map { (session: $0, rank: rank($0, now: now)) }.filter { $0.rank > 0 }
         let primary = ranked.max { a, b in
-            a.rank != b.rank ? a.rank < b.rank : a.session.updated < b.session.updated
+            a.rank != b.rank ? a.rank < b.rank : recency(a.session) < recency(b.session)
         }?.session
         let others = sessions.filter { $0.id != primary?.id && isLive($0) }.count
         return (primary, others)
@@ -23,7 +23,7 @@ public enum AgentUrgency {
     }
 
     private static func rank(_ session: AgentSession, now: Date) -> Int {
-        if isMoment(session, now: now) { return 3 }
+        if isMoment(session, now: now) { return session.state == .waiting ? 4 : 3 }
         switch session.state {
         case .running: return 2
         case .idle: return session.compacting ? 2 : 0
@@ -39,6 +39,8 @@ public enum AgentUrgency {
     private static func isLive(_ session: AgentSession) -> Bool {
         [.running, .waiting, .needsApproval].contains(session.state) || session.compacting
     }
+
+    private static func recency(_ session: AgentSession) -> Date { session.lastActivity ?? session.updated }
 
     private static func since(_ session: AgentSession) -> Date { session.stateSince ?? session.updated }
 }

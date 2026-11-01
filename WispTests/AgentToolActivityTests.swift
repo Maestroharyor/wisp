@@ -87,6 +87,11 @@ final class ToolLabelTests: XCTestCase {
             ("aws configure AKIAABCDEFGHIJKLMNOP", "aws configure •••"),
             ("echo glpat-abcdefghij1234567890", "echo •••"),
             ("echo dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQgdG9rZW4x", "echo •••"),
+            ("curl -u admin:hunter2 https://x.io", "curl -u admin:••• https://x.io"),
+            ("curl --user me:pw https://x.io", "curl --user me:••• https://x.io"),
+            ("curl -H 'X-Api-Key: abc123' x", "curl -H 'X-Api-Key: •••' x"),
+            ("curl -H \"x-auth-token: abc\" x", "curl -H \"x-auth-token: •••\" x"),
+            ("sshpass -p hunter2 ssh me@host", "sshpass -p ••• ssh me@host"),
         ]
         for (input, expected) in cases {
             XCTAssertEqual(ToolLabel.mask(input), expected, input)
@@ -126,6 +131,49 @@ final class AgentToolSessionTests: XCTestCase {
         XCTAssertEqual(try event("SubagentStop").kind, .subagentStop)
         let task = try tool("PreToolUse", "Task", id: "t2", input: #"{"subagent_type":"Explore","prompt":"x"}"#)
         XCTAssertEqual(task.toolInput.subagentType, "Explore")
+    }
+
+    func testParallelToolsKeepTheOneStillRunning() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(try tool("PreToolUse", "Read", id: "a", input: #"{"file_path":"/x/A.swift"}"#), at: start)
+        sessions.apply(try tool("PreToolUse", "Read", id: "b", input: #"{"file_path":"/x/B.swift"}"#), at: start)
+        sessions.apply(try tool("PostToolUse", "Read", id: "b"), at: start + 1)
+        XCTAssertEqual(sessions.session("s1")?.currentTool?.label, "Reading A.swift")
+        sessions.apply(try tool("PostToolUse", "Read", id: "a"), at: start + 2)
+        XCTAssertNil(sessions.session("s1")?.currentTool)
+    }
+
+    func testAFinishedToolLingersInThePill() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(try tool("PreToolUse", "Bash", id: "a", input: #"{"command":"ls"}"#), at: start)
+        sessions.apply(try tool("PostToolUse", "Bash", id: "a"), at: start + 10)
+        let session = try XCTUnwrap(sessions.session("s1"))
+        XCTAssertEqual(session.pillTool(now: start + 11)?.label, "Running ls")
+        XCTAssertNil(session.pillTool(now: start + 10 + AgentSession.toolLinger))
+        XCTAssertEqual(session.toolLingerEnds(now: start + 11), start + 10 + AgentSession.toolLinger)
+        XCTAssertNil(session.toolLingerEnds(now: start + 12))
+        sessions.apply(try event("Stop"), at: start + 10.5)
+        XCTAssertNil(sessions.session("s1")?.pillTool(now: start + 10.6), "the end of a turn clears it at once")
+    }
+
+    func testToolActivityDoesNotReorderSessions() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit", session: "a"), at: start)
+        sessions.apply(try event("UserPromptSubmit", session: "b"), at: start + 1)
+        XCTAssertEqual(sessions.list.map(\.id), ["b", "a"])
+        for second in 2..<6 {
+            sessions.apply(
+                try event("PreToolUse", session: "a", extra: #","tool_name":"Read","tool_use_id":"t\#(second)""#),
+                at: start + TimeInterval(second))
+        }
+        XCTAssertEqual(sessions.list.map(\.id), ["b", "a"])
+        // Waking a finished session is news, though.
+        sessions.apply(try event("Stop", session: "a"), at: start + 7)
+        sessions.apply(try event("Stop", session: "b"), at: start + 8)
+        sessions.apply(try event("PreToolUse", session: "a", extra: #","tool_name":"Read""#), at: start + 9)
+        XCTAssertEqual(sessions.list.map(\.id), ["a", "b"])
     }
 
     func testCurrentToolFollowsPreAndPost() throws {
@@ -264,6 +312,28 @@ final class AgentUrgencyTests: XCTestCase {
         let pick = AgentUrgency.pick([session("ask", .needsApproval, since: 1)], now: now)
         XCTAssertEqual(pick.primary?.id, "ask")
         XCTAssertEqual(pick.others, 0)
+    }
+
+    func testTheBusiestSessionWinsATie() throws {
+        var sessions = AgentSessions()
+        let start = now
+        let prompt = { (id: String) in
+            try AgentEvent.decode(Data(#"{"session_id":"\#(id)","hook_event_name":"UserPromptSubmit"}"#.utf8))
+        }
+        sessions.apply(try prompt("a"), at: start)
+        sessions.apply(try prompt("b"), at: start + 1)
+        let read = try AgentEvent.decode(
+            Data(#"{"session_id":"a","hook_event_name":"PreToolUse","tool_name":"Read","tool_use_id":"t"}"#.utf8))
+        sessions.apply(read, at: start + 2)
+        XCTAssertEqual(AgentUrgency.pick(sessions.list, now: start + 10).primary?.id, "a")
+        XCTAssertEqual(sessions.list.first?.id, "b", "the list order stays")
+    }
+
+    func testNeedsYouBeatsDone() {
+        let pick = AgentUrgency.pick(
+            [session("ask", .waiting, since: 2, updated: 2), session("done", .finished, since: 1, updated: 1)], now: now
+        )
+        XCTAssertEqual(pick.primary?.id, "ask")
     }
 
     func testWhenTheMomentEnds() {
