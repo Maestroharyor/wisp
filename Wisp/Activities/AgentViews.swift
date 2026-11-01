@@ -271,9 +271,9 @@ private struct SessionRow: View {
 /// tokens and a prompt draft on the right.
 struct AgentsDetail: View {
     let hub: AgentHub
+    let model: NotchModel
 
     @State private var selection: String?
-    @State private var draft = ""
     @State private var note: String?
 
     var body: some View {
@@ -300,13 +300,20 @@ struct AgentsDetail: View {
             .frame(width: 190)
 
             if let selected {
-                SessionDetail(session: selected, hub: hub, draft: $draft, note: $note)
+                SessionDetail(session: selected, hub: hub, draft: draft(for: selected.id), note: $note)
             } else {
                 Spacer()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { hub.refreshInstalled() }
+        .onChange(of: selected?.id) { note = nil }
+    }
+
+    private func draft(for session: String) -> Binding<String> {
+        Binding(
+            get: { model.agentDrafts[session] ?? "" },
+            set: { model.agentDrafts[session] = $0.isEmpty ? nil : $0 })
     }
 }
 
