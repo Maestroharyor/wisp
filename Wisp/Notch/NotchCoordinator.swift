@@ -130,6 +130,8 @@ final class NotchCoordinator {
     private func pointerMovedAcrossDisplays(_ location: CGPoint) {
         guard preferences.activityDisplay == .pointer else { return }
         let display = displayUUID(at: location)
+        // A reply's card and field live on one display; moving them would strand the reply.
+        guard !controllers.values.contains(where: \.isReplying) else { return }
         guard let display, display != pointerDisplay else { return }
         pointerDisplay = display
         assignActivityDisplays()
