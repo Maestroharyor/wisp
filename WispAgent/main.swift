@@ -7,7 +7,8 @@ import WispCore
 // JSON in Wisp's envelope with the agent (`--source codex`, otherwise Claude Code) and the
 // terminal app it runs in. Any failure exits 0 with no output, so the agent carries on as
 // if no hook ran. Tool activity hooks are sent without waiting for a reply.
-// `wisp-agent statusline` is Claude Code's status bar (StatusLineCommand).
+// `wisp-agent statusline` is Claude Code's status bar (StatusLineCommand), and `status`,
+// `watch` and `spend` are the `wisp` command line (CLICommand), also run through a `wisp` link.
 
 // The socket belongs to the app this helper ships in, so a hook pointing at Wisp Dev
 // talks to Wisp Dev and one pointing at Wisp talks to Wisp.
@@ -25,6 +26,10 @@ let terminal = AgentTerminal.bundleID(
 if arguments.dropFirst().first == StatusLineChain.subcommand {
     StatusLineCommand.run(
         arguments: Array(arguments.dropFirst(2)), socketPath: socketPath, terminal: terminal, environment: environment)
+}
+// Commands come before reading stdin, which only hooks send.
+if let command = AgentCLI.parse(arguments: arguments) {
+    CLICommand.run(command, socketPath: socketPath, environment: environment)
 }
 guard FileManager.default.fileExists(atPath: socketPath) else { exit(0) }
 

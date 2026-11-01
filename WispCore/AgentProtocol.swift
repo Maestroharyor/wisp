@@ -6,6 +6,8 @@ public enum AgentMessage: Equatable, Sendable {
     case hook(AgentEvent)
     /// A statusLine snapshot. Never answered.
     case statusline(StatusLineSnapshot, source: AgentSource, terminal: String?)
+    /// `wisp status` or `wisp spend`, answered with an `AgentReport`.
+    case query(AgentQuery)
     /// A kind or version this build doesn't know, named for the log.
     case unsupported(String)
 }
@@ -56,7 +58,9 @@ public enum AgentProtocol {
         case .hook, .tool: return .hook(AgentEvent(json: payload, source: source, terminal: terminal))
         case .statusline:
             return .statusline(StatusLineSnapshot(json: payload), source: source, terminal: terminal)
-        case .query: return .unsupported("\(kindName) v\(version)")
+        case .query:
+            let name = payload["query"]?.stringValue ?? "?"
+            return AgentQuery(rawValue: name).map(AgentMessage.query) ?? .unsupported("query \(name)")
         }
     }
 }

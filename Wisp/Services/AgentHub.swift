@@ -238,6 +238,11 @@ final class AgentHub {
             // Never answered: the helper has already gone.
             connection.cancel()
             receive(snapshot, source: source, terminal: terminal)
+        case .query(let query):
+            // `wisp status` follows private mode, the same as the notch.
+            let report = AgentReport.make(
+                sessions: sessions.list, spend: spend, query: query, now: .now, hidden: hiddenReason)
+            reply(connection, report.encoded().map { String(decoding: $0, as: UTF8.self) })
         case .unsupported(let name):
             if unsupportedLogged.insert(name).inserted {
                 // The name comes from whoever wrote to the socket, so it stays private.
@@ -317,7 +322,7 @@ final class AgentHub {
             if let cost = item.snapshot.cost {
                 let increase = ledger.record(
                     total: cost, session: id, transcript: item.snapshot.transcriptPath, at: .now)
-                saveSpend(adding: increase)
+                saveSpend(adding: increase, project: sessions.session(id)?.project)
             }
             // Tracked even while the alert is off, so turning it on doesn't fire for a session
             // that was already past the level.
@@ -336,11 +341,12 @@ final class AgentHub {
         GitHead.branch(cwd: cwd, read: { try? String(contentsOfFile: $0, encoding: .utf8) })
     }
 
-    /// Saves the ledger and adds `increase`, the part of a cost not counted before, to today.
-    private func saveSpend(adding increase: Double) {
+    /// Saves the ledger and adds `increase`, the part of a cost not counted before, to today
+    /// and to `project`.
+    private func saveSpend(adding increase: Double, project: String? = nil) {
         defaults.set(try? JSONEncoder().encode(ledger), forKey: Self.ledgerKey)
         guard increase > 0 else { return }
-        spend.add(increase, on: .now)
+        spend.add(increase, on: .now, project: project)
         defaults.set(try? JSONEncoder().encode(spend), forKey: Self.spendKey)
     }
 
@@ -434,7 +440,8 @@ final class AgentHub {
             let cost = next.usage.cost()
             // Claude Code's own figure, once its status bar sends one, is the one that counts.
             if sessions.session(id)?.costIsReal != true, let cost {
-                saveSpend(adding: ledger.record(total: cost, for: path, at: .now))
+                saveSpend(
+                    adding: ledger.record(total: cost, for: path, at: .now), project: sessions.session(id)?.project)
             }
             sessions.setUsage(next.usage.total, cost: cost, session: id)
             sessions.setModelID(next.usage.lastModel, session: id)

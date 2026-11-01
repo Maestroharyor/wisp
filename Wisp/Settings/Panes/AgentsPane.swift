@@ -6,6 +6,12 @@ struct AgentSettings: View {
     let hub: AgentHub
     @Bindable var preferences: Preferences
 
+    /// The week by project; empty when it would only repeat the total as "Other projects".
+    private var projectSpend: [DailySpend.ProjectSpend] {
+        let rows = hub.spend.byProject(lastDays: 7, ending: .now, top: 5)
+        return rows.contains { $0.project != DailySpend.otherProjects } ? rows : []
+    }
+
     var body: some View {
         Form {
             if let source = hub.outdated.sorted(by: { $0.rawValue < $1.rawValue }).first {
@@ -29,6 +35,7 @@ struct AgentSettings: View {
                     "Wisp adds hooks to ~/.codex/hooks.json for the same pill, Done and Allow or Deny card. Codex asks you to trust new hooks once: run /hooks in Codex after connecting."
             )
             TerminalBarSettings(hub: hub, preferences: preferences)
+            CommandLineSettings()
             Section {
                 Toggle(
                     "Show tool activity",
@@ -65,6 +72,13 @@ struct AgentSettings: View {
                 }
                 LabeledContent("Last 7 days") {
                     Text(String(format: "~$%.2f", hub.spend.total(lastDays: 7, ending: .now))).monospacedDigit()
+                }
+                ForEach(projectSpend, id: \.project) { project in
+                    LabeledContent(project.project) {
+                        Text(String(format: "~$%.2f", project.week)).monospacedDigit()
+                    }
+                    .padding(.leading, 12)
+                    .foregroundStyle(.secondary)
                 }
             }
             Section {
@@ -224,5 +238,73 @@ private struct TerminalBarSettings: View {
                 "Claude Code's status bar is left as it was before Wisp, and the notch shows no live cost or context."
                 + connect
         }
+    }
+}
+
+/// Installs `wisp` (status, watch, spend) as a link in ~/.local/bin.
+private struct CommandLineSettings: View {
+    private let installer = CommandLineInstaller.shared
+
+    var body: some View {
+        Section {
+            LabeledContent {
+                switch installer.state {
+                case .installed: Button("Uninstall") { installer.uninstall() }
+                // That link belongs to the other copy of Wisp, so it's repointed, never removed from here.
+                case .otherApp: Button("Point it at this Wisp") { installer.install() }
+                case .notInstalled: Button("Install") { installer.install() }
+                case .foreign: EmptyView()
+                }
+            } label: {
+                Text("wisp command")
+                Text(status)
+            }
+            if let problem = installer.problem {
+                Label(problem, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+            }
+            if installer.state == .installed, installer.path == .notOnPath {
+                let advice = CommandLineTool.pathAdvice(shell: ProcessInfo.processInfo.environment["SHELL"])
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(
+                        "~/.local/bin isn't on your PATH. Add this line to \(advice.file), then open a new terminal:",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .foregroundStyle(.orange)
+                    HStack {
+                        Text(advice.line)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button("Check again") { installer.checkPathAgain() }
+                    }
+                }
+                .font(.caption)
+            }
+        } header: {
+            Text("Command-line tool")
+        } footer: {
+            Text(
+                "Run wisp status, wisp watch or wisp spend in a terminal to see your sessions and spend. Wisp must be running. The privacy setting below applies there too."
+                    + (installer.path == .unknown && installer.state == .installed
+                        ? " Wisp couldn't check your PATH; if wisp isn't found, add ~/.local/bin to it." : "")
+            )
+        }
+        .onAppear { installer.refresh() }
+    }
+
+    private var status: String {
+        switch installer.state {
+        case .installed: "Installed at ~/.local/bin/wisp"
+        case .notInstalled: "Not installed"
+        case .otherApp(let path): "Points to \(Self.appName(path))"
+        case .foreign: "~/.local/bin/wisp is another program, so Wisp leaves it alone"
+        }
+    }
+
+    /// "Wisp Dev" or "Wisp", from the app the helper is in; its folder when that's gone.
+    private static func appName(_ helper: String) -> String {
+        let app = AppSupport.appBundle(containingHelper: URL(fileURLWithPath: helper))
+        guard let id = Bundle(url: app)?.bundleIdentifier else { return app.path }
+        return id.hasSuffix(".dev") ? "Wisp Dev" : "Wisp"
     }
 }

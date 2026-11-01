@@ -93,6 +93,53 @@ final class DailySpendTests: XCTestCase {
         let decoded = try JSONDecoder().decode(DailySpend.self, from: JSONEncoder().encode(spend))
         XCTAssertEqual(decoded.total(on: day, calendar: calendar), 1.5)
     }
+
+    func testOldSavedSpendStillLoads() throws {
+        let old = Data(#"{"days":{"2026-10-31":2.5}}"#.utf8)
+        let decoded = try JSONDecoder().decode(DailySpend.self, from: old)
+        XCTAssertEqual(decoded.days["2026-10-31"], 2.5)
+        XCTAssertEqual(decoded.byProject(lastDays: 7, ending: day, calendar: calendar).map(\.project), [])
+    }
+
+    func testSpendByProjectWithOtherForUnattributed() {
+        var spend = DailySpend()
+        spend.add(1, on: day, project: "wisp", calendar: calendar)
+        spend.add(3, on: day.addingTimeInterval(-86_400), project: "site", calendar: calendar)
+        spend.add(0.5, on: day, project: "site", calendar: calendar)
+        spend.add(0.25, on: day, calendar: calendar)
+        spend.add(9, on: day.addingTimeInterval(-8 * 86_400), project: "old", calendar: calendar)
+        let rows = spend.byProject(lastDays: 7, ending: day, calendar: calendar)
+        XCTAssertEqual(rows.map(\.project), ["site", "wisp", DailySpend.otherProjects])
+        XCTAssertEqual(rows[0].today, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(rows[0].week, 3.5, accuracy: 1e-9)
+        XCTAssertEqual(rows[2].week, 0.25, accuracy: 1e-9)
+        XCTAssertEqual(
+            rows.map(\.week).reduce(0, +), spend.total(lastDays: 7, ending: day, calendar: calendar), accuracy: 1e-9)
+    }
+
+    func testTopFoldsTheRestIntoOther() {
+        var spend = DailySpend()
+        for (index, name) in ["a", "b", "c", "d"].enumerated() {
+            spend.add(Double(10 - index), on: day, project: name, calendar: calendar)
+        }
+        spend.add(0.5, on: day, calendar: calendar)
+        let rows = spend.byProject(lastDays: 7, ending: day, top: 2, calendar: calendar)
+        XCTAssertEqual(rows.map(\.project), ["a", "b", DailySpend.otherProjects])
+        XCTAssertEqual(rows[2].week, 8 + 7 + 0.5, accuracy: 1e-9)
+        // One row past the top isn't worth folding.
+        XCTAssertEqual(spend.byProject(lastDays: 7, ending: day, top: 4, calendar: calendar).count, 5)
+    }
+
+    func testProjectEntriesArePrunedWithTheirDays() throws {
+        var spend = DailySpend()
+        for offset in 0..<40 {
+            spend.add(1, on: day.addingTimeInterval(Double(-offset) * 86_400), project: "p", calendar: calendar)
+        }
+        XCTAssertEqual(spend.projects.count, DailySpend.keptDays)
+        XCTAssertEqual(Set(spend.projects.keys), Set(spend.days.keys))
+        let decoded = try JSONDecoder().decode(DailySpend.self, from: JSONEncoder().encode(spend))
+        XCTAssertEqual(decoded, spend)
+    }
 }
 
 final class SpendLedgerTests: XCTestCase {

@@ -94,6 +94,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "claude", "claude code", "codex", "ai", "hooks", "approve", "allow", "deny", "sessions", "sound",
                 "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",
+                "command line", "cli", "wisp status", "path",
             ]
         case .permissions:
             ["accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera"]
