@@ -397,7 +397,10 @@ final class AgentHub {
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if !original.isEmpty {
+            // Back up only a file Wisp hasn't touched yet; reinstalling would otherwise replace the
+            // user's original with a copy that already has Wisp's hooks.
+            let hasWispHooks = (try? HookInstaller.isInstalled(in: original)) ?? false
+            if !original.isEmpty, !hasWispHooks {
                 try original.write(to: url.appendingPathExtension("wisp-backup"), options: .atomic)
             }
             try updated.write(to: url, options: .atomic)
@@ -416,7 +419,11 @@ final class AgentHub {
                 "Remove Wisp's hooks from \(source.displayName)?", detail: "Only Wisp's entries are removed.",
                 action: "Remove")
         else { return }
-        try? updated.write(to: url, options: .atomic)
+        do {
+            try updated.write(to: url, options: .atomic)
+        } catch {
+            alert("Couldn't write \(url.path)", detail: error.localizedDescription)
+        }
         refreshInstalled()
     }
 
