@@ -56,6 +56,12 @@ final class AgentHub {
     var contextThreshold: Double? = ContextUsage.defaultThreshold
     /// Whether Claude Code's tool hooks are wanted. Set from Preferences.
     var toolActivity = false
+    /// Long tool and reminder limits. Set from Preferences.
+    var alertRules = AgentAlertRules() {
+        didSet { if alertRules != oldValue { checkAlerts() } }
+    }
+    /// Dollars a day before the budget notices; nil turns them off. Set from Preferences.
+    var dailyBudget: Double?
     /// Wisp's tool hooks are in Claude Code's settings.
     private(set) var toolsInstalled = false
     // A change republishes the pill so a tool label hides the moment a call starts.
@@ -92,6 +98,10 @@ final class AgentHub {
     var onNotice: (String) -> Void = { _ in }
     /// A session's context window passed the alert threshold.
     var onContextAlert: (String) -> Void = { _ in }
+    /// A tool ran long or spend reached the daily budget: a symbol and a line for the notch.
+    var onAlert: (_ symbol: String, _ text: String) -> Void = { _, _ in }
+    /// A session has waited for the user past the reminder limit.
+    var onReminder: () -> Void = {}
 
     @ObservationIgnored private var listener: NWListener?
     @ObservationIgnored private var lastListenerRestart = Date.distantPast
@@ -109,12 +119,17 @@ final class AgentHub {
     /// Picks the pill again when a Done or Needs you stops outranking other work, or a
     /// finished tool's label stops lingering.
     @ObservationIgnored private var repickTask: Task<Void, Never>?
+    @ObservationIgnored private var alerts = AgentAlerts()
+    /// Wakes when the next long tool or wait reaches its limit.
+    @ObservationIgnored private var alertTask: Task<Void, Never>?
+    @ObservationIgnored private var budgetState: SpendBudget.State
     @ObservationIgnored private var unsupportedLogged: Set<String> = []
     private let liveInterval: Duration = .milliseconds(250)
 
     @ObservationIgnored private let defaults: UserDefaults
     private static let spendKey = "agentSpend"
     private static let ledgerKey = "agentSpendLedger"
+    private static let budgetKey = "agentBudgetState"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -124,6 +139,11 @@ final class AgentHub {
         ledger =
             defaults.data(forKey: Self.ledgerKey).flatMap { try? JSONDecoder().decode(SpendLedger.self, from: $0) }
             ?? SpendLedger()
+        budgetState =
+            defaults.data(forKey: Self.budgetKey).flatMap {
+                try? JSONDecoder().decode(SpendBudget.State.self, from: $0)
+            }
+            ?? SpendBudget.State()
     }
 
     /// Answer before Claude Code's hook timeout so it can still show its own prompt.
@@ -348,6 +368,19 @@ final class AgentHub {
         guard increase > 0 else { return }
         spend.add(increase, on: .now, project: project)
         defaults.set(try? JSONEncoder().encode(spend), forKey: Self.spendKey)
+        checkBudget()
+    }
+
+    /// Checked only as spend grows, so editing the amount never alerts halfway through typing.
+    private func checkBudget() {
+        guard let dailyBudget else { return }
+        let now = Date.now
+        let spent = spend.total(on: now)
+        guard let level = SpendBudget.alert(spent: spent, budget: dailyBudget, fired: budgetState.fired(on: now))
+        else { return }
+        budgetState.record(level, on: now)
+        defaults.set(try? JSONEncoder().encode(budgetState), forKey: Self.budgetKey)
+        onAlert("dollarsign.circle", SpendBudget.text(level: level, budget: dailyBudget))
     }
 
     // MARK: Approvals
@@ -413,6 +446,35 @@ final class AgentHub {
             }
         }
         onStatus(pick.primary.map { status(for: $0, others: pick.others, now: now) })
+        checkAlerts()
+    }
+
+    /// Sends what's gone over a limit and wakes again for the next one.
+    private func checkAlerts() {
+        let now = Date.now
+        var reminded = false
+        for alert in alerts.due(sessions.list, rules: alertRules, now: now) {
+            switch alert {
+            case .longTool:
+                if let text = alert.text(hidden: detailsHidden) { onAlert("hourglass", text) }
+            case .nudge(let id, _, let approval):
+                // An approval's card is already showing; a Needs you goes back in the pill.
+                if !approval { sessions.nudge(session: id, at: now) }
+                reminded = true
+            }
+        }
+        alertTask?.cancel()
+        alertTask = nil
+        if let next = alerts.nextCheck(sessions.list, rules: alertRules, now: now) {
+            alertTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(max(0, next.timeIntervalSince(.now)) + 0.1))
+                guard !Task.isCancelled else { return }
+                self?.checkAlerts()
+            }
+        }
+        guard reminded else { return }
+        onReminder()
+        publishStatus()
     }
 
     private func status(for session: AgentSession, others: Int, now: Date) -> AgentStatus {

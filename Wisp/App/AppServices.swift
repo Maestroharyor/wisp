@@ -157,6 +157,12 @@ final class AppServices {
     var closeShelves: @MainActor () -> Void = {}
 
     /// Working shows until the turn ends; Done and Needs you show briefly.
+    /// The sound and tap for something an agent needs from the user.
+    private func needsYouFeedback() {
+        sounds.play(.alert, fallback: "Tink")
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+    }
+
     private func agentStatusChanged(_ status: AgentStatus?) {
         let needsUser = agents.sessions.anyNeedsUser
         context.update { $0.agentWaiting = needsUser }
@@ -282,8 +288,12 @@ final class AppServices {
         }
         agents.onNewRequest = { [weak self] in
             guard self?.preferences.approvalSound == true else { return }
-            self?.sounds.play(.alert, fallback: "Tink")
-            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+            self?.needsYouFeedback()
+        }
+        // The reminder has its own switch, so it doesn't depend on the request sound.
+        agents.onReminder = { [weak self] in self?.needsYouFeedback() }
+        agents.onAlert = { [weak self] symbol, text in
+            self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 3)
         }
         agents.onNotice = { [weak self] text in
             self?.activities.post(.notice(symbol: "checkmark.shield.fill", text: text), slot: .notice, duration: 2)
@@ -336,7 +346,11 @@ final class AppServices {
                 (
                     bar: preferences.terminalBarMode,
                     threshold: preferences.contextAlert ? Double(preferences.contextThreshold) : nil,
-                    privacy: preferences.agentPrivacy, tools: preferences.agentToolActivity
+                    privacy: preferences.agentPrivacy, tools: preferences.agentToolActivity,
+                    rules: AgentAlertRules(
+                        toolMinutes: preferences.toolAlert ? preferences.toolAlertMinutes : nil,
+                        nudgeMinutes: preferences.nudgeAlert ? preferences.nudgeMinutes : nil),
+                    budget: preferences.budgetAlert ? preferences.dailyBudget : nil
                 )
             )
         } onChange: { [weak self] in
@@ -346,6 +360,8 @@ final class AppServices {
         agents.contextThreshold = agentPrefs.threshold
         agents.privacyMode = agentPrefs.privacy
         agents.toolActivity = agentPrefs.tools
+        agents.alertRules = agentPrefs.rules
+        agents.dailyBudget = agentPrefs.budget
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
         if needsClock { startClock() } else { stopClock() }
         if timerLength != appliedTimerLength {

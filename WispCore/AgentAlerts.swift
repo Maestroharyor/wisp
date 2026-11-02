@@ -18,11 +18,12 @@ public enum AgentAlert: Equatable, Sendable {
     /// `approval` is true when the session waits on a permission request rather than a message.
     case nudge(session: String, project: String, approval: Bool)
 
-    /// The notice for a long tool ("api: Running npm test for 5 min"); nil for a nudge, which
-    /// shows the session in the pill instead. `hidden` keeps the tool's input out.
+    /// The notice for a long tool ("5m · npm test"): the pill's side has room for a few words,
+    /// and the hourglass says why. Nil for a nudge, which shows the session in the pill instead.
+    /// `hidden` keeps the tool's input out ("5m · Running").
     public func text(hidden: Bool) -> String? {
-        guard case .longTool(_, let project, let tool, let minutes) = self else { return nil }
-        return "\(project): \(tool.label(hidden: hidden)) for \(minutes) min"
+        guard case .longTool(_, _, let tool, let minutes) = self else { return nil }
+        return "\(minutes)m · \(tool.description(hidden: hidden).short)"
     }
 }
 

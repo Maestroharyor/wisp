@@ -104,8 +104,8 @@ final class AgentAlertsTests: XCTestCase {
     func testTheNoticeNamesTheToolUnlessHidden() {
         let alert = AgentAlert.longTool(
             session: "s", project: "api", tool: tool("t", "cat secrets.txt"), minutes: 5)
-        XCTAssertEqual(alert.text(hidden: false), "api: Running cat secrets.txt for 5 min")
-        XCTAssertEqual(alert.text(hidden: true), "api: Running a command for 5 min")
+        XCTAssertEqual(alert.text(hidden: false), "5m · cat secrets.txt")
+        XCTAssertEqual(alert.text(hidden: true), "5m · Running")
         XCTAssertNil(AgentAlert.nudge(session: "s", project: "api", approval: false).text(hidden: false))
     }
 }
@@ -187,10 +187,7 @@ final class SpendBudgetTests: XCTestCase {
     }
 
     func testNoticesReadPlainly() {
-        XCTAssertEqual(
-            SpendBudget.text(level: .warning, spent: 16.2, budget: 20), "~$16.20 spent today, 80% of your $20 budget")
-        XCTAssertEqual(
-            SpendBudget.text(level: .reached, spent: 20.4, budget: 12.5),
-            "~$20.40 spent today, over your $12.50 budget")
+        XCTAssertEqual(SpendBudget.text(level: .warning, budget: 20), "80% of $20")
+        XCTAssertEqual(SpendBudget.text(level: .reached, budget: 12.5), "Over $12.50")
     }
 }

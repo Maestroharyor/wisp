@@ -20,12 +20,11 @@ public enum SpendBudget {
         return reached
     }
 
-    /// "~$16.20 spent today, 80% of your $20 budget".
-    public static func text(level: Level, spent: Double, budget: Double) -> String {
-        let spentText = String(format: "~$%.2f spent today", spent)
+    /// "80% of $20" or "Over $20": short enough for the side of the pill.
+    public static func text(level: Level, budget: Double) -> String {
         switch level {
-        case .warning: return "\(spentText), \(level.rawValue)% of your \(amount(budget)) budget"
-        case .reached: return "\(spentText), over your \(amount(budget)) budget"
+        case .warning: return "\(level.rawValue)% of \(amount(budget))"
+        case .reached: return "Over \(amount(budget))"
         }
     }
 

@@ -201,6 +201,12 @@ final class Preferences {
         static let contextThreshold = "contextThreshold"
         static let agentPrivacy = "agentPrivacy"
         static let agentToolActivity = "agentToolActivity"
+        static let toolAlert = "toolAlert"
+        static let toolAlertMinutes = "toolAlertMinutes"
+        static let nudgeAlert = "nudgeAlert"
+        static let nudgeMinutes = "nudgeMinutes"
+        static let budgetAlert = "budgetAlert"
+        static let dailyBudget = "dailyBudget"
         static let lyrics = "lyrics"
         static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
@@ -609,6 +615,15 @@ final class Preferences {
     }
     /// The tool an agent is running shows in the pill; needs Claude Code's tool hooks.
     var agentToolActivity: Bool { didSet { defaults.set(agentToolActivity, forKey: Key.agentToolActivity) } }
+    /// A notice when one tool call runs longer than `toolAlertMinutes`; needs tool activity.
+    var toolAlert: Bool { didSet { defaults.set(toolAlert, forKey: Key.toolAlert) } }
+    var toolAlertMinutes: Int { didSet { defaults.set(toolAlertMinutes, forKey: Key.toolAlertMinutes) } }
+    /// One more sound and pill when a session has waited for the user `nudgeMinutes`.
+    var nudgeAlert: Bool { didSet { defaults.set(nudgeAlert, forKey: Key.nudgeAlert) } }
+    var nudgeMinutes: Int { didSet { defaults.set(nudgeMinutes, forKey: Key.nudgeMinutes) } }
+    /// Notices at 80% and 100% of `dailyBudget` dollars of spend in a day.
+    var budgetAlert: Bool { didSet { defaults.set(budgetAlert, forKey: Key.budgetAlert) } }
+    var dailyBudget: Double { didSet { defaults.set(dailyBudget, forKey: Key.dailyBudget) } }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
     /// Look up album art on iTunes when the player gives none (sends title and artist).
@@ -746,6 +761,12 @@ final class Preferences {
             Key.contextThreshold: Int(ContextUsage.defaultThreshold),
             Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
             Key.agentToolActivity: false,
+            Key.toolAlert: true,
+            Key.toolAlertMinutes: 5,
+            Key.nudgeAlert: false,
+            Key.nudgeMinutes: 3,
+            Key.budgetAlert: false,
+            Key.dailyBudget: 20.0,
             Key.lyrics: true,
             Key.artworkLookup: true,
             Key.meetingActivity: true,
@@ -842,6 +863,13 @@ final class Preferences {
         agentPrivacy =
             defaults.string(forKey: Key.agentPrivacy).flatMap(AgentPrivacy.Mode.init(rawValue:)) ?? .default
         agentToolActivity = defaults.bool(forKey: Key.agentToolActivity)
+        toolAlert = defaults.bool(forKey: Key.toolAlert)
+        toolAlertMinutes = min(max(defaults.integer(forKey: Key.toolAlertMinutes), 1), 60)
+        nudgeAlert = defaults.bool(forKey: Key.nudgeAlert)
+        nudgeMinutes = min(max(defaults.integer(forKey: Key.nudgeMinutes), 1), 30)
+        budgetAlert = defaults.bool(forKey: Key.budgetAlert)
+        let budget = defaults.double(forKey: Key.dailyBudget)
+        dailyBudget = budget > 0 ? budget : 20
         lyrics = defaults.bool(forKey: Key.lyrics)
         artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)
