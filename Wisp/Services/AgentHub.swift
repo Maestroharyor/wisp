@@ -33,6 +33,8 @@ struct AgentStatus: Sendable, Equatable {
     var tool: ToolDescription? = nil
     /// Other live sessions, for the count badge.
     var others = 0
+    /// Bundle ID of the terminal or editor the session runs in, for its icon.
+    var terminal: String? = nil
 }
 
 /// Receives Claude Code and Codex hook events and Claude Code status bar snapshots from the
@@ -533,7 +535,7 @@ final class AgentHub {
             started: session.turnStarted, contextPercent: session.contextPercent?.rounded(),
             compacting: session.compacting,
             tool: session.state == .running ? session.pillTool(now: now)?.description(hidden: detailsHidden) : nil,
-            others: others)
+            others: others, terminal: session.terminal)
     }
 
     // MARK: Token use

@@ -408,6 +408,7 @@ private struct SessionBar: View {
                     context: session.contextPercent
                 )
                 .font(.system(size: 12))
+                TerminalIcon(bundleID: session.terminal, size: 14)
                 Text(session.project).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 if let branch = session.branch {
                     Label(branch, systemImage: "arrow.triangle.branch")
@@ -611,6 +612,7 @@ private struct DetailSessionRow: View {
                     context: session.contextPercent
                 )
                 .font(.system(size: 11))
+                TerminalIcon(bundleID: session.terminal, size: 13)
                 Text(session.project).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 Spacer(minLength: 4)
                 SessionStateText(session: session)
@@ -643,7 +645,9 @@ private struct SessionDetail: View {
             HStack(spacing: 10) {
                 if let percent = session.contextPercent { ContextBar(percent: percent) }
                 Spacer()
-                action("Terminal", symbol: "arrow.up.forward.app") { hub.focus(session: session.id) }
+                action(TerminalApps.name(for: session.terminal) ?? "Terminal", symbol: "arrow.up.forward.app") {
+                    hub.focus(session: session.id)
+                }
                 if !session.cwd.isEmpty {
                     action("Folder", symbol: "folder") { hub.openFolder(session: session.id) }
                 }
