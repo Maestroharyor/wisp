@@ -96,20 +96,54 @@ final class AgentExitTests: XCTestCase {
         return event
     }
 
+    /// Two reports naming the same process confirm it.
+    private func confirm(_ sessions: inout AgentSessions, _ session: String, _ process: AgentProcess?) throws {
+        sessions.apply(try prompt(session, process: process), at: now)
+        sessions.apply(try prompt(session, process: process), at: now)
+    }
+
     func testASessionWhoseAgentExitedEnds() throws {
         var sessions = AgentSessions()
-        sessions.apply(try prompt("gone", process: AgentProcess(pid: 1, started: 1)), at: now)
-        sessions.apply(try prompt("live", process: AgentProcess(pid: 2, started: 2)), at: now)
-        sessions.apply(try prompt("old", process: nil), at: now)
+        try confirm(&sessions, "gone", AgentProcess(pid: 1, started: 1))
+        try confirm(&sessions, "live", AgentProcess(pid: 2, started: 2))
+        try confirm(&sessions, "old", nil)
         let ended = sessions.endExited { $0.pid == 2 }
         XCTAssertEqual(ended, ["gone"])
         XCTAssertEqual(Set(sessions.list.map(\.id)), ["live", "old"])
     }
 
-    func testASnapshotSetsTheProcess() throws {
+    /// A short-lived launcher between the agent and the hook has a new pid every time, so it's
+    /// never taken for the agent and its exit never ends the session.
+    func testAProcessSeenOnceIsNotTrusted() throws {
+        var sessions = AgentSessions()
+        for pid: Int32 in 10...14 {
+            sessions.apply(try prompt("s", process: AgentProcess(pid: pid, started: 1)), at: now)
+        }
+        XCTAssertNil(sessions.session("s")?.process)
+        XCTAssertFalse(sessions.hasProcesses)
+        XCTAssertEqual(sessions.endExited { _ in false }, [])
+    }
+
+    /// `--resume` brings a new process: the old one no longer counts, and the new one is
+    /// trusted once confirmed.
+    func testANewProcessReplacesTheOldOnceConfirmed() throws {
+        var sessions = AgentSessions()
+        let old = AgentProcess(pid: 1, started: 1)
+        let new = AgentProcess(pid: 2, started: 2)
+        try confirm(&sessions, "s", old)
+        sessions.apply(try prompt("s", process: new), at: now)
+        XCTAssertNil(sessions.session("s")?.process)
+        XCTAssertEqual(sessions.endExited { $0 == new }, [])
+        sessions.apply(try prompt("s", process: new), at: now)
+        XCTAssertEqual(sessions.session("s")?.process, new)
+    }
+
+    func testSnapshotsConfirmTheProcessToo() throws {
         var sessions = AgentSessions()
         var snapshot = StatusLineSnapshot(json: .object(["session_id": .string("s"), "cwd": .string("/p/app")]))
         snapshot.process = AgentProcess(pid: 3, started: 3)
+        _ = sessions.apply(snapshot, source: .claude, terminal: nil, branch: nil, at: now)
+        XCTAssertNil(sessions.session("s")?.process)
         _ = sessions.apply(snapshot, source: .claude, terminal: nil, branch: nil, at: now)
         XCTAssertEqual(sessions.session("s")?.process, AgentProcess(pid: 3, started: 3))
         XCTAssertTrue(sessions.hasProcesses)

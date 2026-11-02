@@ -93,8 +93,25 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     /// The last hook of any kind, tool activity included, so the busiest session wins the
     /// pill; `updated` leaves tool activity out to keep the sessions list steady.
     public var lastActivity: Date?
-    /// The agent's process; the session ends when it's gone. Nil for an older helper.
+    /// The agent's process; the session ends when it's gone. Nil for an older helper, and
+    /// until two reports agree (see `report(_:)`).
     public var process: AgentProcess?
+    /// The last process reported that isn't confirmed yet.
+    var processCandidate: AgentProcess?
+
+    /// Trusts a process once two reports name it. A launcher that runs each hook and exits
+    /// has a new pid every time, so it never passes for the agent; a resumed session's new
+    /// process replaces the old one once it's seen twice.
+    mutating func report(_ reported: AgentProcess?) {
+        guard let reported, reported != process else { return }
+        if reported == processCandidate {
+            process = reported
+            processCandidate = nil
+        } else {
+            process = nil
+            processCandidate = reported
+        }
+    }
 
     /// The later of the last hook and the last change the status bar reported.
     public var latestActivity: Date { max(lastActivity ?? updated, updated) }
@@ -204,7 +221,7 @@ public struct AgentSessions: Sendable {
                 updated: date)
         session.project = event.project
         if let terminal = event.terminal { session.terminal = terminal }
-        if let process = event.process { session.process = process }
+        session.report(event.process)
         if !event.cwd.isEmpty { session.cwd = event.cwd }
         if let path = event.transcriptPath { session.transcriptPath = path }
         let stateBefore = session.state
@@ -241,7 +258,7 @@ public struct AgentSessions: Sendable {
             Self.append(.waiting, "Needs you", to: &session, at: date)
         case .permissionRequest:
             session.state = .needsApproval
-            let tool = event.toolName ?? "Tool"
+            let tool = event.prompt == .plan ? "Plan" : event.toolName ?? "Tool"
             Self.append(.request, tool, detail: event.summary, to: &session, at: date)
         case .notification:
             if event.notificationType == "idle_prompt" || event.notificationType == "elicitation_dialog" {
@@ -334,7 +351,7 @@ public struct AgentSessions: Sendable {
             session.project = snapshot.project
         }
         if let terminal, !terminal.isEmpty { session.terminal = terminal }
-        if let process = snapshot.process { session.process = process }
+        session.report(snapshot.process)
         if let path = snapshot.transcriptPath { session.transcriptPath = path }
         if let cost = snapshot.cost {
             session.cost = cost
