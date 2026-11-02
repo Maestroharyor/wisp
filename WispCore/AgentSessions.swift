@@ -332,7 +332,9 @@ public struct AgentSessions: Sendable {
     }
 
     /// Live figures from Claude Code's status bar. Creates the session when Wisp started
-    /// after it did, but never changes its state: only hooks do that. True when a working
+    /// after it did. Only hooks change its state, with one exception: new spend while waiting
+    /// means the model was called again (a question answered in the terminal sends no hook),
+    /// so the session is working again. True when a working
     /// session's pill should show something new (its whole-number context or compaction);
     /// other states keep their pill as it is, so Done or Needs you isn't replayed.
     @discardableResult
@@ -342,6 +344,8 @@ public struct AgentSessions: Sendable {
         guard let id = snapshot.sessionID else { return false }
         let before = sessions[id].map { ($0.contextPercent?.rounded(), $0.compacting) }
         let figuresBefore = sessions[id].map(\.liveFigures)
+        // Only a real cost counts: the first one replacing an estimate isn't new spend.
+        let realCostBefore = sessions[id].flatMap { $0.costIsReal ? $0.cost : nil }
         var session =
             sessions[id]
             ?? AgentSession(
@@ -372,9 +376,15 @@ public struct AgentSessions: Sendable {
         // Claude Code also re-runs the bar on timers; only a change counts as activity, so an
         // idle session doesn't jump to the top or escape pruning.
         if figuresBefore != session.liveFigures { session.updated = date }
+        let resumed = session.state == .waiting && realCostBefore.map { (session.cost ?? 0) > $0 } == true
+        if resumed {
+            session.state = .running
+            session.stateSince = date
+            session.updated = date
+        }
         sessions[id] = session
         guard session.state == .running, let before else { return false }
-        return before.0 != session.contextPercent?.rounded() || before.1 != session.compacting
+        return resumed || before.0 != session.contextPercent?.rounded() || before.1 != session.compacting
     }
 
     /// The checked-out branch, read from the session's folder.

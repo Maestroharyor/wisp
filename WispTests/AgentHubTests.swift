@@ -200,6 +200,50 @@ final class PermissionPromptTests: XCTestCase {
         XCTAssertEqual(sessions.list.first?.state, .waiting)
     }
 
+    /// After a question is answered in the terminal, the next model call shows as new spend in
+    /// the status bar; that ends the wait. A repeat of the same figures doesn't.
+    func testNewSpendEndsAQuestionsWait() throws {
+        var sessions = AgentSessions()
+        let start = Date(timeIntervalSince1970: 1_000)
+        func snapshot(cost: Double) -> StatusLineSnapshot {
+            StatusLineSnapshot(
+                json: .object([
+                    "session_id": .string("s"), "cwd": .string("/p/app"),
+                    "cost": .object(["total_cost_usd": .number(cost)]),
+                ]))
+        }
+        sessions.apply(snapshot(cost: 1), source: .claude, terminal: nil, branch: nil, at: start)
+        sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: start.addingTimeInterval(1))
+        XCTAssertFalse(sessions.apply(snapshot(cost: 1), source: .claude, terminal: nil, branch: nil, at: start))
+        XCTAssertEqual(sessions.session("s")?.state, .waiting)
+        let later = start.addingTimeInterval(30)
+        XCTAssertTrue(sessions.apply(snapshot(cost: 1.2), source: .claude, terminal: nil, branch: nil, at: later))
+        XCTAssertEqual(sessions.session("s")?.state, .running)
+        XCTAssertEqual(sessions.session("s")?.stateSince, later)
+    }
+
+    /// The first real cost replacing an estimate isn't a sign of work.
+    func testTheFirstRealCostDoesNotEndAWait() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: Date())
+        let snapshot = StatusLineSnapshot(
+            json: .object([
+                "session_id": .string("s"), "cwd": .string("/p/app"),
+                "cost": .object(["total_cost_usd": .number(3)]),
+            ]))
+        sessions.apply(snapshot, source: .claude, terminal: nil, branch: nil, at: Date())
+        XCTAssertEqual(sessions.session("s")?.state, .waiting)
+    }
+
+    func testADeniedPlanIsToldToKeepPlanning() throws {
+        let text = try XCTUnwrap(PermissionReply.answer(.plan, allow: false, input: nil))
+        let message = try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))["hookSpecificOutput"]?[
+            "decision"]?["message"]?.stringValue
+        XCTAssertEqual(message, PermissionReply.planDenied)
+        let tool = try XCTUnwrap(PermissionReply.answer(.tool, allow: false, input: nil))
+        XCTAssertFalse(tool.contains("Keep planning"))
+    }
+
     /// Allow All covers tools, never a plan or a question.
     func testAllowAllSkipsPlansAndQuestions() throws {
         var sessions = AgentSessions()
