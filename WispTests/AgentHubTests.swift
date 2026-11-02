@@ -125,6 +125,41 @@ final class PermissionReplyTests: XCTestCase {
     }
 }
 
+final class PermissionAnswerTests: XCTestCase {
+    private let input: JSONValue = .object(["plan": .string("# Fix"), "planFilePath": .string("/p/plan.md")])
+
+    private func decision(_ text: String?) throws -> JSONValue? {
+        try JSONDecoder().decode(JSONValue.self, from: Data(try XCTUnwrap(text).utf8))["hookSpecificOutput"]?[
+            "decision"]
+    }
+
+    func testAPlanGetsItsInputBackOnApprove() throws {
+        let approved = try decision(PermissionReply.answer(.plan, allow: true, input: input))
+        XCTAssertEqual(approved?["behavior"], .string("allow"))
+        XCTAssertEqual(approved?["updatedInput"], input)
+        let denied = try decision(PermissionReply.answer(.plan, allow: false, input: input))
+        XCTAssertEqual(denied?["behavior"], .string("deny"))
+        XCTAssertNil(denied?["updatedInput"])
+    }
+
+    func testAToolIsAllowedWithoutRewritingItsInput() throws {
+        let allowed = try decision(PermissionReply.answer(.tool, allow: true, input: input))
+        XCTAssertEqual(allowed?["behavior"], .string("allow"))
+        XCTAssertNil(allowed?["updatedInput"])
+    }
+
+    func testAQuestionGetsNoDecision() {
+        XCTAssertNil(PermissionReply.answer(.question, allow: true, input: input))
+    }
+
+    /// Only a plan's input is worth keeping while it waits.
+    func testOnlyAPlanKeepsItsInput() {
+        XCTAssertTrue(PermissionPrompt.plan.keepsInput)
+        XCTAssertFalse(PermissionPrompt.tool.keepsInput)
+        XCTAssertFalse(PermissionPrompt.question.keepsInput)
+    }
+}
+
 final class PermissionPromptTests: XCTestCase {
     private func request(_ tool: String, input: String) throws -> AgentEvent {
         try AgentEvent.decode(
@@ -146,6 +181,9 @@ final class PermissionPromptTests: XCTestCase {
         XCTAssertEqual(event.prompt, .plan)
         XCTAssertEqual(event.rawToolInput?["planFilePath"], .string("/p/plan.md"))
         XCTAssertEqual(event.summary, "Two agent fixes")
+        var sessions = AgentSessions()
+        sessions.apply(event, at: Date())
+        XCTAssertEqual(sessions.session("s")?.timeline.last?.text, "Plan")
     }
 
     func testAToolRequestKeepsItsInputToo() throws {

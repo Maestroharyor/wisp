@@ -13,7 +13,7 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let tool: String
     let summary: String
     var prompt: PermissionPrompt = .tool
-    /// Echoed back on Allow when the prompt needs it (a plan).
+    /// Kept only for a plan, whose approval sends it back.
     var input: JSONValue? = nil
 
     /// The card's title: a plan is approved, not "used".
@@ -315,7 +315,8 @@ final class AgentHub {
             let approval = AgentApproval(
                 id: UUID(), sessionID: event.sessionID, project: event.project, source: event.source,
                 tool: event.toolName ?? "Tool",
-                summary: event.summary, prompt: event.prompt, input: event.rawToolInput)
+                summary: event.summary, prompt: event.prompt,
+                input: event.prompt.keepsInput ? event.rawToolInput : nil)
             pending[approval.id] = approval
             queue.enqueue(approval.id)
             waiting[approval.id] = connection
@@ -405,8 +406,8 @@ final class AgentHub {
         pending[id] = nil
         timeouts.removeValue(forKey: id)?.cancel()
         if let connection = waiting.removeValue(forKey: id) {
-            let echo = approval.prompt == .plan ? approval.input : nil
-            reply(connection, allow.flatMap { PermissionReply.json(allow: $0, updatedInput: echo) })
+            reply(
+                connection, allow.flatMap { PermissionReply.answer(approval.prompt, allow: $0, input: approval.input) })
         }
         if let allow {
             sessions.record(

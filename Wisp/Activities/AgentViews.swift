@@ -249,7 +249,7 @@ struct ApprovalButtons: View {
         HStack(spacing: 8) {
             Button("Deny") { hub.answer(approval.id, allow: false) }
                 .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
-            // Allow All covers tool calls; every plan deserves its own look.
+            // Allow All covers tool calls only; each plan is approved on its own.
             if approval.prompt == .tool {
                 Button("Allow All") { hub.allowAll(approval.id) }
                     .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))

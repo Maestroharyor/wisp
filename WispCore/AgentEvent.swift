@@ -176,6 +176,9 @@ public enum PermissionPrompt: Equatable, Sendable {
     /// AskUserQuestion: only the terminal can pick an answer, so Wisp shows no card for it.
     case question
 
+    /// A plan's input goes back with the approval; nothing else needs keeping while it waits.
+    public var keepsInput: Bool { self == .plan }
+
     public init(tool: String?) {
         switch tool {
         case "ExitPlanMode": self = .plan
@@ -187,6 +190,16 @@ public enum PermissionPrompt: Equatable, Sendable {
 
 /// The hook's stdout for a PermissionRequest decision.
 public enum PermissionReply {
+    /// The reply to a request answered in the notch. A plan gets its input back, or Claude
+    /// Code ignores the allow; a question gets no decision, since only the terminal can answer it.
+    public static func answer(_ prompt: PermissionPrompt, allow: Bool, input: JSONValue?) -> String? {
+        switch prompt {
+        case .question: nil
+        case .plan: json(allow: allow, updatedInput: input)
+        case .tool: json(allow: allow)
+        }
+    }
+
     /// `updatedInput` goes with an allow only; a plan needs it or the allow is ignored.
     public static func json(allow: Bool, updatedInput: JSONValue? = nil) -> String? {
         var decision: [String: JSONValue] = ["behavior": .string(allow ? "allow" : "deny")]
