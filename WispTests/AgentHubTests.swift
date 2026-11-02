@@ -220,6 +220,7 @@ final class PermissionPromptTests: XCTestCase {
         XCTAssertTrue(sessions.apply(snapshot(cost: 1.2), source: .claude, terminal: nil, branch: nil, at: later))
         XCTAssertEqual(sessions.session("s")?.state, .running)
         XCTAssertEqual(sessions.session("s")?.stateSince, later)
+        XCTAssertEqual(sessions.session("s")?.timeline.last?.kind, .answered)
     }
 
     /// The first real cost replacing an estimate isn't a sign of work.

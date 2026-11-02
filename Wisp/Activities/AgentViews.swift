@@ -716,7 +716,7 @@ private struct SessionDetail: View {
                 .frame(height: 24)
                 .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.08)))
                 .onSubmit(send)
-            Button("Paste in Terminal", action: send)
+            Button("Paste in \(TerminalApps.name(for: session.terminal) ?? "Terminal")", action: send)
                 .font(.system(size: 11, weight: .semibold))
                 .buttonStyle(.plain)
                 .padding(.horizontal, 8)
@@ -755,6 +755,7 @@ extension AgentTimelineEntry.Kind {
         case .allowed: "checkmark.circle"
         case .denied: "xmark.circle"
         case .waiting: "ellipsis.bubble"
+        case .answered: "arrowshape.turn.up.left"
         case .done: "flag.checkered"
         case .compacted: "arrow.down.right.and.arrow.up.left"
         }
@@ -762,7 +763,7 @@ extension AgentTimelineEntry.Kind {
 
     var tint: Color {
         switch self {
-        case .started, .prompt: .white.opacity(0.7)
+        case .started, .prompt, .answered: .white.opacity(0.7)
         case .request, .waiting: .wispAmber
         case .allowed, .done: .wispGreen
         case .denied: .red

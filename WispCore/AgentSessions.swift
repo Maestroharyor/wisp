@@ -3,7 +3,7 @@ import Foundation
 /// One line in a session's history.
 public struct AgentTimelineEntry: Equatable, Sendable, Identifiable {
     public enum Kind: Equatable, Sendable {
-        case started, prompt, request, allowed, denied, waiting, done, compacted
+        case started, prompt, request, allowed, denied, waiting, answered, done, compacted
     }
 
     public let id = UUID()
@@ -381,6 +381,7 @@ public struct AgentSessions: Sendable {
             session.state = .running
             session.stateSince = date
             session.updated = date
+            Self.append(.answered, "Answered", to: &session, at: date)
         }
         sessions[id] = session
         guard session.state == .running, let before else { return false }

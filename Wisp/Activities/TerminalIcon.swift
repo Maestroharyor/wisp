@@ -28,15 +28,18 @@ enum TerminalApps {
         let icon: NSImage
     }
 
-    private static var cache: [String: App?] = [:]
+    /// Only apps that were found: a miss is looked up again, so an app installed while Wisp
+    /// runs gets its icon.
+    private static var cache: [String: App] = [:]
 
     static func app(for bundleID: String) -> App? {
         if let cached = cache[bundleID] { return cached }
-        let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).map { url in
-            App(
-                name: FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: ""),
-                icon: NSWorkspace.shared.icon(forFile: url.path))
-        }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return nil }
+        // The name keeps ".app" when Finder shows extensions.
+        let name = FileManager.default.displayName(atPath: url.path)
+        let app = App(
+            name: name.hasSuffix(".app") ? String(name.dropLast(4)) : name,
+            icon: NSWorkspace.shared.icon(forFile: url.path))
         cache[bundleID] = app
         return app
     }
