@@ -26,4 +26,10 @@ public enum ContextUsage {
         if percent < threshold { return (false, false) }
         return (!alerted, true)
     }
+
+    /// The alert's notice ("86% · api"): short enough for the side of the pill, where the
+    /// gauge says it's the context.
+    public static func notice(percent: Double, project: String) -> String {
+        "\(Int(percent.rounded()))% · \(project)"
+    }
 }

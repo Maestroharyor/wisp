@@ -3,6 +3,9 @@ import Foundation
 /// The timed alerts' limits and which are on. A limit is kept while its alert is off, so
 /// what's already past it can be told apart from what isn't when the alert is turned on.
 public struct AgentAlertRules: Equatable, Sendable {
+    public static let defaultToolMinutes = 5
+    public static let defaultNudgeMinutes = 3
+
     /// A single tool call running longer than this.
     public var toolMinutes: Int
     public var tools: Bool
@@ -10,7 +13,10 @@ public struct AgentAlertRules: Equatable, Sendable {
     public var nudgeMinutes: Int
     public var nudges: Bool
 
-    public init(toolMinutes: Int = 5, tools: Bool = false, nudgeMinutes: Int = 3, nudges: Bool = false) {
+    public init(
+        toolMinutes: Int = defaultToolMinutes, tools: Bool = false, nudgeMinutes: Int = defaultNudgeMinutes,
+        nudges: Bool = false
+    ) {
         self.toolMinutes = toolMinutes
         self.tools = tools
         self.nudgeMinutes = nudgeMinutes

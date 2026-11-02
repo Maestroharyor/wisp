@@ -351,8 +351,7 @@ final class AgentHub {
             if let percent = sessions.contextAlert(session: id, threshold: threshold), contextThreshold != nil,
                 let project = sessions.session(id)?.project
             {
-                // Short enough for the side of the pill; the gauge says it's the context.
-                onContextAlert("\(Int(percent.rounded()))% · \(project)")
+                onContextAlert(ContextUsage.notice(percent: percent, project: project))
             }
             if pillChanged { publishStatus() }
         }
