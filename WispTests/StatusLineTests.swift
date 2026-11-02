@@ -56,6 +56,10 @@ final class StatusLineSnapshotTests: XCTestCase {
 }
 
 final class ContextUsageTests: XCTestCase {
+    func testTheNoticeFitsThePill() {
+        XCTAssertEqual(ContextUsage.notice(percent: 85.6, project: "api"), "86% · api")
+    }
+
     func testLevels() {
         XCTAssertEqual(ContextUsage.level(0), .normal)
         XCTAssertEqual(ContextUsage.level(69.9), .normal)

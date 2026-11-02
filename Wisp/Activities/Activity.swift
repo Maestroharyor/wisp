@@ -73,10 +73,10 @@ enum Activity: Sendable, Equatable {
         }
     }
 
-    /// Level bars need room for the bar and the number.
+    /// Level bars need room for the bar and the number, and a notice for a few words.
     var usesWideWings: Bool {
         switch self {
-        case .level, .sent, .focus, .agent, .meeting, .device: true
+        case .level, .sent, .focus, .agent, .meeting, .device, .notice: true
         default: false
         }
     }

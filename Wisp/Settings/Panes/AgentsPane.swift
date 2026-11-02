@@ -12,6 +12,20 @@ struct AgentSettings: View {
         return rows.contains { $0.project != DailySpend.otherProjects } ? rows : []
     }
 
+    /// "~$12.40", or "~$12.40 of $20" with the budget on.
+    private var spentToday: String {
+        let spent = String(format: "~$%.2f", hub.spend.total(on: .now))
+        guard preferences.budgetAlert else { return spent }
+        return "\(spent) of \(SpendBudget.amount(preferences.dailyBudget))"
+    }
+
+    /// Ignores zero and negative amounts, which would leave nothing to measure against.
+    private var budget: Binding<Double> {
+        Binding(
+            get: { preferences.dailyBudget },
+            set: { if $0 > 0 { preferences.dailyBudget = $0 } })
+    }
+
     var body: some View {
         Form {
             if let source = hub.outdated.sorted(by: { $0.rawValue < $1.rawValue }).first {
@@ -67,8 +81,39 @@ struct AgentSettings: View {
                         LabeledContent("Alert at", value: "\(preferences.contextThreshold)%")
                     }
                 }
+                Toggle("Alert when a tool runs long", isOn: $preferences.toolAlert)
+                    .disabled(!preferences.agentToolActivity)
+                if preferences.toolAlert {
+                    Stepper(value: $preferences.toolAlertMinutes, in: 1...60) {
+                        LabeledContent("Alert after", value: "\(preferences.toolAlertMinutes) min")
+                    }
+                    .disabled(!preferences.agentToolActivity)
+                }
+                if !preferences.agentToolActivity {
+                    Text("Needs Tool activity above.").font(.caption).foregroundStyle(.secondary)
+                }
+                Toggle("Remind me when a session is still waiting", isOn: $preferences.nudgeAlert)
+                if preferences.nudgeAlert {
+                    Stepper(value: $preferences.nudgeMinutes, in: 1...30) {
+                        LabeledContent("Remind after", value: "\(preferences.nudgeMinutes) min")
+                    }
+                }
+                Toggle("Alert at 80% and 100% of a daily budget", isOn: $preferences.budgetAlert)
+                if preferences.budgetAlert {
+                    // Spend is shown in dollars everywhere, whatever the region's currency.
+                    LabeledContent("Daily budget") {
+                        HStack(spacing: 2) {
+                            Text("$")
+                            TextField("Daily budget", value: budget, format: .number.precision(.fractionLength(0...2)))
+                                .labelsHidden()
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 64)
+                        }
+                    }
+                }
                 LabeledContent("Estimated spend today") {
-                    Text(String(format: "~$%.2f", hub.spend.total(on: .now))).monospacedDigit()
+                    Text(spentToday).monospacedDigit()
                 }
                 LabeledContent("Last 7 days") {
                     Text(String(format: "~$%.2f", hub.spend.total(lastDays: 7, ending: .now))).monospacedDigit()

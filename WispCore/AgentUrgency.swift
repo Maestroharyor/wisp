@@ -42,5 +42,9 @@ public enum AgentUrgency {
 
     private static func recency(_ session: AgentSession) -> Date { session.latestActivity }
 
-    private static func since(_ session: AgentSession) -> Date { session.stateSince ?? session.updated }
+    /// When the current moment began: the change of state, or a later reminder.
+    private static func since(_ session: AgentSession) -> Date {
+        let changed = session.stateSince ?? session.updated
+        return max(changed, session.nudged ?? changed)
+    }
 }
