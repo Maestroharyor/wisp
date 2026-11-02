@@ -170,7 +170,7 @@ struct AgentApprovalCard: View {
                     .background(Circle().fill(Color.project(approval.project).opacity(0.18)))
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(approval.tool).font(.system(size: 13, weight: .bold))
+                        Text(approval.title).font(.system(size: 13, weight: .bold))
                         if let position = hub.queue.positionLabel {
                             Text(position)
                                 .font(.system(size: 10, weight: .semibold)).monospacedDigit()
@@ -187,7 +187,8 @@ struct AgentApprovalCard: View {
                         .help("Show the terminal")
                     }
                     ApprovalSummary(
-                        approval: approval, hidden: hub.detailsHidden, fallback: "Wants to use \(approval.tool)",
+                        approval: approval, hidden: hub.detailsHidden,
+                        fallback: approval.prompt == .plan ? "Plan ready for review" : "Wants to use \(approval.tool)",
                         size: 12, lines: 2
                     )
                     .id(approval.id)
@@ -248,10 +249,13 @@ struct ApprovalButtons: View {
         HStack(spacing: 8) {
             Button("Deny") { hub.answer(approval.id, allow: false) }
                 .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
-            Button("Allow All") { hub.allowAll(approval.id) }
-                .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
-                .help("Allow this and every later request from \(approval.project) until the session ends")
-            Button("Allow") { hub.answer(approval.id, allow: true) }
+            // Allow All covers tool calls only; each plan is approved on its own.
+            if approval.prompt == .tool {
+                Button("Allow All") { hub.allowAll(approval.id) }
+                    .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
+                    .help("Allow this and every later request from \(approval.project) until the session ends")
+            }
+            Button(approval.prompt == .plan ? "Approve" : "Allow") { hub.answer(approval.id, allow: true) }
                 .buttonStyle(ApprovalButtonStyle(fill: .wispGreen, text: .black))
         }
         .disabled(!ready)
@@ -273,7 +277,7 @@ struct ApprovalBar: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: approval.source.symbol).foregroundStyle(Color.project(approval.project))
-            Text(approval.tool).font(.system(size: 12, weight: .bold))
+            Text(approval.title).font(.system(size: 12, weight: .bold))
             if let position = hub.queue.positionLabel {
                 Text(position).font(.system(size: 10, weight: .semibold)).monospacedDigit()
                     .foregroundStyle(Color.secondaryText)
@@ -404,6 +408,7 @@ private struct SessionBar: View {
                     context: session.contextPercent
                 )
                 .font(.system(size: 12))
+                TerminalIcon(bundleID: session.terminal, size: 14)
                 Text(session.project).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 if let branch = session.branch {
                     Label(branch, systemImage: "arrow.triangle.branch")
@@ -607,6 +612,7 @@ private struct DetailSessionRow: View {
                     context: session.contextPercent
                 )
                 .font(.system(size: 11))
+                TerminalIcon(bundleID: session.terminal, size: 13)
                 Text(session.project).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 Spacer(minLength: 4)
                 SessionStateText(session: session)
@@ -639,7 +645,9 @@ private struct SessionDetail: View {
             HStack(spacing: 10) {
                 if let percent = session.contextPercent { ContextBar(percent: percent) }
                 Spacer()
-                action("Terminal", symbol: "arrow.up.forward.app") { hub.focus(session: session.id) }
+                action(TerminalApps.name(for: session.terminal) ?? "Terminal", symbol: "arrow.up.forward.app") {
+                    hub.focus(session: session.id)
+                }
                 if !session.cwd.isEmpty {
                     action("Folder", symbol: "folder") { hub.openFolder(session: session.id) }
                 }
@@ -708,7 +716,7 @@ private struct SessionDetail: View {
                 .frame(height: 24)
                 .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.08)))
                 .onSubmit(send)
-            Button("Paste in Terminal", action: send)
+            Button("Paste in \(TerminalApps.name(for: session.terminal) ?? "Terminal")", action: send)
                 .font(.system(size: 11, weight: .semibold))
                 .buttonStyle(.plain)
                 .padding(.horizontal, 8)
@@ -747,6 +755,7 @@ extension AgentTimelineEntry.Kind {
         case .allowed: "checkmark.circle"
         case .denied: "xmark.circle"
         case .waiting: "ellipsis.bubble"
+        case .answered: "arrowshape.turn.up.left"
         case .done: "flag.checkered"
         case .compacted: "arrow.down.right.and.arrow.up.left"
         }
@@ -754,7 +763,7 @@ extension AgentTimelineEntry.Kind {
 
     var tint: Color {
         switch self {
-        case .started, .prompt: .white.opacity(0.7)
+        case .started, .prompt, .answered: .white.opacity(0.7)
         case .request, .waiting: .wispAmber
         case .allowed, .done: .wispGreen
         case .denied: .red

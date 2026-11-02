@@ -12,6 +12,12 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let source: AgentSource
     let tool: String
     let summary: String
+    var prompt: PermissionPrompt = .tool
+    /// Kept only for a plan, whose approval sends it back.
+    var input: JSONValue? = nil
+
+    /// The card's title: a plan is approved, not "used".
+    var title: String { prompt == .plan ? "Approve plan" : tool }
 }
 
 /// Session status for the compact pill.
@@ -27,6 +33,8 @@ struct AgentStatus: Sendable, Equatable {
     var tool: ToolDescription? = nil
     /// Other live sessions, for the count badge.
     var others = 0
+    /// Bundle ID of the terminal or editor the session runs in, for its icon.
+    var terminal: String? = nil
 }
 
 /// Receives Claude Code and Codex hook events and Claude Code status bar snapshots from the
@@ -119,6 +127,9 @@ final class AgentHub {
     /// Picks the pill again when a Done or Needs you stops outranking other work, or a
     /// finished tool's label stops lingering.
     @ObservationIgnored private var repickTask: Task<Void, Never>?
+    /// Checks for agents that quit without a SessionEnd, while any session knows its process.
+    @ObservationIgnored private var exitTask: Task<Void, Never>?
+    private let exitInterval: Duration = .seconds(15)
     @ObservationIgnored private var alerts = AgentAlerts()
     /// Wakes when the next long tool or wait reaches its limit.
     @ObservationIgnored private var alertTask: Task<Void, Never>?
@@ -294,7 +305,10 @@ final class AgentHub {
         if event.kind == .stop { refreshUsage(for: event.sessionID) }
         if event.kind == .sessionEnd { transcripts[event.sessionID] = nil }
 
-        if event.kind == .permissionRequest, sessions.shouldAutoApprove(event.sessionID) {
+        if event.kind == .permissionRequest, event.prompt == .question {
+            // Wisp can't pick an answer, so the question stays in the terminal (Needs you).
+            reply(connection, nil)
+        } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event) {
             reply(connection, PermissionReply.json(allow: true))
             sessions.record(.allowed, "Allowed (Allow All)", session: event.sessionID, at: .now)
             sessions.resolveApproval(session: event.sessionID, at: .now)
@@ -303,7 +317,8 @@ final class AgentHub {
             let approval = AgentApproval(
                 id: UUID(), sessionID: event.sessionID, project: event.project, source: event.source,
                 tool: event.toolName ?? "Tool",
-                summary: event.summary)
+                summary: event.summary, prompt: event.prompt,
+                input: event.prompt.keepsInput ? event.rawToolInput : nil)
             pending[approval.id] = approval
             queue.enqueue(approval.id)
             waiting[approval.id] = connection
@@ -393,7 +408,8 @@ final class AgentHub {
         pending[id] = nil
         timeouts.removeValue(forKey: id)?.cancel()
         if let connection = waiting.removeValue(forKey: id) {
-            reply(connection, allow.flatMap(PermissionReply.json(allow:)))
+            reply(
+                connection, allow.flatMap { PermissionReply.answer(approval.prompt, allow: $0, input: approval.input) })
         }
         if let allow {
             sessions.record(
@@ -410,7 +426,9 @@ final class AgentHub {
         sessions.allowAll(session: approval.sessionID)
         answer(id, allow: true)
         // Requests from that session already waiting behind this one are allowed too.
-        for queued in approvals where queued.sessionID == approval.sessionID { answer(queued.id, allow: true) }
+        for queued in approvals where queued.sessionID == approval.sessionID && queued.prompt == .tool {
+            answer(queued.id, allow: true)
+        }
     }
 
     private func connectionClosed(_ connection: NWConnection) {
@@ -448,6 +466,33 @@ final class AgentHub {
         }
         onStatus(pick.primary.map { status(for: $0, others: pick.others, now: now) })
         checkAlerts()
+        watchExits()
+    }
+
+    private func watchExits() {
+        guard exitTask == nil, sessions.hasProcesses else { return }
+        exitTask = Task { [weak self, exitInterval] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: exitInterval)
+                guard let self, !Task.isCancelled else { return }
+                self.endExitedSessions()
+                if !self.sessions.hasProcesses {
+                    self.exitTask = nil
+                    return
+                }
+            }
+        }
+    }
+
+    /// A session whose agent has quit (closed tab, crash, `kill`) ends as if SessionEnd came.
+    private func endExitedSessions() {
+        let ended = sessions.endExited { $0.isRunning(info: AgentProcess.systemInfo) }
+        guard !ended.isEmpty else { return }
+        for id in ended {
+            settleApprovals(for: id)
+            transcripts[id] = nil
+        }
+        publishStatus()
     }
 
     /// Sends what's gone over a limit and wakes again for the next one.
@@ -490,7 +535,7 @@ final class AgentHub {
             started: session.turnStarted, contextPercent: session.contextPercent?.rounded(),
             compacting: session.compacting,
             tool: session.state == .running ? session.pillTool(now: now)?.description(hidden: detailsHidden) : nil,
-            others: others)
+            others: others, terminal: session.terminal)
     }
 
     // MARK: Token use

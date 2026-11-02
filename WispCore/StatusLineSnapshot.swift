@@ -8,6 +8,8 @@ public struct StatusLineSnapshot: Equatable, Sendable {
     /// The working folder's full path.
     public var cwd: String
     public var transcriptPath: String?
+    /// The agent's process, when the helper could find it.
+    public var process: AgentProcess?
     public var model: String?
     /// The session's cost in dollars, as Claude Code reports it.
     public var cost: Double?

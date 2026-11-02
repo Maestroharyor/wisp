@@ -69,6 +69,7 @@ struct CompactActivityView: View {
                 AgentGlyph(
                     state: status.state, source: status.source, project: status.project, context: status.contextPercent,
                     others: status.others)
+                TerminalIcon(bundleID: status.terminal, size: 14)
                 Text(status.project).lineLimit(1)
             }
         case .device(let device):

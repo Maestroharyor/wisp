@@ -65,6 +65,8 @@ public struct AgentEvent: Equatable, Sendable {
     /// Pairs a PreToolUse with its PostToolUse.
     public let toolUseID: String?
     public let toolInput: ToolInput
+    /// The tool's input as sent, for replies that must echo it back (a plan approval).
+    public let rawToolInput: JSONValue?
     /// The command, file or description the tool call is about.
     public let summary: String
     public let message: String?
@@ -75,6 +77,8 @@ public struct AgentEvent: Equatable, Sendable {
     /// The working folder's full path.
     public let cwd: String
     public let transcriptPath: String?
+    /// The agent's process, when the helper could find it.
+    public var process: AgentProcess?
     /// For SessionStart: how the session began ("startup", "resume", "clear", "compact", ...).
     public let startSource: String?
 
@@ -96,9 +100,10 @@ public struct AgentEvent: Equatable, Sendable {
         self.toolName = json["tool_name"]?.stringValue
         self.toolUseID = json["tool_use_id"]?.stringValue
         self.toolInput = ToolInput(json: input)
+        self.rawToolInput = input
         self.summary =
             input?["command"]?.stringValue ?? input?["file_path"]?.stringValue ?? input?["url"]?.stringValue
-            ?? input?["description"]?.stringValue ?? ""
+            ?? input?["description"]?.stringValue ?? input?["plan"]?.stringValue.flatMap(Self.planTitle) ?? ""
         self.message = json["message"]?.stringValue
         self.notificationType = json["notification_type"]?.stringValue
         self.source = source
@@ -106,6 +111,16 @@ public struct AgentEvent: Equatable, Sendable {
         self.cwd = cwd
         self.transcriptPath = json["transcript_path"]?.stringValue
         self.startSource = json["source"]?.stringValue
+    }
+
+    /// What a permission request asks the user for.
+    public var prompt: PermissionPrompt { PermissionPrompt(tool: toolName) }
+
+    /// A plan's first non-empty line without its heading marks ("Two agent fixes").
+    static func planTitle(_ plan: String) -> String? {
+        plan.split(whereSeparator: \.isNewline).lazy
+            .map { $0.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty }
     }
 
     /// A session picked up again with `--resume`: its process, and the cost it reports, start over.
@@ -152,11 +167,50 @@ public struct ToolInput: Equatable, Sendable {
     }
 }
 
+/// What a permission request asks for. Claude Code treats plans and questions as needing the
+/// user's own input, so a plain allow doesn't answer them.
+public enum PermissionPrompt: Equatable, Sendable {
+    case tool
+    /// ExitPlanMode: allowed by echoing the plan back as `updatedInput`.
+    case plan
+    /// AskUserQuestion: only the terminal can pick an answer, so Wisp shows no card for it.
+    case question
+
+    /// A plan's input goes back with the approval; nothing else needs keeping while it waits.
+    public var keepsInput: Bool { self == .plan }
+
+    public init(tool: String?) {
+        switch tool {
+        case "ExitPlanMode": self = .plan
+        case "AskUserQuestion": self = .question
+        default: self = .tool
+        }
+    }
+}
+
 /// The hook's stdout for a PermissionRequest decision.
 public enum PermissionReply {
-    public static func json(allow: Bool) -> String? {
+    /// The reply to a request answered in the notch. A plan gets its input back, or Claude
+    /// Code ignores the allow; a question gets no decision, since only the terminal can answer it.
+    public static func answer(_ prompt: PermissionPrompt, allow: Bool, input: JSONValue?) -> String? {
+        switch prompt {
+        case .question: nil
+        case .plan: json(allow: allow, updatedInput: input, denial: planDenied)
+        case .tool: json(allow: allow)
+        }
+    }
+
+    /// Tells Claude the plan was turned down, not the task, so it revises instead of stopping.
+    public static let planDenied = "The plan wasn't approved from the Wisp notch. Keep planning and ask what to change."
+
+    /// `updatedInput` goes with an allow only; a plan needs it or the allow is ignored.
+    /// `denial` is what Claude is told on a deny.
+    public static func json(
+        allow: Bool, updatedInput: JSONValue? = nil, denial: String = "Denied from the Wisp notch."
+    ) -> String? {
         var decision: [String: JSONValue] = ["behavior": .string(allow ? "allow" : "deny")]
-        if !allow { decision["message"] = .string("Denied from the Wisp notch.") }
+        if !allow { decision["message"] = .string(denial) }
+        if allow, let updatedInput { decision["updatedInput"] = updatedInput }
         let output: JSONValue = .object([
             "hookSpecificOutput": .object([
                 "hookEventName": .string("PermissionRequest"),

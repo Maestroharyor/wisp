@@ -3,7 +3,7 @@ import Foundation
 /// One line in a session's history.
 public struct AgentTimelineEntry: Equatable, Sendable, Identifiable {
     public enum Kind: Equatable, Sendable {
-        case started, prompt, request, allowed, denied, waiting, done, compacted
+        case started, prompt, request, allowed, denied, waiting, answered, done, compacted
     }
 
     public let id = UUID()
@@ -93,6 +93,25 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     /// The last hook of any kind, tool activity included, so the busiest session wins the
     /// pill; `updated` leaves tool activity out to keep the sessions list steady.
     public var lastActivity: Date?
+    /// The agent's process; the session ends when it's gone. Nil for an older helper, and
+    /// until two reports agree (see `report(_:)`).
+    public var process: AgentProcess?
+    /// The last process reported that isn't confirmed yet.
+    var processCandidate: AgentProcess?
+
+    /// Trusts a process once two reports name it. A launcher that runs each hook and exits
+    /// has a new pid every time, so it never passes for the agent; a resumed session's new
+    /// process replaces the old one once it's seen twice.
+    mutating func report(_ reported: AgentProcess?) {
+        guard let reported, reported != process else { return }
+        if reported == processCandidate {
+            process = reported
+            processCandidate = nil
+        } else {
+            process = nil
+            processCandidate = reported
+        }
+    }
 
     /// The later of the last hook and the last change the status bar reported.
     public var latestActivity: Date { max(lastActivity ?? updated, updated) }
@@ -202,6 +221,7 @@ public struct AgentSessions: Sendable {
                 updated: date)
         session.project = event.project
         if let terminal = event.terminal { session.terminal = terminal }
+        session.report(event.process)
         if !event.cwd.isEmpty { session.cwd = event.cwd }
         if let path = event.transcriptPath { session.transcriptPath = path }
         let stateBefore = session.state
@@ -231,9 +251,14 @@ public struct AgentSessions: Sendable {
             session.turnStarted = date
             session.turnEnded = nil
             Self.append(.prompt, "Prompt sent", to: &session, at: date)
+        case .permissionRequest where event.prompt == .question:
+            // Answered in the terminal, like a Needs you notification.
+            session.state = .waiting
+            session.clearTools()
+            Self.append(.waiting, "Needs you", to: &session, at: date)
         case .permissionRequest:
             session.state = .needsApproval
-            let tool = event.toolName ?? "Tool"
+            let tool = event.prompt == .plan ? "Plan" : event.toolName ?? "Tool"
             Self.append(.request, tool, detail: event.summary, to: &session, at: date)
         case .notification:
             if event.notificationType == "idle_prompt" || event.notificationType == "elicitation_dialog" {
@@ -307,7 +332,9 @@ public struct AgentSessions: Sendable {
     }
 
     /// Live figures from Claude Code's status bar. Creates the session when Wisp started
-    /// after it did, but never changes its state: only hooks do that. True when a working
+    /// after it did. Only hooks change its state, with one exception: new spend while waiting
+    /// means the model was called again (a question answered in the terminal sends no hook),
+    /// so the session is working again. True when a working
     /// session's pill should show something new (its whole-number context or compaction);
     /// other states keep their pill as it is, so Done or Needs you isn't replayed.
     @discardableResult
@@ -317,6 +344,8 @@ public struct AgentSessions: Sendable {
         guard let id = snapshot.sessionID else { return false }
         let before = sessions[id].map { ($0.contextPercent?.rounded(), $0.compacting) }
         let figuresBefore = sessions[id].map(\.liveFigures)
+        // Only a real cost counts: the first one replacing an estimate isn't new spend.
+        let realCostBefore = sessions[id].flatMap { $0.costIsReal ? $0.cost : nil }
         var session =
             sessions[id]
             ?? AgentSession(
@@ -326,6 +355,7 @@ public struct AgentSessions: Sendable {
             session.project = snapshot.project
         }
         if let terminal, !terminal.isEmpty { session.terminal = terminal }
+        session.report(snapshot.process)
         if let path = snapshot.transcriptPath { session.transcriptPath = path }
         if let cost = snapshot.cost {
             session.cost = cost
@@ -346,9 +376,16 @@ public struct AgentSessions: Sendable {
         // Claude Code also re-runs the bar on timers; only a change counts as activity, so an
         // idle session doesn't jump to the top or escape pruning.
         if figuresBefore != session.liveFigures { session.updated = date }
+        let resumed = session.state == .waiting && realCostBefore.map { (session.cost ?? 0) > $0 } == true
+        if resumed {
+            session.state = .running
+            session.stateSince = date
+            session.updated = date
+            Self.append(.answered, "Answered", to: &session, at: date)
+        }
         sessions[id] = session
         guard session.state == .running, let before else { return false }
-        return before.0 != session.contextPercent?.rounded() || before.1 != session.compacting
+        return resumed || before.0 != session.contextPercent?.rounded() || before.1 != session.compacting
     }
 
     /// The checked-out branch, read from the session's folder.
@@ -387,6 +424,11 @@ public struct AgentSessions: Sendable {
 
     public func shouldAutoApprove(_ id: String) -> Bool { sessions[id]?.autoApprove == true }
 
+    /// Allow All covers tool calls only: a plan or a question still needs the user.
+    public func shouldAutoApprove(_ event: AgentEvent) -> Bool {
+        event.prompt == .tool && shouldAutoApprove(event.sessionID)
+    }
+
     private static func append(
         _ kind: AgentTimelineEntry.Kind, _ text: String, detail: String? = nil, to session: inout AgentSession,
         at date: Date
@@ -422,6 +464,17 @@ public struct AgentSessions: Sendable {
     }
 
     public func session(_ id: String) -> AgentSession? { sessions[id] }
+
+    /// Some session knows its agent's process, so it's worth checking for exits.
+    public var hasProcesses: Bool { sessions.values.contains { $0.process != nil } }
+
+    /// Ends the sessions whose agent has quit without a SessionEnd and returns their ids.
+    /// Sessions from an older helper have no process and are left to `prune`.
+    public mutating func endExited(running: (AgentProcess) -> Bool) -> [String] {
+        let ended = sessions.values.filter { $0.process.map { !running($0) } ?? false }.map(\.id)
+        for id in ended { sessions[id] = nil }
+        return ended.sorted()
+    }
 
     public mutating func prune(now: Date, olderThan age: TimeInterval) {
         // Tool activity counts: a long turn of tool calls is still a live session.
