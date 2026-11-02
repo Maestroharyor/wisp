@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.4](https://github.com/Maestroharyor/wisp/compare/v0.1.3...v0.1.4) (2026-11-02)
+
+
+### Features
+
+* agent spend trend, transcripts and private mode during calls ([#14](https://github.com/Maestroharyor/wisp/issues/14)) ([4abfb5d](https://github.com/Maestroharyor/wisp/commit/4abfb5de41de05384f28aa56e1e107e3a495853c))
+* alerts for long tools, waiting sessions and a daily budget ([#17](https://github.com/Maestroharyor/wisp/issues/17)) ([567a7e6](https://github.com/Maestroharyor/wisp/commit/567a7e68c129ab5db0fc843c0d82ef1d1040a388))
+* live agent status bar and context usage ([#12](https://github.com/Maestroharyor/wisp/issues/12)) ([1cc70ae](https://github.com/Maestroharyor/wisp/commit/1cc70aee1ea7da544de0130a6020329b0f84f970))
+* live tool activity in the agent pill ([#15](https://github.com/Maestroharyor/wisp/issues/15)) ([1f5a191](https://github.com/Maestroharyor/wisp/commit/1f5a19138c98003321ef6ef828c00de7b80cda4b))
+* terminal icon on agent sessions, working plan approvals and sessions that end with their agent ([#18](https://github.com/Maestroharyor/wisp/issues/18)) ([8e9a942](https://github.com/Maestroharyor/wisp/commit/8e9a942e5f1f9bf1091d53b210c6f3945b07d667))
+* wisp status, watch and spend in the terminal ([#16](https://github.com/Maestroharyor/wisp/issues/16)) ([4e9dd58](https://github.com/Maestroharyor/wisp/commit/4e9dd587d9bf1b2d3f4cf0973590ce0655e85e9d))
+
 ## [0.1.3](https://github.com/Maestroharyor/wisp/compare/v0.1.2...v0.1.3) (2026-11-01)
 
 
