@@ -195,15 +195,21 @@ public enum PermissionReply {
     public static func answer(_ prompt: PermissionPrompt, allow: Bool, input: JSONValue?) -> String? {
         switch prompt {
         case .question: nil
-        case .plan: json(allow: allow, updatedInput: input)
+        case .plan: json(allow: allow, updatedInput: input, denial: planDenied)
         case .tool: json(allow: allow)
         }
     }
 
+    /// Tells Claude the plan was turned down, not the task, so it revises instead of stopping.
+    public static let planDenied = "The plan wasn't approved from the Wisp notch. Keep planning and ask what to change."
+
     /// `updatedInput` goes with an allow only; a plan needs it or the allow is ignored.
-    public static func json(allow: Bool, updatedInput: JSONValue? = nil) -> String? {
+    /// `denial` is what Claude is told on a deny.
+    public static func json(
+        allow: Bool, updatedInput: JSONValue? = nil, denial: String = "Denied from the Wisp notch."
+    ) -> String? {
         var decision: [String: JSONValue] = ["behavior": .string(allow ? "allow" : "deny")]
-        if !allow { decision["message"] = .string("Denied from the Wisp notch.") }
+        if !allow { decision["message"] = .string(denial) }
         if allow, let updatedInput { decision["updatedInput"] = updatedInput }
         let output: JSONValue = .object([
             "hookSpecificOutput": .object([
