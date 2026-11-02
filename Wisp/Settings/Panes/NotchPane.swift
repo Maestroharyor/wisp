@@ -78,7 +78,12 @@ struct NotchSettings: View {
             Section("Each display") {
                 ForEach(screens, id: \.displayUUID) { screen in
                     if let uuid = screen.displayUUID {
-                        Picker(screen.localizedName, selection: displayStyle(uuid)) {
+                        Picker(
+                            DisplayName.title(
+                                name: screen.localizedName, builtIn: screen.isBuiltIn,
+                                width: Int(screen.frame.width), height: Int(screen.frame.height)),
+                            selection: displayStyle(uuid)
+                        ) {
                             Text("Automatic").tag(DisplayStyle.automatic)
                             Text("Notch").tag(DisplayStyle.notch)
                             if !screen.metrics.hasCameraHousing {

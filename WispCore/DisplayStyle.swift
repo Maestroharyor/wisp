@@ -16,3 +16,13 @@ public enum DisplayStyle: String, CaseIterable, Sendable {
         return externalIsland ? .island : .notch
     }
 }
+
+/// What Settings calls a display. Some displays (AirPlay, a few adapters) report no name,
+/// which left their row unlabelled; they're named by kind and size instead.
+public enum DisplayName {
+    public static func title(name: String, builtIn: Bool, width: Int, height: Int) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty { return trimmed }
+        return builtIn ? "Built-in display" : "External display (\(width) × \(height))"
+    }
+}
