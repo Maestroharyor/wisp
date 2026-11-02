@@ -125,6 +125,9 @@ final class AgentHub {
     /// Picks the pill again when a Done or Needs you stops outranking other work, or a
     /// finished tool's label stops lingering.
     @ObservationIgnored private var repickTask: Task<Void, Never>?
+    /// Checks for agents that quit without a SessionEnd, while any session knows its process.
+    @ObservationIgnored private var exitTask: Task<Void, Never>?
+    private let exitInterval: Duration = .seconds(15)
     @ObservationIgnored private var alerts = AgentAlerts()
     /// Wakes when the next long tool or wait reaches its limit.
     @ObservationIgnored private var alertTask: Task<Void, Never>?
@@ -460,6 +463,33 @@ final class AgentHub {
         }
         onStatus(pick.primary.map { status(for: $0, others: pick.others, now: now) })
         checkAlerts()
+        watchExits()
+    }
+
+    private func watchExits() {
+        guard exitTask == nil, sessions.hasProcesses else { return }
+        exitTask = Task { [weak self, exitInterval] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: exitInterval)
+                guard let self, !Task.isCancelled else { return }
+                self.endExitedSessions()
+                if !self.sessions.hasProcesses {
+                    self.exitTask = nil
+                    return
+                }
+            }
+        }
+    }
+
+    /// A session whose agent has quit (closed tab, crash, `kill`) ends as if SessionEnd came.
+    private func endExitedSessions() {
+        let ended = sessions.endExited { $0.isRunning(info: AgentProcess.systemInfo) }
+        guard !ended.isEmpty else { return }
+        for id in ended {
+            settleApprovals(for: id)
+            transcripts[id] = nil
+        }
+        publishStatus()
     }
 
     /// Sends what's gone over a limit and wakes again for the next one.
