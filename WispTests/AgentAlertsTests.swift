@@ -4,7 +4,8 @@ import XCTest
 
 final class AgentAlertsTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 10_000)
-    private let rules = AgentAlertRules(toolMinutes: 5, nudgeMinutes: 3)
+    private let rules = AgentAlertRules(toolMinutes: 5, tools: true, nudgeMinutes: 3, nudges: true)
+    private let off = AgentAlertRules(toolMinutes: 5, nudgeMinutes: 3)
 
     private func tool(_ id: String?, _ command: String = "npm test", started: TimeInterval = 0) -> ActiveTool {
         let input = ToolInput(command: command)
@@ -75,10 +76,28 @@ final class AgentAlertsTests: XCTestCase {
     func testARuleThatsOffMarksWithoutAlertingSoTurningItOnStaysQuiet() {
         var alerts = AgentAlerts()
         let sessions = [session(state: .waiting, tools: [tool("t1")])]
-        XCTAssertEqual(alerts.due(sessions, rules: AgentAlertRules(), now: start + 900), [])
+        XCTAssertEqual(alerts.due(sessions, rules: off, now: start + 900), [])
         XCTAssertEqual(alerts.due(sessions, rules: rules, now: start + 901), [], "already past when turned on")
         let fresh = [session(tools: [tool("t2", started: 1000)])]
         XCTAssertEqual(alerts.due(fresh, rules: rules, now: start + 1300).count, 1)
+    }
+
+    func testARuleTurnedOnBeforeTheLimitStillAlertsAtIt() {
+        var alerts = AgentAlerts()
+        let sessions = [session(state: .waiting, tools: [tool("t1")])]
+        XCTAssertEqual(alerts.due(sessions, rules: off, now: start + 10), [])
+        XCTAssertEqual(alerts.nextCheck(sessions, rules: rules, now: start + 10), start + 180)
+        XCTAssertEqual(alerts.due(sessions, rules: rules, now: start + 180).count, 1, "the wait")
+        XCTAssertEqual(alerts.due(sessions, rules: rules, now: start + 300).count, 1, "the tool")
+    }
+
+    func testSeveralLongToolsShareOneNotice() {
+        let first = AgentAlert.longTool(session: "a", project: "api", tool: tool("1"), minutes: 5)
+        let second = AgentAlert.longTool(session: "b", project: "web", tool: tool("2", "make"), minutes: 5)
+        let nudge = AgentAlert.nudge(session: "c", project: "x", approval: false)
+        XCTAssertEqual(AgentAlert.notice([first, nudge, second], hidden: false), "5m · npm test +1")
+        XCTAssertEqual(AgentAlert.notice([second], hidden: false), "5m · make")
+        XCTAssertNil(AgentAlert.notice([nudge], hidden: false))
     }
 
     func testKeysForEndedToolsAndWaitsArePruned() {
@@ -97,7 +116,7 @@ final class AgentAlertsTests: XCTestCase {
         XCTAssertEqual(alerts.nextCheck(sessions, rules: rules, now: start + 280), start + 300)
         _ = alerts.due(sessions, rules: rules, now: start + 300)
         XCTAssertNil(alerts.nextCheck(sessions, rules: rules, now: start + 300))
-        XCTAssertNil(AgentAlerts().nextCheck(sessions, rules: AgentAlertRules(), now: start), "rules off")
+        XCTAssertNil(AgentAlerts().nextCheck(sessions, rules: off, now: start), "rules off")
         XCTAssertNil(AgentAlerts().nextCheck([session()], rules: rules, now: start), "nothing to wait for")
     }
 
@@ -171,19 +190,28 @@ final class SpendBudgetTests: XCTestCase {
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let day = Date(timeIntervalSince1970: 1_800_000_000)
         var state = SpendBudget.State()
-        XCTAssertNil(state.fired(on: day, calendar: calendar))
-        state.record(.warning, on: day, calendar: calendar)
-        XCTAssertEqual(state.fired(on: day + 60, calendar: calendar), .warning)
-        XCTAssertNil(state.fired(on: day + 86_400, calendar: calendar))
+        XCTAssertNil(state.fired(on: day, budget: 20, calendar: calendar))
+        state.record(.warning, on: day, budget: 20, calendar: calendar)
+        XCTAssertEqual(state.fired(on: day + 60, budget: 20, calendar: calendar), .warning)
+        XCTAssertNil(state.fired(on: day + 86_400, budget: 20, calendar: calendar))
+    }
+
+    func testRaisingTheBudgetAlertsAgainAtTheNewLevels() {
+        var state = SpendBudget.State()
+        state.record(.reached, on: .now, budget: 20)
+        let fired = state.fired(on: .now, budget: 40)
+        XCTAssertNil(fired)
+        XCTAssertEqual(SpendBudget.alert(spent: 33, budget: 40, fired: fired), .warning)
     }
 
     func testTheStateSurvivesSaving() throws {
         var state = SpendBudget.State()
-        state.record(.reached, on: .now)
+        state.record(.reached, on: .now, budget: 20)
         let decoded = try JSONDecoder().decode(SpendBudget.State.self, from: JSONEncoder().encode(state))
         XCTAssertEqual(decoded, state)
         let empty = try JSONDecoder().decode(SpendBudget.State.self, from: Data(#"{"day":""}"#.utf8))
         XCTAssertNil(empty.fired)
+        XCTAssertNil(empty.budget)
     }
 
     func testNoticesReadPlainly() {

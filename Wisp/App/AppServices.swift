@@ -156,13 +156,13 @@ final class AppServices {
     /// Set by the notch coordinator: closes every open shelf.
     var closeShelves: @MainActor () -> Void = {}
 
-    /// Working shows until the turn ends; Done and Needs you show briefly.
     /// The sound and tap for something an agent needs from the user.
     private func needsYouFeedback() {
         sounds.play(.alert, fallback: "Tink")
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
     }
 
+    /// Working shows until the turn ends; Done and Needs you show briefly.
     private func agentStatusChanged(_ status: AgentStatus?) {
         let needsUser = agents.sessions.anyNeedsUser
         context.update { $0.agentWaiting = needsUser }
@@ -348,8 +348,8 @@ final class AppServices {
                     threshold: preferences.contextAlert ? Double(preferences.contextThreshold) : nil,
                     privacy: preferences.agentPrivacy, tools: preferences.agentToolActivity,
                     rules: AgentAlertRules(
-                        toolMinutes: preferences.toolAlert ? preferences.toolAlertMinutes : nil,
-                        nudgeMinutes: preferences.nudgeAlert ? preferences.nudgeMinutes : nil),
+                        toolMinutes: preferences.toolAlertMinutes, tools: preferences.toolAlert,
+                        nudgeMinutes: preferences.nudgeMinutes, nudges: preferences.nudgeAlert),
                     budget: preferences.budgetAlert ? preferences.dailyBudget : nil
                 )
             )

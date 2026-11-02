@@ -1,15 +1,20 @@
 import Foundation
 
-/// Which timed alerts are on: nil turns a rule off.
+/// The timed alerts' limits and which are on. A limit is kept while its alert is off, so
+/// what's already past it can be told apart from what isn't when the alert is turned on.
 public struct AgentAlertRules: Equatable, Sendable {
     /// A single tool call running longer than this.
-    public var toolMinutes: Int?
+    public var toolMinutes: Int
+    public var tools: Bool
     /// A session waiting for the user (Needs you or an approval) longer than this.
-    public var nudgeMinutes: Int?
+    public var nudgeMinutes: Int
+    public var nudges: Bool
 
-    public init(toolMinutes: Int? = nil, nudgeMinutes: Int? = nil) {
+    public init(toolMinutes: Int = 5, tools: Bool = false, nudgeMinutes: Int = 3, nudges: Bool = false) {
         self.toolMinutes = toolMinutes
+        self.tools = tools
         self.nudgeMinutes = nudgeMinutes
+        self.nudges = nudges
     }
 }
 
@@ -24,6 +29,14 @@ public enum AgentAlert: Equatable, Sendable {
     public func text(hidden: Bool) -> String? {
         guard case .longTool(_, _, let tool, let minutes) = self else { return nil }
         return "\(minutes)m · \(tool.description(hidden: hidden).short)"
+    }
+
+    /// One notice for every long tool in `alerts`: the notch has a single notice slot, so the
+    /// first is named and the rest counted ("5m · npm test +1"). Nil when there are none.
+    public static func notice(_ alerts: [AgentAlert], hidden: Bool) -> String? {
+        let texts = alerts.compactMap { $0.text(hidden: hidden) }
+        guard let first = texts.first else { return nil }
+        return texts.count > 1 ? "\(first) +\(texts.count - 1)" : first
     }
 }
 
@@ -59,8 +72,8 @@ public struct AgentAlerts: Equatable, Sendable {
             .min()
     }
 
-    /// Something that can go over a limit. `alert` is nil while its rule is off; `limit` is
-    /// then zero, so it's marked straight away.
+    /// Something that can go over a limit. `alert` is nil while its rule is off, so it's
+    /// marked without alerting once past the limit.
     private struct Item {
         let key: String
         let start: Date
@@ -73,23 +86,25 @@ public struct AgentAlerts: Equatable, Sendable {
         for session in sessions {
             for tool in session.runningTools {
                 let key = "tool|\(session.id)|\(tool.id ?? String(tool.started.timeIntervalSince1970))"
-                let alert = rules.toolMinutes.map {
-                    AgentAlert.longTool(session: session.id, project: session.project, tool: tool, minutes: $0)
-                }
+                let alert =
+                    rules.tools
+                    ? AgentAlert.longTool(
+                        session: session.id, project: session.project, tool: tool, minutes: rules.toolMinutes) : nil
                 items.append(Item(key: key, start: tool.started, limit: seconds(rules.toolMinutes), alert: alert))
             }
             let waiting = session.state == .waiting || session.state == .needsApproval
             if waiting, let since = session.stateSince {
                 let key = "wait|\(session.id)|\(since.timeIntervalSince1970)"
-                let alert = rules.nudgeMinutes.map { _ in
-                    AgentAlert.nudge(
+                let alert =
+                    rules.nudges
+                    ? AgentAlert.nudge(
                         session: session.id, project: session.project, approval: session.state == .needsApproval)
-                }
+                    : nil
                 items.append(Item(key: key, start: since, limit: seconds(rules.nudgeMinutes), alert: alert))
             }
         }
         return items
     }
 
-    private static func seconds(_ minutes: Int?) -> TimeInterval { TimeInterval(minutes ?? 0) * 60 }
+    private static func seconds(_ minutes: Int) -> TimeInterval { TimeInterval(max(minutes, 0)) * 60 }
 }

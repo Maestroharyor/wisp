@@ -33,24 +33,28 @@ public enum SpendBudget {
         dollars.rounded() == dollars ? String(format: "$%.0f", dollars) : String(format: "$%.2f", dollars)
     }
 
-    /// The level that fired today, saved so relaunching doesn't alert again.
+    /// The level that fired today and for which amount, saved so relaunching doesn't alert again.
     public struct State: Codable, Equatable, Sendable {
         public var day: String
         public var fired: Level?
+        public var budget: Double?
 
-        public init(day: String = "", fired: Level? = nil) {
+        public init(day: String = "", fired: Level? = nil, budget: Double? = nil) {
             self.day = day
             self.fired = fired
+            self.budget = budget
         }
 
-        /// What fired on `date`'s day; a new day starts with nothing.
-        public func fired(on date: Date, calendar: Calendar = .current) -> Level? {
-            day == DailySpend.dayKey(date, calendar: calendar) ? fired : nil
+        /// What fired on `date`'s day for `budget`. A new day or a new amount starts with
+        /// nothing, so raising the budget after reaching it alerts again at the new levels.
+        public func fired(on date: Date, budget: Double, calendar: Calendar = .current) -> Level? {
+            day == DailySpend.dayKey(date, calendar: calendar) && self.budget == budget ? fired : nil
         }
 
-        public mutating func record(_ level: Level, on date: Date, calendar: Calendar = .current) {
+        public mutating func record(_ level: Level, on date: Date, budget: Double, calendar: Calendar = .current) {
             day = DailySpend.dayKey(date, calendar: calendar)
             fired = level
+            self.budget = budget
         }
     }
 }

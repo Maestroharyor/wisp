@@ -122,6 +122,7 @@ final class AgentHub {
     @ObservationIgnored private var alerts = AgentAlerts()
     /// Wakes when the next long tool or wait reaches its limit.
     @ObservationIgnored private var alertTask: Task<Void, Never>?
+    @ObservationIgnored private var alertWake: Date?
     @ObservationIgnored private var budgetState: SpendBudget.State
     @ObservationIgnored private var unsupportedLogged: Set<String> = []
     private let liveInterval: Duration = .milliseconds(250)
@@ -350,7 +351,8 @@ final class AgentHub {
             if let percent = sessions.contextAlert(session: id, threshold: threshold), contextThreshold != nil,
                 let project = sessions.session(id)?.project
             {
-                onContextAlert("\(project) is at \(Int(percent.rounded()))% context")
+                // Short enough for the side of the pill; the gauge says it's the context.
+                onContextAlert("\(Int(percent.rounded()))% · \(project)")
             }
             if pillChanged { publishStatus() }
         }
@@ -376,9 +378,9 @@ final class AgentHub {
         guard let dailyBudget else { return }
         let now = Date.now
         let spent = spend.total(on: now)
-        guard let level = SpendBudget.alert(spent: spent, budget: dailyBudget, fired: budgetState.fired(on: now))
-        else { return }
-        budgetState.record(level, on: now)
+        let fired = budgetState.fired(on: now, budget: dailyBudget)
+        guard let level = SpendBudget.alert(spent: spent, budget: dailyBudget, fired: fired) else { return }
+        budgetState.record(level, on: now, budget: dailyBudget)
         defaults.set(try? JSONEncoder().encode(budgetState), forKey: Self.budgetKey)
         onAlert("dollarsign.circle", SpendBudget.text(level: level, budget: dailyBudget))
     }
@@ -452,29 +454,35 @@ final class AgentHub {
     /// Sends what's gone over a limit and wakes again for the next one.
     private func checkAlerts() {
         let now = Date.now
+        let list = sessions.list
+        let due = alerts.due(list, rules: alertRules, now: now)
+        if let text = AgentAlert.notice(due, hidden: detailsHidden) { onAlert("hourglass", text) }
         var reminded = false
-        for alert in alerts.due(sessions.list, rules: alertRules, now: now) {
-            switch alert {
-            case .longTool:
-                if let text = alert.text(hidden: detailsHidden) { onAlert("hourglass", text) }
-            case .nudge(let id, _, let approval):
-                // An approval's card is already showing; a Needs you goes back in the pill.
-                if !approval { sessions.nudge(session: id, at: now) }
-                reminded = true
-            }
+        for case .nudge(let id, _, let approval) in due {
+            // An approval's card is already showing; a Needs you goes back in the pill.
+            if !approval { sessions.nudge(session: id, at: now) }
+            reminded = true
         }
-        alertTask?.cancel()
-        alertTask = nil
-        if let next = alerts.nextCheck(sessions.list, rules: alertRules, now: now) {
-            alertTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(max(0, next.timeIntervalSince(.now)) + 0.1))
-                guard !Task.isCancelled else { return }
-                self?.checkAlerts()
-            }
-        }
+        scheduleAlertCheck(at: alerts.nextCheck(list, rules: alertRules, now: now))
         guard reminded else { return }
         onReminder()
         publishStatus()
+    }
+
+    /// Tool activity republishes several times a second; the wake-up only moves when the
+    /// next limit does.
+    private func scheduleAlertCheck(at next: Date?) {
+        guard next != alertWake || alertTask == nil else { return }
+        alertTask?.cancel()
+        alertTask = nil
+        alertWake = next
+        guard let next else { return }
+        alertTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(0, next.timeIntervalSince(.now)) + 0.1))
+            guard !Task.isCancelled else { return }
+            self?.alertTask = nil
+            self?.checkAlerts()
+        }
     }
 
     private func status(for session: AgentSession, others: Int, now: Date) -> AgentStatus {
