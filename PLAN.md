@@ -1,6 +1,6 @@
 # Wisp plan and status
 
-The status below is as of 2026-11-01. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 596 tests. For what comes next, see `docs/REVIEW.md`.
+The status below is as of 2026-11-01. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 600 tests. For what comes next, see `docs/REVIEW.md`.
 
 ## Done
 
@@ -39,7 +39,9 @@ Live status for coding agents: a Claude Code `statusLine` bar in the terminal, l
 | E | Settings › Agents › Alerts and spend, each optional. Long-running tool (default on at 5 min; needs Tool activity): one notice per call, with the hidden label in private mode. Reminder (off, 3 min): a session left in Needs you takes the pill again for 4 s with the alert sound; a pending approval gets the sound only. Daily budget (off, $20): a notice at 80% and at 100% of today's spend, at most once each per day and amount (raising it re-arms) and saved so a relaunch stays quiet; checked as spend grows. `AgentAlerts` and `SpendBudget` in Core decide when; the hub wakes for the next limit since nothing arrives while a tool runs or a session waits. Anything already past its limit when an alert is turned on stays quiet; anything not yet past it still alerts. Several long tools at once share one notice ("5m · npm test +1"), and the context alert now reads "86% · api" so it fits the pill. Tool and budget notices use the notice slot like the context alert, not the spec's priority 15, with text short enough for the pill ("5m · npm test", "80% of $20", "Over $20"); notices now get the wide wings (120 pt) the agent pill has, since 70 pt cut every sentence | Done |
 | F | Codex parity: context % from rollout `token_count` (`model_context_window`), OpenAI prices for estimates, compaction and tool hooks, verified parity table | Not started |
 
-Untested: `WispAgent/SocketSend.swift` (the helper's fire-and-forget send) has no automated test because the helper target isn't in the test bundle; it was checked by hand against Wisp Dev. Everything the helper renders is tested in `StatusBarRenderer`.
+Untested: `WispAgent/SocketSend.swift` (the helper's fire-and-forget send) has no automated test because the helper target isn't in the test bundle; it was checked by hand against Wisp Dev. Everything the helper renders is tested in `StatusBarRenderer`. `AgentHub`'s alert wake-up (`scheduleAlertCheck`, which only moves when the next limit does) has no app-layer test; the limits it waits for come from `AgentAlerts.nextCheck`, which is tested, and it was checked by hand.
+
+Seen while testing E, not yet investigated: after a display was unplugged, both notch panels stayed idle while an agent activity was queued (`wisp status` listed it) until another activity forced a redraw. Reproduce by changing displays with an agent running, and compare with `main`.
 
 Decided against the original brief: no `ModelLimits` table (Claude Code's snapshot and Codex's rollouts both report the window size); no current-tool segment in the terminal bar (the helper is stateless); Codex gets no terminal bar (it has no external status line command, openai/codex#17827).
 
