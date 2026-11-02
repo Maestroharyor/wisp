@@ -77,6 +77,8 @@ public struct AgentEvent: Equatable, Sendable {
     /// The working folder's full path.
     public let cwd: String
     public let transcriptPath: String?
+    /// The agent's process, when the helper could find it.
+    public var process: AgentProcess?
     /// For SessionStart: how the session began ("startup", "resume", "clear", "compact", ...).
     public let startSource: String?
 

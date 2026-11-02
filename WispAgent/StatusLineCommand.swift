@@ -11,7 +11,9 @@ enum StatusLineCommand {
         -> Never
     {
         let input = FileHandle.standardInput.readDataToEndOfFile()
-        if let message = AgentProtocol.envelope(kind: .statusline, source: .claude, terminal: terminal, payload: input)
+        if let message = AgentProtocol.envelope(
+            kind: .statusline, source: .claude, terminal: terminal, process: AgentProcess.ownerOfThisProcess(),
+            payload: input)
         {
             SocketSend.send(message, to: socketPath, timeout: 0.05)
         }

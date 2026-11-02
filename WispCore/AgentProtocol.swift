@@ -26,7 +26,10 @@ public enum AgentProtocol {
     }
 
     /// The envelope around `payload`, or nil when the payload isn't a JSON object.
-    public static func envelope(kind: Kind, source: AgentSource, terminal: String?, payload: Data) -> Data? {
+    /// `process` is the agent the helper runs under, so Wisp can tell when it has quit.
+    public static func envelope(
+        kind: Kind, source: AgentSource, terminal: String?, process: AgentProcess? = nil, payload: Data
+    ) -> Data? {
         guard let payloadJSON = try? JSONDecoder().decode(JSONValue.self, from: payload),
             case .object = payloadJSON
         else { return nil }
@@ -35,6 +38,7 @@ public enum AgentProtocol {
             "payload": payloadJSON,
         ]
         if let terminal, !terminal.isEmpty { fields["terminal"] = .string(terminal) }
+        if let process { fields["process"] = process.json }
         return try? JSONEncoder().encode(JSONValue.object(fields))
     }
 
@@ -54,10 +58,16 @@ public enum AgentProtocol {
         }
         let source = json["source"]?.stringValue.flatMap(AgentSource.init(rawValue:)) ?? .claude
         let terminal = json["terminal"]?.stringValue
+        let process = AgentProcess(json: json["process"])
         switch kind {
-        case .hook, .tool: return .hook(AgentEvent(json: payload, source: source, terminal: terminal))
+        case .hook, .tool:
+            var event = AgentEvent(json: payload, source: source, terminal: terminal)
+            event.process = process
+            return .hook(event)
         case .statusline:
-            return .statusline(StatusLineSnapshot(json: payload), source: source, terminal: terminal)
+            var snapshot = StatusLineSnapshot(json: payload)
+            snapshot.process = process
+            return .statusline(snapshot, source: source, terminal: terminal)
         case .query:
             let name = payload["query"]?.stringValue ?? "?"
             return AgentQuery(rawValue: name).map(AgentMessage.query) ?? .unsupported("query \(name)")
