@@ -109,6 +109,68 @@ final class PermissionReplyTests: XCTestCase {
         XCTAssertEqual(denied["hookSpecificOutput"]?["decision"]?["behavior"], .string("deny"))
         XCTAssertNotNil(denied["hookSpecificOutput"]?["decision"]?["message"])
     }
+
+    /// Claude Code ignores a bare allow for a plan; it needs the input echoed back.
+    func testAllowCarriesTheInputBack() throws {
+        let input: JSONValue = .object(["plan": .string("# Fix"), "planFilePath": .string("/p/plan.md")])
+        let allow = try XCTUnwrap(PermissionReply.json(allow: true, updatedInput: input))
+        let object = try JSONDecoder().decode(JSONValue.self, from: Data(allow.utf8))
+        XCTAssertEqual(object["hookSpecificOutput"]?["decision"]?["updatedInput"], input)
+        let deny = try XCTUnwrap(PermissionReply.json(allow: false, updatedInput: input))
+        let denied = try JSONDecoder().decode(JSONValue.self, from: Data(deny.utf8))
+        XCTAssertNil(denied["hookSpecificOutput"]?["decision"]?["updatedInput"])
+        let plain = try XCTUnwrap(PermissionReply.json(allow: true))
+        let plainObject = try JSONDecoder().decode(JSONValue.self, from: Data(plain.utf8))
+        XCTAssertNil(plainObject["hookSpecificOutput"]?["decision"]?["updatedInput"])
+    }
+}
+
+final class PermissionPromptTests: XCTestCase {
+    private func request(_ tool: String, input: String) throws -> AgentEvent {
+        try AgentEvent.decode(
+            Data(
+                #"{"session_id":"s","cwd":"/p/app","hook_event_name":"PermissionRequest","tool_name":"\#(tool)","tool_input":\#(input)}"#
+                    .utf8))
+    }
+
+    func testKinds() {
+        XCTAssertEqual(PermissionPrompt(tool: "ExitPlanMode"), .plan)
+        XCTAssertEqual(PermissionPrompt(tool: "AskUserQuestion"), .question)
+        XCTAssertEqual(PermissionPrompt(tool: "Bash"), .tool)
+        XCTAssertEqual(PermissionPrompt(tool: nil), .tool)
+    }
+
+    func testAPlanKeepsItsInputAndIsSummedUpByItsTitle() throws {
+        let event = try request(
+            "ExitPlanMode", input: #"{"plan":"\n# Two agent fixes\n\nBody","planFilePath":"/p/plan.md"}"#)
+        XCTAssertEqual(event.prompt, .plan)
+        XCTAssertEqual(event.rawToolInput?["planFilePath"], .string("/p/plan.md"))
+        XCTAssertEqual(event.summary, "Two agent fixes")
+    }
+
+    func testAToolRequestKeepsItsInputToo() throws {
+        let event = try request("Bash", input: #"{"command":"ls"}"#)
+        XCTAssertEqual(event.prompt, .tool)
+        XCTAssertEqual(event.rawToolInput?["command"], .string("ls"))
+        XCTAssertEqual(event.summary, "ls")
+    }
+
+    /// Only the terminal can pick an answer, so a question shows as Needs you, not a card.
+    func testAQuestionWaitsForTheUser() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: Date())
+        XCTAssertEqual(sessions.list.first?.state, .waiting)
+    }
+
+    /// Allow All covers tools, never a plan or a question.
+    func testAllowAllSkipsPlansAndQuestions() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try request("Bash", input: #"{"command":"ls"}"#), at: Date())
+        sessions.allowAll(session: "s")
+        XCTAssertTrue(sessions.shouldAutoApprove(try request("Bash", input: "{}")))
+        XCTAssertFalse(sessions.shouldAutoApprove(try request("ExitPlanMode", input: "{}")))
+        XCTAssertFalse(sessions.shouldAutoApprove(try request("AskUserQuestion", input: "{}")))
+    }
 }
 
 final class HookInstallerTests: XCTestCase {

@@ -231,6 +231,11 @@ public struct AgentSessions: Sendable {
             session.turnStarted = date
             session.turnEnded = nil
             Self.append(.prompt, "Prompt sent", to: &session, at: date)
+        case .permissionRequest where event.prompt == .question:
+            // Answered in the terminal, like a Needs you notification.
+            session.state = .waiting
+            session.clearTools()
+            Self.append(.waiting, "Needs you", to: &session, at: date)
         case .permissionRequest:
             session.state = .needsApproval
             let tool = event.toolName ?? "Tool"
@@ -386,6 +391,11 @@ public struct AgentSessions: Sendable {
     }
 
     public func shouldAutoApprove(_ id: String) -> Bool { sessions[id]?.autoApprove == true }
+
+    /// Allow All covers tool calls only: a plan or a question still needs the user.
+    public func shouldAutoApprove(_ event: AgentEvent) -> Bool {
+        event.prompt == .tool && shouldAutoApprove(event.sessionID)
+    }
 
     private static func append(
         _ kind: AgentTimelineEntry.Kind, _ text: String, detail: String? = nil, to session: inout AgentSession,

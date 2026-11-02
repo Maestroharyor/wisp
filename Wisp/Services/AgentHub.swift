@@ -12,6 +12,12 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let source: AgentSource
     let tool: String
     let summary: String
+    var prompt: PermissionPrompt = .tool
+    /// Echoed back on Allow when the prompt needs it (a plan).
+    var input: JSONValue? = nil
+
+    /// The card's title: a plan is approved, not "used".
+    var title: String { prompt == .plan ? "Approve plan" : tool }
 }
 
 /// Session status for the compact pill.
@@ -294,7 +300,10 @@ final class AgentHub {
         if event.kind == .stop { refreshUsage(for: event.sessionID) }
         if event.kind == .sessionEnd { transcripts[event.sessionID] = nil }
 
-        if event.kind == .permissionRequest, sessions.shouldAutoApprove(event.sessionID) {
+        if event.kind == .permissionRequest, event.prompt == .question {
+            // Wisp can't pick an answer, so the question stays in the terminal (Needs you).
+            reply(connection, nil)
+        } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event) {
             reply(connection, PermissionReply.json(allow: true))
             sessions.record(.allowed, "Allowed (Allow All)", session: event.sessionID, at: .now)
             sessions.resolveApproval(session: event.sessionID, at: .now)
@@ -303,7 +312,7 @@ final class AgentHub {
             let approval = AgentApproval(
                 id: UUID(), sessionID: event.sessionID, project: event.project, source: event.source,
                 tool: event.toolName ?? "Tool",
-                summary: event.summary)
+                summary: event.summary, prompt: event.prompt, input: event.rawToolInput)
             pending[approval.id] = approval
             queue.enqueue(approval.id)
             waiting[approval.id] = connection
@@ -393,7 +402,8 @@ final class AgentHub {
         pending[id] = nil
         timeouts.removeValue(forKey: id)?.cancel()
         if let connection = waiting.removeValue(forKey: id) {
-            reply(connection, allow.flatMap(PermissionReply.json(allow:)))
+            let echo = approval.prompt == .plan ? approval.input : nil
+            reply(connection, allow.flatMap { PermissionReply.json(allow: $0, updatedInput: echo) })
         }
         if let allow {
             sessions.record(
@@ -410,7 +420,9 @@ final class AgentHub {
         sessions.allowAll(session: approval.sessionID)
         answer(id, allow: true)
         // Requests from that session already waiting behind this one are allowed too.
-        for queued in approvals where queued.sessionID == approval.sessionID { answer(queued.id, allow: true) }
+        for queued in approvals where queued.sessionID == approval.sessionID && queued.prompt == .tool {
+            answer(queued.id, allow: true)
+        }
     }
 
     private func connectionClosed(_ connection: NWConnection) {
