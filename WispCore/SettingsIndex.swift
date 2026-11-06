@@ -4,6 +4,7 @@ import Foundation
 public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     case general
     case notch
+    case ring
     case appearance
     case activities
     case widgets
@@ -20,6 +21,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .general: "General"
         case .notch: "Notch"
+        case .ring: "Ring"
         case .appearance: "Appearance"
         case .activities: "Live Activities"
         case .widgets: "Widgets"
@@ -36,6 +38,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .general: "Shortcuts, startup and setup"
         case .notch: "Where the notch sits and how it opens"
+        case .ring: "The radial ring of actions, and how it opens"
         case .appearance: "Theme, shape, motion and the fun extras"
         case .activities: "What shows beside the notch while it's closed"
         case .widgets: "The widgets on Home and the Widgets page"
@@ -87,6 +90,11 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
                 "timer length", "script", "command", "output", "do not disturb", "dnd", "workday",
             ]
+        case .ring:
+            [
+                "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "orb",
+                "hyper r", "per app",
+            ]
         case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
         case .clipboard: ["history", "copy", "paste", "limit", "pinned"]
         case .notifications:
@@ -129,7 +137,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
 
     public var panes: [SettingsPaneID] {
         switch self {
-        case .wisp: [.general, .notch, .appearance, .activities]
+        case .wisp: [.general, .notch, .ring, .appearance, .activities]
         case .shelf: [.widgets, .profiles, .clipboard]
         case .connections: [.notifications, .agents]
         case .system: [.permissions, .about]

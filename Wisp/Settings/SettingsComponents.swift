@@ -8,6 +8,7 @@ extension SettingsPaneID {
         switch self {
         case .general: "gearshape.fill"
         case .notch: "capsule.portrait.fill"
+        case .ring: "circle.circle.fill"
         case .appearance: "paintpalette.fill"
         case .activities: "waveform"
         case .widgets: "square.grid.2x2.fill"
@@ -24,7 +25,7 @@ extension SettingsPaneID {
         // One violet family: darker for the app itself, lighter for connections.
         switch self {
         case .general, .about, .permissions: Color(red: 0.32, green: 0.27, blue: 0.62)
-        case .notch, .appearance, .activities, .widgets, .profiles, .clipboard: .wispViolet
+        case .notch, .ring, .appearance, .activities, .widgets, .profiles, .clipboard: .wispViolet
         case .notifications, .agents: Color(red: 0.6, green: 0.53, blue: 1)
         }
     }
