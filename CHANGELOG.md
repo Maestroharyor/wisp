@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.5](https://github.com/Maestroharyor/wisp/compare/v0.1.4...v0.1.5) (2026-11-06)
+
+
+### Features
+
+* answer questions, preview requests and watch usage limits from the notch ([#20](https://github.com/Maestroharyor/wisp/issues/20)) ([11d4a4a](https://github.com/Maestroharyor/wisp/commit/11d4a4a7151ca29ebf6a565124ace21c3c7fdf42))
+
+
+### Bug fixes
+
+* mic pill, closing cards and which activity the pill shows ([#19](https://github.com/Maestroharyor/wisp/issues/19)) ([fd82c6e](https://github.com/Maestroharyor/wisp/commit/fd82c6e23c29f537f053a67017c46b917987a405))
+
 ## [0.1.4](https://github.com/Maestroharyor/wisp/compare/v0.1.3...v0.1.4) (2026-11-02)
 
 
