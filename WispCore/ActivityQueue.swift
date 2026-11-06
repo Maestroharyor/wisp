@@ -37,8 +37,10 @@ public struct ActivityQueue<Payload: Sendable>: Sendable {
         payload: Payload,
         now: Date
     ) {
-        // A card replaced while held stays held, and gets its full time once released.
-        let holding = held[id] != nil && duration != nil
+        // A card replaced while held stays held, and gets its full time once released. One
+        // made sticky (a reply being typed) has no clock left to hold.
+        if duration == nil { held[id] = nil }
+        let holding = held[id] != nil
         if holding { held[id] = duration }
         entries[id] = ActivityEntry(
             id: id,

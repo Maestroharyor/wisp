@@ -90,11 +90,13 @@ final class NotchController {
         }
     }
 
-    /// Pauses the countdown of a card or alert the pointer is on, and shows the close button.
-    /// Leaving, opening the shelf or the card changing hands the countdown back.
+    /// Pauses the countdown of a card the pointer is on, and shows its close button. Small
+    /// alert pills keep their clock, so a pointer parked on the notch can't pin them. Leaving,
+    /// replying, opening the shelf or the card changing hands the countdown back.
     private func updateCardHover() {
         let slot = services.activities.currentSlot
-        let hovering = pointerInside && machine.phase != .open && model.activity != nil && slot?.isDismissable == true
+        let hovering =
+            pointerInside && !isReplying && machine.phase != .open && showsCard && slot?.isDismissable == true
         let target = hovering ? slot : nil
         if model.cardHovered != hovering { model.cardHovered = hovering }
         guard target != heldSlot else { return }
