@@ -12,17 +12,33 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let source: AgentSource
     let tool: String
     let summary: String
-    var prompt: PermissionPrompt = .tool
+    let prompt: PermissionPrompt
     /// Kept for a plan or a question, whose answer sends it back.
-    var input: JSONValue? = nil
+    let input: JSONValue?
     /// The diff, command or plan the card can expand to show.
-    var preview: ApprovalPreview? = nil
+    let preview: ApprovalPreview?
+    /// What an AskUserQuestion asks, in order; empty for other requests. Parsed once, since
+    /// the question card reads it on every redraw.
+    let questions: [AgentQuestion]
+
+    init(
+        id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
+        prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil
+    ) {
+        self.id = id
+        self.sessionID = sessionID
+        self.project = project
+        self.source = source
+        self.tool = tool
+        self.summary = summary
+        self.prompt = prompt
+        self.input = input
+        self.preview = preview
+        questions = prompt == .question ? AgentQuestion.parse(input) : []
+    }
 
     /// The card's title: a plan is approved, not "used".
     var title: String { prompt == .plan ? "Approve plan" : tool }
-
-    /// What an AskUserQuestion asks, in order; empty for other requests.
-    var questions: [AgentQuestion] { prompt == .question ? AgentQuestion.parse(input) : [] }
 }
 
 /// Session status for the compact pill.
@@ -340,7 +356,7 @@ final class AgentHub {
             timeouts[approval.id] = Task { [weak self, approvalWait] in
                 try? await Task.sleep(for: approvalWait)
                 guard !Task.isCancelled else { return }
-                self?.answer(approval.id, allow: nil)
+                self?.handBack(approval.id)
             }
             onApproval(approvals.first)
             onNewRequest()
@@ -452,6 +468,16 @@ final class AgentHub {
         // Handed back to the terminal (timed out, or answered there) counts as resolved too,
         // so the session doesn't keep saying it waits on the notch.
         sessions.resolveApproval(session: approval.sessionID, at: .now)
+        onApproval(approvals.first)
+        publishStatus()
+    }
+
+    /// Nobody answered in the notch: the terminal asks instead, so the session waits on the
+    /// user there (Needs you) rather than looking like it carried on.
+    private func handBack(_ id: UUID) {
+        guard let taken = take(id) else { return }
+        if let connection = taken.connection { reply(connection, nil) }
+        sessions.handedBack(session: taken.approval.sessionID, at: .now)
         onApproval(approvals.first)
         publishStatus()
     }

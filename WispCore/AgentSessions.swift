@@ -216,9 +216,18 @@ public struct AgentSessions: Sendable {
     /// Newest activity first.
     public var list: [AgentSession] { sessions.values.sorted { $0.updated > $1.updated } }
 
-    /// An agent is busy (a turn or a compaction): the Mac shouldn't fall asleep under it. A
-    /// session waiting on you doesn't count; it can't move until you're back.
-    public var anyWorking: Bool { sessions.values.contains { $0.state == .running || $0.compacting } }
+    /// How long a busy session can go without a hook or status bar update before it stops
+    /// counting as working: an agent that died without SessionEnd (an older helper has no
+    /// process to check) would otherwise look busy until the 6 h prune.
+    public static let quietLimit: TimeInterval = 30 * 60
+
+    /// An agent is busy (a turn or a compaction) and was heard from lately: the Mac
+    /// shouldn't fall asleep under it. A session waiting on you doesn't count.
+    public func anyWorking(now: Date) -> Bool {
+        sessions.values.contains {
+            ($0.state == .running || $0.compacting) && now.timeIntervalSince($0.latestActivity) < Self.quietLimit
+        }
+    }
 
     public var anyNeedsUser: Bool { sessions.values.contains { $0.state == .waiting || $0.state == .needsApproval } }
 
@@ -457,7 +466,6 @@ public struct AgentSessions: Sendable {
         }
     }
 
-    /// An approval was answered (from the notch or the terminal): back to work.
     /// A question answered from the notch: the session is working again.
     public mutating func answeredQuestion(session id: String, at date: Date) {
         guard var session = sessions[id], session.state == .waiting else { return }
@@ -468,6 +476,17 @@ public struct AgentSessions: Sendable {
         sessions[id] = session
     }
 
+    /// A request nobody answered in the notch went back to the terminal, which now asks.
+    public mutating func handedBack(session id: String, at date: Date) {
+        guard var session = sessions[id], session.state == .needsApproval else { return }
+        session.state = .waiting
+        session.stateSince = date
+        session.updated = date
+        Self.append(.waiting, "Needs you", to: &session, at: date)
+        sessions[id] = session
+    }
+
+    /// An approval was answered (from the notch or the terminal): back to work.
     public mutating func resolveApproval(session id: String, at date: Date) {
         guard var session = sessions[id], session.state == .needsApproval else { return }
         session.state = .running

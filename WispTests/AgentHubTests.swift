@@ -195,12 +195,25 @@ final class PermissionPromptTests: XCTestCase {
 
     func testOnlyABusySessionCountsAsWorking() throws {
         var sessions = AgentSessions()
-        XCTAssertFalse(sessions.anyWorking)
-        sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: Date())
-        XCTAssertFalse(sessions.anyWorking, "waiting on the user")
+        let start = Date(timeIntervalSince1970: 1_000)
+        XCTAssertFalse(sessions.anyWorking(now: start))
+        sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: start)
+        XCTAssertFalse(sessions.anyWorking(now: start), "waiting on the user")
         let prompt = try AgentEvent.decode(Data(#"{"session_id":"t","hook_event_name":"UserPromptSubmit"}"#.utf8))
-        sessions.apply(prompt, at: Date())
-        XCTAssertTrue(sessions.anyWorking)
+        sessions.apply(prompt, at: start)
+        XCTAssertTrue(sessions.anyWorking(now: start.addingTimeInterval(60)))
+        // An agent that died without a word stops counting once it's been quiet a while.
+        XCTAssertFalse(sessions.anyWorking(now: start.addingTimeInterval(AgentSessions.quietLimit + 1)))
+    }
+
+    func testARequestHandedBackToTheTerminalNeedsYou() throws {
+        var sessions = AgentSessions()
+        let start = Date(timeIntervalSince1970: 1_000)
+        sessions.apply(try request("Bash", input: #"{"command":"ls"}"#), at: start)
+        sessions.handedBack(session: "s", at: start.addingTimeInterval(110))
+        XCTAssertEqual(sessions.session("s")?.state, .waiting)
+        XCTAssertEqual(sessions.session("s")?.stateSince, start.addingTimeInterval(110))
+        XCTAssertEqual(sessions.session("s")?.timeline.last?.text, "Needs you")
     }
 
     func testAnsweringFromTheNotchPutsTheSessionBackToWork() throws {
