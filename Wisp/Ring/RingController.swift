@@ -15,6 +15,10 @@ final class RingModel {
     var expanded: Int?
     /// Files being dragged over the ring; segments that can't take them dim.
     var dropping = false
+    /// Drives the open and close motion: wedges fly out when it turns on and back in when off.
+    var visible = false
+    /// The segment just picked, lit while the ring closes.
+    var picked: RingHit?
     /// The ring's centre, in the panel's own coordinates (y down).
     var centre: CGPoint = .zero
 
@@ -46,13 +50,15 @@ final class RingController {
     /// Opened by holding a mouse button; letting go picks.
     private var holding = false
 
-    private static let side = (RingGeometry.subRadius + RingGeometry.subStep + RingGeometry.margin) * 2
+    private static let side = (RingGeometry.subOuter + RingGeometry.margin * 2) * 2
 
     init(services: AppServices) {
         self.services = services
     }
 
-    var isVisible: Bool { panel?.isVisible ?? false }
+    /// Showing and not on its way out.
+    var isVisible: Bool { (panel?.isVisible ?? false) && closeTask == nil }
+    private var closeTask: Task<Void, Never>?
 
     /// Opens the ring centred near `point`, in global AppKit coordinates.
     func show(at point: CGPoint, holding: Bool = false, dropping: Bool = false) {
@@ -65,6 +71,11 @@ final class RingController {
         model.formChoices = RingFormChoices.choices(current: state.form, systemIsland: state.systemIsland)
         model.hover = .none
         model.expanded = nil
+        model.picked = nil
+        closeTask?.cancel()
+        closeTask = nil
+        // Start folded, then open on the next pass so the wedges animate out.
+        model.visible = false
         model.dropping = dropping
         self.holding = holding
         openedAt = .now
@@ -80,6 +91,7 @@ final class RingController {
         panel.setFrame(frame, display: true)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
+        Task { @MainActor [model] in model.visible = true }
         if !dropping { panel.makeKey() }
         startMonitors()
     }
@@ -95,13 +107,20 @@ final class RingController {
         }
     }
 
+    /// Folds the ring back into its centre, then takes the panel away.
     func hide() {
         dropEndTask?.cancel()
-        guard let panel, panel.isVisible else { return }
-        panel.orderOut(nil)
+        guard let panel, panel.isVisible, closeTask == nil else { return }
         stopMonitors()
         holding = false
-        model.dropping = false
+        model.visible = false
+        closeTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled, let self else { return }
+            panel.orderOut(nil)
+            self.model.dropping = false
+            self.closeTask = nil
+        }
     }
 
     func toggle(at point: CGPoint) {
@@ -142,6 +161,8 @@ final class RingController {
             return
         }
         let slots = model.set.slots
+        if case .slot = hit { model.picked = hit }
+        if case .sub = hit { model.picked = hit }
         let agentChoices = model.agentChoices
         let formChoices = model.formChoices
         hide()

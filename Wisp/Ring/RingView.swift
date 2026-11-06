@@ -2,56 +2,52 @@ import SwiftUI
 import UniformTypeIdentifiers
 import WispCore
 
-/// Segments around a centre button, with the open segment's sub-ring outside it.
+/// Wedge segments around a centre button, with the open segment's sub-ring as an outer arc.
+/// Opening, the disc springs up and the wedges fly out in turn; closing runs it backwards.
 struct RingView: View {
     let model: RingModel
     let reduceMotion: Bool
     let onHover: @MainActor (RingHit, CGFloat) -> Void
     let onPick: @MainActor (RingHit, [URL]) -> Void
 
-    @State private var appeared = false
-
     var body: some View {
         let slots = model.set.slots
+        let shown = model.visible
         ZStack {
-            // As wide as the segments' reach, so the whole band reads as one control.
-            let disc = (RingGeometry.ringRadius + RingGeometry.subRadius)
-            Circle()
-                .fill(.ultraThinMaterial)
-                .overlay(Circle().fill(.black.opacity(0.72)))
-                .overlay(Circle().strokeBorder(.white.opacity(0.12)))
-                .frame(width: disc, height: disc)
-                .position(model.centre)
-                .shadow(color: .black.opacity(0.4), radius: 18, y: 6)
+            disc
+                .scaleEffect(shown || reduceMotion ? 1 : 0.7)
+                .opacity(shown ? 1 : 0)
+                .animation(
+                    shown ? .spring(response: 0.32, dampingFraction: 0.74) : .easeIn(duration: 0.14), value: shown)
             ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
-                let angle = RingGeometry.slotAngle(index, count: slots.count)
-                RingBubble(
-                    symbol: slot.action.symbol, title: slot.action.title,
-                    selected: model.hover == .slot(index) || model.expanded == index,
-                    dimmed: model.dropping && !slot.action.acceptsFiles, tint: nil,
+                let wedge = RingGeometry.sector(index, count: slots.count)
+                RingWedge(
+                    start: wedge.start, end: wedge.end, inner: RingGeometry.ringInner, outer: RingGeometry.ringOuter,
+                    centre: model.centre, symbol: slot.action.symbol, fill: fill(for: index, slot: slot),
+                    dimmed: model.dropping && !slot.action.acceptsFiles,
                     hasMore: !model.subItems(of: index).isEmpty
                 )
-                .position(position(angle: angle, radius: RingGeometry.ringRadius))
+                // Each wedge flies out from the centre in turn, and back in on close.
+                .scaleEffect(shown || reduceMotion ? 1 : 0.3, anchor: unit(model.centre))
+                .opacity(shown ? 1 : 0)
+                .animation(
+                    shown
+                        ? .spring(response: 0.34, dampingFraction: 0.72).delay(RingGeometry.delay(for: index))
+                        : .easeIn(duration: 0.12),
+                    value: shown)
             }
-            if let expanded = model.expanded {
-                let items = model.expandedItems
-                let parent = RingGeometry.slotAngle(expanded, count: slots.count)
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    let angle = RingGeometry.subAngle(index, count: items.count, around: parent)
-                    RingBubble(
-                        symbol: item.symbol, title: item.title, selected: model.hover == .sub(index),
-                        dimmed: false, tint: tint(item.tint), hasMore: false, small: true
-                    )
-                    .position(position(angle: angle, radius: RingGeometry.subRadius))
-                    .transition(.scale(scale: 0.6).combined(with: .opacity))
-                }
+            if let expanded = model.expanded, shown {
+                SubRing(model: model, parent: expanded, count: slots.count, reduceMotion: reduceMotion)
+                    .id(expanded)
             }
-            centreButton.position(model.centre)
+            centre
+                .position(model.centre)
+                .scaleEffect(shown || reduceMotion ? 1 : 0.5, anchor: unit(model.centre))
+                .opacity(shown ? 1 : 0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shown)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .scaleEffect(appeared || reduceMotion ? 1 : 0.4)
-        .opacity(appeared ? 1 : 0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.78), value: model.expanded)
+        .animation(.spring(response: 0.22, dampingFraction: 0.8), value: model.hover)
         .contentShape(Rectangle())
         .onContinuousHover { phase in
             switch phase {
@@ -64,28 +60,81 @@ struct RingView: View {
             of: [.fileURL],
             delegate: RingDropDelegate(hit: hit(at:), distance: distance(to:), onHover: onHover, onPick: onPick)
         )
-        .onAppear {
-            withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.28, dampingFraction: 0.72)) {
-                appeared = true
-            }
-        }
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
     }
 
-    private var centreButton: some View {
-        ZStack {
-            Circle().fill(model.hover == .centre ? Color.wispViolet : .white.opacity(0.12))
-            Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit().padding(18)
+    private var disc: some View {
+        let size = RingGeometry.ringOuter * 2 + 16
+        return Circle()
+            .fill(.ultraThinMaterial)
+            .overlay(Circle().fill(.black.opacity(0.62)))
+            .overlay(
+                Circle().strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.22), .white.opacity(0.04)], startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1)
+            )
+            .frame(width: size, height: size)
+            .shadow(color: .black.opacity(0.45), radius: 22, y: 8)
+            .position(model.centre)
+    }
+
+    /// The middle: the hovered action's name and key, or Wisp's glyph (which opens the shelf).
+    private var centre: some View {
+        let size = RingGeometry.centreRadius * 2
+        let hovered = hoveredTitle
+        return ZStack {
+            Circle().fill(model.hover == .centre ? Color.wispViolet : .white.opacity(0.1))
+            if let hovered {
+                VStack(spacing: 1) {
+                    Text(hovered.title)
+                        .font(.system(size: 10, weight: .semibold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.8)
+                    if let key = hovered.key {
+                        Text(key).font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+                .padding(6)
+                .transition(.opacity)
+            } else {
+                Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit().padding(22)
+                    .transition(.opacity)
+            }
         }
-        .frame(width: RingGeometry.centreRadius * 2, height: RingGeometry.centreRadius * 2)
+        .frame(width: size, height: size)
         .help("Open the shelf")
     }
 
-    /// The view's y runs down; the ring's geometry runs up like AppKit.
-    private func position(angle: CGFloat, radius: CGFloat) -> CGPoint {
-        let point = RingGeometry.point(at: angle, radius: radius, from: model.centre)
-        return CGPoint(x: point.x, y: model.centre.y * 2 - point.y)
+    private var hoveredTitle: (title: String, key: String?)? {
+        switch model.hover {
+        case .slot(let index):
+            guard model.set.slots.indices.contains(index) else { return nil }
+            return (model.set.slots[index].action.title, index < 9 ? "\(index + 1)" : nil)
+        case .sub(let item):
+            let items = model.expandedItems
+            return items.indices.contains(item) ? (items[item].title, nil) : nil
+        case .centre:
+            return ("Shelf", nil)
+        case .none:
+            return nil
+        }
+    }
+
+    private func fill(for index: Int, slot: RingSlot) -> Color {
+        if model.picked == .slot(index) { return .wispViolet }
+        let hovered = model.hover == .slot(index)
+        if model.dropping, slot.action.acceptsFiles, hovered { return .wispViolet }
+        if hovered || model.expanded == index { return .wispViolet.opacity(hovered ? 0.95 : 0.45) }
+        return .white.opacity(0.07)
+    }
+
+    private func unit(_ point: CGPoint) -> UnitPoint {
+        let side = model.centre.x * 2
+        guard side > 0 else { return .center }
+        return UnitPoint(x: point.x / side, y: point.y / side)
     }
 
     private func distance(to location: CGPoint) -> CGFloat {
@@ -98,56 +147,110 @@ struct RingView: View {
             up, centre: model.centre, slots: model.set.slots.count, expanded: model.expanded,
             subItems: model.expandedItems.count)
     }
+}
 
-    private func tint(_ tint: RingChoice.Tint) -> Color? {
-        switch tint {
-        case .plain: nil
-        case .allow: .green
-        case .deny: .red
+/// The open segment's choices, fanned out from its angle.
+private struct SubRing: View {
+    let model: RingModel
+    let parent: Int
+    let count: Int
+    let reduceMotion: Bool
+
+    @State private var fanned = false
+
+    var body: some View {
+        let items = model.expandedItems
+        let parentAngle = RingGeometry.slotAngle(parent, count: count)
+        ZStack {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                let wedge = RingGeometry.subSector(index, count: items.count, around: parentAngle)
+                let half = (wedge.end - wedge.start) / 2
+                // Every wedge starts folded on the parent's angle and swings to its own.
+                let open = fanned || reduceMotion
+                RingWedge(
+                    start: open ? wedge.start : parentAngle - half, end: open ? wedge.end : parentAngle + half,
+                    inner: RingGeometry.subInner, outer: RingGeometry.subOuter, centre: model.centre,
+                    symbol: item.symbol, fill: fill(item, index: index), dimmed: false, hasMore: false, small: true
+                )
+                .opacity(fanned ? 1 : 0)
+            }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) { fanned = true }
+        }
+    }
+
+    private func fill(_ item: RingChoice, index: Int) -> Color {
+        let hovered = model.hover == .sub(index) || model.picked == .sub(index)
+        switch item.tint {
+        case .allow: return Color.green.opacity(hovered ? 0.9 : 0.4)
+        case .deny: return Color.red.opacity(hovered ? 0.9 : 0.4)
+        case .plain: return hovered ? .wispViolet : .white.opacity(0.1)
         }
     }
 }
 
-/// One segment: a round icon with its name under it while the pointer is on it.
-private struct RingBubble: View {
+/// One annular wedge with its icon in the middle of the band.
+private struct RingWedge: View {
+    var start: CGFloat
+    var end: CGFloat
+    let inner: CGFloat
+    let outer: CGFloat
+    let centre: CGPoint
     let symbol: String
-    let title: String
-    let selected: Bool
+    let fill: Color
     let dimmed: Bool
-    let tint: Color?
     let hasMore: Bool
     var small = false
 
     var body: some View {
-        let size: CGFloat = small ? 44 : 52
-        VStack(spacing: 4) {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: symbol)
-                    .font(.system(size: small ? 16 : 19, weight: .semibold))
-                    .frame(width: size, height: size)
-                    .background(Circle().fill(fill))
-                if hasMore {
-                    Circle().fill(.white.opacity(0.6)).frame(width: 5, height: 5).offset(x: -6, y: 6)
-                }
+        let shape = SectorShape(start: start, end: end, inner: inner, outer: outer, centre: centre)
+        let middle = (start + end) / 2
+        ZStack {
+            shape.fill(fill)
+            shape.stroke(.white.opacity(0.08), lineWidth: 1)
+            Image(systemName: symbol)
+                .font(.system(size: small ? 15 : 18, weight: .semibold))
+                .position(position(angle: middle, radius: (inner + outer) / 2))
+            if hasMore {
+                Circle().fill(.white.opacity(0.55)).frame(width: 4, height: 4)
+                    .position(position(angle: middle, radius: outer - 8))
             }
-            Text(title)
-                .font(.system(size: 10, weight: .semibold))
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(Capsule().fill(.black.opacity(0.75)))
-                .opacity(selected ? 1 : 0)
         }
-        .offset(y: 9)
         .opacity(dimmed ? 0.3 : 1)
-        .scaleEffect(selected ? 1.1 : 1)
-        .animation(.spring(response: 0.22, dampingFraction: 0.7), value: selected)
-        .accessibilityLabel(title)
     }
 
-    private var fill: Color {
-        if selected { return tint ?? .wispViolet }
-        return (tint ?? .white).opacity(tint == nil ? 0.14 : 0.35)
+    private func position(angle: CGFloat, radius: CGFloat) -> CGPoint {
+        let radians = angle * .pi / 180
+        return CGPoint(x: centre.x + radius * sin(radians), y: centre.y - radius * cos(radians))
+    }
+}
+
+/// An annular sector, angles clockwise from 12 o'clock, in a view whose y runs down.
+private struct SectorShape: Shape {
+    var start: CGFloat
+    var end: CGFloat
+    let inner: CGFloat
+    let outer: CGFloat
+    let centre: CGPoint
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(start, end) }
+        set {
+            start = newValue.first
+            end = newValue.second
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        // SwiftUI's angles start at 3 o'clock and run clockwise in a y-down view.
+        let from = Angle.degrees(Double(start) - 90)
+        let to = Angle.degrees(Double(end) - 90)
+        var path = Path()
+        path.addArc(center: centre, radius: outer, startAngle: from, endAngle: to, clockwise: false)
+        path.addArc(center: centre, radius: inner, startAngle: to, endAngle: from, clockwise: true)
+        path.closeSubpath()
+        return path
     }
 }
 

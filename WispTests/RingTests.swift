@@ -59,7 +59,7 @@ final class RingGeometryTests: XCTestCase {
 
     func testTheRingStaysOnScreen() {
         let visible = CGRect(x: 0, y: 70, width: 1512, height: 874)
-        let reach = RingGeometry.subRadius + RingGeometry.subStep + RingGeometry.margin
+        let reach = RingGeometry.subOuter + RingGeometry.margin
         for requested in [CGPoint(x: 0, y: 0), CGPoint(x: 1512, y: 944), CGPoint(x: 756, y: 500)] {
             let fitted = RingGeometry.fittedCentre(requested, in: visible)
             XCTAssertGreaterThanOrEqual(fitted.x - reach, visible.minX)
@@ -75,6 +75,37 @@ final class RingGeometryTests: XCTestCase {
         let plain = RingGeometry.fittedCentre(CGPoint(x: 756, y: 944), in: visible)
         let clear = RingGeometry.fittedCentre(CGPoint(x: 756, y: 944), in: visible, avoidsTopCentre: true)
         XCTAssertLessThan(clear.y, plain.y)
+    }
+}
+
+final class RingShapeTests: XCTestCase {
+    func testWedgesSplitTheCircleWithGaps() {
+        let first = RingGeometry.sector(0, count: 8)
+        XCTAssertEqual(first.start, -22.5 + RingGeometry.gap / 2, accuracy: 0.001)
+        XCTAssertEqual(first.end, 22.5 - RingGeometry.gap / 2, accuracy: 0.001)
+        let next = RingGeometry.sector(1, count: 8)
+        XCTAssertEqual(next.start - first.end, RingGeometry.gap, accuracy: 0.001)
+        XCTAssertEqual(RingGeometry.sector(0, count: 0).start, 0)
+    }
+
+    func testSubWedgesCentreOnTheirItems() {
+        let wedge = RingGeometry.subSector(0, count: 3, around: 90)
+        XCTAssertEqual((wedge.start + wedge.end) / 2, RingGeometry.subAngle(0, count: 3, around: 90), accuracy: 0.001)
+        XCTAssertEqual(wedge.end - wedge.start, RingGeometry.subStep - RingGeometry.gap, accuracy: 0.001)
+    }
+
+    func testSegmentsFlyOutInTurn() {
+        XCTAssertEqual(RingGeometry.delay(for: 0), 0)
+        XCTAssertEqual(RingGeometry.delay(for: 3), 3 * RingGeometry.stagger, accuracy: 0.0001)
+        XCTAssertEqual(RingGeometry.delay(for: -1), 0)
+    }
+
+    func testTheWholeWedgeCountsAsTheSegment() {
+        let centre = CGPoint(x: 0, y: 0)
+        for radius in [RingGeometry.ringInner + 1, RingGeometry.ringOuter - 1] {
+            let point = RingGeometry.point(at: 90, radius: radius, from: centre)
+            XCTAssertEqual(RingGeometry.hit(point, centre: centre, slots: 8), .slot(2))
+        }
     }
 }
 

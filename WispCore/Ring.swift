@@ -282,12 +282,23 @@ public enum RingHit: Equatable, Sendable {
 /// The ring's shape: a centre button, a band of segments around it, and a sub-ring arc
 /// outside the segment that owns it. Angles run clockwise from 12 o'clock, in degrees.
 public enum RingGeometry {
-    public static let centreRadius: CGFloat = 34
-    public static let ringRadius: CGFloat = 112
-    public static let subRadius: CGFloat = 172
-    /// Angle between neighbouring sub-ring items.
-    public static let subStep: CGFloat = 28
+    /// The centre button.
+    public static let centreRadius: CGFloat = 40
+    /// The band of segments: wedges from `ringInner` to `ringOuter`, icons on `ringRadius`.
+    public static let ringInner: CGFloat = 46
+    public static let ringOuter: CGFloat = 128
+    public static let ringRadius: CGFloat = (ringInner + ringOuter) / 2
+    /// The sub-ring: an arc of smaller wedges outside the band.
+    public static let subInner: CGFloat = 136
+    public static let subOuter: CGFloat = 188
+    public static let subRadius: CGFloat = (subInner + subOuter) / 2
+    /// Angle each sub-ring item spans.
+    public static let subStep: CGFloat = 30
+    /// Gap between neighbouring wedges, in degrees.
+    public static let gap: CGFloat = 3
     public static let margin: CGFloat = 12
+    /// Delay between segments flying out as the ring opens.
+    public static let stagger: Double = 0.014
 
     public static func slotAngle(_ index: Int, count: Int) -> CGFloat {
         guard count > 0 else { return 0 }
@@ -297,6 +308,23 @@ public enum RingGeometry {
     public static func subAngle(_ index: Int, count: Int, around parent: CGFloat) -> CGFloat {
         parent + (CGFloat(index) - CGFloat(count - 1) / 2) * subStep
     }
+
+    /// The start and end angles of a segment's wedge, with half a gap trimmed off each side.
+    public static func sector(_ index: Int, count: Int) -> (start: CGFloat, end: CGFloat) {
+        guard count > 0 else { return (0, 0) }
+        let step = 360 / CGFloat(count)
+        let centre = slotAngle(index, count: count)
+        return (centre - step / 2 + gap / 2, centre + step / 2 - gap / 2)
+    }
+
+    /// A sub-ring item's wedge.
+    public static func subSector(_ index: Int, count: Int, around parent: CGFloat) -> (start: CGFloat, end: CGFloat) {
+        let centre = subAngle(index, count: count, around: parent)
+        return (centre - subStep / 2 + gap / 2, centre + subStep / 2 - gap / 2)
+    }
+
+    /// How long segment `index` waits before flying out.
+    public static func delay(for index: Int) -> Double { Double(max(index, 0)) * stagger }
 
     /// A point `radius` from `centre` at `angle`, in AppKit coordinates (y up).
     public static func point(at angle: CGFloat, radius: CGFloat, from centre: CGPoint) -> CGPoint {
@@ -314,12 +342,12 @@ public enum RingGeometry {
         if distance < centreRadius { return .centre }
         guard slots > 0 else { return .none }
         let angle = normalised(atan2(dx, dy) * 180 / .pi)
-        let band = (ringRadius + subRadius) / 2
-        if distance <= band {
+        // Up to halfway to the sub-ring counts as the segment, so wedge edges are forgiving.
+        if distance <= (ringOuter + subInner) / 2 {
             let step = 360 / CGFloat(slots)
             return .slot(Int((angle / step).rounded()) % slots)
         }
-        guard let expanded, subItems > 0, distance <= subRadius + subStep else { return .none }
+        guard let expanded, subItems > 0, distance <= subOuter + margin else { return .none }
         let parent = slotAngle(expanded, count: slots)
         for index in 0..<subItems {
             let target = subAngle(index, count: subItems, around: parent)
@@ -333,7 +361,7 @@ public enum RingGeometry {
     public static func fittedCentre(_ requested: CGPoint, in visible: CGRect, avoidsTopCentre: Bool = false)
         -> CGPoint
     {
-        let reach = subRadius + subStep + margin
+        let reach = subOuter + margin
         let usable = visible.insetBy(dx: min(reach, visible.width / 2), dy: min(reach, visible.height / 2))
         var point = CGPoint(
             x: min(max(requested.x, usable.minX), usable.maxX), y: min(max(requested.y, usable.minY), usable.maxY))
