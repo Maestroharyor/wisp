@@ -159,3 +159,12 @@ final class RingGestureTests: XCTestCase {
         XCTAssertEqual(RingGesture.release(after: 0.6, on: .none), .close)
     }
 }
+
+final class RingButtonTests: XCTestCase {
+    func testButtonsMapToCGEventNumbers() {
+        XCTAssertNil(RingButton.off.number)
+        XCTAssertEqual(RingButton.middle.number, 2)
+        XCTAssertEqual(RingButton.back.number, 3)
+        XCTAssertEqual(RingButton.forward.number, 4)
+    }
+}

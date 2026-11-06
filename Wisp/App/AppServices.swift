@@ -64,6 +64,7 @@ final class AppServices {
     private(set) lazy var pocket = QuickPocket(services: self)
     private(set) lazy var miniPlayer = MiniPlayerController(services: self)
     private(set) lazy var ring = RingController(services: self)
+    private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
 
     func openTransform(_ urls: [URL]) {

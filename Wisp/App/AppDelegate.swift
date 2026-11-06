@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onProfileDigit = { [weak self] digit in self?.services.context.choose(digit: digit) }
         hotkeys.onRing = { [weak self] in self?.services.ring.toggle(at: NSEvent.mouseLocation) }
         hotkeys.start()
+        services.ringTrigger.start()
         handleTerminationSignal()
         if !preferences.onboarded { onboarding.show() }
         #if DEBUG

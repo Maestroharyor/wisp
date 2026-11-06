@@ -362,3 +362,30 @@ public enum RingGesture {
         }
     }
 }
+
+/// The extra mouse button that opens the ring.
+public enum RingButton: String, CaseIterable, Sendable {
+    case off
+    case middle
+    case back
+    case forward
+
+    /// CGEvent's button number; nil when off.
+    public var number: Int64? {
+        switch self {
+        case .off: nil
+        case .middle: 2
+        case .back: 3
+        case .forward: 4
+        }
+    }
+
+    public var title: String {
+        switch self {
+        case .off: "Off"
+        case .middle: "Middle button"
+        case .back: "Back button"
+        case .forward: "Forward button"
+        }
+    }
+}

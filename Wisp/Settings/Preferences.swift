@@ -279,6 +279,7 @@ final class Preferences {
         static let dropActions = "dropActions"
         static let ringConfig = "ringConfig"
         static let ringOnOrbClick = "ringOnOrbClick"
+        static let ringButton = "ringButton"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
         static let scriptInterval = "scriptInterval"
@@ -554,6 +555,9 @@ final class Preferences {
     }
     /// Clicking the orb opens the ring rather than the shelf (the ring's centre opens the shelf).
     var ringOnOrbClick: Bool { didSet { defaults.set(ringOnOrbClick, forKey: Key.ringOnOrbClick) } }
+    /// The extra mouse button that opens the ring; off until chosen, since it takes the
+    /// button away from every app.
+    var ringButton: RingButton { didSet { defaults.set(ringButton.rawValue, forKey: Key.ringButton) } }
 
     var dropActions: [DropAction] {
         didSet { defaults.set(try? JSONEncoder().encode(dropActions), forKey: Key.dropActions) }
@@ -814,6 +818,7 @@ final class Preferences {
             Key.hotkey: Hotkey.hyperSpace.stringValue,
             Key.quickPressTogglesCapsLock: true,
             Key.showOnExternalDisplays: true,
+            Key.ringOnOrbClick: true,
             Key.hoverDelay: 0.15,
             // Hover only peeks; a click opens, so the shelf never appears by accident.
             Key.openTrigger: OpenTrigger.click.rawValue,
@@ -993,7 +998,8 @@ final class Preferences {
         ringConfig =
             defaults.data(forKey: Key.ringConfig).flatMap { try? JSONDecoder().decode(RingConfig.self, from: $0) }
             ?? RingConfig.defaults
-        ringOnOrbClick = defaults.object(forKey: Key.ringOnOrbClick) as? Bool ?? true
+        ringOnOrbClick = defaults.bool(forKey: Key.ringOnOrbClick)
+        ringButton = defaults.string(forKey: Key.ringButton).flatMap(RingButton.init(rawValue:)) ?? .off
         dropActions =
             defaults.data(forKey: Key.dropActions).flatMap { try? JSONDecoder().decode([DropAction].self, from: $0) }
             ?? []
