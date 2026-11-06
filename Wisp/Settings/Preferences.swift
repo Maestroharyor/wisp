@@ -277,6 +277,8 @@ final class Preferences {
         static let introducedWidgets = "introducedWidgets"
         static let favouriteShortcuts = "favouriteShortcuts"
         static let dropActions = "dropActions"
+        static let ringConfig = "ringConfig"
+        static let ringOnOrbClick = "ringOnOrbClick"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
         static let scriptInterval = "scriptInterval"
@@ -546,6 +548,13 @@ final class Preferences {
     }
 
     /// The user's own actions for dropped files; the first two also appear as drop tiles.
+    /// The radial ring's segments: the default ring and any per-app rings.
+    var ringConfig: RingConfig {
+        didSet { defaults.set(try? JSONEncoder().encode(ringConfig), forKey: Key.ringConfig) }
+    }
+    /// Clicking the orb opens the ring rather than the shelf (the ring's centre opens the shelf).
+    var ringOnOrbClick: Bool { didSet { defaults.set(ringOnOrbClick, forKey: Key.ringOnOrbClick) } }
+
     var dropActions: [DropAction] {
         didSet { defaults.set(try? JSONEncoder().encode(dropActions), forKey: Key.dropActions) }
     }
@@ -981,6 +990,10 @@ final class Preferences {
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
         scriptInterval = ScriptOutput.clampedInterval(defaults.double(forKey: Key.scriptInterval))
+        ringConfig =
+            defaults.data(forKey: Key.ringConfig).flatMap { try? JSONDecoder().decode(RingConfig.self, from: $0) }
+            ?? RingConfig.defaults
+        ringOnOrbClick = defaults.object(forKey: Key.ringOnOrbClick) as? Bool ?? true
         dropActions =
             defaults.data(forKey: Key.dropActions).flatMap { try? JSONDecoder().decode([DropAction].self, from: $0) }
             ?? []

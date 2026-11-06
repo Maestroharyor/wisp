@@ -203,6 +203,10 @@ final class NotchController {
         guard pendingPress else { return }
         pendingPress = false
         guard model.contains(location) else { return }
+        if isOrb, machine.phase != .open, model.activity == nil, services.preferences.ringOnOrbClick {
+            services.ring.show(at: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY))
+            return
+        }
         if machine.phase != .open {
             showActivityView()
             send(.clicked)
@@ -362,6 +366,13 @@ final class NotchController {
 
     func open(page: ShelfPage) {
         model.page = page
+        if machine.phase != .open { send(.hotkey) }
+    }
+
+    func open(widget: WidgetKind) {
+        returnPage = model.page
+        model.page = .widgets
+        model.soloWidget = widget
         if machine.phase != .open { send(.hotkey) }
     }
 

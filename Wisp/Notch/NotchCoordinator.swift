@@ -69,6 +69,10 @@ final class NotchCoordinator {
         targetController()?.open(page: page)
     }
 
+    func openWidget(_ kind: WidgetKind) {
+        targetController()?.open(widget: kind)
+    }
+
     private func targetController() -> NotchController? {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
