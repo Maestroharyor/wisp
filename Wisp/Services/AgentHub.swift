@@ -13,8 +13,10 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let tool: String
     let summary: String
     var prompt: PermissionPrompt = .tool
-    /// Kept only for a plan, whose approval sends it back.
+    /// Kept for a plan or a question, whose answer sends it back.
     var input: JSONValue? = nil
+    /// The diff, command or plan the card can expand to show.
+    var preview: ApprovalPreview? = nil
 
     /// The card's title: a plan is approved, not "used".
     var title: String { prompt == .plan ? "Approve plan" : tool }
@@ -323,7 +325,9 @@ final class AgentHub {
                 id: UUID(), sessionID: event.sessionID, project: event.project, source: event.source,
                 tool: event.toolName ?? "Tool",
                 summary: event.summary, prompt: event.prompt,
-                input: event.prompt.keepsInput ? event.rawToolInput : nil)
+                input: event.prompt.keepsInput ? event.rawToolInput : nil,
+                preview: ApprovalPreview.make(
+                    tool: event.toolName ?? "", input: event.rawToolInput, limit: Self.previewLines))
             pending[approval.id] = approval
             queue.enqueue(approval.id)
             waiting[approval.id] = connection
@@ -424,6 +428,25 @@ final class AgentHub {
         onApproval(approvals.first)
         publishStatus()
     }
+
+    /// Denies a request and tells Claude why, in the words typed on the card.
+    func deny(_ id: UUID, reason: String) {
+        guard let taken = take(id) else { return }
+        let approval = taken.approval
+        if let connection = taken.connection {
+            reply(
+                connection,
+                PermissionReply.json(allow: false, denial: PermissionReply.denial(for: approval.prompt, reason: reason))
+            )
+        }
+        sessions.record(.denied, "Denied", session: approval.sessionID, at: .now)
+        sessions.resolveApproval(session: approval.sessionID, at: .now)
+        onApproval(approvals.first)
+        publishStatus()
+    }
+
+    /// Lines of a diff or new file an approval card shows at most.
+    private static let previewLines = 60
 
     /// Answers a question from the notch; `answers` maps each question's text to its answer.
     func answerQuestion(_ id: UUID, answers: [String: String]) {

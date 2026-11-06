@@ -43,6 +43,8 @@ public enum SurfaceSizing {
     public static let replyBarHeight: CGFloat = 48
     /// The row of answers under a question from an agent.
     public static let questionRowHeight: CGFloat = 40
+    /// An approval card opened to show its diff, command or plan, with a reason row.
+    public static let approvalPreviewHeight: CGFloat = 220
 
     /// `contentScale` zooms the open shelf's content (the shelf size setting); pills and
     /// cards keep their size.

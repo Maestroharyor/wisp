@@ -65,6 +65,7 @@ final class NotchController {
             _ = model.activity
         } onChange: { [weak self] in
             Task { @MainActor in
+                self?.releaseKeyAfterCard()
                 self?.updateCardHover()
                 self?.updateClickThrough()
                 self?.observeActivity()
@@ -100,6 +101,13 @@ final class NotchController {
         if let heldSlot { services.activities.release(heldSlot) }
         heldSlot = target
         if let target { services.activities.hold(target) }
+    }
+
+    /// A card that took the keyboard for typing (an answer, a reason) went away: hand the
+    /// keyboard back to the app the user was in.
+    private func releaseKeyAfterCard() {
+        guard machine.phase != .open, !isReplying, !showsApproval, panel.isKeyWindow else { return }
+        panel.resignKey()
     }
 
     /// Closes the card or alert on show, when it can be closed.

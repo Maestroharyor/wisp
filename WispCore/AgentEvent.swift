@@ -200,13 +200,22 @@ public enum PermissionReply {
         }
     }
 
+    /// What Claude is told on a deny, with the reason typed in the notch if there is one.
+    public static func denial(for prompt: PermissionPrompt, reason: String) -> String {
+        let reason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        if prompt == .plan { return reason.isEmpty ? planDenied : "\(planDenied) What to change: \(reason)" }
+        return reason.isEmpty ? defaultDenial : "Denied from the Wisp notch: \(reason)"
+    }
+
+    public static let defaultDenial = "Denied from the Wisp notch."
+
     /// Tells Claude the plan was turned down, not the task, so it revises instead of stopping.
     public static let planDenied = "The plan wasn't approved from the Wisp notch. Keep planning and ask what to change."
 
     /// `updatedInput` goes with an allow only; a plan needs it or the allow is ignored.
     /// `denial` is what Claude is told on a deny.
     public static func json(
-        allow: Bool, updatedInput: JSONValue? = nil, denial: String = "Denied from the Wisp notch."
+        allow: Bool, updatedInput: JSONValue? = nil, denial: String = defaultDenial
     ) -> String? {
         var decision: [String: JSONValue] = ["behavior": .string(allow ? "allow" : "deny")]
         if !allow { decision["message"] = .string(denial) }

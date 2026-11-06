@@ -79,6 +79,8 @@ final class NotchModel {
     /// gives it back once that's done.
     var onWantsKey: () -> Void = {}
     var onKeyDone: () -> Void = {}
+    /// The approval card opened to show its preview.
+    var expandedApproval: UUID?
 
     let services: AppServices
 
@@ -116,7 +118,9 @@ final class NotchModel {
                     return .notification(extra: replyingTo != nil ? SurfaceSizing.replyBarHeight : 0)
                 }
                 if case .agentApproval(let approval) = activity {
-                    return .notification(extra: approval.prompt == .question ? SurfaceSizing.questionRowHeight : 0)
+                    if approval.prompt == .question { return .notification(extra: SurfaceSizing.questionRowHeight) }
+                    let open = expandedApproval == approval.id
+                    return .notification(extra: open ? SurfaceSizing.approvalPreviewHeight : 0)
                 }
                 if case .meetingSoon = activity { return .notification(extra: 0) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
