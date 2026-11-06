@@ -63,10 +63,10 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
   - Headphones: when AirPods or other Bluetooth headphones take over the sound, a pill shows them with their battery and case levels.
   - Battery: charging, unplugged, low (at a level you pick) and full.
   - Timers and Pomodoro; Now Playing from any app, including browsers. When a browser gives no album art, Wisp finds it on iTunes (only the title and artist are sent; switch it off in Settings › Live Activities).
-  - Calls and recordings: a pill while the microphone is on, with elapsed time and a mute button. It says "On a call" (or the calendar event's name) when a call app such as Zoom, Teams, FaceTime, Slack or Discord has the mic, or a meeting is on the calendar; otherwise it says "Recording". A Join card appears two minutes before a call with a Zoom, Meet, Teams or Webex link.
+  - Calls and recordings: a pill while the microphone is on, with elapsed time and a mute button. It says "On a call" (or the calendar event's name) when a call app such as Zoom, Teams, FaceTime, Slack or Discord has the mic, or a meeting is on the calendar; otherwise it says "Recording". Only apps actually recording count: playback through a headset or USB mic and macOS's "Hey Siri" listener don't, and the pill goes as soon as the mic is unplugged. A Join card appears two minutes before a call with a Zoom, Meet, Teams or Webex link.
   - Focus changes, tray count and file-action notices.
   - **Bubbles:** with more than one live activity, the extras pinch off the pill into round bubbles, one on each side, as on iPhone. Click a bubble to swap it into the pill. The first bubble can sit on either side.
-- **Notifications** in the notch, with quick replies to iMessage, WhatsApp and Telegram, and the system banner hidden.
+- **Notifications** in the notch, with quick replies to iMessage, WhatsApp and Telegram, and the system banner hidden. Pointing at a card keeps it open; close it (or any short alert) with the ×, a two-finger swipe back into the notch, or Esc while Wisp is active. Settings › Notifications › Stay on screen sets 3, 6 or 10 seconds.
 - **Shelf**
   - **Home**: up to four widgets, resizable and reorderable.
   - **Widgets**: an icon grid of every widget; click one to open it on its own.
