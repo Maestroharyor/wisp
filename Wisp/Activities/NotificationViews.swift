@@ -36,6 +36,8 @@ struct NotificationCardView: View {
                             Text(RelativeAge.short(from: item.date, to: context.date))
                                 .font(.system(size: 11)).foregroundStyle(Color.secondaryText)
                         }
+                        // The close button takes this corner while the pointer is on the card.
+                        .opacity(model.showsCloseButton ? 0 : 1)
                     }
                     if !item.subtitle.isEmpty {
                         Text(item.subtitle).font(.system(size: 12, weight: .medium)).lineLimit(1)
@@ -58,6 +60,7 @@ struct NotificationCardView: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
+        .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
         .onChange(of: replying) { _, now in fieldFocused = now }
         // Rebuilt after another alert took its place: focus the field again.
         .onAppear { if replying { fieldFocused = true } }
@@ -148,5 +151,26 @@ struct NotificationAvatar: View {
     private var appIcon: NSImage? {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: item.appID)
             .map { NSWorkspace.shared.icon(forFile: $0.path) }
+    }
+}
+
+/// The close button drawn in a card's top trailing corner while the pointer is on it. The
+/// click itself is caught by `NotchController` in `SurfaceSizing.cardCloseZone`, since the
+/// closed panel only takes clicks it asks for.
+struct CardCloseGlyph: View {
+    let model: NotchModel
+
+    var body: some View {
+        if model.showsCloseButton {
+            Image(systemName: "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(.white.opacity(0.16)))
+                .padding(.top, model.cardTopInset + 9)
+                .padding(.trailing, 12)
+                .transition(.opacity)
+                .accessibilityLabel("Close")
+        }
     }
 }

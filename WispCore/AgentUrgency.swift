@@ -16,10 +16,10 @@ public enum AgentUrgency {
         return (primary, others)
     }
 
-    /// When the current Done or Needs you stops outranking work, so the pill can be picked
-    /// again then; nil when there's no such moment.
+    /// When the first current Done or Needs you stops outranking work, so the pill can be
+    /// picked again then (another moment may take over); nil when there's no such moment.
     public static func momentEnds(_ sessions: [AgentSession], now: Date) -> Date? {
-        sessions.filter { isMoment($0, now: now) }.map { since($0) + moment }.max()
+        sessions.filter { isMoment($0, now: now) }.map { since($0) + moment }.min()
     }
 
     private static func rank(_ session: AgentSession, now: Date) -> Int {

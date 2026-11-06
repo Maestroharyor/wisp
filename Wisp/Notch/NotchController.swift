@@ -18,6 +18,8 @@ final class NotchController {
     private var dragEndTask: Task<Void, Never>?
     private var motionObserver: NSObjectProtocol?
     private var swipe = SwipeDetector()
+    /// The card whose countdown is paused because the pointer is on it.
+    private var heldSlot: ActivitySlot?
 
     /// Grace period before a shelf closes after the pointer leaves.
     private let closeDelay: Duration = .milliseconds(300)
@@ -57,6 +59,7 @@ final class NotchController {
             _ = model.activity
         } onChange: { [weak self] in
             Task { @MainActor in
+                self?.updateCardHover()
                 self?.updateClickThrough()
                 self?.observeActivity()
             }
@@ -67,8 +70,40 @@ final class NotchController {
     /// (AppKit passes clicks through transparent areas only while the property is untouched),
     /// so a closed panel takes the mouse only while the pointer is over something it handles.
     private func updateClickThrough() {
-        let overControls = pointerInside && (isReplying || showsApproval || showsMeetingPill)
+        let overControls = pointerInside && (isReplying || showsApproval || showsMeetingPill || showsCard)
         panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble
+    }
+
+    /// Notification and two-line cards take their own clicks (close, reply), so they don't
+    /// reach the menu bar underneath.
+    private var showsCard: Bool {
+        switch model.spec {
+        case .notification, .medium: true
+        default: false
+        }
+    }
+
+    /// Pauses the countdown of a card the pointer is on, and shows its close button. Small
+    /// alert pills keep their clock, so a pointer parked on the notch can't pin them. Leaving,
+    /// replying, opening the shelf or the card changing hands the countdown back.
+    private func updateCardHover() {
+        let slot = services.activities.currentSlot
+        let hovering =
+            pointerInside && !isReplying && machine.phase != .open && showsCard && slot?.isDismissable == true
+        let target = hovering ? slot : nil
+        if model.cardHovered != hovering { model.cardHovered = hovering }
+        guard target != heldSlot else { return }
+        if let heldSlot { services.activities.release(heldSlot) }
+        heldSlot = target
+        if let target { services.activities.hold(target) }
+    }
+
+    /// Closes the card or alert on show, when it can be closed.
+    @discardableResult
+    func dismissActivity() -> Bool {
+        guard machine.phase != .open, !isReplying, model.activity != nil else { return false }
+        heldSlot = nil
+        return services.activities.dismissCurrent()
     }
 
     /// The meeting pill's microphone end mutes on click.
@@ -107,6 +142,12 @@ final class NotchController {
     }
 
     func leftMouseDown(at location: CGPoint) {
+        if model.showsCloseButton,
+            SurfaceSizing.cardCloseZone(in: model.surfaceRect, topInset: model.cardTopInset).contains(location)
+        {
+            dismissActivity()
+            return
+        }
         if handleNotificationClick(at: location) { return }
         // The approval card's own buttons take the click.
         if machine.phase != .open, showsApproval, model.contains(location) { return }
@@ -132,8 +173,9 @@ final class NotchController {
         }
     }
 
-    /// Two fingers on the closed notch: down opens the shelf, and sideways on the music
-    /// pill skips tracks. An open shelf ignores swipes, since its lists scroll.
+    /// Two fingers on the closed notch: down opens the shelf, up puts away a card or alert,
+    /// and sideways on the music pill skips tracks. An open shelf ignores swipes, since its
+    /// lists scroll.
     func scrolled(_ scroll: PointerMonitor.Scroll, at location: CGPoint) {
         if scroll.boundary { swipe.reset() }
         guard machine.phase != .open, model.contains(location),
@@ -143,6 +185,7 @@ final class NotchController {
             send(.clicked)
             return
         }
+        if direction == layout.placement.closingSwipe, dismissActivity() { return }
         guard model.activity == .media else { return }
         // Skipping runs along the edge: sideways on top and bottom, up and down on the sides.
         switch (layout.edge.isSide, direction) {
@@ -332,6 +375,7 @@ final class NotchController {
 
     private func render(wasOpen: Bool) {
         model.phase = machine.phase
+        updateCardHover()
         // Click-through while closed, so the menu bar under the panel keeps working.
         updateClickThrough()
 

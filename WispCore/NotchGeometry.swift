@@ -82,6 +82,16 @@ public enum Placement: String, CaseIterable, Sendable, Identifiable {
         case .right: .left
         }
     }
+
+    /// The swipe back towards the edge, which puts away a card.
+    public var closingSwipe: Swipe {
+        switch edge {
+        case .top: .up
+        case .bottom: .down
+        case .left: .left
+        case .right: .right
+        }
+    }
 }
 
 /// Tunable sizes, in points.

@@ -13,16 +13,18 @@ struct ActivityBubble: Equatable {
 @MainActor
 @Observable
 final class ActivityCenter {
-    /// Sticky activities that a glyph can sum up, so they can sit in a bubble.
-    static let bubbleSlots: Set<ActivitySlot> = [.media, .timer, .agent, .meeting]
+    static let bubbleSlots = Set(ActivitySlot.allCases.filter(\.canBeBubble))
     static let bubbleLimit = 2
 
     private(set) var current: Activity?
+    /// The slot `current` came from.
+    private(set) var currentSlot: ActivitySlot?
     /// Highest priority first: the first sits right of the pill, the second left.
     private(set) var bubbles: [ActivityBubble] = []
 
     /// The bubble the user clicked, kept in the pill while it lasts.
     @ObservationIgnored private var pinned: ActivitySlot?
+    @ObservationIgnored private var pinnedAt: Date?
 
     @ObservationIgnored private var queue = ActivityQueue<Activity>()
     @ObservationIgnored private var expiryTask: Task<Void, Never>?
@@ -39,9 +41,32 @@ final class ActivityCenter {
         refresh()
     }
 
+    /// Closes the card or alert in the main pill early; false when it can't be dismissed.
+    @discardableResult
+    func dismissCurrent() -> Bool {
+        guard let slot = currentSlot, slot.isDismissable else { return false }
+        remove(slot)
+        return true
+    }
+
+    /// Pauses a card's countdown while the pointer is on it.
+    func hold(_ slot: ActivitySlot) {
+        queue.hold(id: slot.rawValue, now: .now)
+        refresh()
+    }
+
+    /// Restarts it once the pointer leaves, with a moment left to spare.
+    func release(_ slot: ActivitySlot) {
+        queue.release(id: slot.rawValue, now: .now, minimum: Self.releaseGrace)
+        refresh()
+    }
+
+    private static let releaseGrace: TimeInterval = 1.5
+
     /// Swaps a bubble into the main pill.
     func pin(_ slot: ActivitySlot) {
         pinned = slot
+        pinnedAt = .now
         refresh()
     }
 
@@ -50,10 +75,12 @@ final class ActivityCenter {
         queue.prune(now: now)
         if let pinned, queue.live(id: pinned.rawValue, now: now) == nil { self.pinned = nil }
         let arrangement = queue.arrangement(
-            now: now, pinned: pinned?.rawValue, bubbleIDs: Set(Self.bubbleSlots.map(\.rawValue)),
+            now: now, pinned: pinned?.rawValue, pinnedAt: pinnedAt, bubbleIDs: Set(Self.bubbleSlots.map(\.rawValue)),
             limit: Self.bubbleLimit)
         let next = arrangement.primary?.payload
         if next != current { current = next }
+        let nextSlot = arrangement.primary.flatMap { ActivitySlot(rawValue: $0.id) }
+        if nextSlot != currentSlot { currentSlot = nextSlot }
         let nextBubbles = arrangement.bubbles.compactMap { entry in
             ActivitySlot(rawValue: entry.id).map { ActivityBubble(slot: $0, activity: entry.payload) }
         }

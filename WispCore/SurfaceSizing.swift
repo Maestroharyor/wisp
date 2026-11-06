@@ -169,6 +169,16 @@ public enum SurfaceSizing {
         return CGRect(x: pill.maxX - width, y: pill.minY, width: width, height: pill.height)
     }
 
+    public static let cardCloseZoneSize = CGSize(width: 52, height: 40)
+
+    /// Where a click closes a card: its top trailing corner, under the notch (`topInset`),
+    /// where the close button shows while the pointer is on the card.
+    public static func cardCloseZone(in card: CGRect, topInset: CGFloat) -> CGRect {
+        CGRect(
+            x: card.maxX - cardCloseZoneSize.width, y: card.maxY - topInset - cardCloseZoneSize.height,
+            width: cardCloseZoneSize.width, height: cardCloseZoneSize.height)
+    }
+
     /// The floating Home/Tray/Clipboard pill, centred on an open surface on the side away
     /// from the edge: above it on the bottom edge, below it everywhere else.
     public static func navPillRect(for surface: CGRect, placement: Placement = .top) -> CGRect {

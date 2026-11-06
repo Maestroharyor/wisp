@@ -19,6 +19,11 @@ struct NotificationSettings: View {
                     }
                 }
                 Toggle("Hide the macOS banner", isOn: $preferences.hideSystemBanners)
+                Picker("Stay on screen", selection: $preferences.notificationDuration) {
+                    ForEach(NotificationDuration.allCases) { Text($0.title).tag($0) }
+                }
+                Text("Pointing at a card keeps it open. Close it with the × or a swipe up.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Show Focus changes", isOn: $preferences.focusActivity)
                 Text(
                     "macOS has no public way to read other apps' notifications, so Wisp reads the system's notification store. It needs Full Disk Access and could break after a macOS update."

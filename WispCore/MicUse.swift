@@ -22,3 +22,26 @@ public enum MicUse {
         return meetingInProgress ? .call : .recording
     }
 }
+
+/// Whether the microphone counts as in use.
+public enum MicState {
+    /// macOS's always-on speech listeners ("Hey Siri"): they hold an input stream all day,
+    /// which isn't anyone recording.
+    static let backgroundListeners: Set<String> = ["com.apple.CoreSpeech", "com.apple.corespeechd"]
+
+    /// macOS's per-process view is the source of truth: the bundle ids of processes with an
+    /// input stream running ("" for one without a bundle id, such as a command-line
+    /// recorder). The device-wide running flag also turns on for playback through a headset
+    /// or USB mic with an output, so it only decides when the process list can't be read
+    /// (`inputProcesses` nil). No input device means nothing can be recording.
+    public static func inUse(hasInputDevice: Bool, deviceRunning: Bool, inputProcesses: [String]?) -> Bool {
+        guard hasInputDevice else { return false }
+        guard let inputProcesses else { return deviceRunning }
+        return inputProcesses.contains { !backgroundListeners.contains($0) }
+    }
+
+    /// The apps worth naming: background listeners and unnamed processes left out.
+    public static func apps(_ inputProcesses: [String]) -> [String] {
+        inputProcesses.filter { !$0.isEmpty && !backgroundListeners.contains($0) }.sorted()
+    }
+}

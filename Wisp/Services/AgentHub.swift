@@ -414,8 +414,10 @@ final class AgentHub {
         if let allow {
             sessions.record(
                 allow ? .allowed : .denied, allow ? "Allowed" : "Denied", session: approval.sessionID, at: .now)
-            sessions.resolveApproval(session: approval.sessionID, at: .now)
         }
+        // Handed back to the terminal (timed out, or answered there) counts as resolved too,
+        // so the session doesn't keep saying it waits on the notch.
+        sessions.resolveApproval(session: approval.sessionID, at: .now)
         onApproval(approvals.first)
         publishStatus()
     }
@@ -486,7 +488,7 @@ final class AgentHub {
 
     /// A session whose agent has quit (closed tab, crash, `kill`) ends as if SessionEnd came.
     private func endExitedSessions() {
-        let ended = sessions.endExited { $0.isRunning(info: AgentProcess.systemInfo) }
+        let ended = sessions.endExited(at: .now) { $0.isRunning(info: AgentProcess.systemInfo) }
         guard !ended.isEmpty else { return }
         for id in ended {
             settleApprovals(for: id)

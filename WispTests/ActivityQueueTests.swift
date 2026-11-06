@@ -73,6 +73,70 @@ final class ActivityQueueTests: XCTestCase {
         return queue
     }
 
+    func testHeldEntryOutlivesItsExpiry() {
+        var queue = ActivityQueue<String>()
+        queue.post(id: "card", priority: 50, duration: 6, payload: "card", now: now)
+        queue.hold(id: "card", now: now.addingTimeInterval(4))
+        XCTAssertEqual(queue.current(now: now.addingTimeInterval(60))?.payload, "card")
+        XCTAssertNil(queue.nextExpiry(after: now.addingTimeInterval(5)))
+    }
+
+    func testReleaseResumesTheTimeThatWasLeft() {
+        var queue = ActivityQueue<String>()
+        queue.post(id: "card", priority: 50, duration: 6, payload: "card", now: now)
+        queue.hold(id: "card", now: now.addingTimeInterval(2))
+        let later = now.addingTimeInterval(30)
+        queue.release(id: "card", now: later, minimum: 1.5)
+        XCTAssertEqual(queue.live(id: "card", now: later)?.expiresAt, later.addingTimeInterval(4))
+    }
+
+    func testReleaseGivesAtLeastTheMinimum() {
+        var queue = ActivityQueue<String>()
+        queue.post(id: "card", priority: 50, duration: 6, payload: "card", now: now)
+        queue.hold(id: "card", now: now.addingTimeInterval(5.9))
+        let later = now.addingTimeInterval(10)
+        queue.release(id: "card", now: later, minimum: 1.5)
+        XCTAssertEqual(queue.live(id: "card", now: later)?.expiresAt, later.addingTimeInterval(1.5))
+    }
+
+    func testReplacingAHeldEntryKeepsItHeldWithTheNewDuration() {
+        var queue = ActivityQueue<String>()
+        queue.post(id: "card", priority: 50, duration: 6, payload: "old", now: now)
+        queue.hold(id: "card", now: now.addingTimeInterval(1))
+        queue.post(id: "card", priority: 50, duration: 6, payload: "new", now: now.addingTimeInterval(3))
+        XCTAssertEqual(queue.current(now: now.addingTimeInterval(20))?.payload, "new")
+        let later = now.addingTimeInterval(20)
+        queue.release(id: "card", now: later, minimum: 1.5)
+        XCTAssertEqual(queue.live(id: "card", now: later)?.expiresAt, later.addingTimeInterval(6))
+    }
+
+    func testAHeldCardMadeStickyStaysStickyWhenReleased() {
+        // Replying to a notification the pointer is on: the reply mustn't time out.
+        var queue = ActivityQueue<String>()
+        queue.post(id: "card", priority: 50, duration: 6, payload: "card", now: now)
+        queue.hold(id: "card", now: now.addingTimeInterval(1))
+        queue.post(id: "card", priority: 50, duration: nil, payload: "replying", now: now.addingTimeInterval(2))
+        queue.release(id: "card", now: now.addingTimeInterval(3), minimum: 1.5)
+        XCTAssertEqual(queue.live(id: "card", now: now.addingTimeInterval(60))?.payload, "replying")
+    }
+
+    func testHoldingAStickyEntryChangesNothing() {
+        var queue = ActivityQueue<String>()
+        queue.post(id: "media", priority: 10, duration: nil, payload: "media", now: now)
+        queue.hold(id: "media", now: now)
+        queue.release(id: "media", now: now, minimum: 1.5)
+        XCTAssertNil(queue.live(id: "media", now: now)?.expiresAt)
+    }
+
+    func testRemoveForgetsTheHold() {
+        var queue = ActivityQueue<String>()
+        queue.post(id: "card", priority: 50, duration: 6, payload: "a", now: now)
+        queue.hold(id: "card", now: now)
+        queue.remove(id: "card")
+        queue.post(id: "card", priority: 50, duration: 6, payload: "b", now: now)
+        XCTAssertEqual(queue.live(id: "card", now: now)?.expiresAt, now.addingTimeInterval(6))
+    }
+
     func testArrangementPutsHighestInThePillAndTheRestInBubblesByPriority() {
         let queue = sticky([("media", 10), ("timer", 20), ("agent", 15)])
         let arrangement = queue.arrangement(now: now, pinned: nil, bubbleIDs: capable, limit: 2)
@@ -100,6 +164,25 @@ final class ActivityQueueTests: XCTestCase {
         let arrangement = queue.arrangement(now: now, pinned: "media", bubbleIDs: capable, limit: 2)
         XCTAssertEqual(arrangement.primary?.id, "level")
         XCTAssertEqual(arrangement.bubbles.map(\.id), ["timer", "media"])
+    }
+
+    func testANewerHigherActivityTakesThePillFromAPin() {
+        var queue = sticky([("media", 10), ("timer", 20)])
+        queue.post(id: "meeting", priority: 44, duration: nil, payload: "meeting", now: now.addingTimeInterval(2))
+        let arrangement = queue.arrangement(
+            now: now.addingTimeInterval(3), pinned: "media", pinnedAt: now.addingTimeInterval(1), bubbleIDs: capable,
+            limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "meeting")
+    }
+
+    func testRefreshingAnOlderActivityKeepsThePin() {
+        var queue = sticky([("media", 10), ("timer", 20)])
+        // The timer re-posts every half second; that isn't something new arriving.
+        queue.post(id: "timer", priority: 20, duration: nil, payload: "timer", now: now.addingTimeInterval(5))
+        let arrangement = queue.arrangement(
+            now: now.addingTimeInterval(6), pinned: "media", pinnedAt: now.addingTimeInterval(1), bubbleIDs: capable,
+            limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "media")
     }
 
     func testEndedPinIsIgnored() {

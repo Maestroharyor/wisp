@@ -28,13 +28,20 @@ enum TerminalApps {
         let icon: NSImage
     }
 
-    /// Only apps that were found: a miss is looked up again, so an app installed while Wisp
-    /// runs gets its icon.
     private static var cache: [String: App] = [:]
+    /// A miss is looked up again after a minute, so an app installed while Wisp runs gets its
+    /// icon without a Launch Services query on every redraw meanwhile.
+    private static var misses: [String: Date] = [:]
+    private static let missRetry: TimeInterval = 60
 
     static func app(for bundleID: String) -> App? {
         if let cached = cache[bundleID] { return cached }
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return nil }
+        if let missed = misses[bundleID], Date.now.timeIntervalSince(missed) < missRetry { return nil }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            misses[bundleID] = .now
+            return nil
+        }
+        misses[bundleID] = nil
         // The name keeps ".app" when Finder shows extensions.
         let name = FileManager.default.displayName(atPath: url.path)
         let app = App(

@@ -47,6 +47,17 @@ final class AgentAlertsTests: XCTestCase {
         XCTAssertEqual(alerts.due(next, rules: rules, now: start + 800).count, 1, "a later call is a new tool")
     }
 
+    func testAToolWaitingForApprovalIsntLong() {
+        var alerts = AgentAlerts()
+        let waiting = [session(state: .needsApproval, since: 1, tools: [tool("t1")])]
+        let fired = alerts.due(waiting, rules: rules, now: start + 400)
+        XCTAssertFalse(fired.contains { if case .longTool = $0 { true } else { false } })
+        // Approved at 350: the tool's own clock starts then.
+        let approved = [session(state: .running, since: 350, tools: [tool("t1")])]
+        XCTAssertEqual(alerts.due(approved, rules: rules, now: start + 600), [])
+        XCTAssertEqual(alerts.due(approved, rules: rules, now: start + 650).count, 1)
+    }
+
     func testAWaitNudgesOnceAndANewWaitNudgesAgain() {
         var alerts = AgentAlerts()
         let waiting = [session(state: .waiting)]
@@ -148,6 +159,17 @@ final class AgentReminderTests: XCTestCase {
         XCTAssertEqual(AgentUrgency.pick(sessions.list, now: start + 181).primary?.id, "wait")
         XCTAssertEqual(AgentUrgency.momentEnds(sessions.list, now: start + 181), start + 184)
         XCTAssertEqual(AgentUrgency.pick(sessions.list, now: start + 185).primary?.id, "busy")
+    }
+
+    func testThePillIsPickedAgainWhenTheFirstMomentEnds() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("ask", "UserPromptSubmit"), at: start)
+        sessions.apply(try event("done", "UserPromptSubmit"), at: start)
+        sessions.apply(try event("ask", "Notification", extra: #","notification_type":"idle_prompt""#), at: start + 10)
+        sessions.apply(try event("done", "Stop"), at: start + 12)
+        XCTAssertEqual(AgentUrgency.pick(sessions.list, now: start + 12).primary?.id, "ask")
+        XCTAssertEqual(AgentUrgency.momentEnds(sessions.list, now: start + 12), start + 14)
+        XCTAssertEqual(AgentUrgency.pick(sessions.list, now: start + 14).primary?.id, "done")
     }
 
     func testOnlyAWaitingSessionCanBeReminded() throws {

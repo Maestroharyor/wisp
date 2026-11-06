@@ -187,7 +187,9 @@ final class NotchCoordinator {
         if !backedOut.isEmpty { return true }
         let open = controllers.values.filter { $0.phase == .open || $0.isReplying }
         open.forEach { $0.dismiss() }
-        return !open.isEmpty
+        if !open.isEmpty { return true }
+        // Nothing open: Esc puts away a card or alert instead. Every display shows the same one.
+        return controllers.values.contains { $0.dismissActivity() }
     }
 
     private func observePreferences() {

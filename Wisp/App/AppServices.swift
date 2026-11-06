@@ -170,9 +170,13 @@ final class AppServices {
             activities.remove(.agent)
             return
         }
+        let live = Set(agents.sessions.list.map(\.id))
+        agentStates = agentStates.filter { live.contains($0.key) }
         let changed = agentStates.updateValue(status.state, forKey: status.sessionID) != status.state
         switch status.state {
-        case .running: activities.post(.agent(status), slot: .agent, duration: nil)
+        // The approval card covers the pill while it shows; after that the pill says the
+        // session is waiting on you, not still working.
+        case .running, .needsApproval: activities.post(.agent(status), slot: .agent, duration: nil)
         case .finished:
             if changed {
                 finishes += 1
@@ -189,12 +193,8 @@ final class AppServices {
             } else {
                 activities.remove(.agent)
             }
-        case .needsApproval: break
         }
     }
-
-    /// How long a notification card stays when untouched.
-    private let notificationDuration: TimeInterval = 6
 
     /// Keeps the card on screen while the user types a reply.
     func beginReply(to item: NotificationItem) {
@@ -268,7 +268,7 @@ final class AppServices {
             self?.sounds.play(.done, fallback: "Glass")
             self?.finishes += 1
             if endedFocus { self?.celebrate(.pomodoroDone) }
-            self?.activities.post(.timerDone(label: label), slot: .notice, duration: 5)
+            self?.activities.post(.timerDone(label: label), slot: .timerDone, duration: 5)
         }
 
         let notice: (String, String) -> Void = { [weak self] symbol, text in
@@ -470,7 +470,7 @@ final class AppServices {
             waitingNotification = item
             return
         }
-        activities.post(.notification(item), slot: .notification, duration: notificationDuration)
+        activities.post(.notification(item), slot: .notification, duration: preferences.notificationDuration.seconds)
         if preferences.hideSystemBanners { BannerSuppressor.closeBanners() }
     }
 

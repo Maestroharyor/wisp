@@ -331,6 +331,7 @@ struct MediumActivityView: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
+        .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
     }
 
     @ViewBuilder private var content: some View {
@@ -346,6 +347,7 @@ struct MediumActivityView: View {
             }
             Spacer()
             Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundStyle(.wispGreen)
+                .opacity(model.showsCloseButton ? 0 : 1)
         case .timerDone(let label):
             Image(systemName: "timer").font(.system(size: 22)).foregroundStyle(.wispAmber)
             VStack(alignment: .leading, spacing: 2) {
@@ -354,6 +356,7 @@ struct MediumActivityView: View {
             }
             Spacer()
             ValueText(text: "0:00", tint: .wispAmber, size: 22)
+                .opacity(model.showsCloseButton ? 0 : 1)
         default:
             EmptyView()
         }

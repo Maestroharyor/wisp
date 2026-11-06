@@ -8,6 +8,8 @@ public struct ActivityEntry<Payload: Sendable>: Sendable {
     public var expiresAt: Date?
     public var payload: Payload
     public var updatedAt: Date
+    /// When it first appeared; refreshing it in place keeps this.
+    public var startedAt: Date
 }
 
 /// What the closed notch shows: one activity in the main pill and, beside it, round
@@ -22,6 +24,8 @@ public struct ActivityArrangement<Payload: Sendable>: Sendable {
 /// expiry and a higher priority, so they pre-empt sticky ones and then hand back.
 public struct ActivityQueue<Payload: Sendable>: Sendable {
     public private(set) var entries: [String: ActivityEntry<Payload>] = [:]
+    /// Entries the user is reading (the pointer is on them), with the time they had left.
+    private var held: [String: TimeInterval] = [:]
 
     public init() {}
 
@@ -33,17 +37,38 @@ public struct ActivityQueue<Payload: Sendable>: Sendable {
         payload: Payload,
         now: Date
     ) {
+        // A card replaced while held stays held, and gets its full time once released. One
+        // made sticky (a reply being typed) has no clock left to hold.
+        if duration == nil { held[id] = nil }
+        let holding = held[id] != nil
+        if holding { held[id] = duration }
         entries[id] = ActivityEntry(
             id: id,
             priority: priority,
-            expiresAt: duration.map { now.addingTimeInterval($0) },
+            expiresAt: holding ? nil : duration.map { now.addingTimeInterval($0) },
             payload: payload,
-            updatedAt: now
+            updatedAt: now,
+            startedAt: entries[id]?.startedAt ?? now
         )
     }
 
     public mutating func remove(id: String) {
         entries[id] = nil
+        held[id] = nil
+    }
+
+    /// Stops a transient entry's clock while the user reads it. Sticky entries are left alone.
+    public mutating func hold(id: String, now: Date) {
+        guard held[id] == nil, let expiry = entries[id]?.expiresAt, expiry > now else { return }
+        held[id] = expiry.timeIntervalSince(now)
+        entries[id]?.expiresAt = nil
+    }
+
+    /// Restarts a held entry's clock with the time it had left, but at least `minimum`, so it
+    /// doesn't vanish the moment the pointer leaves.
+    public mutating func release(id: String, now: Date, minimum: TimeInterval) {
+        guard let remaining = held.removeValue(forKey: id), entries[id] != nil else { return }
+        entries[id]?.expiresAt = now.addingTimeInterval(max(remaining, minimum))
     }
 
     public mutating func prune(now: Date) {
@@ -72,9 +97,10 @@ public struct ActivityQueue<Payload: Sendable>: Sendable {
 
     /// Splits live activities between the pill and up to `limit` bubbles. Anything that
     /// can't be a bubble (HUDs, notices, cards) takes the pill while it lasts; otherwise a
-    /// live `pinned` activity (the bubble the user clicked) does, then priority decides.
+    /// live `pinned` activity (the bubble the user clicked at `pinnedAt`) does, until a
+    /// higher one starts after that. Then priority decides.
     public func arrangement(
-        now: Date, pinned: String?, bubbleIDs: Set<String>, limit: Int
+        now: Date, pinned: String?, pinnedAt: Date? = nil, bubbleIDs: Set<String>, limit: Int
     ) -> ActivityArrangement<Payload> {
         let ranked = entries.values
             .filter { entry in entry.expiresAt.map { $0 > now } ?? true }
@@ -83,7 +109,8 @@ public struct ActivityQueue<Payload: Sendable>: Sendable {
             }
         var primary = ranked.first
         if let winner = primary, bubbleIDs.contains(winner.id), let pinned, bubbleIDs.contains(pinned),
-            let pick = ranked.first(where: { $0.id == pinned })
+            let pick = ranked.first(where: { $0.id == pinned }),
+            !ranked.contains(where: { $0.priority > pick.priority && $0.startedAt > (pinnedAt ?? .distantFuture) })
         {
             primary = pick
         }

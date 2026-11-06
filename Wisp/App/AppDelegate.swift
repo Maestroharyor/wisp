@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 MainActor.assumeIsolated { self?.services.miniPlayer.toggle() }
             }
             // Toggle stand-in activities, to film show, hide and bubble motion.
-            for kind in ["timer", "agent"] {
+            for kind in ["timer", "agent", "card"] {
                 DistributedNotificationCenter.default().addObserver(
                     forName: Notification.Name("com.ayomideodewale.wisp.debug.\(kind)"), object: nil, queue: .main
                 ) { [weak self] _ in
@@ -82,6 +82,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         private var debugActivities: Set<String> = []
 
         private func toggleDebugActivity(_ kind: String) {
+            if kind == "card" {
+                // A short card, to check closing, swiping away and holding it with the pointer.
+                services.activities.post(.timerDone(label: "Debug"), slot: .timerDone, duration: 5)
+                return
+            }
             let slot: ActivitySlot = kind == "timer" ? .timer : .agent
             if debugActivities.remove(kind) != nil {
                 services.activities.remove(slot)
