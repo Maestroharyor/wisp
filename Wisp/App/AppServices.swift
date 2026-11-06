@@ -1,4 +1,5 @@
 import AppKit
+import IOKit.pwr_mgt
 import SwiftUI
 import WispCore
 
@@ -43,6 +44,8 @@ final class AppServices {
     /// the finish sound and confetti fire only when a session first becomes finished.
     @ObservationIgnored private var themeObserver: NSObjectProtocol?
     @ObservationIgnored private var agentStates: [String: AgentSession.State] = [:]
+    @ObservationIgnored private let agentAwake = SleepAssertion(
+        type: kIOPMAssertionTypePreventUserIdleSystemSleep, name: "Wisp: an agent is working")
     /// Calls already offered with a Join card, so each is offered once.
     /// Meeting occurrences already offered a Join card, with their start times.
     @ObservationIgnored private var offeredMeetings: [String: Date] = [:]
@@ -162,8 +165,18 @@ final class AppServices {
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
     }
 
+    /// Holds off system sleep while an agent works, when that's on.
+    private func updateAgentAwake() {
+        if preferences.agentKeepAwake, agents.sessions.anyWorking {
+            agentAwake.hold()
+        } else {
+            agentAwake.release()
+        }
+    }
+
     /// Working shows until the turn ends; Done and Needs you show briefly.
     private func agentStatusChanged(_ status: AgentStatus?) {
+        updateAgentAwake()
         let needsUser = agents.sessions.anyNeedsUser
         context.update { $0.agentWaiting = needsUser }
         guard let status else {
@@ -351,7 +364,7 @@ final class AppServices {
                         toolMinutes: preferences.toolAlertMinutes, tools: preferences.toolAlert,
                         nudgeMinutes: preferences.nudgeMinutes, nudges: preferences.nudgeAlert),
                     budget: preferences.budgetAlert ? preferences.dailyBudget : nil,
-                    limits: preferences.limitAlert
+                    limits: preferences.limitAlert, awake: preferences.agentKeepAwake
                 )
             )
         } onChange: { [weak self] in
@@ -364,6 +377,7 @@ final class AppServices {
         agents.alertRules = agentPrefs.rules
         agents.dailyBudget = agentPrefs.budget
         agents.limitAlerts = agentPrefs.limits
+        updateAgentAwake()
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
         if needsClock { startClock() } else { stopClock() }
         if timerLength != appliedTimerLength {

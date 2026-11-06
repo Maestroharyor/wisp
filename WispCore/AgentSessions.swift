@@ -216,6 +216,10 @@ public struct AgentSessions: Sendable {
     /// Newest activity first.
     public var list: [AgentSession] { sessions.values.sorted { $0.updated > $1.updated } }
 
+    /// An agent is busy (a turn or a compaction): the Mac shouldn't fall asleep under it. A
+    /// session waiting on you doesn't count; it can't move until you're back.
+    public var anyWorking: Bool { sessions.values.contains { $0.state == .running || $0.compacting } }
+
     public var anyNeedsUser: Bool { sessions.values.contains { $0.state == .waiting || $0.state == .needsApproval } }
 
     public mutating func apply(_ event: AgentEvent, at date: Date) {

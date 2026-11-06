@@ -17,7 +17,8 @@ final class QuickActions {
     /// Closes open shelves before an action that needs the screen.
     var closeShelves: () -> Void = {}
 
-    @ObservationIgnored private var assertion: IOPMAssertionID = 0
+    @ObservationIgnored private let awake = SleepAssertion(
+        type: kIOPMAssertionTypePreventUserIdleDisplaySleep, name: "Wisp Keep Awake")
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let shortcuts: ShortcutsRunner
 
@@ -35,16 +36,10 @@ final class QuickActions {
 
     func toggleKeepAwake() {
         if keepAwake {
-            IOPMAssertionRelease(assertion)
-            assertion = 0
+            awake.release()
             keepAwake = false
         } else {
-            let result = IOPMAssertionCreateWithName(
-                kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
-                IOPMAssertionLevel(kIOPMAssertionLevelOn),
-                "Wisp Keep Awake" as CFString,
-                &assertion)
-            keepAwake = result == kIOReturnSuccess
+            keepAwake = awake.hold()
         }
         onNotice(keepAwake ? "cup.and.saucer.fill" : "moon.zzz.fill", keepAwake ? "Staying awake" : "Sleep allowed")
     }

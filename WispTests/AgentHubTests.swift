@@ -193,6 +193,16 @@ final class PermissionPromptTests: XCTestCase {
         XCTAssertEqual(sessions.list.first?.state, .waiting)
     }
 
+    func testOnlyABusySessionCountsAsWorking() throws {
+        var sessions = AgentSessions()
+        XCTAssertFalse(sessions.anyWorking)
+        sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: Date())
+        XCTAssertFalse(sessions.anyWorking, "waiting on the user")
+        let prompt = try AgentEvent.decode(Data(#"{"session_id":"t","hook_event_name":"UserPromptSubmit"}"#.utf8))
+        sessions.apply(prompt, at: Date())
+        XCTAssertTrue(sessions.anyWorking)
+    }
+
     func testAnsweringFromTheNotchPutsTheSessionBackToWork() throws {
         var sessions = AgentSessions()
         let start = Date(timeIntervalSince1970: 1_000)

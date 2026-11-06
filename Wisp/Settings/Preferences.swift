@@ -224,6 +224,7 @@ final class Preferences {
         static let contextThreshold = "contextThreshold"
         static let agentPrivacy = "agentPrivacy"
         static let agentToolActivity = "agentToolActivity"
+        static let agentKeepAwake = "agentKeepAwake"
         static let toolAlert = "toolAlert"
         static let toolAlertMinutes = "toolAlertMinutes"
         static let nudgeAlert = "nudgeAlert"
@@ -640,6 +641,8 @@ final class Preferences {
     }
     /// The tool an agent is running shows in the pill; needs Claude Code's tool hooks.
     var agentToolActivity: Bool { didSet { defaults.set(agentToolActivity, forKey: Key.agentToolActivity) } }
+    /// Stop the Mac sleeping while an agent is working (the display may still sleep).
+    var agentKeepAwake: Bool { didSet { defaults.set(agentKeepAwake, forKey: Key.agentKeepAwake) } }
     /// A notice when one tool call runs longer than `toolAlertMinutes`; needs tool activity.
     var toolAlert: Bool { didSet { defaults.set(toolAlert, forKey: Key.toolAlert) } }
     var toolAlertMinutes: Int { didSet { defaults.set(toolAlertMinutes, forKey: Key.toolAlertMinutes) } }
@@ -791,6 +794,7 @@ final class Preferences {
             Key.contextThreshold: Int(ContextUsage.defaultThreshold),
             Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
             Key.agentToolActivity: false,
+            Key.agentKeepAwake: false,
             Key.toolAlert: true,
             Key.toolAlertMinutes: AgentAlertRules.defaultToolMinutes,
             Key.nudgeAlert: false,
@@ -895,6 +899,7 @@ final class Preferences {
         agentPrivacy =
             defaults.string(forKey: Key.agentPrivacy).flatMap(AgentPrivacy.Mode.init(rawValue:)) ?? .default
         agentToolActivity = defaults.bool(forKey: Key.agentToolActivity)
+        agentKeepAwake = defaults.bool(forKey: Key.agentKeepAwake)
         toolAlert = defaults.bool(forKey: Key.toolAlert)
         toolAlertMinutes = min(max(defaults.integer(forKey: Key.toolAlertMinutes), 1), 60)
         nudgeAlert = defaults.bool(forKey: Key.nudgeAlert)
