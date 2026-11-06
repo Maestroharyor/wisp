@@ -107,7 +107,7 @@ final class AgentExitTests: XCTestCase {
         try confirm(&sessions, "gone", AgentProcess(pid: 1, started: 1))
         try confirm(&sessions, "live", AgentProcess(pid: 2, started: 2))
         try confirm(&sessions, "old", nil)
-        let ended = sessions.endExited { $0.pid == 2 }
+        let ended = sessions.endExited(at: .now) { $0.pid == 2 }
         XCTAssertEqual(ended, ["gone"])
         XCTAssertEqual(Set(sessions.list.map(\.id)), ["live", "old"])
     }
@@ -121,7 +121,7 @@ final class AgentExitTests: XCTestCase {
         }
         XCTAssertNil(sessions.session("s")?.process)
         XCTAssertFalse(sessions.hasProcesses)
-        XCTAssertEqual(sessions.endExited { _ in false }, [])
+        XCTAssertEqual(sessions.endExited(at: .now) { _ in false }, [])
     }
 
     /// `--resume` brings a new process: the old one no longer counts, and the new one is
@@ -133,7 +133,7 @@ final class AgentExitTests: XCTestCase {
         try confirm(&sessions, "s", old)
         sessions.apply(try prompt("s", process: new), at: now)
         XCTAssertNil(sessions.session("s")?.process)
-        XCTAssertEqual(sessions.endExited { $0 == new }, [])
+        XCTAssertEqual(sessions.endExited(at: .now) { $0 == new }, [])
         sessions.apply(try prompt("s", process: new), at: now)
         XCTAssertEqual(sessions.session("s")?.process, new)
     }

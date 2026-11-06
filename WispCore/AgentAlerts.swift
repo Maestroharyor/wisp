@@ -90,13 +90,17 @@ public struct AgentAlerts: Equatable, Sendable {
     private static func items(_ sessions: [AgentSession], rules: AgentAlertRules) -> [Item] {
         var items: [Item] = []
         for session in sessions {
-            for tool in session.runningTools {
+            // A tool waiting for approval isn't running yet; its clock starts once it's answered.
+            let toolsRun = session.state != .needsApproval
+            let resumed = session.state == .running ? session.stateSince : nil
+            for tool in session.runningTools where toolsRun {
                 let key = "tool|\(session.id)|\(tool.id ?? String(tool.started.timeIntervalSince1970))"
                 let alert =
                     rules.tools
                     ? AgentAlert.longTool(
                         session: session.id, project: session.project, tool: tool, minutes: rules.toolMinutes) : nil
-                items.append(Item(key: key, start: tool.started, limit: seconds(rules.toolMinutes), alert: alert))
+                let start = max(tool.started, resumed ?? tool.started)
+                items.append(Item(key: key, start: start, limit: seconds(rules.toolMinutes), alert: alert))
             }
             let waiting = session.state == .waiting || session.state == .needsApproval
             if waiting, let since = session.stateSince {

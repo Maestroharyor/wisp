@@ -254,6 +254,44 @@ final class AgentToolSessionTests: XCTestCase {
         XCTAssertEqual(sessions.session("s1")?.runningTools.map(\.name), ["Read"])
     }
 
+    func testADeniedPlanClearsExitPlanMode() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(try tool("PreToolUse", "ExitPlanMode", id: "p", input: ##"{"plan":"# Plan"}"##), at: start)
+        sessions.apply(
+            try event("PermissionRequest", extra: ##","tool_name":"ExitPlanMode","tool_input":{"plan":"# Plan"}"##),
+            at: start + 1)
+        XCTAssertEqual(sessions.session("s1")?.timeline.last?.text, "Plan", "the timeline still reads Plan")
+        sessions.record(.denied, "Denied", session: "s1", at: start + 2)
+        XCTAssertEqual(sessions.session("s1")?.runningTools.map(\.name), [])
+    }
+
+    func testLateEventsDontBringBackAnEndedSession() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(try event("SessionEnd"), at: start + 1)
+        sessions.apply(try tool("PostToolUse", "Read", id: "t"), at: start + 2)
+        let snapshot = StatusLineSnapshot.decode(Data(#"{"session_id":"s1","cwd":"/p/app"}"#.utf8))
+        sessions.apply(snapshot, source: .claude, terminal: nil, branch: nil, at: start + 3)
+        XCTAssertNil(sessions.session("s1"))
+    }
+
+    func testAResumedSessionComesBack() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(try event("SessionEnd"), at: start + 1)
+        sessions.apply(try event("SessionStart"), at: start + 5)
+        XCTAssertNotNil(sessions.session("s1"))
+    }
+
+    func testAnEndedSessionCanReturnOnceTheGraceIsOver() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(try event("SessionEnd"), at: start + 1)
+        sessions.apply(try tool("PreToolUse", "Read", id: "t"), at: start + 1 + AgentSessions.endedGrace + 1)
+        XCTAssertNotNil(sessions.session("s1"))
+    }
+
     func testLastActivityAndPruningCountToolCalls() throws {
         var sessions = AgentSessions()
         sessions.apply(try event("UserPromptSubmit"), at: start)

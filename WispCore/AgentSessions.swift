@@ -98,6 +98,9 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     public var process: AgentProcess?
     /// The last process reported that isn't confirmed yet.
     var processCandidate: AgentProcess?
+    /// The tool the open permission request is for (ExitPlanMode for a plan), so a denial
+    /// can stop showing it as running.
+    var requestedTool: String?
 
     /// Trusts a process once two reports name it. A launcher that runs each hook and exits
     /// has a new pid every time, so it never passes for the agent; a resumed session's new
@@ -199,8 +202,14 @@ extension AgentSession {
 /// Live Claude Code sessions, driven by hook events.
 public struct AgentSessions: Sendable {
     private var sessions: [String: AgentSession] = [:]
+    /// Sessions that just ended, and when. A status bar refresh or a background tool event
+    /// can arrive after SessionEnd; it mustn't bring the session back.
+    private var ended: [String: Date] = [:]
 
     public static let timelineLimit = 40
+    /// How long an ended session ignores late events. A resume (SessionStart) or a new
+    /// prompt brings it back at once.
+    public static let endedGrace: TimeInterval = 60
 
     public init() {}
 
@@ -211,8 +220,12 @@ public struct AgentSessions: Sendable {
 
     public mutating func apply(_ event: AgentEvent, at date: Date) {
         if event.kind == .sessionEnd {
-            sessions[event.sessionID] = nil
+            end(event.sessionID, at: date)
             return
+        }
+        if justEnded(event.sessionID, at: date) {
+            guard [.sessionStart, .userPromptSubmit].contains(event.kind) else { return }
+            ended[event.sessionID] = nil
         }
         var session =
             sessions[event.sessionID]
@@ -258,6 +271,7 @@ public struct AgentSessions: Sendable {
             Self.append(.waiting, "Needs you", to: &session, at: date)
         case .permissionRequest:
             session.state = .needsApproval
+            session.requestedTool = event.toolName
             let tool = event.prompt == .plan ? "Plan" : event.toolName ?? "Tool"
             Self.append(.request, tool, detail: event.summary, to: &session, at: date)
         case .notification:
@@ -313,10 +327,10 @@ public struct AgentSessions: Sendable {
         }
     }
 
-    /// The denied call is the newest running one with the requested tool's name (the
-    /// request's timeline entry); parallel calls to other tools carry on.
+    /// The denied call is the newest running one with the requested tool's name; parallel
+    /// calls to other tools carry on.
     private static func dropDeniedTool(in session: inout AgentSession) {
-        let requested = session.timeline.last { $0.kind == .request }?.text
+        let requested = session.requestedTool
         // A call Wisp never saw start (it launched mid-call) leaves the others alone.
         guard let index = session.runningTools.lastIndex(where: { $0.name == requested }) else { return }
         session.runningTools.remove(at: index)
@@ -341,7 +355,7 @@ public struct AgentSessions: Sendable {
     public mutating func apply(
         _ snapshot: StatusLineSnapshot, source: AgentSource, terminal: String?, branch: String?, at date: Date
     ) -> Bool {
-        guard let id = snapshot.sessionID else { return false }
+        guard let id = snapshot.sessionID, !justEnded(id, at: date) else { return false }
         let before = sessions[id].map { ($0.contextPercent?.rounded(), $0.compacting) }
         let figuresBefore = sessions[id].map(\.liveFigures)
         // Only a real cost counts: the first one replacing an estimate isn't new spend.
@@ -470,10 +484,20 @@ public struct AgentSessions: Sendable {
 
     /// Ends the sessions whose agent has quit without a SessionEnd and returns their ids.
     /// Sessions from an older helper have no process and are left to `prune`.
-    public mutating func endExited(running: (AgentProcess) -> Bool) -> [String] {
-        let ended = sessions.values.filter { $0.process.map { !running($0) } ?? false }.map(\.id)
-        for id in ended { sessions[id] = nil }
-        return ended.sorted()
+    public mutating func endExited(at date: Date, running: (AgentProcess) -> Bool) -> [String] {
+        let exited = sessions.values.filter { $0.process.map { !running($0) } ?? false }.map(\.id)
+        for id in exited { end(id, at: date) }
+        return exited.sorted()
+    }
+
+    private mutating func end(_ id: String, at date: Date) {
+        sessions[id] = nil
+        ended = ended.filter { date.timeIntervalSince($0.value) < Self.endedGrace }
+        ended[id] = date
+    }
+
+    private func justEnded(_ id: String, at date: Date) -> Bool {
+        ended[id].map { date.timeIntervalSince($0) < Self.endedGrace } ?? false
     }
 
     public mutating func prune(now: Date, olderThan age: TimeInterval) {
