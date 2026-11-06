@@ -13,8 +13,7 @@ struct ActivityBubble: Equatable {
 @MainActor
 @Observable
 final class ActivityCenter {
-    /// Sticky activities that a glyph can sum up, so they can sit in a bubble.
-    static let bubbleSlots: Set<ActivitySlot> = [.media, .timer, .agent, .meeting]
+    static let bubbleSlots = Set(ActivitySlot.allCases.filter(\.canBeBubble))
     static let bubbleLimit = 2
 
     private(set) var current: Activity?
