@@ -156,7 +156,7 @@ final class NotchModel {
     var bubbleRects: [CGRect] {
         SurfaceSizing.bubbleRects(
             beside: surfaceRect, count: bubbles.count, firstOnLeft: preferences.firstBubbleOnLeft,
-            placement: layout.placement)
+            placement: layout.anchor)
     }
 
     /// The bubble under a click, if any. Bubbles take clicks but don't open the shelf on hover.
@@ -183,7 +183,7 @@ final class NotchModel {
 
     var navPillRect: CGRect? {
         phase == .open && !dragging && preferences.appearance.navPill != .hidden
-            ? SurfaceSizing.navPillRect(for: surfaceRect, placement: layout.placement) : nil
+            ? SurfaceSizing.navPillRect(for: surfaceRect, placement: layout.anchor) : nil
     }
 
     /// Screen areas that count as "on the notch" for hover and clicks.
@@ -219,7 +219,6 @@ final class NotchModel {
         if case .notification = activity { return true }
         return activity.isMedium
     }
-    var placement: Placement { layout.placement }
 
     var motion: NotchMotion {
         .preset(speed, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)

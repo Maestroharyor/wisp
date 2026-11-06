@@ -73,9 +73,14 @@ public enum Placement: String, CaseIterable, Sendable, Identifiable {
         }
     }
 
+    public var openingSwipe: Swipe { edge.openingSwipe }
+    public var closingSwipe: Swipe { edge.closingSwipe }
+}
+
+extension ScreenEdge {
     /// The two-finger swipe that opens the shelf: away from the edge, the way it grows.
     public var openingSwipe: Swipe {
-        switch edge {
+        switch self {
         case .top: .down
         case .bottom: .up
         case .left: .right
@@ -85,7 +90,7 @@ public enum Placement: String, CaseIterable, Sendable, Identifiable {
 
     /// The swipe back towards the edge, which puts away a card.
     public var closingSwipe: Swipe {
-        switch edge {
+        switch self {
         case .top: .up
         case .bottom: .down
         case .left: .left
@@ -124,6 +129,9 @@ public struct NotchSizes: Sendable, Equatable {
 public struct NotchLayout: Sendable, Equatable {
     public let style: NotchStyle
     public let placement: Placement
+    /// The placement whose geometry surfaces, pills and bubbles follow. The same as
+    /// `placement` for a shell resting against an edge.
+    public let anchor: Placement
     /// The resting shape: the camera housing, a drawn notch, the idle island or a side tab.
     public let closedRect: CGRect
     public let screenFrame: CGRect
@@ -137,7 +145,7 @@ public struct NotchLayout: Sendable, Equatable {
     /// The line hit regions reach out to: the screen edge, or the menu bar or Dock in front of it.
     public let edgeLine: CGFloat
 
-    public var edge: ScreenEdge { placement.edge }
+    public var edge: ScreenEdge { anchor.edge }
 
     public var peekRect: CGRect { peekRect(strength: 1) }
 
@@ -160,7 +168,7 @@ public struct NotchLayout: Sendable, Equatable {
         let height = min(size.height, screenFrame.height)
         let closed = closedRect
         let origin: CGPoint
-        switch placement {
+        switch anchor {
         case .top: origin = CGPoint(x: closed.midX - width / 2, y: closed.maxY - height)
         case .topLeft: origin = CGPoint(x: closed.minX, y: closed.maxY - height)
         case .topRight: origin = CGPoint(x: closed.maxX - width, y: closed.maxY - height)
@@ -248,6 +256,7 @@ public enum NotchGeometry {
         var layout = NotchLayout(
             style: style,
             placement: placement,
+            anchor: placement,
             closedRect: closed,
             screenFrame: screen.frame,
             // Side tabs swell outward more than they grow taller.

@@ -174,7 +174,7 @@ final class NotchController {
         }
         // The mic end of the meeting pill mutes the microphone.
         if machine.phase != .open, case .meeting = model.activity,
-            SurfaceSizing.meetingMuteZone(in: model.surfaceRect, placement: layout.placement).contains(location)
+            SurfaceSizing.meetingMuteZone(in: model.surfaceRect, placement: layout.anchor).contains(location)
         {
             services.microphone.toggleMute()
             return
@@ -210,11 +210,11 @@ final class NotchController {
         guard machine.phase != .open, model.contains(location),
             let direction = swipe.add(dx: scroll.dx, dy: scroll.dy)
         else { return }
-        if direction == layout.placement.openingSwipe {
+        if direction == layout.edge.openingSwipe {
             send(.clicked)
             return
         }
-        if direction == layout.placement.closingSwipe, dismissActivity() { return }
+        if direction == layout.edge.closingSwipe, dismissActivity() { return }
         guard model.activity == .media else { return }
         // Skipping runs along the edge: sideways on top and bottom, up and down on the sides.
         switch (layout.edge.isSide, direction) {
