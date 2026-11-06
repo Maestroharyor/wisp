@@ -73,6 +73,11 @@ struct AgentSettings: View {
                         + (hub.isConnected(.claude) ? "" : " Applies when you connect Claude Code.")
                 )
             }
+            Section("Power") {
+                Toggle("Keep the Mac awake while an agent works", isOn: $preferences.agentKeepAwake)
+                Text("The display can still sleep. Sessions waiting on you don't keep it awake.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Alerts and spend") {
                 Toggle("Play a sound when an agent asks for permission", isOn: $preferences.approvalSound)
                 Toggle("Alert when a session's context is nearly full", isOn: $preferences.contextAlert)
@@ -98,6 +103,7 @@ struct AgentSettings: View {
                         LabeledContent("Remind after", value: "\(preferences.nudgeMinutes) min")
                     }
                 }
+                Toggle("Alert at 80% and 95% of a Claude usage limit", isOn: $preferences.limitAlert)
                 Toggle("Alert at 80% and 100% of a daily budget", isOn: $preferences.budgetAlert)
                 if preferences.budgetAlert {
                     // Spend is shown in dollars everywhere, whatever the region's currency.

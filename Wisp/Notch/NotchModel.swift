@@ -75,6 +75,14 @@ final class NotchModel {
     var agentDrafts: [String: String] = [:]
     /// Called by the card when a reply is sent or abandoned.
     var onReplyEnded: () -> Void = {}
+    /// A card wants typing (a question's "Other…" answer): the panel takes key status, and
+    /// gives it back once that's done.
+    var onWantsKey: () -> Void = {}
+    var onKeyDone: () -> Void = {}
+    /// The approval card opened to show its preview.
+    var expandedApproval: UUID?
+    /// The session whose pill was clicked: the Agents view opens on it.
+    var focusedSession: String?
 
     let services: AppServices
 
@@ -108,9 +116,16 @@ final class NotchModel {
             }
         case .peek, .closed:
             if let activity {
-                if case .notification = activity { return .notification(replying: replyingTo != nil) }
-                if case .agentApproval = activity { return .notification(replying: false) }
-                if case .meetingSoon = activity { return .notification(replying: false) }
+                if case .notification = activity {
+                    return .notification(extra: replyingTo != nil ? SurfaceSizing.replyBarHeight : 0)
+                }
+                if case .agentApproval(let approval) = activity {
+                    if approval.prompt == .question { return .notification(extra: SurfaceSizing.questionRowHeight) }
+                    // Private mode hides the preview, so the card doesn't keep its room either.
+                    let open = expandedApproval == approval.id && !services.agents.detailsHidden
+                    return .notification(extra: open ? SurfaceSizing.approvalPreviewHeight : 0)
+                }
+                if case .meetingSoon = activity { return .notification(extra: 0) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }
             // Only the grow feedback changes the shape; glow and wobble play on the closed one.

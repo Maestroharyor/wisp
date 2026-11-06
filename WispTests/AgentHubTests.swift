@@ -151,13 +151,6 @@ final class PermissionAnswerTests: XCTestCase {
     func testAQuestionGetsNoDecision() {
         XCTAssertNil(PermissionReply.answer(.question, allow: true, input: input))
     }
-
-    /// Only a plan's input is worth keeping while it waits.
-    func testOnlyAPlanKeepsItsInput() {
-        XCTAssertTrue(PermissionPrompt.plan.keepsInput)
-        XCTAssertFalse(PermissionPrompt.tool.keepsInput)
-        XCTAssertFalse(PermissionPrompt.question.keepsInput)
-    }
 }
 
 final class PermissionPromptTests: XCTestCase {
@@ -193,11 +186,44 @@ final class PermissionPromptTests: XCTestCase {
         XCTAssertEqual(event.summary, "ls")
     }
 
-    /// Only the terminal can pick an answer, so a question shows as Needs you, not a card.
+    /// A question needs the user: Needs you, with its card in the notch.
     func testAQuestionWaitsForTheUser() throws {
         var sessions = AgentSessions()
         sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: Date())
         XCTAssertEqual(sessions.list.first?.state, .waiting)
+    }
+
+    func testOnlyABusySessionCountsAsWorking() throws {
+        var sessions = AgentSessions()
+        let start = Date(timeIntervalSince1970: 1_000)
+        XCTAssertFalse(sessions.anyWorking(now: start))
+        sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: start)
+        XCTAssertFalse(sessions.anyWorking(now: start), "waiting on the user")
+        let prompt = try AgentEvent.decode(Data(#"{"session_id":"t","hook_event_name":"UserPromptSubmit"}"#.utf8))
+        sessions.apply(prompt, at: start)
+        XCTAssertTrue(sessions.anyWorking(now: start.addingTimeInterval(60)))
+        // An agent that died without a word stops counting once it's been quiet a while.
+        XCTAssertFalse(sessions.anyWorking(now: start.addingTimeInterval(AgentSessions.quietLimit + 1)))
+    }
+
+    func testARequestHandedBackToTheTerminalNeedsYou() throws {
+        var sessions = AgentSessions()
+        let start = Date(timeIntervalSince1970: 1_000)
+        sessions.apply(try request("Bash", input: #"{"command":"ls"}"#), at: start)
+        sessions.handedBack(session: "s", at: start.addingTimeInterval(110))
+        XCTAssertEqual(sessions.session("s")?.state, .waiting)
+        XCTAssertEqual(sessions.session("s")?.stateSince, start.addingTimeInterval(110))
+        XCTAssertEqual(sessions.session("s")?.timeline.last?.text, "Needs you")
+    }
+
+    func testAnsweringFromTheNotchPutsTheSessionBackToWork() throws {
+        var sessions = AgentSessions()
+        let start = Date(timeIntervalSince1970: 1_000)
+        sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: start)
+        sessions.answeredQuestion(session: "s", at: start.addingTimeInterval(5))
+        XCTAssertEqual(sessions.session("s")?.state, .running)
+        XCTAssertEqual(sessions.session("s")?.stateSince, start.addingTimeInterval(5))
+        XCTAssertEqual(sessions.session("s")?.timeline.last?.kind, .answered)
     }
 
     /// After a question is answered in the terminal, the next model call shows as new spend in

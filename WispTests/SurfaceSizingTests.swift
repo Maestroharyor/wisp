@@ -182,7 +182,7 @@ final class ShelfSizeTests: XCTestCase {
     }
 
     func testPillsKeepTheirSize() {
-        for spec in [SurfaceSpec.closed, .compact(wide: false), .medium, .notification(replying: false)] {
+        for spec in [SurfaceSpec.closed, .compact(wide: false), .medium, .notification(extra: 0)] {
             XCTAssertEqual(
                 SurfaceSizing.rect(for: spec, in: layout, contentScale: 1.12), SurfaceSizing.rect(for: spec, in: layout)
             )

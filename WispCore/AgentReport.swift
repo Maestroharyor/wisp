@@ -21,6 +21,32 @@ public struct AgentReport: Codable, Equatable, Sendable {
     public var hidden: String?
     public var sessions: [Row]
     public var spend: Spend?
+    /// Claude subscription usage windows; nil from a Wisp older than them.
+    public var limits: [Limit]?
+
+    public struct Limit: Codable, Equatable, Sendable {
+        /// "fiveHour" or "sevenDay".
+        public var window: String
+        public var percent: Double
+        public var resets: Date?
+        /// When it runs out at the current pace, if before it resets.
+        public var full: Date?
+
+        public init(window: String, percent: Double, resets: Date?, full: Date?) {
+            self.window = window
+            self.percent = percent
+            self.resets = resets
+            self.full = full
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(window, forKey: .window)
+            try container.encode(percent, forKey: .percent)
+            try container.encode(resets, forKey: .resets)
+            try container.encode(full, forKey: .full)
+        }
+    }
 
     public struct Row: Codable, Equatable, Sendable {
         /// Left out while details are hidden.
@@ -83,19 +109,21 @@ public struct AgentReport: Codable, Equatable, Sendable {
         try container.encode(hidden, forKey: .hidden)
         try container.encode(sessions, forKey: .sessions)
         try container.encode(spend, forKey: .spend)
+        try container.encode(limits ?? [], forKey: .limits)
     }
 
-    public init(generated: Date, hidden: String?, sessions: [Row], spend: Spend?) {
+    public init(generated: Date, hidden: String?, sessions: [Row], spend: Spend?, limits: [Limit] = []) {
         self.generated = generated
         self.hidden = hidden
         self.sessions = sessions
         self.spend = spend
+        self.limits = limits
     }
 
     /// `hidden` is the reason details are hidden (`AgentPrivacy.reason`), or nil.
     public static func make(
         sessions: [AgentSession], spend: DailySpend, query: AgentQuery, now: Date, hidden: String?,
-        calendar: Calendar = .current
+        limits: [Limit] = [], calendar: Calendar = .current
     ) -> AgentReport {
         let rows = sessions.sorted { $0.latestActivity > $1.latestActivity }.map {
             row($0, now: now, hidden: hidden != nil)
@@ -110,7 +138,7 @@ public struct AgentReport: Codable, Equatable, Sendable {
                     Project(project: $0.project, today: $0.today, week: $0.week)
                 })
             : nil
-        return AgentReport(generated: now, hidden: hidden, sessions: rows, spend: spendPart)
+        return AgentReport(generated: now, hidden: hidden, sessions: rows, spend: spendPart, limits: limits)
     }
 
     static func row(_ session: AgentSession, now: Date, hidden: Bool) -> Row {

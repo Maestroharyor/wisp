@@ -39,6 +39,9 @@ public struct StatusLineSnapshot: Equatable, Sendable {
         /// Subscription usage, 0 to 100, in the current five-hour and seven-day windows.
         public var fiveHourPercent: Double?
         public var sevenDayPercent: Double?
+        /// When each window starts over; Claude Code may leave either out.
+        public var fiveHourResets: Date?
+        public var sevenDayResets: Date?
         public var cacheHitRatio: Double?
         public var pullRequest: Int?
         public var pullRequestState: String?
@@ -62,6 +65,10 @@ public struct StatusLineSnapshot: Equatable, Sendable {
             }
             fiveHourPercent = json["rate_limits"]?["five_hour"]?["used_percentage"]?.doubleValue
             sevenDayPercent = json["rate_limits"]?["seven_day"]?["used_percentage"]?.doubleValue
+            fiveHourResets = json["rate_limits"]?["five_hour"]?["resets_at"]?.doubleValue.map(
+                Date.init(timeIntervalSince1970:))
+            sevenDayResets = json["rate_limits"]?["seven_day"]?["resets_at"]?.doubleValue.map(
+                Date.init(timeIntervalSince1970:))
             cacheHitRatio = json["prompt_cache"]?["hit_ratio"]?.doubleValue
             pullRequest = json["pr"]?["number"]?.intValue
             pullRequestState = json["pr"]?["review_state"]?.stringValue

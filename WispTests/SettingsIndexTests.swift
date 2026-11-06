@@ -23,6 +23,7 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "update"), [.about])
         XCTAssertEqual(SettingsIndex.panes(matching: "sparkle release"), [.about])
         XCTAssertEqual(SettingsIndex.panes(matching: "dismiss"), [.notifications])
+        XCTAssertEqual(SettingsIndex.panes(matching: "rate limit"), [.agents])
         XCTAssertTrue(SettingsIndex.panes(matching: "stay on screen").contains(.notifications))
     }
 

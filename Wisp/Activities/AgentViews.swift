@@ -159,8 +159,16 @@ struct AgentApprovalCard: View {
     let model: NotchModel
 
     var body: some View {
+        if approval.prompt == .question {
+            AgentQuestionCard(approval: approval, model: model)
+        } else {
+            requestCard
+        }
+    }
+
+    private var requestCard: some View {
         let hub = model.services.agents
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             Color.clear.frame(height: model.isNotchStyle ? model.notchHeight : 8)
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: approval.source.symbol)
@@ -185,6 +193,19 @@ struct AgentApprovalCard: View {
                         }
                         .buttonStyle(.plain)
                         .help("Show the terminal")
+                        // Private mode keeps the diff, command and plan out of sight too.
+                        if approval.preview != nil, !hub.detailsHidden {
+                            Button {
+                                model.expandedApproval = expanded ? nil : approval.id
+                            } label: {
+                                Label(
+                                    expanded ? "Less" : "Preview", systemImage: expanded ? "chevron.up" : "chevron.down"
+                                )
+                                .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.wispViolet)
+                            }
+                            .buttonStyle(.plain)
+                            .help(approval.prompt == .plan ? "Read the plan" : "See what it will change")
+                        }
                     }
                     ApprovalSummary(
                         approval: approval, hidden: hub.detailsHidden,
@@ -198,9 +219,137 @@ struct AgentApprovalCard: View {
             }
             .padding(.horizontal, 18)
             .frame(height: SurfaceSizing.notificationCardHeight - 8)
+            if expanded, let preview = approval.preview, !hub.detailsHidden {
+                VStack(spacing: 8) {
+                    ApprovalPreviewPane(preview: preview)
+                    DenyReasonRow(approval: approval, model: model)
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 12)
+                .frame(height: SurfaceSizing.approvalPreviewHeight)
+                .transition(.opacity)
+            }
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
+    }
+
+    private var expanded: Bool { model.expandedApproval == approval.id }
+}
+
+/// The diff, command, new file or plan behind a request, scrolled inside the card.
+private struct ApprovalPreviewPane: View {
+    let preview: ApprovalPreview
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 1) {
+                switch preview {
+                case .diff(let lines, let more):
+                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                        Text(Self.marker(line.kind) + line.text)
+                            .foregroundStyle(Self.tint(line.kind))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Self.tint(line.kind).opacity(line.kind == .context ? 0 : 0.12))
+                    }
+                    moreLines(more)
+                case .text(let text, let more):
+                    Text(text).foregroundStyle(.white.opacity(0.85))
+                    moreLines(more)
+                case .markdown(let plan):
+                    Text(Self.markdown(plan)).font(.system(size: 12)).foregroundStyle(.white.opacity(0.9))
+                }
+            }
+            .font(.system(size: 11, design: .monospaced))
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+        }
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.06)))
+    }
+
+    @ViewBuilder private func moreLines(_ count: Int) -> some View {
+        if count > 0 {
+            Text("\(count) more lines").foregroundStyle(Color.secondaryText).padding(.top, 4)
+        }
+    }
+
+    private static func marker(_ kind: DiffLine.Kind) -> String {
+        switch kind {
+        case .context: "  "
+        case .removed: "- "
+        case .added: "+ "
+        }
+    }
+
+    private static func tint(_ kind: DiffLine.Kind) -> Color {
+        switch kind {
+        case .context: .white.opacity(0.6)
+        case .removed: .red
+        case .added: .wispGreen
+        }
+    }
+
+    /// Bold, code and links render; headings and lists stay as written, line breaks and all.
+    private static func markdown(_ plan: String) -> AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: plan, options: options)) ?? AttributedString(plan)
+    }
+}
+
+/// "Reason…" opens a field; Deny then tells Claude what to do instead.
+private struct DenyReasonRow: View {
+    let approval: AgentApproval
+    let model: NotchModel
+
+    @State private var typing = false
+    @State private var reason = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if typing {
+                TextField(
+                    approval.prompt == .plan ? "What should change?" : "Why not, or what to do instead", text: $reason
+                )
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($focused)
+                .onSubmit(deny)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(Capsule().fill(.white.opacity(0.1)))
+                Button("Cancel", action: stopTyping)
+                    .buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+                Button("Deny", action: deny)
+                    .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
+                    .padding(.horizontal, 12).frame(height: 28)
+                    .background(Capsule().fill(.white.opacity(0.14)))
+            } else {
+                Button("Deny with a reason…") {
+                    typing = true
+                    model.onWantsKey()
+                    focused = true
+                }
+                .buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.wispViolet)
+                Spacer()
+            }
+        }
+        .frame(height: 28)
+        // Collapsing the preview mid-reason mustn't leave the notch holding the keyboard.
+        .onDisappear { if typing { model.onKeyDone() } }
+    }
+
+    private func stopTyping() {
+        typing = false
+        reason = ""
+        model.onKeyDone()
+    }
+
+    private func deny() {
+        model.services.agents.deny(approval.id, reason: reason)
+        stopTyping()
     }
 }
 
@@ -273,8 +422,42 @@ struct ApprovalBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let approval: AgentApproval
     let hub: AgentHub
+    let model: NotchModel
 
     var body: some View {
+        Group {
+            if approval.prompt == .question {
+                questionBar
+            } else {
+                requestBar
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(white: 0.12))
+                .shadow(color: .black.opacity(0.5), radius: 10, y: -2)
+        )
+        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var questionBar: some View {
+        QuestionAnswers(approval: approval, hub: hub, model: model) { step in
+            HStack(spacing: 8) {
+                Image(systemName: "questionmark.bubble.fill").foregroundStyle(Color.project(approval.project))
+                Text(step.header).font(.system(size: 12, weight: .bold))
+                if let position = step.position {
+                    Text(position).font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(Color.secondaryText)
+                }
+                Text(step.text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 10)
+        }
+    }
+
+    private var requestBar: some View {
         HStack(spacing: 10) {
             Image(systemName: approval.source.symbol).foregroundStyle(Color.project(approval.project))
             Text(approval.title).font(.system(size: 12, weight: .bold))
@@ -291,12 +474,6 @@ struct ApprovalBar: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 40)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(white: 0.12))
-                .shadow(color: .black.opacity(0.5), radius: 10, y: -2)
-        )
-        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     }
 }
 
@@ -535,6 +712,13 @@ struct AgentsDetail: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { hub.refreshInstalled() }
         .onChange(of: selected?.id) { note = nil }
+        .onAppear {
+            // Opened from the pill: start on that session, once.
+            if let focused = model.focusedSession {
+                selection = focused
+                model.focusedSession = nil
+            }
+        }
     }
 
     private func draft(for session: String) -> Binding<String> {

@@ -82,7 +82,10 @@ extension AgentSession {
         if let ratio = live.cacheHitRatio { result.append(AgentFact("Cache hits", "\(Int((ratio * 100).rounded()))%")) }
         if live.fiveHourPercent != nil || live.sevenDayPercent != nil {
             let parts = [
-                live.fiveHourPercent.map { "\(Int($0.rounded()))% of 5 h" },
+                live.fiveHourPercent.map {
+                    "\(Int($0.rounded()))% of 5 h"
+                        + (live.fiveHourResets.map { ", resets \(LimitWatch.clock($0))" } ?? "")
+                },
                 live.sevenDayPercent.map { "\(Int($0.rounded()))% of 7 days" },
             ].compactMap { $0 }
             result.append(AgentFact("Usage limits", parts.joined(separator: " · ")))

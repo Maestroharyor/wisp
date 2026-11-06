@@ -173,11 +173,11 @@ public enum PermissionPrompt: Equatable, Sendable {
     case tool
     /// ExitPlanMode: allowed by echoing the plan back as `updatedInput`.
     case plan
-    /// AskUserQuestion: only the terminal can pick an answer, so Wisp shows no card for it.
+    /// AskUserQuestion: answered with the picked options in `updatedInput` (`QuestionReply`).
     case question
 
-    /// A plan's input goes back with the approval; nothing else needs keeping while it waits.
-    public var keepsInput: Bool { self == .plan }
+    /// A plan's input goes back with the approval, and a question's with its answers.
+    public var keepsInput: Bool { self != .tool }
 
     public init(tool: String?) {
         switch tool {
@@ -190,8 +190,8 @@ public enum PermissionPrompt: Equatable, Sendable {
 
 /// The hook's stdout for a PermissionRequest decision.
 public enum PermissionReply {
-    /// The reply to a request answered in the notch. A plan gets its input back, or Claude
-    /// Code ignores the allow; a question gets no decision, since only the terminal can answer it.
+    /// The reply to an Allow or Deny in the notch. A plan gets its input back, or Claude Code
+    /// ignores the allow; a question is answered with `QuestionReply`, never a bare decision.
     public static func answer(_ prompt: PermissionPrompt, allow: Bool, input: JSONValue?) -> String? {
         switch prompt {
         case .question: nil
@@ -200,13 +200,22 @@ public enum PermissionReply {
         }
     }
 
+    /// What Claude is told on a deny, with the reason typed in the notch if there is one.
+    public static func denial(for prompt: PermissionPrompt, reason: String) -> String {
+        let reason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        if prompt == .plan { return reason.isEmpty ? planDenied : "\(planDenied) What to change: \(reason)" }
+        return reason.isEmpty ? defaultDenial : "Denied from the Wisp notch: \(reason)"
+    }
+
+    public static let defaultDenial = "Denied from the Wisp notch."
+
     /// Tells Claude the plan was turned down, not the task, so it revises instead of stopping.
     public static let planDenied = "The plan wasn't approved from the Wisp notch. Keep planning and ask what to change."
 
     /// `updatedInput` goes with an allow only; a plan needs it or the allow is ignored.
     /// `denial` is what Claude is told on a deny.
     public static func json(
-        allow: Bool, updatedInput: JSONValue? = nil, denial: String = "Denied from the Wisp notch."
+        allow: Bool, updatedInput: JSONValue? = nil, denial: String = defaultDenial
     ) -> String? {
         var decision: [String: JSONValue] = ["behavior": .string(allow ? "allow" : "deny")]
         if !allow { decision["message"] = .string(denial) }

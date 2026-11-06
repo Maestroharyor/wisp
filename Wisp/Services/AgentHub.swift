@@ -12,9 +12,30 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let source: AgentSource
     let tool: String
     let summary: String
-    var prompt: PermissionPrompt = .tool
-    /// Kept only for a plan, whose approval sends it back.
-    var input: JSONValue? = nil
+    let prompt: PermissionPrompt
+    /// Kept for a plan or a question, whose answer sends it back.
+    let input: JSONValue?
+    /// The diff, command or plan the card can expand to show.
+    let preview: ApprovalPreview?
+    /// What an AskUserQuestion asks, in order; empty for other requests. Parsed once, since
+    /// the question card reads it on every redraw.
+    let questions: [AgentQuestion]
+
+    init(
+        id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
+        prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil
+    ) {
+        self.id = id
+        self.sessionID = sessionID
+        self.project = project
+        self.source = source
+        self.tool = tool
+        self.summary = summary
+        self.prompt = prompt
+        self.input = input
+        self.preview = preview
+        questions = prompt == .question ? AgentQuestion.parse(input) : []
+    }
 
     /// The card's title: a plan is approved, not "used".
     var title: String { prompt == .plan ? "Approve plan" : tool }
@@ -70,6 +91,11 @@ final class AgentHub {
     }
     /// Dollars a day before the budget notices; nil turns them off. Set from Preferences.
     var dailyBudget: Double?
+    /// Notices when a Claude usage window passes 80% and 95%. Set from Preferences.
+    var limitAlerts = true
+    /// The usage windows the status bar reported last; they're the account's, not a session's.
+    private(set) var limitReadings: [UsageReading] = []
+    @ObservationIgnored private var limitWatch = LimitWatch()
     /// Wisp's tool hooks are in Claude Code's settings.
     private(set) var toolsInstalled = false
     // A change republishes the pill so a tool label hides the moment a call starts.
@@ -273,7 +299,8 @@ final class AgentHub {
         case .query(let query):
             // `wisp status` follows private mode, the same as the notch.
             let report = AgentReport.make(
-                sessions: sessions.list, spend: spend, query: query, now: .now, hidden: hiddenReason)
+                sessions: sessions.list, spend: spend, query: query, now: .now, hidden: hiddenReason,
+                limits: currentLimits(now: .now))
             reply(connection, report.encoded().map { String(decoding: $0, as: UTF8.self) })
         case .unsupported(let name):
             if unsupportedLogged.insert(name).inserted {
@@ -305,8 +332,10 @@ final class AgentHub {
         if event.kind == .stop { refreshUsage(for: event.sessionID) }
         if event.kind == .sessionEnd { transcripts[event.sessionID] = nil }
 
-        if event.kind == .permissionRequest, event.prompt == .question {
-            // Wisp can't pick an answer, so the question stays in the terminal (Needs you).
+        if event.kind == .permissionRequest, event.prompt == .question,
+            AgentQuestion.parse(event.rawToolInput).isEmpty
+        {
+            // Nothing Wisp can show, so the terminal asks (Needs you).
             reply(connection, nil)
         } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event) {
             reply(connection, PermissionReply.json(allow: true))
@@ -318,14 +347,16 @@ final class AgentHub {
                 id: UUID(), sessionID: event.sessionID, project: event.project, source: event.source,
                 tool: event.toolName ?? "Tool",
                 summary: event.summary, prompt: event.prompt,
-                input: event.prompt.keepsInput ? event.rawToolInput : nil)
+                input: event.prompt.keepsInput ? event.rawToolInput : nil,
+                preview: ApprovalPreview.make(
+                    tool: event.toolName ?? "", input: event.rawToolInput, limit: Self.previewLines))
             pending[approval.id] = approval
             queue.enqueue(approval.id)
             waiting[approval.id] = connection
             timeouts[approval.id] = Task { [weak self, approvalWait] in
                 try? await Task.sleep(for: approvalWait)
                 guard !Task.isCancelled else { return }
-                self?.answer(approval.id, allow: nil)
+                self?.handBack(approval.id)
             }
             onApproval(approvals.first)
             onNewRequest()
@@ -368,7 +399,28 @@ final class AgentHub {
             {
                 onContextAlert(ContextUsage.notice(percent: percent, project: project))
             }
+            checkLimits(item.snapshot)
             if pillChanged { publishStatus() }
+        }
+    }
+
+    /// Tracked even while the alerts are off, so turning them on stays quiet until the next level.
+    private func checkLimits(_ snapshot: StatusLineSnapshot) {
+        let readings = UsageLimits.readings(snapshot.extras)
+        guard !readings.isEmpty else { return }
+        limitReadings = readings
+        let due = limitWatch.record(readings, at: .now)
+        guard limitAlerts else { return }
+        for alert in due { onAlert("gauge.with.dots.needle.67percent", alert.text) }
+    }
+
+    /// The usage windows for `wisp status`, with when each runs out at today's pace. A window
+    /// past its reset time is stale and left out.
+    func currentLimits(now: Date) -> [AgentReport.Limit] {
+        limitReadings.filter { $0.resets.map { $0 > now } ?? true }.map { reading in
+            AgentReport.Limit(
+                window: reading.window.rawValue, percent: reading.percent, resets: reading.resets,
+                full: limitWatch.forecast(reading.window))
         }
     }
 
@@ -403,11 +455,9 @@ final class AgentHub {
 
     /// `allow` nil leaves the decision to Claude Code's own prompt.
     func answer(_ id: UUID, allow: Bool?) {
-        guard let approval = approvals.first(where: { $0.id == id }) else { return }
-        queue.remove(id)
-        pending[id] = nil
-        timeouts.removeValue(forKey: id)?.cancel()
-        if let connection = waiting.removeValue(forKey: id) {
+        guard let taken = take(id) else { return }
+        let approval = taken.approval
+        if let connection = taken.connection {
             reply(
                 connection, allow.flatMap { PermissionReply.answer(approval.prompt, allow: $0, input: approval.input) })
         }
@@ -420,6 +470,56 @@ final class AgentHub {
         sessions.resolveApproval(session: approval.sessionID, at: .now)
         onApproval(approvals.first)
         publishStatus()
+    }
+
+    /// Nobody answered in the notch: the terminal asks instead, so the session waits on the
+    /// user there (Needs you) rather than looking like it carried on.
+    private func handBack(_ id: UUID) {
+        guard let taken = take(id) else { return }
+        if let connection = taken.connection { reply(connection, nil) }
+        sessions.handedBack(session: taken.approval.sessionID, at: .now)
+        onApproval(approvals.first)
+        publishStatus()
+    }
+
+    /// Denies a request and tells Claude why, in the words typed on the card.
+    func deny(_ id: UUID, reason: String) {
+        guard let taken = take(id) else { return }
+        let approval = taken.approval
+        if let connection = taken.connection {
+            reply(
+                connection,
+                PermissionReply.json(allow: false, denial: PermissionReply.denial(for: approval.prompt, reason: reason))
+            )
+        }
+        sessions.record(.denied, "Denied", session: approval.sessionID, at: .now)
+        sessions.resolveApproval(session: approval.sessionID, at: .now)
+        onApproval(approvals.first)
+        publishStatus()
+    }
+
+    /// Lines of a diff or new file an approval card shows at most.
+    private static let previewLines = 60
+
+    /// Answers a question from the notch; `answers` maps each question's text to its answer.
+    func answerQuestion(_ id: UUID, answers: [String: String]) {
+        guard let taken = take(id) else { return }
+        let approval = taken.approval
+        if let connection = taken.connection {
+            reply(connection, approval.input.flatMap { QuestionReply.json(input: $0, answers: answers) })
+        }
+        sessions.answeredQuestion(session: approval.sessionID, at: .now)
+        onApproval(approvals.first)
+        publishStatus()
+    }
+
+    /// Takes a request off the queue, with the hook call still waiting for its reply.
+    private func take(_ id: UUID) -> (approval: AgentApproval, connection: NWConnection?)? {
+        guard let approval = approvals.first(where: { $0.id == id }) else { return nil }
+        queue.remove(id)
+        pending[id] = nil
+        timeouts.removeValue(forKey: id)?.cancel()
+        return (approval, waiting.removeValue(forKey: id))
     }
 
     /// Allows this request and every later one from the same session, until it ends.

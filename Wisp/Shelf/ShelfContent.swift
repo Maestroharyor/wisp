@@ -31,7 +31,7 @@ struct ShelfContent: View {
         .overlay(alignment: .bottom) {
             let hub = model.services.agents
             if let approval = hub.approvals.first {
-                ApprovalBar(approval: approval, hub: hub)
+                ApprovalBar(approval: approval, hub: hub, model: model)
                     .id(approval.id)
                     .padding(.horizontal, insets.leading)
                     .padding(.bottom, 10)
