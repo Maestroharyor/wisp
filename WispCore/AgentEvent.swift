@@ -173,11 +173,11 @@ public enum PermissionPrompt: Equatable, Sendable {
     case tool
     /// ExitPlanMode: allowed by echoing the plan back as `updatedInput`.
     case plan
-    /// AskUserQuestion: only the terminal can pick an answer, so Wisp shows no card for it.
+    /// AskUserQuestion: answered with the picked options in `updatedInput` (`QuestionReply`).
     case question
 
-    /// A plan's input goes back with the approval; nothing else needs keeping while it waits.
-    public var keepsInput: Bool { self == .plan }
+    /// A plan's input goes back with the approval, and a question's with its answers.
+    public var keepsInput: Bool { self != .tool }
 
     public init(tool: String?) {
         switch tool {
@@ -190,8 +190,8 @@ public enum PermissionPrompt: Equatable, Sendable {
 
 /// The hook's stdout for a PermissionRequest decision.
 public enum PermissionReply {
-    /// The reply to a request answered in the notch. A plan gets its input back, or Claude
-    /// Code ignores the allow; a question gets no decision, since only the terminal can answer it.
+    /// The reply to an Allow or Deny in the notch. A plan gets its input back, or Claude Code
+    /// ignores the allow; a question is answered with `QuestionReply`, never a bare decision.
     public static func answer(_ prompt: PermissionPrompt, allow: Bool, input: JSONValue?) -> String? {
         switch prompt {
         case .question: nil

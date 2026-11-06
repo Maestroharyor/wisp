@@ -166,8 +166,8 @@ final class NotificationTests: XCTestCase {
                 auxiliaryTopLeft: CGRect(x: 0, y: 950, width: 663.5, height: 32),
                 auxiliaryTopRight: CGRect(x: 848.5, y: 950, width: 663.5, height: 32)
             ))
-        let card = SurfaceSizing.rect(for: .notification(replying: false), in: layout)
-        let reply = SurfaceSizing.rect(for: .notification(replying: true), in: layout)
+        let card = SurfaceSizing.rect(for: .notification(extra: 0), in: layout)
+        let reply = SurfaceSizing.rect(for: .notification(extra: SurfaceSizing.replyBarHeight), in: layout)
         XCTAssertEqual(card.width, SurfaceSizing.notificationWidth)
         XCTAssertEqual(card.height, 32 + SurfaceSizing.notificationCardHeight)
         XCTAssertEqual(reply.height - card.height, SurfaceSizing.replyBarHeight)

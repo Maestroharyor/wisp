@@ -36,6 +36,12 @@ final class NotchController {
         panel.orderFrontRegardless()
         syncSettings()
         model.onReplyEnded = { [weak self] in self?.endReply() }
+        model.onWantsKey = { [weak self] in self?.panel.makeKey() }
+        model.onKeyDone = { [weak self] in
+            // An open shelf keeps its key status for its own fields.
+            guard let self, self.machine.phase != .open else { return }
+            self.panel.resignKey()
+        }
         observeActivity()
         // Turning Reduce Motion on takes effect right away, not at the next hover.
         motionObserver = NSWorkspace.shared.notificationCenter.addObserver(

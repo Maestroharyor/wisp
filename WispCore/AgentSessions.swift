@@ -265,7 +265,7 @@ public struct AgentSessions: Sendable {
             session.turnEnded = nil
             Self.append(.prompt, "Prompt sent", to: &session, at: date)
         case .permissionRequest where event.prompt == .question:
-            // Answered in the terminal, like a Needs you notification.
+            // Needs you until answered, from the notch's card or in the terminal.
             session.state = .waiting
             session.clearTools()
             Self.append(.waiting, "Needs you", to: &session, at: date)
@@ -454,6 +454,16 @@ public struct AgentSessions: Sendable {
     }
 
     /// An approval was answered (from the notch or the terminal): back to work.
+    /// A question answered from the notch: the session is working again.
+    public mutating func answeredQuestion(session id: String, at date: Date) {
+        guard var session = sessions[id], session.state == .waiting else { return }
+        session.state = .running
+        session.stateSince = date
+        session.updated = date
+        Self.append(.answered, "Answered", to: &session, at: date)
+        sessions[id] = session
+    }
+
     public mutating func resolveApproval(session id: String, at date: Date) {
         guard var session = sessions[id], session.state == .needsApproval else { return }
         session.state = .running

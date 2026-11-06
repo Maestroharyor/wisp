@@ -18,6 +18,9 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
 
     /// The card's title: a plan is approved, not "used".
     var title: String { prompt == .plan ? "Approve plan" : tool }
+
+    /// What an AskUserQuestion asks, in order; empty for other requests.
+    var questions: [AgentQuestion] { prompt == .question ? AgentQuestion.parse(input) : [] }
 }
 
 /// Session status for the compact pill.
@@ -305,8 +308,10 @@ final class AgentHub {
         if event.kind == .stop { refreshUsage(for: event.sessionID) }
         if event.kind == .sessionEnd { transcripts[event.sessionID] = nil }
 
-        if event.kind == .permissionRequest, event.prompt == .question {
-            // Wisp can't pick an answer, so the question stays in the terminal (Needs you).
+        if event.kind == .permissionRequest, event.prompt == .question,
+            AgentQuestion.parse(event.rawToolInput).isEmpty
+        {
+            // Nothing Wisp can show, so the terminal asks (Needs you).
             reply(connection, nil)
         } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event) {
             reply(connection, PermissionReply.json(allow: true))
@@ -403,11 +408,9 @@ final class AgentHub {
 
     /// `allow` nil leaves the decision to Claude Code's own prompt.
     func answer(_ id: UUID, allow: Bool?) {
-        guard let approval = approvals.first(where: { $0.id == id }) else { return }
-        queue.remove(id)
-        pending[id] = nil
-        timeouts.removeValue(forKey: id)?.cancel()
-        if let connection = waiting.removeValue(forKey: id) {
+        guard let taken = take(id) else { return }
+        let approval = taken.approval
+        if let connection = taken.connection {
             reply(
                 connection, allow.flatMap { PermissionReply.answer(approval.prompt, allow: $0, input: approval.input) })
         }
@@ -420,6 +423,27 @@ final class AgentHub {
         sessions.resolveApproval(session: approval.sessionID, at: .now)
         onApproval(approvals.first)
         publishStatus()
+    }
+
+    /// Answers a question from the notch; `answers` maps each question's text to its answer.
+    func answerQuestion(_ id: UUID, answers: [String: String]) {
+        guard let taken = take(id) else { return }
+        let approval = taken.approval
+        if let connection = taken.connection {
+            reply(connection, approval.input.flatMap { QuestionReply.json(input: $0, answers: answers) })
+        }
+        sessions.answeredQuestion(session: approval.sessionID, at: .now)
+        onApproval(approvals.first)
+        publishStatus()
+    }
+
+    /// Takes a request off the queue, with the hook call still waiting for its reply.
+    private func take(_ id: UUID) -> (approval: AgentApproval, connection: NWConnection?)? {
+        guard let approval = approvals.first(where: { $0.id == id }) else { return nil }
+        queue.remove(id)
+        pending[id] = nil
+        timeouts.removeValue(forKey: id)?.cancel()
+        return (approval, waiting.removeValue(forKey: id))
     }
 
     /// Allows this request and every later one from the same session, until it ends.

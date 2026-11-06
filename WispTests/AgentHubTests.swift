@@ -151,13 +151,6 @@ final class PermissionAnswerTests: XCTestCase {
     func testAQuestionGetsNoDecision() {
         XCTAssertNil(PermissionReply.answer(.question, allow: true, input: input))
     }
-
-    /// Only a plan's input is worth keeping while it waits.
-    func testOnlyAPlanKeepsItsInput() {
-        XCTAssertTrue(PermissionPrompt.plan.keepsInput)
-        XCTAssertFalse(PermissionPrompt.tool.keepsInput)
-        XCTAssertFalse(PermissionPrompt.question.keepsInput)
-    }
 }
 
 final class PermissionPromptTests: XCTestCase {
@@ -193,11 +186,21 @@ final class PermissionPromptTests: XCTestCase {
         XCTAssertEqual(event.summary, "ls")
     }
 
-    /// Only the terminal can pick an answer, so a question shows as Needs you, not a card.
+    /// A question needs the user: Needs you, with its card in the notch.
     func testAQuestionWaitsForTheUser() throws {
         var sessions = AgentSessions()
         sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: Date())
         XCTAssertEqual(sessions.list.first?.state, .waiting)
+    }
+
+    func testAnsweringFromTheNotchPutsTheSessionBackToWork() throws {
+        var sessions = AgentSessions()
+        let start = Date(timeIntervalSince1970: 1_000)
+        sessions.apply(try request("AskUserQuestion", input: #"{"questions":[]}"#), at: start)
+        sessions.answeredQuestion(session: "s", at: start.addingTimeInterval(5))
+        XCTAssertEqual(sessions.session("s")?.state, .running)
+        XCTAssertEqual(sessions.session("s")?.stateSince, start.addingTimeInterval(5))
+        XCTAssertEqual(sessions.session("s")?.timeline.last?.kind, .answered)
     }
 
     /// After a question is answered in the terminal, the next model call shows as new spend in

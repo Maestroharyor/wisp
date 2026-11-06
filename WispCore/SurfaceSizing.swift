@@ -18,8 +18,9 @@ public enum SurfaceSpec: Sendable, Equatable {
     case tray(items: Int)
     /// Drop tiles: the four built-in ones plus up to two Drop Actions.
     case dropTiles(extra: Int)
-    /// A notification card under the notch; `replying` adds the reply bar.
-    case notification(replying: Bool)
+    /// A card under the notch (a notification, an approval); `extra` adds rows below it,
+    /// such as the reply bar or a question's options.
+    case notification(extra: CGFloat)
 }
 
 /// Turns a `SurfaceSpec` into a rectangle on a display, using the shell metrics.
@@ -40,6 +41,8 @@ public enum SurfaceSizing {
     public static let mediaPageWidth: CGFloat = 420
     public static let notificationCardHeight: CGFloat = 84
     public static let replyBarHeight: CGFloat = 48
+    /// The row of answers under a question from an agent.
+    public static let questionRowHeight: CGFloat = 40
 
     /// `contentScale` zooms the open shelf's content (the shelf size setting); pills and
     /// cards keep their size.
@@ -90,8 +93,8 @@ public enum SurfaceSizing {
             return shelf(
                 contentWidth: shelfContentWidth(for: spec, in: layout) ?? 0, contentHeight: shelfContentHeight,
                 layout, sizes)
-        case .notification(let replying):
-            let height = bar + notificationCardHeight + (replying ? replyBarHeight : 0)
+        case .notification(let extra):
+            let height = bar + notificationCardHeight + extra
             return layout.surfaceRect(size: CGSize(width: notificationWidth, height: height))
         }
     }

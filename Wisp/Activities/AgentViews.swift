@@ -159,8 +159,16 @@ struct AgentApprovalCard: View {
     let model: NotchModel
 
     var body: some View {
+        if approval.prompt == .question {
+            AgentQuestionCard(approval: approval, model: model)
+        } else {
+            requestCard
+        }
+    }
+
+    private var requestCard: some View {
         let hub = model.services.agents
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             Color.clear.frame(height: model.isNotchStyle ? model.notchHeight : 8)
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: approval.source.symbol)
@@ -273,8 +281,42 @@ struct ApprovalBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let approval: AgentApproval
     let hub: AgentHub
+    let model: NotchModel
 
     var body: some View {
+        Group {
+            if approval.prompt == .question {
+                questionBar
+            } else {
+                requestBar
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(white: 0.12))
+                .shadow(color: .black.opacity(0.5), radius: 10, y: -2)
+        )
+        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var questionBar: some View {
+        QuestionAnswers(approval: approval, hub: hub, model: model) { step in
+            HStack(spacing: 8) {
+                Image(systemName: "questionmark.bubble.fill").foregroundStyle(Color.project(approval.project))
+                Text(step.header).font(.system(size: 12, weight: .bold))
+                if let position = step.position {
+                    Text(position).font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(Color.secondaryText)
+                }
+                Text(step.text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 10)
+        }
+    }
+
+    private var requestBar: some View {
         HStack(spacing: 10) {
             Image(systemName: approval.source.symbol).foregroundStyle(Color.project(approval.project))
             Text(approval.title).font(.system(size: 12, weight: .bold))
@@ -291,12 +333,6 @@ struct ApprovalBar: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 40)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(white: 0.12))
-                .shadow(color: .black.opacity(0.5), radius: 10, y: -2)
-        )
-        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     }
 }
 
