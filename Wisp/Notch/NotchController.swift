@@ -20,6 +20,8 @@ final class NotchController {
     private var swipe = SwipeDetector()
     /// The card whose countdown is paused because the pointer is on it.
     private var heldSlot: ActivitySlot?
+    /// The page to go back to after a click on a live activity opened its own view.
+    private var returnPage: ShelfPage?
 
     /// Grace period before a shelf closes after the pointer leaves.
     private let closeDelay: Duration = .milliseconds(300)
@@ -178,13 +180,26 @@ final class NotchController {
             return
         }
         if model.contains(location) {
-            if machine.phase != .open { send(.clicked) }
+            if machine.phase != .open {
+                showActivityView()
+                send(.clicked)
+            }
             // Let text fields (notes, search) and Esc reach the shelf without activating
             // Wisp. Hover opens stay non-key so typing keeps going to the front app.
             if machine.phase == .open { panel.makeKey() }
         } else if machine.phase == .open {
             send(.clickedOutside)
         }
+    }
+
+    /// A click on the agent pill opens the Agents widget on its own, on the session the pill
+    /// showed, whatever the profile's Home holds. Other pills open the usual page.
+    private func showActivityView() {
+        guard case .agent(let status) = model.activity else { return }
+        model.focusedSession = status.sessionID
+        returnPage = model.page
+        model.page = .widgets
+        model.soloWidget = .agents
     }
 
     /// Two fingers on the closed notch: down opens the shelf, up puts away a card or alert,
@@ -406,6 +421,11 @@ final class NotchController {
             panel.resignKey()
             model.editingHome = false
             model.soloWidget = nil
+            // The next plain click opens where it used to, not on the agent view.
+            if let returnPage {
+                model.page = returnPage
+                self.returnPage = nil
+            }
             model.dragging = false
             // Re-sync with the smaller closed region so the next hover is detected cleanly, and
             // so click-through doesn't wait for the pointer to move.

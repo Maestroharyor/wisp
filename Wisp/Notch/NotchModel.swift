@@ -81,6 +81,8 @@ final class NotchModel {
     var onKeyDone: () -> Void = {}
     /// The approval card opened to show its preview.
     var expandedApproval: UUID?
+    /// The session whose pill was clicked: the Agents view opens on it.
+    var focusedSession: String?
 
     let services: AppServices
 

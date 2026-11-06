@@ -712,6 +712,13 @@ struct AgentsDetail: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { hub.refreshInstalled() }
         .onChange(of: selected?.id) { note = nil }
+        .onAppear {
+            // Opened from the pill: start on that session, once.
+            if let focused = model.focusedSession {
+                selection = focused
+                model.focusedSession = nil
+            }
+        }
     }
 
     private func draft(for session: String) -> Binding<String> {
