@@ -276,6 +276,13 @@ final class NotchController {
         dragEndTask?.cancel()
         let target = layout.hitRegion(for: model.surfaceRect).insetBy(dx: -24, dy: -24)
         let over = target.contains(location)
+        // Files dragged to the closed orb open the ring, to drop them on an action.
+        if isOrb, over, machine.phase != .open, services.preferences.ringOnOrbClick {
+            if !services.ring.isVisible {
+                services.ring.show(at: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY), dropping: true)
+            }
+            return
+        }
         if over, !model.dragging {
             model.dragging = true
             // So leaving again registers as an exit and the shelf closes.

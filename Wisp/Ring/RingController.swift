@@ -40,6 +40,7 @@ final class RingController {
     private var keyMonitor: Any?
     private var clickMonitor: Any?
     private var openedAt = Date.now
+    private var dropEndTask: Task<Void, Never>?
     /// Opened by holding a mouse button; letting go picks.
     private var holding = false
 
@@ -79,7 +80,19 @@ final class RingController {
         startMonitors()
     }
 
+    /// A file drag ended; give a drop on the ring time to land, then put the ring away.
+    func dragEnded() {
+        guard model.dropping else { return }
+        dropEndTask?.cancel()
+        dropEndTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+            self?.hide()
+        }
+    }
+
     func hide() {
+        dropEndTask?.cancel()
         guard let panel, panel.isVisible else { return }
         panel.orderOut(nil)
         stopMonitors()
@@ -125,7 +138,8 @@ final class RingController {
         switch hit {
         case .centre:
             hide()
-            services.openShelf(.home)
+            // Files dropped on the middle go to the tray, like dropping them on the notch.
+            if files.isEmpty { services.openShelf(.home) } else { services.tray.add(files) }
         case .slot(let index):
             guard model.set.slots.indices.contains(index) else { return }
             let slot = model.set.slots[index]

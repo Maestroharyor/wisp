@@ -194,6 +194,7 @@ final class NotchCoordinator {
             if fileDragActive {
                 controllers.values.forEach { $0.fileDragEnded() }
                 services.pocket.dragEnded()
+                services.ring.dragEnded()
             }
             fileDragActive = false
         }
