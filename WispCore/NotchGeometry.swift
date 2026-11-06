@@ -123,7 +123,9 @@ public struct NotchSizes: Sendable, Equatable {
     /// Extra margin when hit-testing a small shape, so it is easy to reach.
     public var hoverTolerance: CGFloat = 6
     /// The floating orb's diameter.
-    public var orb: CGFloat = 40
+    public var orb: CGFloat = 44
+    /// The orb lifts evenly on hover, staying round.
+    public var orbPeekGrowth = CGSize(width: 6, height: 6)
 
     public init() {}
 
@@ -283,8 +285,9 @@ public enum NotchGeometry {
             screenFrame: screen.frame,
             bounds: placement == .floating ? visible : screen.frame,
             // Side tabs swell outward more than they grow taller.
-            peekGrowth: side
-                ? CGSize(width: sizes.peekGrowth.height, height: sizes.peekGrowth.width) : sizes.peekGrowth,
+            peekGrowth: placement == .floating
+                ? sizes.orbPeekGrowth
+                : side ? CGSize(width: sizes.peekGrowth.height, height: sizes.peekGrowth.width) : sizes.peekGrowth,
             hoverTolerance: sizes.hoverTolerance,
             barHeight: side ? sizes.island.height : closed.height,
             edgeLine: edgeLine

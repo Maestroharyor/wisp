@@ -9,7 +9,7 @@ final class OrbGeometryTests: XCTestCase {
         frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
         visibleFrame: CGRect(x: 0, y: 70, width: 1512, height: 874))
     private var visible: CGRect { screen.visibleFrame }
-    private let size: CGFloat = 40
+    private let size: CGFloat = 44
 
     func testANewOrbStartsTopRightBelowTheMenuBar() {
         let layout = NotchGeometry.layout(for: screen, placement: .floating)
@@ -50,6 +50,12 @@ final class OrbGeometryTests: XCTestCase {
         let surface = layout.surfaceRect(size: CGSize(width: 300, height: 200))
         XCTAssertEqual(surface.minX, layout.closedRect.minX)
         XCTAssertEqual(surface.maxY, layout.closedRect.maxY)
+    }
+
+    func testTheOrbStaysRoundWhenHovered() {
+        let layout = NotchGeometry.layout(for: screen, placement: .floating, orbCentre: CGPoint(x: 756, y: 500))
+        XCTAssertEqual(layout.peekRect.width, layout.peekRect.height)
+        XCTAssertGreaterThan(layout.peekRect.width, layout.closedRect.width)
     }
 
     func testTheHitRegionIsTheOrbNotAnEdgeBand() {

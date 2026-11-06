@@ -86,7 +86,7 @@ struct NotchView: View {
             let orb = model.layout.placement == .floating
             switch model.spec {
             case .closed, .peek:
-                return (0, orb ? model.layout.closedRect.height / 2 : ShellMetrics.closedIslandRadius * round)
+                return (0, orb ? model.layout.peekRect.height / 2 : ShellMetrics.closedIslandRadius * round)
             case .compact:
                 return (0, (orb ? ShellMetrics.floatingPillRadius : ShellMetrics.closedIslandRadius) * round)
             case .medium, .notification:
@@ -416,29 +416,87 @@ private struct OrbFace: View {
         let agents = model.services.agents
         let waiting = agents.approvals.count
         TimelineView(.periodic(from: .now, by: 5)) { context in
+            let working = agents.sessions.anyWorking(now: context.date)
             ZStack {
+                OrbGlass(lifted: model.spec == .peek)
                 Image("MenuGlyph")
                     .resizable()
                     .renderingMode(.template)
                     .scaledToFit()
-                    .padding(11)
-                    .foregroundStyle(.white.opacity(0.9))
-                if agents.sessions.anyWorking(now: context.date) {
-                    Circle().strokeBorder(Color.wispViolet, lineWidth: 2)
+                    .frame(width: 18, height: 18)
+                    .foregroundStyle(.white.opacity(0.92))
+                if waiting > 0 {
+                    Circle().strokeBorder(Color.orange, lineWidth: 2)
+                } else if working {
+                    WorkingSweep(reduceMotion: model.reduceMotion)
                 }
             }
         }
+        .scaleEffect(model.spec == .peek ? 1.06 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.spec == .peek)
         .overlay(alignment: .topTrailing) {
             if waiting > 0 {
                 Text("\(waiting)")
                     .font(.system(size: 10, weight: .bold)).monospacedDigit()
                     .foregroundStyle(.white)
-                    .frame(minWidth: 16, minHeight: 16)
-                    .background(Circle().fill(.orange))
-                    .offset(x: 3, y: -3)
+                    .padding(.horizontal, 5)
+                    .frame(minWidth: 17, minHeight: 17)
+                    .background(Capsule().fill(.orange).shadow(color: .black.opacity(0.35), radius: 2, y: 1))
+                    .offset(x: 4, y: -4)
+                    .transition(.scale.combined(with: .opacity))
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.65), value: waiting)
         .accessibilityLabel(waiting > 0 ? "Wisp, \(waiting) waiting" : "Wisp")
+    }
+}
+
+/// The orb's surface: Liquid Glass on macOS 26, a deep violet sphere elsewhere, with a soft
+/// highlight on top and a thin rim.
+private struct OrbGlass: View {
+    let lifted: Bool
+
+    var body: some View {
+        ZStack {
+            if #available(macOS 26, *) {
+                Circle().fill(.black.opacity(0.55))
+                    .glassEffect(.regular.tint(Color.wispViolet.opacity(0.22)), in: Circle())
+            } else {
+                Circle().fill(
+                    RadialGradient(
+                        colors: [Color.wispViolet.opacity(0.45), Color(white: 0.06)], center: UnitPoint(x: 0.5, y: 0.2),
+                        startRadius: 2, endRadius: 30))
+            }
+            Ellipse()
+                .fill(LinearGradient(colors: [.white.opacity(0.28), .clear], startPoint: .top, endPoint: .bottom))
+                .frame(width: 26, height: 12)
+                .offset(y: -12)
+                .blur(radius: 1)
+            Circle().strokeBorder(.white.opacity(lifted ? 0.32 : 0.18), lineWidth: 1)
+        }
+    }
+}
+
+/// A violet arc running round the orb while an agent works; a still ring with Reduce Motion.
+private struct WorkingSweep: View {
+    let reduceMotion: Bool
+    @State private var turning = false
+
+    var body: some View {
+        if reduceMotion {
+            Circle().strokeBorder(Color.wispViolet, lineWidth: 2)
+        } else {
+            Circle()
+                .trim(from: 0, to: 0.32)
+                .stroke(
+                    AngularGradient(colors: [.clear, Color.wispViolet], center: .center),
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                )
+                .padding(1.25)
+                .rotationEffect(.degrees(turning ? 360 : 0))
+                .animation(.linear(duration: 1.6).repeatForever(autoreverses: false), value: turning)
+                .onAppear { turning = true }
+        }
     }
 }
 
