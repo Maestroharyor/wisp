@@ -24,6 +24,7 @@ final class ActivityCenter {
 
     /// The bubble the user clicked, kept in the pill while it lasts.
     @ObservationIgnored private var pinned: ActivitySlot?
+    @ObservationIgnored private var pinnedAt: Date?
 
     @ObservationIgnored private var queue = ActivityQueue<Activity>()
     @ObservationIgnored private var expiryTask: Task<Void, Never>?
@@ -65,6 +66,7 @@ final class ActivityCenter {
     /// Swaps a bubble into the main pill.
     func pin(_ slot: ActivitySlot) {
         pinned = slot
+        pinnedAt = .now
         refresh()
     }
 
@@ -73,7 +75,7 @@ final class ActivityCenter {
         queue.prune(now: now)
         if let pinned, queue.live(id: pinned.rawValue, now: now) == nil { self.pinned = nil }
         let arrangement = queue.arrangement(
-            now: now, pinned: pinned?.rawValue, bubbleIDs: Set(Self.bubbleSlots.map(\.rawValue)),
+            now: now, pinned: pinned?.rawValue, pinnedAt: pinnedAt, bubbleIDs: Set(Self.bubbleSlots.map(\.rawValue)),
             limit: Self.bubbleLimit)
         let next = arrangement.primary?.payload
         if next != current { current = next }

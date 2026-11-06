@@ -156,6 +156,25 @@ final class ActivityQueueTests: XCTestCase {
         XCTAssertEqual(arrangement.bubbles.map(\.id), ["timer", "media"])
     }
 
+    func testANewerHigherActivityTakesThePillFromAPin() {
+        var queue = sticky([("media", 10), ("timer", 20)])
+        queue.post(id: "meeting", priority: 44, duration: nil, payload: "meeting", now: now.addingTimeInterval(2))
+        let arrangement = queue.arrangement(
+            now: now.addingTimeInterval(3), pinned: "media", pinnedAt: now.addingTimeInterval(1), bubbleIDs: capable,
+            limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "meeting")
+    }
+
+    func testRefreshingAnOlderActivityKeepsThePin() {
+        var queue = sticky([("media", 10), ("timer", 20)])
+        // The timer re-posts every half second; that isn't something new arriving.
+        queue.post(id: "timer", priority: 20, duration: nil, payload: "timer", now: now.addingTimeInterval(5))
+        let arrangement = queue.arrangement(
+            now: now.addingTimeInterval(6), pinned: "media", pinnedAt: now.addingTimeInterval(1), bubbleIDs: capable,
+            limit: 2)
+        XCTAssertEqual(arrangement.primary?.id, "media")
+    }
+
     func testEndedPinIsIgnored() {
         let queue = sticky([("media", 10), ("timer", 20)])
         let arrangement = queue.arrangement(now: now, pinned: "agent", bubbleIDs: capable, limit: 2)

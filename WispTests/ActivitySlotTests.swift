@@ -19,7 +19,21 @@ final class ActivitySlotTests: XCTestCase {
     }
 
     func testCardsAndAlertsCanBeDismissedButOngoingActivitiesCant() {
-        let dismissable: Set<ActivitySlot> = [.notification, .notice, .device, .battery, .focus, .meetingSoon, .tray]
+        let dismissable: Set<ActivitySlot> = [
+            .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray,
+        ]
         XCTAssertEqual(Set(ActivitySlot.allCases.filter(\.isDismissable)), dismissable)
+    }
+
+    func testShortAlertsShowDuringACall() {
+        for alert in [ActivitySlot.battery, .device, .focus, .tray] {
+            XCTAssertGreaterThan(alert.priority, ActivitySlot.meeting.priority, "\(alert)")
+        }
+    }
+
+    func testOngoingActivitiesKeepTheirOrder() {
+        XCTAssertGreaterThan(ActivitySlot.meeting.priority, ActivitySlot.timer.priority)
+        XCTAssertGreaterThan(ActivitySlot.timer.priority, ActivitySlot.agent.priority)
+        XCTAssertGreaterThan(ActivitySlot.agent.priority, ActivitySlot.media.priority)
     }
 }

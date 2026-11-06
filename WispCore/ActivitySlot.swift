@@ -8,6 +8,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case tray
     case battery
     case notice
+    case timerDone
     case notification
     case focus
     case capsLock
@@ -18,20 +19,23 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case meetingSoon
     case device
 
+    /// Ongoing activities sit below every short alert, so a battery or device alert still
+    /// shows during a call and then hands the pill back.
     public var priority: Int {
         switch self {
         case .media: 10
         case .agent: 15
-        case .agentApproval: 55
-        case .meeting: 44
-        case .meetingSoon: 48
         case .timer: 20
+        case .meeting: 25
         case .tray: 30
         case .battery: 40
         case .device: 41
-        case .notice: 45
         case .focus: 42
+        case .notice: 45
+        case .timerDone: 46
+        case .meetingSoon: 48
         case .notification: 50
+        case .agentApproval: 55
         case .capsLock: 60
         case .level: 70
         }
@@ -49,7 +53,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     /// call, a timer, an agent at work), approvals and HUDs can't be.
     public var isDismissable: Bool {
         switch self {
-        case .notification, .notice, .device, .battery, .focus, .meetingSoon, .tray: true
+        case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray: true
         default: false
         }
     }
