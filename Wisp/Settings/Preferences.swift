@@ -280,6 +280,7 @@ final class Preferences {
         static let ringConfig = "ringConfig"
         static let ringOnOrbClick = "ringOnOrbClick"
         static let ringButton = "ringButton"
+        static let ringHotkey = "ringHotkey"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
         static let scriptInterval = "scriptInterval"
@@ -558,6 +559,10 @@ final class Preferences {
     /// The extra mouse button that opens the ring; off until chosen, since it takes the
     /// button away from every app.
     var ringButton: RingButton { didSet { defaults.set(ringButton.rawValue, forKey: Key.ringButton) } }
+    /// A shortcut that opens the ring without the Hyper key; nil when unset.
+    var ringHotkey: Hotkey? {
+        didSet { defaults.set(ringHotkey?.stringValue ?? "", forKey: Key.ringHotkey) }
+    }
 
     var dropActions: [DropAction] {
         didSet { defaults.set(try? JSONEncoder().encode(dropActions), forKey: Key.dropActions) }
@@ -735,17 +740,21 @@ final class Preferences {
 
     /// Turns the display's shell into an orb, at `centre` or where its orb last rested.
     func floatOrb(_ uuid: String, at centre: CGPoint? = nil) {
-        if let centre { orbCentres[uuid] = OrbGeometry.encode(centre) }
-        guard placement(for: uuid) != .floating else { return }
-        orbReturnPlacements[uuid] = placementOverride(for: uuid)?.rawValue ?? ""
-        setPlacementOverride(.floating, for: uuid)
+        if let centre, orbCentres[uuid] != OrbGeometry.encode(centre) { orbCentres[uuid] = OrbGeometry.encode(centre) }
+        updateOrbPlacements { $0.float(uuid) }
     }
 
     /// Puts the orb back where the shell was before it floated, or at the top.
     func dockOrb(_ uuid: String) {
-        let back = orbReturnPlacements.removeValue(forKey: uuid).flatMap(Placement.init(rawValue:))
-        setPlacementOverride(back, for: uuid)
-        if placement(for: uuid) == .floating { setPlacementOverride(.top, for: uuid) }
+        updateOrbPlacements { $0.dock(uuid) }
+    }
+
+    private func updateOrbPlacements(_ change: (inout OrbPlacements) -> Void) {
+        var state = OrbPlacements(overrides: displayPlacements, returns: orbReturnPlacements, standard: placement)
+        change(&state)
+        // Written only when changed, so observers don't rebuild for nothing.
+        if state.returns != orbReturnPlacements { orbReturnPlacements = state.returns }
+        if state.overrides != displayPlacements { displayPlacements = state.overrides }
     }
     /// Per-display placements by display UUID; a display missing here follows `placement`.
     var displayPlacements: [String: String] {
@@ -1000,6 +1009,7 @@ final class Preferences {
             ?? RingConfig.defaults
         ringOnOrbClick = defaults.bool(forKey: Key.ringOnOrbClick)
         ringButton = defaults.string(forKey: Key.ringButton).flatMap(RingButton.init(rawValue:)) ?? .off
+        ringHotkey = defaults.string(forKey: Key.ringHotkey).flatMap(Hotkey.init(string:))
         dropActions =
             defaults.data(forKey: Key.dropActions).flatMap { try? JSONDecoder().decode([DropAction].self, from: $0) }
             ?? []

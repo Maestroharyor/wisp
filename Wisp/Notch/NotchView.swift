@@ -76,14 +76,15 @@ struct NotchView: View {
         let height = model.notchHeight
         let round = CGFloat(model.preferences.appearance.roundness)
         guard model.drawsNotch else {
+            let orb = model.layout.placement == .floating
             switch model.spec {
-            case .closed, .peek, .compact:
-                // The orb and the pills it grows into stay fully round.
-                let orb = model.layout.placement == .floating
+            case .closed, .peek:
                 return (0, orb ? model.layout.closedRect.height / 2 : ShellMetrics.closedIslandRadius * round)
-            case .medium, .notification: return (0, ShellMetrics.expandedHUDBottomRadius * round)
+            case .compact: return (0, ShellMetrics.closedIslandRadius * round)
+            case .medium, .notification:
+                return (0, (orb ? ShellMetrics.floatingCardRadius : ShellMetrics.expandedHUDBottomRadius) * round)
             case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
-                return (0, ShellMetrics.expandedIslandRadius * round)
+                return (0, (orb ? ShellMetrics.floatingShelfRadius : ShellMetrics.expandedIslandRadius) * round)
             }
         }
         switch model.spec {

@@ -100,3 +100,49 @@ final class OrbGeometryTests: XCTestCase {
         XCTAssertNil(OrbGeometry.decode("1,2,3"))
     }
 }
+
+final class OrbPlacementsTests: XCTestCase {
+    func testOnlyTheTopShellAndTheOrbTearOff() {
+        XCTAssertTrue(Placement.top.tearsOff)
+        XCTAssertTrue(Placement.floating.tearsOff)
+        for placement in [Placement.topLeft, .topRight, .bottom, .left, .right] {
+            XCTAssertFalse(placement.tearsOff, "\(placement)")
+        }
+    }
+
+    func testFloatingRemembersTheOverrideAndDockingRestoresIt() {
+        var state = OrbPlacements(overrides: ["a": "top"], returns: [:], standard: .left)
+        state.float("a")
+        XCTAssertEqual(state.placement(for: "a"), .floating)
+        state.dock("a")
+        XCTAssertEqual(state.placement(for: "a"), .top)
+        XCTAssertTrue(state.returns.isEmpty)
+    }
+
+    func testADisplayFollowingTheDefaultGoesBackToFollowingIt() {
+        var state = OrbPlacements(overrides: [:], returns: [:], standard: .bottom)
+        state.float("a")
+        state.dock("a")
+        XCTAssertNil(state.overrides["a"])
+        XCTAssertEqual(state.placement(for: "a"), .bottom)
+    }
+
+    func testDockingAShellThatNeverFloatedKeepsItsOverride() {
+        var state = OrbPlacements(overrides: ["a": "top"], returns: [:], standard: .left)
+        state.dock("a")
+        XCTAssertEqual(state.placement(for: "a"), .top)
+    }
+
+    func testDockingWhenTheDefaultIsTheOrbGoesToTheTop() {
+        var state = OrbPlacements(overrides: [:], returns: [:], standard: .floating)
+        state.dock("a")
+        XCTAssertEqual(state.placement(for: "a"), .top)
+    }
+
+    func testFloatingTwiceKeepsTheFirstReturn() {
+        var state = OrbPlacements(overrides: ["a": "right"], returns: [:], standard: .top)
+        state.float("a")
+        state.float("a")
+        XCTAssertEqual(state.returns["a"], "right")
+    }
+}

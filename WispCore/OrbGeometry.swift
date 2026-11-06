@@ -88,3 +88,46 @@ public enum OrbGeometry {
         return CGPoint(x: parts[0], y: parts[1])
     }
 }
+
+extension Placement {
+    /// Whether pulling the closed shell tears it off into an orb. Only where Wisp owns the
+    /// press: the top shell over the menu bar strip, or an orb. Corner, bottom and side
+    /// shells sit over windows and let clicks through, so a drag there belongs to the app
+    /// underneath; they float from the right-click menu instead.
+    public var tearsOff: Bool { self == .top || self == .floating }
+}
+
+/// Each display's position override and where it goes back to when its orb docks.
+/// Overrides and returns are stored by display UUID as `Placement` raw values; a missing
+/// override follows `standard`, and an empty return means "follow the default".
+public struct OrbPlacements: Equatable, Sendable {
+    public var overrides: [String: String]
+    public var returns: [String: String]
+    public let standard: Placement
+
+    public init(overrides: [String: String], returns: [String: String], standard: Placement) {
+        self.overrides = overrides
+        self.returns = returns
+        self.standard = standard
+    }
+
+    public func placement(for uuid: String) -> Placement {
+        overrides[uuid].flatMap(Placement.init(rawValue:)) ?? standard
+    }
+
+    /// Makes the display's shell an orb, remembering what it was.
+    public mutating func float(_ uuid: String) {
+        guard placement(for: uuid) != .floating else { return }
+        returns[uuid] = overrides[uuid] ?? ""
+        overrides[uuid] = Placement.floating.rawValue
+    }
+
+    /// Puts an orb back where its shell was, or at the top. Does nothing to a shell that
+    /// isn't floating, such as one whose tear-off was dropped back where it started.
+    public mutating func dock(_ uuid: String) {
+        guard placement(for: uuid) == .floating else { return }
+        let back = returns.removeValue(forKey: uuid).flatMap(Placement.init(rawValue:))
+        overrides[uuid] = back?.rawValue
+        if placement(for: uuid) == .floating { overrides[uuid] = Placement.top.rawValue }
+    }
+}

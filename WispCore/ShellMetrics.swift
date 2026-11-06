@@ -12,6 +12,10 @@ public enum ShellMetrics {
     public static let expandedIslandRadius: CGFloat = 50
     public static let expandedHUDBottomRadius: CGFloat = 28
     public static let closedIslandRadius: CGFloat = 20
+    /// The orb opens over windows rather than out of an edge, so its shelf and cards read as
+    /// panels: concentric with the widgets inside (20 pt corners, 16 pt inset) rather than pills.
+    public static let floatingShelfRadius: CGFloat = 32
+    public static let floatingCardRadius: CGFloat = 22
     public static let widgetCornerRadius: CGFloat = 20
     public static let cardSpacing: CGFloat = 18
     public static let widgetContentHeight: CGFloat = 93

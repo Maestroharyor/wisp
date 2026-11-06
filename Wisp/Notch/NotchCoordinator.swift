@@ -159,7 +159,9 @@ final class NotchCoordinator {
             shake.reset()
             dragStarted = .now
             controllers.values.forEach { $0.leftMouseDown(at: location) }
-            shellDrag = controllers.first { $0.value.pendingPress }.map { uuid, controller in
+            // Only a shell that owns its press can be dragged; elsewhere the drag is the app's.
+            shellDrag = controllers.first { $0.value.pendingPress && $0.value.layout.placement.tearsOff }.map {
+                uuid, controller in
                 ShellDrag(
                     uuid: uuid, start: location,
                     startCentre: CGPoint(x: controller.layout.closedRect.midX, y: controller.layout.closedRect.midY),
@@ -231,12 +233,14 @@ final class NotchCoordinator {
         let closed = controller.layout.closedRect
         let centre = CGPoint(x: closed.midX, y: closed.midY)
         let visible = screen.visibleFrame
+        let before = (preferences.displayPlacements, preferences.orbCentres)
         if OrbGeometry.docks(centre, in: visible, systemIsland: screen.hasSystemIsland(preferences.islandSetting)) {
             preferences.dockOrb(drag.uuid)
         } else {
             preferences.floatOrb(drag.uuid, at: OrbGeometry.snapped(centre, in: visible, size: closed.width))
         }
-        rebuild()
+        // A changed setting rebuilds through observation; otherwise put the dragged layout back.
+        if before == (preferences.displayPlacements, preferences.orbCentres) { rebuild() }
     }
 
     /// A drag that put file URLs on the drag pasteboard since the mouse went down.
