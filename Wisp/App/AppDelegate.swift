@@ -62,6 +62,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.services.ring.toggle(at: NSEvent.mouseLocation) }
             }
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.cycleForm"), object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.services.cycleForm() }
+            }
             // Toggle stand-in activities, to film show, hide and bubble motion.
             for kind in ["timer", "agent", "card"] {
                 DistributedNotificationCenter.default().addObserver(

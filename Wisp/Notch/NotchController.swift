@@ -153,10 +153,70 @@ final class NotchController {
         set { model.showsActivities = newValue }
     }
 
+    /// Where a dropped orb was on screen, so its new layout glides in from there.
+    private var settleFrom: CGPoint?
+
     func update(layout: NotchLayout) {
         guard layout != model.layout else { return }
         model.layout = layout
-        panel.setFrame(layout.panelFrame, display: true)
+        let from = settleFrom
+        settleFrom = nil
+        guard let from, layout.placement == .floating, !model.reduceMotion else {
+            panel.setFrame(layout.panelFrame, display: true)
+            return
+        }
+        // Panel-relative positions stay put, so moving the whole panel moves the orb.
+        let to = CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY)
+        panel.setFrame(layout.panelFrame.offsetBy(dx: from.x - to.x, dy: from.y - to.y), display: true)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.28
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(layout.panelFrame, display: true)
+        }
+    }
+
+    /// Moves a dragged orb by moving its panel; the layout is rebuilt once it's dropped.
+    func moveOrb(by delta: CGVector) {
+        panel.setFrameOrigin(CGPoint(x: panel.frame.minX + delta.dx, y: panel.frame.minY + delta.dy))
+    }
+
+    /// The next layout glides from `point` instead of jumping.
+    func settle(from point: CGPoint) {
+        settleFrom = point
+    }
+
+    /// The notch stretching toward the pointer while it's pulled.
+    func setPull(_ amount: CGFloat) {
+        model.pull = min(max(amount, 0), 1)
+    }
+
+    func releasePull() {
+        guard model.pull > 0 else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) { model.pull = 0 }
+    }
+
+    /// Springs the shell up from smaller after it changed form.
+    func popIn() {
+        guard !model.reduceMotion else { return }
+        model.popping = true
+        Task { @MainActor [model] in
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.62)) { model.popping = false }
+        }
+    }
+
+    /// Shrinks the orb away, then runs `done` (the dock).
+    func vanish(then done: @escaping @MainActor () -> Void) {
+        guard !model.reduceMotion else {
+            done()
+            return
+        }
+        withAnimation(.easeIn(duration: 0.18)) { model.vanishing = true }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(190))
+            done()
+            // The rebuild that follows the dock springs the notch in.
+            self?.model.vanishing = false
+        }
     }
 
     func pointerMoved(to location: CGPoint) {

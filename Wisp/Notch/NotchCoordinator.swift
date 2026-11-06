@@ -124,7 +124,10 @@ final class NotchCoordinator {
             let controller =
                 controllers[uuid] ?? NotchController(screenUUID: uuid, layout: layout, services: services)
             controller.systemIsland = systemIsland
+            let newForm = controllers[uuid].map { $0.layout.placement != layout.placement } ?? false
             controller.update(layout: layout)
+            // A new form springs in rather than appearing in place.
+            if newForm { controller.popIn() }
             controllers[uuid] = controller
         }
         for (uuid, controller) in controllers where !current.contains(uuid) {
@@ -205,9 +208,10 @@ final class NotchCoordinator {
                 controllers.values.forEach { $0.pointerMoved(to: location) }
             }
         case .leftUp:
-            if let drag = shellDrag, drag.moving {
+            if let drag = shellDrag, drag.centre != nil {
                 dropShell(drag)
             } else {
+                if let drag = shellDrag { controllers[drag.uuid]?.releasePull() }
                 controllers.values.forEach { $0.leftMouseUp(at: location) }
             }
             shellDrag = nil
@@ -220,43 +224,65 @@ final class NotchCoordinator {
         }
     }
 
-    /// Moves the orb with the pointer. The notch comes off its edge once pulled far enough.
+    /// Moves the orb with the pointer. The notch stretches as it's pulled and comes off its
+    /// edge once pulled far enough. While dragging only the panel moves; the layout is rebuilt
+    /// on release.
     private func dragShell(to location: CGPoint) {
         guard var drag = shellDrag, let controller = controllers[drag.uuid],
             let screen = NSScreen.screens.first(where: { $0.displayUUID == drag.uuid })
         else { return }
-        if !drag.moving {
-            guard OrbGeometry.startsDrag(from: drag.start, to: location, floating: drag.floating) else { return }
-            drag.moving = true
-            controller.cancelPress()
-        }
-        shellDrag = drag
         let centre =
             drag.floating
             ? CGPoint(
                 x: drag.startCentre.x + location.x - drag.start.x, y: drag.startCentre.y + location.y - drag.start.y)
             : location
+        if let last = drag.centre {
+            controller.moveOrb(by: CGVector(dx: centre.x - last.x, dy: centre.y - last.y))
+            drag.centre = centre
+            shellDrag = drag
+            return
+        }
+        guard OrbGeometry.startsDrag(from: drag.start, to: location, floating: drag.floating) else {
+            if !drag.floating {
+                let pulled = hypot(location.x - drag.start.x, location.y - drag.start.y)
+                controller.setPull(pulled / OrbGeometry.tearOffDistance)
+            }
+            return
+        }
+        controller.cancelPress()
+        controller.setPull(0)
         controller.update(
             layout: NotchGeometry.layout(
                 for: screen.metrics, prefersIsland: true, placement: .floating, orbCentre: centre,
                 avoidsTopCentre: screen.hasSystemIsland(preferences.islandSetting)))
+        if !drag.floating { controller.popIn() }
+        // Where the orb really is: the layout may have nudged it onto the screen.
+        let placed = controller.layout.closedRect
+        drag.centre = centre
+        drag.offset = CGVector(dx: placed.midX - centre.x, dy: placed.midY - centre.y)
+        shellDrag = drag
     }
 
-    /// Settles a dragged orb: flush against a nearby edge, or back on its edge when dropped at
-    /// the top centre.
+    /// Settles a dragged orb: it glides flush against a nearby edge, or shrinks away and docks
+    /// back on its edge when dropped at the top centre.
     private func dropShell(_ drag: ShellDrag) {
-        guard let controller = controllers[drag.uuid],
+        guard let controller = controllers[drag.uuid], let dragged = drag.centre,
             let screen = NSScreen.screens.first(where: { $0.displayUUID == drag.uuid })
         else { return }
-        let closed = controller.layout.closedRect
-        let centre = CGPoint(x: closed.midX, y: closed.midY)
         let visible = screen.visibleFrame
-        let before = (preferences.displayPlacements, preferences.orbCentres)
-        if OrbGeometry.docks(centre, in: visible, systemIsland: screen.hasSystemIsland(preferences.islandSetting)) {
-            preferences.dockOrb(drag.uuid)
-        } else {
-            preferences.floatOrb(drag.uuid, at: OrbGeometry.snapped(centre, in: visible, size: closed.width))
+        let systemIsland = screen.hasSystemIsland(preferences.islandSetting)
+        let seen = CGPoint(x: dragged.x + drag.offset.dx, y: dragged.y + drag.offset.dy)
+        let size = controller.layout.closedRect.width
+        let centre = OrbGeometry.fitted(seen, in: visible, size: size, avoidsTopCentre: systemIsland)
+        if OrbGeometry.docks(centre, in: visible, systemIsland: systemIsland), controller.layout.placement == .floating,
+            preferences.placement(for: drag.uuid) == .floating
+        {
+            controller.vanish { [weak self] in self?.preferences.dockOrb(drag.uuid) }
+            return
         }
+        let before = (preferences.displayPlacements, preferences.orbCentres)
+        controller.settle(from: seen)
+        preferences.floatOrb(drag.uuid, at: OrbGeometry.snapped(centre, in: visible, size: size))
         // A changed setting rebuilds through observation; otherwise put the dragged layout back.
         if before == (preferences.displayPlacements, preferences.orbCentres) { rebuild() }
     }
@@ -304,5 +330,8 @@ private struct ShellDrag {
     let startCentre: CGPoint
     /// Already an orb, so it moves at a nudge rather than tearing off.
     let floating: Bool
-    var moving = false
+    /// Where the pointer has put the orb, once it's moving.
+    var centre: CGPoint?
+    /// How far the first layout nudged the orb from the pointer to keep it on screen.
+    var offset = CGVector(dx: 0, dy: 0)
 }

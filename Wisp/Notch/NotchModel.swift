@@ -88,6 +88,12 @@ final class NotchModel {
     var onSetForm: (FormFactor) -> Void = { _ in }
     var form: FormFactor { FormFactor(placement: layout.placement) }
     var isOrb: Bool { layout.placement == .floating }
+    /// How far a pull on the notch has gone toward tearing it off, 0 to 1 (a rubber band).
+    var pull: CGFloat = 0
+    /// The shell has just appeared in a new form and springs up from smaller.
+    var popping = false
+    /// The orb is shrinking away before it docks.
+    var vanishing = false
     /// Where the orb sits in the current surface: content blooms out of and back into it.
     var bloomOrigin: UnitPoint {
         let point = OrbGeometry.bloomAnchor(orb: layout.closedRect, surface: surfaceRect)

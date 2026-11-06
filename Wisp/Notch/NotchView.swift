@@ -27,6 +27,7 @@ struct NotchView: View {
                     width: surface.width + (side ? 0 : flare * 2), height: surface.height + (side ? flare * 2 : 0)
                 )
                 .position(x: surface.midX, y: surface.midY)
+                .modifier(FormChange(model: model))
 
             if model.isOrb {
                 // Stays mounted: the glyph shrinks into what grows out of the orb and comes
@@ -40,6 +41,7 @@ struct NotchView: View {
                     .animation(resting ? model.motion.surfaceClose : model.motion.contentOut, value: resting)
                     .position(x: orb.midX, y: orb.midY)
                     .allowsHitTesting(false)
+                    .modifier(FormChange(model: model))
             }
 
             if let pill = model.navPillRect.map(model.local) {
@@ -437,5 +439,26 @@ private struct OrbFace: View {
             }
         }
         .accessibilityLabel(waiting > 0 ? "Wisp, \(waiting) waiting" : "Wisp")
+    }
+}
+
+/// The shell changing form: stretching as the notch is pulled, springing up in a new form,
+/// and shrinking away as an orb docks. Scales about the closed shape.
+private struct FormChange: ViewModifier {
+    let model: NotchModel
+
+    func body(content: Content) -> some View {
+        let panel = model.layout.panelFrame
+        let closed = model.local(model.layout.closedRect)
+        let anchor =
+            panel.width > 0 && panel.height > 0
+            ? UnitPoint(x: closed.midX / panel.width, y: closed.midY / panel.height) : .center
+        // A pulled notch stretches down from the top edge it hangs from.
+        let top = panel.height > 0 ? UnitPoint(x: anchor.x, y: closed.minY / panel.height) : .top
+        let size: CGFloat = model.popping ? 0.5 : (model.vanishing ? 0.2 : 1)
+        content
+            .scaleEffect(x: 1 + model.pull * 0.12, y: 1 + model.pull * 0.45, anchor: top)
+            .scaleEffect(size, anchor: anchor)
+            .opacity(model.vanishing ? 0 : 1)
     }
 }
