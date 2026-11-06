@@ -80,7 +80,8 @@ struct NotchView: View {
             switch model.spec {
             case .closed, .peek:
                 return (0, orb ? model.layout.closedRect.height / 2 : ShellMetrics.closedIslandRadius * round)
-            case .compact: return (0, ShellMetrics.closedIslandRadius * round)
+            case .compact:
+                return (0, (orb ? ShellMetrics.floatingPillRadius : ShellMetrics.closedIslandRadius) * round)
             case .medium, .notification:
                 return (0, (orb ? ShellMetrics.floatingCardRadius : ShellMetrics.expandedHUDBottomRadius) * round)
             case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
