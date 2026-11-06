@@ -17,6 +17,7 @@ final class NotchCoordinator {
     private var pointerDisplay: String?
     private var shake = ShakeDetector()
     private var dragStarted = Date.now
+    private var shellDrag: ShellDrag?
     private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "notch")
 
     private var preferences: Preferences { services.preferences }
@@ -93,7 +94,8 @@ final class NotchCoordinator {
             if style == .hidden { continue }
             let layout = NotchGeometry.layout(
                 for: metrics, prefersIsland: style == .island,
-                placement: preferences.placement(for: uuid).clear(ofSystemIsland: systemIsland))
+                placement: preferences.placement(for: uuid).clear(ofSystemIsland: systemIsland),
+                orbCentre: preferences.orbCentre(for: uuid), avoidsTopCentre: systemIsland)
             current.insert(uuid)
             log.notice(
                 "display \(uuid, privacy: .public) style=\(String(describing: layout.style), privacy: .public) closed=\(String(describing: layout.closedRect), privacy: .public) panel=\(String(describing: layout.panelFrame), privacy: .public)"
@@ -153,6 +155,12 @@ final class NotchCoordinator {
             shake.reset()
             dragStarted = .now
             controllers.values.forEach { $0.leftMouseDown(at: location) }
+            shellDrag = controllers.first { $0.value.pendingPress }.map { uuid, controller in
+                ShellDrag(
+                    uuid: uuid, start: location,
+                    startCentre: CGPoint(x: controller.layout.closedRect.midX, y: controller.layout.closedRect.midY),
+                    floating: controller.layout.placement == .floating)
+            }
         case .rightDown:
             controllers.values.forEach { $0.rightMouseDown(at: location) }
         case .dragged:
@@ -167,16 +175,63 @@ final class NotchCoordinator {
                     services.pocket.show(at: location)
                 }
                 controllers.values.forEach { $0.fileDragMoved(to: location) }
+            } else if shellDrag != nil {
+                dragShell(to: location)
             } else {
                 controllers.values.forEach { $0.pointerMoved(to: location) }
             }
         case .leftUp:
+            if let drag = shellDrag, drag.moving {
+                dropShell(drag)
+            } else {
+                controllers.values.forEach { $0.leftMouseUp(at: location) }
+            }
+            shellDrag = nil
             if fileDragActive {
                 controllers.values.forEach { $0.fileDragEnded() }
                 services.pocket.dragEnded()
             }
             fileDragActive = false
         }
+    }
+
+    /// Moves the orb with the pointer. The notch comes off its edge once pulled far enough.
+    private func dragShell(to location: CGPoint) {
+        guard var drag = shellDrag, let controller = controllers[drag.uuid],
+            let screen = NSScreen.screens.first(where: { $0.displayUUID == drag.uuid })
+        else { return }
+        if !drag.moving {
+            guard OrbGeometry.startsDrag(from: drag.start, to: location, floating: drag.floating) else { return }
+            drag.moving = true
+            controller.cancelPress()
+        }
+        shellDrag = drag
+        let centre =
+            drag.floating
+            ? CGPoint(
+                x: drag.startCentre.x + location.x - drag.start.x, y: drag.startCentre.y + location.y - drag.start.y)
+            : location
+        controller.update(
+            layout: NotchGeometry.layout(
+                for: screen.metrics, prefersIsland: true, placement: .floating, orbCentre: centre,
+                avoidsTopCentre: screen.hasSystemIsland(preferences.islandSetting)))
+    }
+
+    /// Settles a dragged orb: flush against a nearby edge, or back on its edge when dropped at
+    /// the top centre.
+    private func dropShell(_ drag: ShellDrag) {
+        guard let controller = controllers[drag.uuid],
+            let screen = NSScreen.screens.first(where: { $0.displayUUID == drag.uuid })
+        else { return }
+        let closed = controller.layout.closedRect
+        let centre = CGPoint(x: closed.midX, y: closed.midY)
+        let visible = screen.visibleFrame
+        if OrbGeometry.docks(centre, in: visible, systemIsland: screen.hasSystemIsland(preferences.islandSetting)) {
+            preferences.dockOrb(drag.uuid)
+        } else {
+            preferences.floatOrb(drag.uuid, at: OrbGeometry.snapped(centre, in: visible, size: closed.width))
+        }
+        rebuild()
     }
 
     /// A drag that put file URLs on the drag pasteboard since the mouse went down.
@@ -198,6 +253,7 @@ final class NotchCoordinator {
 
     private func observePreferences() {
         withObservationTracking {
+            _ = preferences.orbCentres
             _ = preferences.showOnExternalDisplays
             _ = preferences.externalStyle
             _ = preferences.displayStyles
@@ -212,4 +268,14 @@ final class NotchCoordinator {
             }
         }
     }
+}
+
+/// A press on a closed shell that may become a drag of it.
+private struct ShellDrag {
+    let uuid: String
+    let start: CGPoint
+    let startCentre: CGPoint
+    /// Already an orb, so it moves at a nudge rather than tearing off.
+    let floating: Bool
+    var moving = false
 }

@@ -22,6 +22,8 @@ final class NotchController {
     private var heldSlot: ActivitySlot?
     /// The page to go back to after a click on a live activity opened its own view.
     private var returnPage: ShelfPage?
+    /// A press on the closed shell. It acts on mouse-up, so dragging the shell moves it instead.
+    private(set) var pendingPress = false
 
     /// Grace period before a shelf closes after the pointer leaves.
     private let closeDelay: Duration = .milliseconds(300)
@@ -79,7 +81,9 @@ final class NotchController {
     /// (AppKit passes clicks through transparent areas only while the property is untouched),
     /// so a closed panel takes the mouse only while the pointer is over something it handles.
     private func updateClickThrough() {
-        let overControls = pointerInside && (isReplying || showsApproval || showsMeetingPill || showsCard)
+        // The orb floats over windows; a press on it must not reach the window underneath.
+        let overControls =
+            pointerInside && (isReplying || showsApproval || showsMeetingPill || showsCard || isOrb)
         panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble
     }
 
@@ -121,6 +125,8 @@ final class NotchController {
         heldSlot = nil
         return services.activities.dismissCurrent()
     }
+
+    private var isOrb: Bool { layout.placement == .floating }
 
     /// The meeting pill's microphone end mutes on click.
     private var showsMeetingPill: Bool {
@@ -181,15 +187,32 @@ final class NotchController {
         }
         if model.contains(location) {
             if machine.phase != .open {
-                showActivityView()
-                send(.clicked)
+                pendingPress = true
+                return
             }
             // Let text fields (notes, search) and Esc reach the shelf without activating
             // Wisp. Hover opens stay non-key so typing keeps going to the front app.
-            if machine.phase == .open { panel.makeKey() }
+            panel.makeKey()
         } else if machine.phase == .open {
             send(.clickedOutside)
         }
+    }
+
+    /// A press on the closed shell that didn't turn into a drag opens it.
+    func leftMouseUp(at location: CGPoint) {
+        guard pendingPress else { return }
+        pendingPress = false
+        guard model.contains(location) else { return }
+        if machine.phase != .open {
+            showActivityView()
+            send(.clicked)
+        }
+        if machine.phase == .open { panel.makeKey() }
+    }
+
+    /// The press became a drag of the shell.
+    func cancelPress() {
+        pendingPress = false
     }
 
     /// A click on the agent pill opens the Agents widget on its own, on the session the pill
@@ -230,6 +253,15 @@ final class NotchController {
             at: location,
             customiseHome: { [weak self] in self?.customiseHome() },
             openPage: { [weak self] page in self?.open(page: page) },
+            floating: isOrb,
+            toggleOrb: { [weak self] in
+                guard let self else { return }
+                if self.isOrb {
+                    self.services.preferences.dockOrb(self.screenUUID)
+                } else {
+                    self.services.preferences.floatOrb(self.screenUUID)
+                }
+            },
             services: services
         )
     }

@@ -28,6 +28,15 @@ struct NotchView: View {
                 )
                 .position(x: surface.midX, y: surface.midY)
 
+            if model.layout.placement == .floating, model.spec == .closed {
+                let orb = model.local(model.layout.closedRect)
+                OrbFace(model: model)
+                    .frame(width: orb.width, height: orb.height)
+                    .position(x: orb.midX, y: orb.midY)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+
             if let pill = model.navPillRect.map(model.local) {
                 NavPill(model: model)
                     .frame(width: pill.width, height: pill.height)
@@ -68,7 +77,10 @@ struct NotchView: View {
         let round = CGFloat(model.preferences.appearance.roundness)
         guard model.drawsNotch else {
             switch model.spec {
-            case .closed, .peek, .compact: return (0, ShellMetrics.closedIslandRadius * round)
+            case .closed, .peek, .compact:
+                // The orb and the pills it grows into stay fully round.
+                let orb = model.layout.placement == .floating
+                return (0, orb ? model.layout.closedRect.height / 2 : ShellMetrics.closedIslandRadius * round)
             case .medium, .notification: return (0, ShellMetrics.expandedHUDBottomRadius * round)
             case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
                 return (0, ShellMetrics.expandedIslandRadius * round)
@@ -370,4 +382,39 @@ struct VisualEffectBlur: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+/// The resting orb: Wisp's glyph, a violet ring while an agent works, and a count of
+/// requests waiting for an answer.
+private struct OrbFace: View {
+    let model: NotchModel
+
+    var body: some View {
+        let agents = model.services.agents
+        let waiting = agents.approvals.count
+        TimelineView(.periodic(from: .now, by: 5)) { context in
+            ZStack {
+                Image("MenuGlyph")
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .padding(11)
+                    .foregroundStyle(.white.opacity(0.9))
+                if agents.sessions.anyWorking(now: context.date) {
+                    Circle().strokeBorder(Color.wispViolet, lineWidth: 2)
+                }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if waiting > 0 {
+                Text("\(waiting)")
+                    .font(.system(size: 10, weight: .bold)).monospacedDigit()
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 16, minHeight: 16)
+                    .background(Circle().fill(.orange))
+                    .offset(x: 3, y: -3)
+            }
+        }
+        .accessibilityLabel(waiting > 0 ? "Wisp, \(waiting) waiting" : "Wisp")
+    }
 }

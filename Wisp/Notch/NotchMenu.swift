@@ -5,7 +5,8 @@ import AppKit
 enum NotchMenu {
     static func show(
         at location: CGPoint, customiseHome: @escaping @MainActor () -> Void,
-        openPage: @escaping @MainActor (ShelfPage) -> Void, services: AppServices
+        openPage: @escaping @MainActor (ShelfPage) -> Void, floating: Bool,
+        toggleOrb: @escaping @MainActor () -> Void, services: AppServices
     ) {
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -15,6 +16,10 @@ enum NotchMenu {
         menu.addItem(item("Transform Files…", symbol: "wand.and.stars") { services.openTransform([]) })
         menu.addItem(item("Mini Player", symbol: "pip") { services.miniPlayer.toggle() })
         menu.addItem(profilesItem(services: services))
+        menu.addItem(
+            floating
+                ? item("Dock to Edge", symbol: "rectangle.topthird.inset.filled", action: toggleOrb)
+                : item("Float as Orb", symbol: "circle.circle", action: toggleOrb))
         menu.addItem(.separator())
         let update = item("Check for Updates…", symbol: "arrow.down.circle") { services.updater.checkForUpdates() }
         update.isEnabled = services.updater.canCheckForUpdates

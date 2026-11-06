@@ -20,6 +20,7 @@ extension Placement {
         case .bottom: "Bottom"
         case .left: "Left edge"
         case .right: "Right edge"
+        case .floating: "Floating orb"
         }
     }
 }
@@ -253,6 +254,8 @@ final class Preferences {
         static let displayStyles = "displayStyles"
         static let placement = "placement"
         static let islandSetting = "islandSetting"
+        static let orbCentres = "orbCentres"
+        static let orbReturnPlacements = "orbReturnPlacements"
         static let displayPlacements = "displayPlacements"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let activityDisplay = "activityDisplay"
@@ -707,6 +710,30 @@ final class Preferences {
     var islandSetting: IslandSetting {
         didSet { defaults.set(islandSetting.rawValue, forKey: Key.islandSetting) }
     }
+    /// Where each display's orb rests, as "x,y" by display UUID.
+    var orbCentres: [String: String] { didSet { defaults.set(orbCentres, forKey: Key.orbCentres) } }
+    /// The placement override each display had before its shell became an orb; "" means it
+    /// followed the default.
+    var orbReturnPlacements: [String: String] {
+        didSet { defaults.set(orbReturnPlacements, forKey: Key.orbReturnPlacements) }
+    }
+
+    func orbCentre(for uuid: String) -> CGPoint? { orbCentres[uuid].flatMap(OrbGeometry.decode) }
+
+    /// Turns the display's shell into an orb, at `centre` or where its orb last rested.
+    func floatOrb(_ uuid: String, at centre: CGPoint? = nil) {
+        if let centre { orbCentres[uuid] = OrbGeometry.encode(centre) }
+        guard placement(for: uuid) != .floating else { return }
+        orbReturnPlacements[uuid] = placementOverride(for: uuid)?.rawValue ?? ""
+        setPlacementOverride(.floating, for: uuid)
+    }
+
+    /// Puts the orb back where the shell was before it floated, or at the top.
+    func dockOrb(_ uuid: String) {
+        let back = orbReturnPlacements.removeValue(forKey: uuid).flatMap(Placement.init(rawValue:))
+        setPlacementOverride(back, for: uuid)
+        if placement(for: uuid) == .floating { setPlacementOverride(.top, for: uuid) }
+    }
     /// Per-display placements by display UUID; a display missing here follows `placement`.
     var displayPlacements: [String: String] {
         didSet { defaults.set(displayPlacements, forKey: Key.displayPlacements) }
@@ -924,6 +951,9 @@ final class Preferences {
         placement = defaults.string(forKey: Key.placement).flatMap(Placement.init(rawValue:)) ?? .top
         islandSetting =
             defaults.string(forKey: Key.islandSetting).flatMap(IslandSetting.init(rawValue:)) ?? .automatic
+        orbCentres = (defaults.dictionary(forKey: Key.orbCentres) ?? [:]).compactMapValues { "\($0)" }
+        orbReturnPlacements =
+            (defaults.dictionary(forKey: Key.orbReturnPlacements) ?? [:]).compactMapValues { "\($0)" }
         displayPlacements = (defaults.dictionary(forKey: Key.displayPlacements) ?? [:]).compactMapValues { "\($0)" }
         hudDuration = defaults.string(forKey: Key.hudDuration).flatMap(HUDDuration.init(rawValue:)) ?? .standard
         volumeSteps = defaults.integer(forKey: Key.volumeSteps)

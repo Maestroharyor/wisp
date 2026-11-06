@@ -21,7 +21,7 @@ struct NotchSettings: View {
                     ForEach(Placement.allCases) { Text($0.title).tag($0) }
                 }
                 Text(
-                    "Top uses the notch. The left and right edges get a notch on its side. The corners and the bottom float an island below the menu bar or above the Dock. The shelf grows out from wherever it sits."
+                    "Top uses the notch. The left and right edges get a notch on its side. The corners and the bottom float an island below the menu bar or above the Dock. The floating orb goes anywhere: drag it, or pull the notch down to tear it off, and drop it at the top centre to dock it. The shelf grows out from wherever it sits."
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 if hasSystemIsland {

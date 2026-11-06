@@ -142,7 +142,7 @@ public enum SurfaceSizing {
         func bubble(x: CGFloat, y: CGFloat) -> CGRect { CGRect(x: x, y: y, width: size, height: size) }
         let rects: [CGRect]
         switch placement {
-        case .top, .bottom:
+        case .top, .bottom, .floating:
             let right = bubble(x: pill.maxX + bubbleGap, y: pill.minY)
             let left = bubble(x: pill.minX - step, y: pill.minY)
             rects = firstOnLeft ? [left, right] : [right, left]
