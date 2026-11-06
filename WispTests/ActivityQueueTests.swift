@@ -110,6 +110,16 @@ final class ActivityQueueTests: XCTestCase {
         XCTAssertEqual(queue.live(id: "card", now: later)?.expiresAt, later.addingTimeInterval(6))
     }
 
+    func testAHeldCardMadeStickyStaysStickyWhenReleased() {
+        // Replying to a notification the pointer is on: the reply mustn't time out.
+        var queue = ActivityQueue<String>()
+        queue.post(id: "card", priority: 50, duration: 6, payload: "card", now: now)
+        queue.hold(id: "card", now: now.addingTimeInterval(1))
+        queue.post(id: "card", priority: 50, duration: nil, payload: "replying", now: now.addingTimeInterval(2))
+        queue.release(id: "card", now: now.addingTimeInterval(3), minimum: 1.5)
+        XCTAssertEqual(queue.live(id: "card", now: now.addingTimeInterval(60))?.payload, "replying")
+    }
+
     func testHoldingAStickyEntryChangesNothing() {
         var queue = ActivityQueue<String>()
         queue.post(id: "media", priority: 10, duration: nil, payload: "media", now: now)
