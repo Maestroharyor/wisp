@@ -8,9 +8,12 @@ public enum DisplayStyle: String, CaseIterable, Sendable {
     case hidden
 
     public static func resolve(
-        _ choice: DisplayStyle, hasNotch: Bool, showOnExternal: Bool, externalIsland: Bool
+        _ choice: DisplayStyle, hasNotch: Bool, showOnExternal: Bool, externalIsland: Bool,
+        systemIsland: Bool = false
     ) -> DisplayStyle {
         guard choice == .automatic else { return choice }
+        // A hole-punch camera may still report a housing; drawing a notch there covers Apple's island.
+        if systemIsland { return .island }
         if hasNotch { return .notch }
         guard showOnExternal else { return .hidden }
         return externalIsland ? .island : .notch

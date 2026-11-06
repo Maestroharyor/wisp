@@ -24,6 +24,23 @@ struct NotchSettings: View {
                     "Top uses the notch. The left and right edges get a notch on its side. The corners and the bottom float an island below the menu bar or above the Dock. The shelf grows out from wherever it sits."
                 )
                 .font(.caption).foregroundStyle(.secondary)
+                if hasSystemIsland {
+                    Text("Apple's Dynamic Island sits at the top of this Mac, so Top moves to the top right.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Section("Dynamic Island") {
+                Picker("This Mac has a Dynamic Island", selection: $preferences.islandSetting) {
+                    Text("Automatic").tag(IslandSetting.automatic)
+                    Text("Yes").tag(IslandSetting.yes)
+                    Text("No").tag(IslandSetting.no)
+                }
+                Text(
+                    "On a MacBook Pro with a Dynamic Island, Wisp stays clear of it. Choose Yes if Wisp draws over the island."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                Button("Copy display info") { copyDisplayInfo() }
+                    .help("Copies the model and screen measurements Wisp uses to find the notch or island")
             }
             Section("Opening") {
                 Picker("Open the shelf on", selection: $preferences.openTrigger) {
@@ -109,6 +126,16 @@ struct NotchSettings: View {
             _ in
             screens = NSScreen.screens
         }
+    }
+
+    private var hasSystemIsland: Bool {
+        screens.contains { $0.hasSystemIsland(preferences.islandSetting) }
+    }
+
+    private func copyDisplayInfo() {
+        let text = screens.map(\.islandReport).joined(separator: "\n\n")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     private func placementOverride(_ uuid: String) -> Binding<Placement?> {

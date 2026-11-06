@@ -252,6 +252,7 @@ final class Preferences {
         static let swipeGestures = "swipeGestures"
         static let displayStyles = "displayStyles"
         static let placement = "placement"
+        static let islandSetting = "islandSetting"
         static let displayPlacements = "displayPlacements"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let activityDisplay = "activityDisplay"
@@ -703,6 +704,9 @@ final class Preferences {
 
     /// Where the shell sits on displays without their own choice.
     var placement: Placement { didSet { defaults.set(placement.rawValue, forKey: Key.placement) } }
+    var islandSetting: IslandSetting {
+        didSet { defaults.set(islandSetting.rawValue, forKey: Key.islandSetting) }
+    }
     /// Per-display placements by display UUID; a display missing here follows `placement`.
     var displayPlacements: [String: String] {
         didSet { defaults.set(displayPlacements, forKey: Key.displayPlacements) }
@@ -918,6 +922,8 @@ final class Preferences {
         swipeGestures = defaults.bool(forKey: Key.swipeGestures)
         displayStyles = (defaults.dictionary(forKey: Key.displayStyles) ?? [:]).compactMapValues { "\($0)" }
         placement = defaults.string(forKey: Key.placement).flatMap(Placement.init(rawValue:)) ?? .top
+        islandSetting =
+            defaults.string(forKey: Key.islandSetting).flatMap(IslandSetting.init(rawValue:)) ?? .automatic
         displayPlacements = (defaults.dictionary(forKey: Key.displayPlacements) ?? [:]).compactMapValues { "\($0)" }
         hudDuration = defaults.string(forKey: Key.hudDuration).flatMap(HUDDuration.init(rawValue:)) ?? .standard
         volumeSteps = defaults.integer(forKey: Key.volumeSteps)

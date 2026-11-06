@@ -14,6 +14,17 @@ final class DisplayStyleTests: XCTestCase {
             DisplayStyle.resolve(.automatic, hasNotch: false, showOnExternal: true, externalIsland: false), .notch)
     }
 
+    func testAMacWithASystemIslandGetsAFloatingIsland() {
+        XCTAssertEqual(
+            DisplayStyle.resolve(
+                .automatic, hasNotch: true, showOnExternal: false, externalIsland: false, systemIsland: true),
+            .island)
+        XCTAssertEqual(
+            DisplayStyle.resolve(
+                .hidden, hasNotch: true, showOnExternal: false, externalIsland: false, systemIsland: true),
+            .hidden)
+    }
+
     func testAPerDisplayChoiceWins() {
         XCTAssertEqual(
             DisplayStyle.resolve(.hidden, hasNotch: true, showOnExternal: true, externalIsland: false), .hidden)
