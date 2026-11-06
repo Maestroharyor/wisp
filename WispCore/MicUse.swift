@@ -22,3 +22,16 @@ public enum MicUse {
         return meetingInProgress ? .call : .recording
     }
 }
+
+/// Whether the microphone counts as in use.
+public enum MicState {
+    /// macOS's per-process view is the source of truth: a process with an input stream
+    /// running. The device-wide running flag also turns on for playback through a headset
+    /// or USB mic with an output, so it only decides when the process list can't be read
+    /// (`inputProcesses` nil). No input device means nothing can be recording.
+    public static func inUse(hasInputDevice: Bool, deviceRunning: Bool, inputProcesses: Int?) -> Bool {
+        guard hasInputDevice else { return false }
+        guard let inputProcesses else { return deviceRunning }
+        return inputProcesses > 0
+    }
+}
