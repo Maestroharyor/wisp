@@ -1,6 +1,6 @@
 # Wisp plan and status
 
-The status below is as of 2026-11-06. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 724 tests. For what comes next, see `docs/REVIEW.md`.
+The status below is as of 2026-11-06. Testing approach: decision logic lives in `WispCore` and is written test-first. The app layer only wraps system APIs and SwiftUI. The current suite is 734 tests. For what comes next, see `docs/REVIEW.md`.
 
 ## Done
 
@@ -50,7 +50,7 @@ Dropped from the agent cards round: todo progress. Claude Code 2.1.319 has no to
 
 Not checked by hand yet: the expanded preview and "Deny with a reason…" (built and unit-tested, not clicked through), the question bar in an open shelf, and the question card in private mode. The usage limit notices were checked with a sample snapshot, not a real near-limit session.
 
-Not checked by hand yet (orb and ring): tearing the real notch off and docking it back, the Agents sub-ring against a live request, the mouse button and hold-to-pick, per-app rings, dropping files on the ring, and the Ring settings pane. Nothing was tried on a Dynamic Island Mac. Not built from the plan: the orb's halo doesn't show timer or limit progress (an activity turns the orb into a pill anyway), double-click to dock, holding Hyper+R to pick, shaking a file to open the ring, and display info in `wisp status`.
+Not checked by hand yet (orb and ring): tearing the real notch off and docking it back, the Agents sub-ring against a live request, the mouse button and hold-to-pick, per-app rings, dropping files on the ring, and the Ring settings pane. Nothing was tried on a Dynamic Island Mac. Not built from the plan: the orb's halo doesn't show timer or limit progress (an activity turns the orb into a pill anyway), double-click to dock, holding Hyper+R to pick, shaking a file to open the ring, and display info in `wisp status`. Fixed after review: sub-ring items out past neighbouring segments couldn't be reached, tear-off could start from a drag meant for a window under a corner or bottom shell, an aborted tear-off cleared the display's position, the mouse button failed silently without Accessibility, and the ring had no shortcut without Hyper. Left from review: the orb's panel is resized on every drag event, and Ring settings rows are keyed by position.
 
 Next for Dynamic Island Macs: once macOS 27.3 ships, publish agent, approval, timer and limit activities as system Live Activities (a widget extension target and App Intents for Allow and Deny, opt-in, behind `#available`), so they show in Apple's island or the menu bar. Then touch: larger targets and taps on touch-screen Macs.
 
