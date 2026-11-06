@@ -251,11 +251,27 @@ final class PlacementTests: XCTestCase {
         XCTAssertFalse(side.contains(CGPoint(x: upright.midX, y: upright.minY + 10)))
     }
 
+    func testCloseZoneIsTheCardsTopTrailingCornerBelowTheNotch() {
+        let card = CGRect(x: 500, y: 900, width: 480, height: 116)
+        let zone = SurfaceSizing.cardCloseZone(in: card, topInset: 32)
+        XCTAssertEqual(zone.maxX, card.maxX)
+        XCTAssertEqual(zone.maxY, card.maxY - 32)
+        XCTAssertEqual(zone.size, SurfaceSizing.cardCloseZoneSize)
+        XCTAssertFalse(zone.contains(CGPoint(x: card.midX, y: card.midY)))
+    }
+
     func testOpeningSwipePointsAwayFromTheEdge() {
         XCTAssertEqual(Placement.top.openingSwipe, .down)
         XCTAssertEqual(Placement.topLeft.openingSwipe, .down)
         XCTAssertEqual(Placement.bottom.openingSwipe, .up)
         XCTAssertEqual(Placement.left.openingSwipe, .right)
         XCTAssertEqual(Placement.right.openingSwipe, .left)
+    }
+
+    func testClosingSwipePointsBackIntoTheEdge() {
+        XCTAssertEqual(Placement.top.closingSwipe, .up)
+        XCTAssertEqual(Placement.bottom.closingSwipe, .down)
+        XCTAssertEqual(Placement.left.closingSwipe, .left)
+        XCTAssertEqual(Placement.right.closingSwipe, .right)
     }
 }

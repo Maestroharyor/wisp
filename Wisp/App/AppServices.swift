@@ -193,9 +193,6 @@ final class AppServices {
         }
     }
 
-    /// How long a notification card stays when untouched.
-    private let notificationDuration: TimeInterval = 6
-
     /// Keeps the card on screen while the user types a reply.
     func beginReply(to item: NotificationItem) {
         replyingTo = item
@@ -470,7 +467,7 @@ final class AppServices {
             waitingNotification = item
             return
         }
-        activities.post(.notification(item), slot: .notification, duration: notificationDuration)
+        activities.post(.notification(item), slot: .notification, duration: preferences.notificationDuration.seconds)
         if preferences.hideSystemBanners { BannerSuppressor.closeBanners() }
     }
 

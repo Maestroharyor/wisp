@@ -62,6 +62,8 @@ final class NotchModel {
     var showsActivities = true
     /// Set while the user types a reply to a notification card.
     var replyingTo: NotificationItem?
+    /// The pointer is on a card that can be closed, so its close button shows.
+    var cardHovered = false
     /// The reply typed so far. Kept here, not in the card, because a higher-priority alert
     /// (volume, Caps Lock, an approval) replaces the card for a moment.
     var replyDraft = ""
@@ -192,6 +194,16 @@ final class NotchModel {
     var drawsNotch: Bool { isNotchStyle || layout.edge.isSide }
     /// Height of a one-line pill (the notch itself on the top edge).
     var notchHeight: CGFloat { layout.barHeight }
+    /// Space above a card's content: the notch it hangs from, or a margin on an island.
+    var cardTopInset: CGFloat { isNotchStyle ? notchHeight : 8 }
+    /// Notification and two-line cards get a close button; cards with their own buttons
+    /// (approvals, Join) and pills don't.
+    var showsCloseButton: Bool {
+        guard cardHovered, replyingTo == nil, let activity, services.activities.currentSlot?.isDismissable == true
+        else { return false }
+        if case .notification = activity { return true }
+        return activity.isMedium
+    }
     var placement: Placement { layout.placement }
 
     var motion: NotchMotion {

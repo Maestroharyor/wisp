@@ -44,4 +44,13 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         default: false
         }
     }
+
+    /// Short-lived cards and alerts the user can close early. Ongoing activities (music, a
+    /// call, a timer, an agent at work), approvals and HUDs can't be.
+    public var isDismissable: Bool {
+        switch self {
+        case .notification, .notice, .device, .battery, .focus, .meetingSoon, .tray: true
+        default: false
+        }
+    }
 }

@@ -50,6 +50,29 @@ enum HUDDuration: String, CaseIterable, Identifiable {
     }
 }
 
+/// How long a notification card stays when the pointer isn't on it.
+enum NotificationDuration: String, CaseIterable, Identifiable {
+    case short
+    case standard
+    case long
+
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .short: "3 seconds"
+        case .standard: "6 seconds"
+        case .long: "10 seconds"
+        }
+    }
+    var seconds: TimeInterval {
+        switch self {
+        case .short: 3
+        case .standard: 6
+        case .long: 10
+        }
+    }
+}
+
 /// When the floating drop pocket appears during a file drag.
 enum PocketTrigger: String, CaseIterable, Identifiable {
     case shake
@@ -234,6 +257,7 @@ final class Preferences {
         static let clipboardLimit = "clipboardLimit"
         static let notificationsEnabled = "notificationsEnabled"
         static let hideSystemBanners = "hideSystemBanners"
+        static let notificationDuration = "notificationDuration"
         static let blockedNotificationApps = "blockedNotificationApps"
         static let whatsAppReplies = "whatsAppReplies"
         static let telegramReplies = "telegramReplies"
@@ -721,6 +745,9 @@ final class Preferences {
     }
     /// Close the macOS banner when Wisp shows the notification (needs Accessibility).
     var hideSystemBanners: Bool { didSet { defaults.set(hideSystemBanners, forKey: Key.hideSystemBanners) } }
+    var notificationDuration: NotificationDuration {
+        didSet { defaults.set(notificationDuration.rawValue, forKey: Key.notificationDuration) }
+    }
     var blockedNotificationApps: [String] {
         didSet { defaults.set(blockedNotificationApps, forKey: Key.blockedNotificationApps) }
     }
@@ -792,6 +819,7 @@ final class Preferences {
             Key.clipboardLimit: 200,
             Key.notificationsEnabled: true,
             Key.hideSystemBanners: true,
+            Key.notificationDuration: NotificationDuration.standard.rawValue,
             Key.whatsAppReplies: false,
             Key.telegramReplies: false,
             Key.focusActivity: true,
@@ -893,6 +921,8 @@ final class Preferences {
         clipboardLimit = max(defaults.integer(forKey: Key.clipboardLimit), 20)
         notificationsEnabled = defaults.bool(forKey: Key.notificationsEnabled)
         hideSystemBanners = defaults.bool(forKey: Key.hideSystemBanners)
+        notificationDuration =
+            defaults.string(forKey: Key.notificationDuration).flatMap(NotificationDuration.init(rawValue:)) ?? .standard
         blockedNotificationApps = defaults.stringArray(forKey: Key.blockedNotificationApps) ?? []
         whatsAppReplies = defaults.bool(forKey: Key.whatsAppReplies)
         telegramReplies = defaults.bool(forKey: Key.telegramReplies)

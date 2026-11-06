@@ -17,6 +17,8 @@ final class ActivityCenter {
     static let bubbleLimit = 2
 
     private(set) var current: Activity?
+    /// The slot `current` came from.
+    private(set) var currentSlot: ActivitySlot?
     /// Highest priority first: the first sits right of the pill, the second left.
     private(set) var bubbles: [ActivityBubble] = []
 
@@ -38,6 +40,28 @@ final class ActivityCenter {
         refresh()
     }
 
+    /// Closes the card or alert in the main pill early; false when it can't be dismissed.
+    @discardableResult
+    func dismissCurrent() -> Bool {
+        guard let slot = currentSlot, slot.isDismissable else { return false }
+        remove(slot)
+        return true
+    }
+
+    /// Pauses a card's countdown while the pointer is on it.
+    func hold(_ slot: ActivitySlot) {
+        queue.hold(id: slot.rawValue, now: .now)
+        refresh()
+    }
+
+    /// Restarts it once the pointer leaves, with a moment left to spare.
+    func release(_ slot: ActivitySlot) {
+        queue.release(id: slot.rawValue, now: .now, minimum: Self.releaseGrace)
+        refresh()
+    }
+
+    private static let releaseGrace: TimeInterval = 1.5
+
     /// Swaps a bubble into the main pill.
     func pin(_ slot: ActivitySlot) {
         pinned = slot
@@ -53,6 +77,8 @@ final class ActivityCenter {
             limit: Self.bubbleLimit)
         let next = arrangement.primary?.payload
         if next != current { current = next }
+        let nextSlot = arrangement.primary.flatMap { ActivitySlot(rawValue: $0.id) }
+        if nextSlot != currentSlot { currentSlot = nextSlot }
         let nextBubbles = arrangement.bubbles.compactMap { entry in
             ActivitySlot(rawValue: entry.id).map { ActivityBubble(slot: $0, activity: entry.payload) }
         }

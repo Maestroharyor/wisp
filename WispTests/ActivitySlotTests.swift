@@ -17,4 +17,9 @@ final class ActivitySlotTests: XCTestCase {
         XCTAssertEqual(
             Set(ActivitySlot.allCases.filter(\.canBeBubble)), [.media, .timer, .agent, .meeting])
     }
+
+    func testCardsAndAlertsCanBeDismissedButOngoingActivitiesCant() {
+        let dismissable: Set<ActivitySlot> = [.notification, .notice, .device, .battery, .focus, .meetingSoon, .tray]
+        XCTAssertEqual(Set(ActivitySlot.allCases.filter(\.isDismissable)), dismissable)
+    }
 }

@@ -22,6 +22,8 @@ public struct ActivityArrangement<Payload: Sendable>: Sendable {
 /// expiry and a higher priority, so they pre-empt sticky ones and then hand back.
 public struct ActivityQueue<Payload: Sendable>: Sendable {
     public private(set) var entries: [String: ActivityEntry<Payload>] = [:]
+    /// Entries the user is reading (the pointer is on them), with the time they had left.
+    private var held: [String: TimeInterval] = [:]
 
     public init() {}
 
@@ -33,10 +35,13 @@ public struct ActivityQueue<Payload: Sendable>: Sendable {
         payload: Payload,
         now: Date
     ) {
+        // A card replaced while held stays held, and gets its full time once released.
+        let holding = held[id] != nil && duration != nil
+        if holding { held[id] = duration }
         entries[id] = ActivityEntry(
             id: id,
             priority: priority,
-            expiresAt: duration.map { now.addingTimeInterval($0) },
+            expiresAt: holding ? nil : duration.map { now.addingTimeInterval($0) },
             payload: payload,
             updatedAt: now
         )
@@ -44,6 +49,21 @@ public struct ActivityQueue<Payload: Sendable>: Sendable {
 
     public mutating func remove(id: String) {
         entries[id] = nil
+        held[id] = nil
+    }
+
+    /// Stops a transient entry's clock while the user reads it. Sticky entries are left alone.
+    public mutating func hold(id: String, now: Date) {
+        guard held[id] == nil, let expiry = entries[id]?.expiresAt, expiry > now else { return }
+        held[id] = expiry.timeIntervalSince(now)
+        entries[id]?.expiresAt = nil
+    }
+
+    /// Restarts a held entry's clock with the time it had left, but at least `minimum`, so it
+    /// doesn't vanish the moment the pointer leaves.
+    public mutating func release(id: String, now: Date, minimum: TimeInterval) {
+        guard let remaining = held.removeValue(forKey: id), entries[id] != nil else { return }
+        entries[id]?.expiresAt = now.addingTimeInterval(max(remaining, minimum))
     }
 
     public mutating func prune(now: Date) {
