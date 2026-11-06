@@ -75,6 +75,11 @@ final class AgentHub {
     }
     /// Dollars a day before the budget notices; nil turns them off. Set from Preferences.
     var dailyBudget: Double?
+    /// Notices when a Claude usage window passes 80% and 95%. Set from Preferences.
+    var limitAlerts = true
+    /// The usage windows the status bar reported last; they're the account's, not a session's.
+    private(set) var limitReadings: [UsageReading] = []
+    @ObservationIgnored private var limitWatch = LimitWatch()
     /// Wisp's tool hooks are in Claude Code's settings.
     private(set) var toolsInstalled = false
     // A change republishes the pill so a tool label hides the moment a call starts.
@@ -278,7 +283,8 @@ final class AgentHub {
         case .query(let query):
             // `wisp status` follows private mode, the same as the notch.
             let report = AgentReport.make(
-                sessions: sessions.list, spend: spend, query: query, now: .now, hidden: hiddenReason)
+                sessions: sessions.list, spend: spend, query: query, now: .now, hidden: hiddenReason,
+                limits: currentLimits(now: .now))
             reply(connection, report.encoded().map { String(decoding: $0, as: UTF8.self) })
         case .unsupported(let name):
             if unsupportedLogged.insert(name).inserted {
@@ -377,7 +383,28 @@ final class AgentHub {
             {
                 onContextAlert(ContextUsage.notice(percent: percent, project: project))
             }
+            checkLimits(item.snapshot)
             if pillChanged { publishStatus() }
+        }
+    }
+
+    /// Tracked even while the alerts are off, so turning them on stays quiet until the next level.
+    private func checkLimits(_ snapshot: StatusLineSnapshot) {
+        let readings = UsageLimits.readings(snapshot.extras)
+        guard !readings.isEmpty else { return }
+        limitReadings = readings
+        let due = limitWatch.record(readings, at: .now)
+        guard limitAlerts else { return }
+        for alert in due { onAlert("gauge.with.dots.needle.67percent", alert.text) }
+    }
+
+    /// The usage windows for `wisp status`, with when each runs out at today's pace. A window
+    /// past its reset time is stale and left out.
+    func currentLimits(now: Date) -> [AgentReport.Limit] {
+        limitReadings.filter { $0.resets.map { $0 > now } ?? true }.map { reading in
+            AgentReport.Limit(
+                window: reading.window.rawValue, percent: reading.percent, resets: reading.resets,
+                full: limitWatch.forecast(reading.window))
         }
     }
 

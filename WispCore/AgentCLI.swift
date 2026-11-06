@@ -78,8 +78,23 @@ public enum AgentCLI {
                 out += padded.joined(separator: "  ") + "\n"
             }
         }
+        if let limits = report.limits, !limits.isEmpty { out += "\n" + limitsLine(limits) + "\n" }
         if let hidden = report.hidden { out += "\nDetails hidden \(hidden).\n" }
         return out
+    }
+
+    /// "Limits  5 h 82% (resets 9:00, full around 8:40) · weekly 30%".
+    static func limitsLine(_ limits: [AgentReport.Limit]) -> String {
+        let parts = limits.map { limit in
+            let name = LimitWindow(rawValue: limit.window).map { $0 == .fiveHour ? "5 h" : "weekly" } ?? limit.window
+            let times = [
+                limit.resets.map { "resets \(LimitWatch.clock($0))" },
+                limit.full.map { "full around \(LimitWatch.clock($0))" },
+            ].compactMap { $0 }
+            let detail = times.isEmpty ? "" : " (\(times.joined(separator: ", ")))"
+            return "\(name) \(Int(limit.percent.rounded()))%\(detail)"
+        }
+        return "Limits  " + parts.joined(separator: " · ")
     }
 
     private static func cells(_ row: AgentReport.Row) -> [String] {

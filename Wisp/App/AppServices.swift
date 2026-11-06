@@ -350,7 +350,8 @@ final class AppServices {
                     rules: AgentAlertRules(
                         toolMinutes: preferences.toolAlertMinutes, tools: preferences.toolAlert,
                         nudgeMinutes: preferences.nudgeMinutes, nudges: preferences.nudgeAlert),
-                    budget: preferences.budgetAlert ? preferences.dailyBudget : nil
+                    budget: preferences.budgetAlert ? preferences.dailyBudget : nil,
+                    limits: preferences.limitAlert
                 )
             )
         } onChange: { [weak self] in
@@ -362,6 +363,7 @@ final class AppServices {
         agents.toolActivity = agentPrefs.tools
         agents.alertRules = agentPrefs.rules
         agents.dailyBudget = agentPrefs.budget
+        agents.limitAlerts = agentPrefs.limits
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
         if needsClock { startClock() } else { stopClock() }
         if timerLength != appliedTimerLength {

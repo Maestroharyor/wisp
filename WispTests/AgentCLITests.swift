@@ -69,7 +69,7 @@ final class AgentReportTests: XCTestCase {
         let json = try JSONDecoder().decode(JSONValue.self, from: data)
         guard case .object(let top) = json, case .array(let rows) = top["sessions"], case .object(let row) = rows[0]
         else { return XCTFail("unexpected shape") }
-        XCTAssertEqual(Set(top.keys), ["v", "generated", "hidden", "sessions", "spend"])
+        XCTAssertEqual(Set(top.keys), ["v", "generated", "hidden", "sessions", "spend", "limits"])
         // Unknown values are null rather than missing, so scripts see the same keys every time.
         XCTAssertEqual(
             Set(row.keys),
@@ -160,6 +160,27 @@ final class AgentCLITests: XCTestCase {
     func testEmptyAndHidden() {
         let empty = AgentReport(generated: now, hidden: "during a call", sessions: [], spend: nil)
         XCTAssertEqual(AgentCLI.table(empty, width: 100), "No live sessions.\n\nDetails hidden during a call.\n")
+    }
+
+    func testLimitsFollowTheTable() throws {
+        let resets = try XCTUnwrap(Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: now))
+        var report = AgentReport(generated: now, hidden: nil, sessions: [], spend: nil)
+        report.limits = [
+            AgentReport.Limit(window: "fiveHour", percent: 82.4, resets: resets, full: nil),
+            AgentReport.Limit(window: "sevenDay", percent: 30, resets: nil, full: nil),
+        ]
+        let text = AgentCLI.table(report, width: 100)
+        XCTAssertTrue(text.hasPrefix("No live sessions.\n\nLimits  5 h 82% (resets "), text)
+        XCTAssertTrue(text.hasSuffix(") · weekly 30%\n"), text)
+    }
+
+    func testLimitsAreAlwaysInTheJSON() throws {
+        let report = AgentReport(generated: now, hidden: nil, sessions: [], spend: nil)
+        let json = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(report))
+        XCTAssertEqual(json["limits"], .array([]))
+        // A report from an older Wisp, without the key, still reads.
+        let old = Data(#"{"v":1,"generated":0,"hidden":null,"sessions":[],"spend":null}"#.utf8)
+        XCTAssertNil(try JSONDecoder().decode(AgentReport.self, from: old).limits)
     }
 
     func testSpend() {
