@@ -191,7 +191,7 @@ private struct SubRing: View {
 }
 
 /// One annular wedge with its icon in the middle of the band.
-private struct RingWedge: View {
+struct RingWedge: View {
     var start: CGFloat
     var end: CGFloat
     let inner: CGFloat
@@ -227,7 +227,7 @@ private struct RingWedge: View {
 }
 
 /// An annular sector, angles clockwise from 12 o'clock, in a view whose y runs down.
-private struct SectorShape: Shape {
+struct SectorShape: Shape {
     var start: CGFloat
     var end: CGFloat
     let inner: CGFloat

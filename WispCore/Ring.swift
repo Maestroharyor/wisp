@@ -123,22 +123,31 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
 }
 
 /// A ring segment: one action, and optionally a sub-ring that opens beside it.
-public struct RingSlot: Codable, Equatable, Hashable, Sendable {
+public struct RingSlot: Codable, Equatable, Hashable, Sendable, Identifiable {
     public static let maxSubItems = 9
 
+    /// Keeps a segment's identity in editors while it moves or changes action.
+    public let id: UUID
     public var action: RingAction
     public private(set) var group: [RingAction]
 
-    public init(_ action: RingAction, group: [RingAction] = []) {
+    public init(_ action: RingAction, group: [RingAction] = [], id: UUID = UUID()) {
+        self.id = id
         self.action = action
         self.group = Array(group.prefix(Self.maxSubItems))
     }
 
+    /// Rings saved before segments had ids get fresh ones.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             try container.decode(RingAction.self, forKey: .action),
-            group: try container.decodeIfPresent([RingAction].self, forKey: .group) ?? [])
+            group: try container.decodeIfPresent([RingAction].self, forKey: .group) ?? [],
+            id: try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID())
+    }
+
+    public mutating func setGroup(_ group: [RingAction]) {
+        self.group = Array(group.prefix(Self.maxSubItems))
     }
 }
 

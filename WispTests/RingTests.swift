@@ -140,6 +140,21 @@ final class RingConfigTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(RingAction.self, from: future).kind, .none)
     }
 
+    func testSegmentsKeepTheirIdsAndOldRingsGetNewOnes() throws {
+        var slot = RingSlot(RingAction(.home))
+        let id = slot.id
+        slot.setGroup(Array(repeating: RingAction(.zip), count: 12))
+        XCTAssertEqual(slot.id, id)
+        XCTAssertEqual(slot.group.count, RingSlot.maxSubItems)
+        let data = try JSONEncoder().encode(slot)
+        XCTAssertEqual(try JSONDecoder().decode(RingSlot.self, from: data).id, id)
+        let old = #"{"action":{"kind":"home"}}"#.data(using: .utf8) ?? Data()
+        let a = try JSONDecoder().decode(RingSlot.self, from: old)
+        let b = try JSONDecoder().decode(RingSlot.self, from: old)
+        XCTAssertNotEqual(a.id, b.id)
+        XCTAssertEqual(a.action.kind, .home)
+    }
+
     func testActionsKnowWhatTakesFiles() {
         XCTAssertTrue(RingAction(.airDrop).acceptsFiles)
         XCTAssertTrue(RingAction(.dropAction, value: "id").acceptsFiles)

@@ -7,6 +7,9 @@ struct RingSettings: View {
     @Bindable var preferences: Preferences
     let trigger: RingTrigger
 
+    /// The ring being edited: nil for the default ring, else an app's ring.
+    @State private var editing: UUID?
+
     var body: some View {
         Form {
             Section("Opening") {
@@ -29,27 +32,36 @@ struct RingSettings: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Ring") {
-                RingSetEditor(set: standard, dropActions: preferences.dropActions)
-                Button("Reset to the default ring") { preferences.ringConfig.standard = RingConfig.defaults.standard }
-            }
-            Section("Rings for apps") {
-                ForEach(preferences.ringConfig.perApp) { set in
-                    DisclosureGroup {
-                        RingSetEditor(set: perApp(set.id), dropActions: preferences.dropActions)
-                    } label: {
-                        HStack {
-                            Text(set.name)
-                            Spacer()
-                            Button("Remove", role: .destructive) {
-                                preferences.ringConfig.perApp.removeAll { $0.id == set.id }
-                            }
-                        }
+            Section {
+                Picker("Ring", selection: $editing) {
+                    Text("Default").tag(UUID?.none)
+                    ForEach(preferences.ringConfig.perApp) { set in
+                        Text(set.name).tag(UUID?.some(set.id))
                     }
                 }
-                Button("Add a ring for an app…") { addAppRing() }
-                Text("When that app is in front, its ring opens instead of the one above.")
-                    .font(.caption).foregroundStyle(.secondary)
+                RingSetEditor(set: editedSet, dropActions: preferences.dropActions)
+                    .id(editing)
+                HStack {
+                    if let editing {
+                        Button("Remove this app's ring", role: .destructive) {
+                            preferences.ringConfig.perApp.removeAll { $0.id == editing }
+                            self.editing = nil
+                        }
+                    } else {
+                        Button("Reset to the default ring") {
+                            preferences.ringConfig.standard = RingConfig.defaults.standard
+                        }
+                    }
+                    Spacer()
+                    Button("Add a ring for an app…") { addAppRing() }
+                }
+            } header: {
+                Text("Actions")
+            } footer: {
+                Text(
+                    "Click a segment to change it. An app's ring opens instead of the default while that app is in front."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -68,16 +80,18 @@ struct RingSettings: View {
             get: { preferences.ringHotkey ?? Self.suggestedHotkey }, set: { preferences.ringHotkey = $0 })
     }
 
-    private var standard: Binding<RingSet> {
-        Binding(get: { preferences.ringConfig.standard }, set: { preferences.ringConfig.standard = $0 })
-    }
-
-    private func perApp(_ id: UUID) -> Binding<RingSet> {
+    private var editedSet: Binding<RingSet> {
         Binding(
-            get: { preferences.ringConfig.perApp.first { $0.id == id } ?? preferences.ringConfig.standard },
+            get: {
+                editing.flatMap { id in preferences.ringConfig.perApp.first { $0.id == id } }
+                    ?? preferences.ringConfig.standard
+            },
             set: { updated in
-                guard let index = preferences.ringConfig.perApp.firstIndex(where: { $0.id == id }) else { return }
-                preferences.ringConfig.perApp[index] = updated
+                if let editing, let index = preferences.ringConfig.perApp.firstIndex(where: { $0.id == editing }) {
+                    preferences.ringConfig.perApp[index] = updated
+                } else if editing == nil {
+                    preferences.ringConfig.standard = updated
+                }
             })
     }
 
@@ -90,51 +104,93 @@ struct RingSettings: View {
             let id = bundle.bundleIdentifier
         else { return }
         let name = FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
-        preferences.ringConfig.perApp.append(
-            RingSet(name: name, slots: preferences.ringConfig.standard.slots, bundleIDs: [id]))
+        let set = RingSet(name: name, slots: preferences.ringConfig.standard.slots, bundleIDs: [id])
+        preferences.ringConfig.perApp.append(set)
+        editing = set.id
     }
 }
 
-/// The segments of one ring, in order from 12 o'clock, each with an optional sub-ring.
+/// A picture of the ring to click segments on, beside an inspector for the selected one.
 private struct RingSetEditor: View {
     @Binding var set: RingSet
     let dropActions: [DropAction]
 
+    @State private var selected = 0
+
+    private static let scale: CGFloat = 0.62
+    private static let side: CGFloat = RingGeometry.ringOuter * 2 * scale + 12
+
     var body: some View {
-        ForEach(Array(set.slots.enumerated()), id: \.offset) { index, slot in
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("\(index + 1)").monospacedDigit().foregroundStyle(.secondary).frame(width: 16)
-                    RingActionPicker(action: actionBinding(index), dropActions: dropActions)
-                    Button {
-                        move(index, by: -1)
-                    } label: {
-                        Image(systemName: "chevron.up")
-                    }
-                    .disabled(index == 0)
-                    .help("Move earlier")
-                    Button {
-                        move(index, by: 1)
-                    } label: {
-                        Image(systemName: "chevron.down")
-                    }
-                    .disabled(index == set.slots.count - 1)
-                    .help("Move later")
-                    Button(role: .destructive) {
-                        update { $0.remove(at: index) }
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .help("Remove")
+        HStack(alignment: .top, spacing: 20) {
+            VStack(spacing: 10) {
+                preview
+                Button("Add an action") {
+                    update { $0.append(RingSlot(RingAction(.home))) }
+                    selected = set.slots.count - 1
                 }
-                if slot.action.kind != .agents {
+                .disabled(set.slots.count >= RingSet.maxSlots)
+            }
+            inspector.frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 6)
+    }
+
+    private var preview: some View {
+        let centre = CGPoint(x: Self.side / 2, y: Self.side / 2)
+        let slots = set.slots
+        return ZStack {
+            Circle().fill(Color.black.opacity(0.85))
+                .frame(width: Self.side, height: Self.side)
+            ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
+                let wedge = RingGeometry.sector(index, count: slots.count)
+                RingWedge(
+                    start: wedge.start, end: wedge.end, inner: RingGeometry.ringInner * Self.scale,
+                    outer: RingGeometry.ringOuter * Self.scale, centre: centre, symbol: slot.action.symbol,
+                    fill: index == selected ? .wispViolet : .white.opacity(0.08), dimmed: false,
+                    hasMore: !slot.group.isEmpty || slot.action.opensChoices, small: true
+                )
+            }
+            Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit().frame(width: 16, height: 16)
+                .foregroundStyle(.white.opacity(0.7))
+        }
+        .frame(width: Self.side, height: Self.side)
+        .foregroundStyle(.white)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: selected)
+        .contentShape(Circle())
+        .onTapGesture(coordinateSpace: .local) { location in
+            let up = CGPoint(x: location.x / Self.scale, y: (Self.side - location.y) / Self.scale)
+            let middle = CGPoint(x: Self.side / 2 / Self.scale, y: Self.side / 2 / Self.scale)
+            if case .slot(let index) = RingGeometry.hit(up, centre: middle, slots: slots.count) { selected = index }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Ring preview")
+    }
+
+    @ViewBuilder private var inspector: some View {
+        if set.slots.indices.contains(selected) {
+            let index = selected
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Segment \(index + 1)").font(.headline)
+                RingActionPicker(action: actionBinding(index), dropActions: dropActions)
+                if !set.slots[index].action.opensChoices {
                     SubRingEditor(slot: slotBinding(index), dropActions: dropActions)
-                        .padding(.leading, 24)
+                } else {
+                    Text("Its sub-ring is filled in when the ring opens.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                HStack {
+                    Button("Move earlier") { move(index, by: -1) }.disabled(index == 0)
+                    Button("Move later") { move(index, by: 1) }.disabled(index == set.slots.count - 1)
+                    Spacer()
+                    Button("Remove", role: .destructive) {
+                        update { $0.remove(at: index) }
+                        selected = max(0, min(selected, set.slots.count - 1))
+                    }
                 }
             }
+        } else {
+            Text("No actions yet.").foregroundStyle(.secondary)
         }
-        Button("Add an action") { update { $0.append(RingSlot(RingAction(.home))) } }
-            .disabled(set.slots.count >= RingSet.maxSlots)
     }
 
     private func update(_ change: (inout [RingSlot]) -> Void) {
@@ -147,6 +203,7 @@ private struct RingSetEditor: View {
         let target = index + offset
         guard set.slots.indices.contains(target) else { return }
         update { $0.swapAt(index, target) }
+        selected = target
     }
 
     private func slotBinding(_ index: Int) -> Binding<RingSlot> {
@@ -172,25 +229,28 @@ private struct SubRingEditor: View {
     let dropActions: [DropAction]
 
     var body: some View {
-        ForEach(Array(slot.group.enumerated()), id: \.offset) { index, _ in
-            HStack {
-                Image(systemName: "arrow.turn.down.right").foregroundStyle(.secondary)
-                RingActionPicker(action: binding(index), dropActions: dropActions)
-                Button(role: .destructive) {
-                    var group = slot.group
-                    group.remove(at: index)
-                    slot = RingSlot(slot.action, group: group)
-                } label: {
-                    Image(systemName: "minus.circle")
+        VStack(alignment: .leading, spacing: 6) {
+            Text(slot.group.isEmpty ? "No sub-ring" : "Sub-ring").font(.caption).foregroundStyle(.secondary)
+            ForEach(Array(slot.group.enumerated()), id: \.offset) { index, _ in
+                HStack {
+                    Image(systemName: "arrow.turn.down.right").foregroundStyle(.secondary)
+                    RingActionPicker(action: binding(index), dropActions: dropActions)
+                    Button(role: .destructive) {
+                        var group = slot.group
+                        group.remove(at: index)
+                        slot.setGroup(group)
+                    } label: {
+                        Image(systemName: "minus.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Remove from the sub-ring")
                 }
             }
+            Button(slot.group.isEmpty ? "Add a sub-ring" : "Add to the sub-ring") {
+                slot.setGroup(slot.group + [RingAction(.playPause)])
+            }
+            .disabled(slot.group.count >= RingSlot.maxSubItems)
         }
-        Button(slot.group.isEmpty ? "Add a sub-ring" : "Add to the sub-ring") {
-            slot = RingSlot(slot.action, group: slot.group + [RingAction(.playPause)])
-        }
-        .buttonStyle(.link)
-        .font(.caption)
-        .disabled(slot.group.count >= RingSlot.maxSubItems)
     }
 
     private func binding(_ index: Int) -> Binding<RingAction> {
@@ -200,7 +260,7 @@ private struct SubRingEditor: View {
                 var group = slot.group
                 guard group.indices.contains(index) else { return }
                 group[index] = action
-                slot = RingSlot(slot.action, group: group)
+                slot.setGroup(group)
             })
     }
 }
