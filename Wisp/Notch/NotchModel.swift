@@ -83,6 +83,10 @@ final class NotchModel {
     var expandedApproval: UUID?
     /// The session whose pill was clicked: the Agents view opens on it.
     var focusedSession: String?
+    /// The forms this display can switch to, and the switch itself (the nav pill's form menu).
+    var forms: [FormFactor] = FormFactor.allCases
+    var onSetForm: (FormFactor) -> Void = { _ in }
+    var form: FormFactor { FormFactor(placement: layout.placement) }
 
     let services: AppServices
 

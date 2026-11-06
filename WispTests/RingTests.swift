@@ -243,3 +243,22 @@ final class RingInteractionTests: XCTestCase {
             .close)
     }
 }
+
+final class RingFormTests: XCTestCase {
+    func testFormChoicesMarkTheCurrentForm() {
+        let choices = RingFormChoices.choices(current: .orb, systemIsland: false)
+        XCTAssertEqual(choices.map(\.id), FormFactor.allCases.map { "form:\($0.rawValue)" })
+        XCTAssertEqual(choices.first { $0.id == "form:orb" }?.tint, .allow)
+        XCTAssertFalse(
+            RingFormChoices.choices(current: .orb, systemIsland: true).contains { $0.id == "form:notch" })
+    }
+
+    func testPickingFormOpensItsChoices() {
+        let slots = [RingSlot(RingAction(.form))]
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .slot(0), slots: slots, expanded: nil, subItemCount: 5, hasFiles: false),
+            .expand(0))
+        XCTAssertTrue(RingAction(.form).opensChoices)
+        XCTAssertFalse(RingAction(.home).opensChoices)
+    }
+}

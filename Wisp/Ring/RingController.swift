@@ -10,6 +10,7 @@ import WispCore
 final class RingModel {
     var set = RingConfig.defaults.standard
     var agentChoices: [RingChoice] = []
+    var formChoices: [RingChoice] = []
     var hover: RingHit = .none
     var expanded: Int?
     /// Files being dragged over the ring; segments that can't take them dim.
@@ -22,6 +23,7 @@ final class RingModel {
         guard set.slots.indices.contains(index) else { return [] }
         let slot = set.slots[index]
         if slot.action.kind == .agents { return agentChoices }
+        if slot.action.kind == .form { return formChoices }
         return slot.group.enumerated().map { offset, action in
             RingChoice(id: "action:\(offset)", title: action.title, symbol: action.symbol)
         }
@@ -59,6 +61,8 @@ final class RingController {
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         model.set = services.preferences.ringConfig.set(forFrontApp: front)
         model.agentChoices = RingAgentChoices.choices(for: agentEntries())
+        let state = services.formUnderPointer()
+        model.formChoices = RingFormChoices.choices(current: state.form, systemIsland: state.systemIsland)
         model.hover = .none
         model.expanded = nil
         model.dropping = dropping
@@ -139,6 +143,7 @@ final class RingController {
         }
         let slots = model.set.slots
         let agentChoices = model.agentChoices
+        let formChoices = model.formChoices
         hide()
         switch outcome {
         case .openShelf: services.openShelf(.home)
@@ -148,6 +153,8 @@ final class RingController {
         case .runSub(let index, let item):
             if slots[index].action.kind == .agents {
                 runAgentChoice(agentChoices[safe: item])
+            } else if slots[index].action.kind == .form {
+                runFormChoice(formChoices[safe: item])
             } else if let action = slots[index].group[safe: item] {
                 run(action, files: files)
             }
@@ -172,6 +179,12 @@ final class RingController {
         return agents.sessions.list.map { session in
             RingAgentEntry(sessionID: session.id, project: session.project, approvalID: waiting[session.id])
         }
+    }
+
+    private func runFormChoice(_ choice: RingChoice?) {
+        guard let id = choice?.id, id.hasPrefix("form:"), let form = FormFactor(rawValue: String(id.dropFirst(5)))
+        else { return }
+        services.setForm(form)
     }
 
     private func runAgentChoice(_ choice: RingChoice?) {

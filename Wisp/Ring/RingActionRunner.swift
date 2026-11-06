@@ -37,6 +37,7 @@ enum RingActionRunner {
             services.activities.post(
                 .notice(symbol: action.symbol, text: "Drag files onto the orb, then onto \(action.title)"),
                 slot: .notice, duration: 2)
+        case .form: services.cycleForm()
         case .none: break
         }
     }

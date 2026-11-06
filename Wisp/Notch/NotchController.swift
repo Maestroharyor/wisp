@@ -24,6 +24,10 @@ final class NotchController {
     private var returnPage: ShelfPage?
     /// A press on the closed shell. It acts on mouse-up, so dragging the shell moves it instead.
     private(set) var pendingPress = false
+    /// Apple's island sits at the top of this display; the notch form isn't offered.
+    var systemIsland = false {
+        didSet { model.forms = FormFactor.available(systemIsland: systemIsland) }
+    }
 
     /// Grace period before a shelf closes after the pointer leaves.
     private let closeDelay: Duration = .milliseconds(300)
@@ -41,6 +45,12 @@ final class NotchController {
         syncSettings()
         model.onReplyEnded = { [weak self] in self?.endReply() }
         model.onWantsKey = { [weak self] in self?.panel.makeKey() }
+        model.onSetForm = { [weak self] form in
+            guard let self else { return }
+            // Fold the shelf away first; the new form comes in once the setting rebuilds.
+            self.dismiss()
+            self.services.preferences.setForm(form, for: self.screenUUID)
+        }
         model.onKeyDone = { [weak self] in
             // An open shelf keeps its key status for its own fields.
             guard let self, self.machine.phase != .open else { return }
@@ -257,15 +267,9 @@ final class NotchController {
             at: location,
             customiseHome: { [weak self] in self?.customiseHome() },
             openPage: { [weak self] page in self?.open(page: page) },
-            floating: isOrb,
-            toggleOrb: { [weak self] in
-                guard let self else { return }
-                if self.isOrb {
-                    self.services.preferences.dockOrb(self.screenUUID)
-                } else {
-                    self.services.preferences.floatOrb(self.screenUUID)
-                }
-            },
+            form: model.form,
+            forms: model.forms,
+            setForm: { [weak self] form in self?.model.onSetForm(form) },
             services: services
         )
     }

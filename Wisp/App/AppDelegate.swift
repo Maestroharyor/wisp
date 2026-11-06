@@ -31,12 +31,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         services.openSetup = { [weak self] in self?.onboarding.show() }
         services.openShelf = { [weak self] page in self?.coordinator.openShelf(page: page) }
         services.openWidget = { [weak self] kind in self?.coordinator.openWidget(kind) }
+        services.formUnderPointer = { [weak self] in self?.coordinator.formUnderPointer() ?? (.notch, false) }
+        services.setForm = { [weak self] form in self?.coordinator.setForm(form) }
+        services.cycleForm = { [weak self] in self?.coordinator.cycleForm() }
         services.start()
         coordinator.start()
         hotkeys.onToggle = { [weak self] in self?.toggleShelf() }
         hotkeys.onClipboard = { [weak self] in self?.toggleClipboard() }
         hotkeys.onProfileDigit = { [weak self] digit in self?.services.context.choose(digit: digit) }
         hotkeys.onRing = { [weak self] in self?.services.ring.toggle(at: NSEvent.mouseLocation) }
+        hotkeys.onCycleForm = { [weak self] in self?.services.cycleForm() }
         hotkeys.start()
         services.ringTrigger.start()
         handleTerminationSignal()

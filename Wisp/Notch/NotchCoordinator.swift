@@ -73,6 +73,23 @@ final class NotchCoordinator {
         targetController()?.open(widget: kind)
     }
 
+    func formUnderPointer() -> (form: FormFactor, systemIsland: Bool) {
+        guard let controller = targetController() else { return (.notch, false) }
+        return (FormFactor(placement: controller.layout.placement), controller.systemIsland)
+    }
+
+    func setForm(_ form: FormFactor) {
+        guard let controller = targetController() else { return }
+        controller.dismiss()
+        preferences.setForm(form, for: controller.screenUUID)
+    }
+
+    /// Hyper+F: the next form on the display under the pointer.
+    func cycleForm() {
+        let (form, systemIsland) = formUnderPointer()
+        setForm(form.next(systemIsland: systemIsland))
+    }
+
     private func targetController() -> NotchController? {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
@@ -106,6 +123,7 @@ final class NotchCoordinator {
             )
             let controller =
                 controllers[uuid] ?? NotchController(screenUUID: uuid, layout: layout, services: services)
+            controller.systemIsland = systemIsland
             controller.update(layout: layout)
             controllers[uuid] = controller
         }

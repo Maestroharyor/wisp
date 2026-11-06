@@ -36,6 +36,8 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case airDrop
         case transform
         case zip
+        /// Switches Wisp's form; its sub-ring lists the forms.
+        case form
         case none
     }
 
@@ -71,6 +73,7 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .airDrop: "AirDrop"
         case .transform: "Transform"
         case .zip: "Zip"
+        case .form: "Form"
         case .none: "Nothing"
         }
     }
@@ -99,6 +102,7 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .airDrop: "airplayaudio"
         case .transform: "wand.and.stars"
         case .zip: "doc.zipper"
+        case .form: "circle.circle"
         case .none: "circle.dashed"
         }
     }
@@ -110,6 +114,9 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         default: false
         }
     }
+
+    /// Picking it opens its sub-ring of choices made when the ring opens (sessions, forms).
+    public var opensChoices: Bool { kind == .agents || kind == .form }
 
     /// The timer length, 25 minutes when unset or unreadable.
     public var minutes: Int { value.flatMap(Int.init).map { max($0, 1) } ?? 25 }
@@ -195,7 +202,7 @@ public struct RingConfig: Codable, Equatable, Sendable {
                 RingSlot(RingAction(.timer, value: "25")),
                 RingSlot(RingAction(.tray)),
                 RingSlot(RingAction(.focus)),
-                RingSlot(RingAction(.screenshot)),
+                RingSlot(RingAction(.form)),
             ]))
 }
 
@@ -227,6 +234,17 @@ public struct RingAgentEntry: Equatable, Sendable {
         self.sessionID = sessionID
         self.project = project
         self.approvalID = approvalID
+    }
+}
+
+public enum RingFormChoices {
+    /// One entry per form the display can take; the current one is marked.
+    public static func choices(current: FormFactor, systemIsland: Bool) -> [RingChoice] {
+        FormFactor.available(systemIsland: systemIsland).map { form in
+            RingChoice(
+                id: "form:\(form.rawValue)", title: form.title, symbol: form.symbol,
+                tint: form == current ? .allow : .plain)
+        }
     }
 }
 
@@ -424,7 +442,7 @@ public enum RingInteraction {
             return hasFiles ? .keepFiles : .openShelf
         case .slot(let index):
             guard slots.indices.contains(index) else { return .close }
-            if slots[index].action.kind == .agents, !hasFiles, expanded != index, subItemCount > 0 {
+            if slots[index].action.opensChoices, !hasFiles, expanded != index, subItemCount > 0 {
                 return .expand(index)
             }
             return .run(slot: index)

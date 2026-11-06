@@ -27,6 +27,7 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "stay on screen").contains(.notifications))
         XCTAssertEqual(SettingsIndex.panes(matching: "dynamic island"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "radial"), [.ring])
+        XCTAssertEqual(SettingsIndex.panes(matching: "form"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.ring])
     }
 

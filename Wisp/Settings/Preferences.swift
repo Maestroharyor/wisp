@@ -749,6 +749,10 @@ final class Preferences {
         updateOrbPlacements { $0.dock(uuid) }
     }
 
+    func setForm(_ form: FormFactor, for uuid: String) {
+        updateOrbPlacements { $0.set(form, for: uuid) }
+    }
+
     private func updateOrbPlacements(_ change: (inout OrbPlacements) -> Void) {
         var state = OrbPlacements(overrides: displayPlacements, returns: orbReturnPlacements, standard: placement)
         change(&state)

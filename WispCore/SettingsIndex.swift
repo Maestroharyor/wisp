@@ -64,7 +64,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "hover", "click", "open", "delay", "stay open", "auto close", "swipe", "gesture", "trackpad",
                 "hidden", "drop actions", "command", "script", "island", "external", "display", "pocket", "drag",
                 "shake", "position", "placement", "bottom", "left", "right", "corner", "edge", "side", "dock",
-                "dynamic island", "camera", "hole punch", "display info", "orb", "float", "detach", "move",
+                "dynamic island", "camera", "hole punch", "display info", "orb", "float", "detach", "move", "form",
+                "shape",
             ]
         case .appearance:
             [

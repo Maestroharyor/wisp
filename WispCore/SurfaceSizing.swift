@@ -35,7 +35,7 @@ public enum SurfaceSizing {
     public static let tileSize: CGFloat = 96
     public static let tileSpacing: CGFloat = 10
     public static let maxDropActionTiles = 2
-    public static let navPillSize = CGSize(width: 174, height: 34)
+    public static let navPillSize = CGSize(width: 216, height: 34)
     public static let navPillGap: CGFloat = 12
     public static let notificationWidth: CGFloat = 480
     public static let mediaPageWidth: CGFloat = 420
