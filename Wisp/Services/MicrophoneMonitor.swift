@@ -80,9 +80,8 @@ final class MicrophoneMonitor {
         if let volume: Float32 = SystemVolume.read(device, Self.volumeAddress), volume > 0 { restoreVolume = volume }
         if let mute: UInt32 = SystemVolume.read(device, Self.muteAddress) { muted = mute != 0 }
         let input = Self.processesUsingInput()
-        let now = MicState.inUse(
-            hasInputDevice: true, deviceRunning: (running ?? 0) != 0, inputProcesses: input?.count)
-        update(inUse: now, apps: now ? input?.bundleIDs ?? [] : [])
+        let now = MicState.inUse(hasInputDevice: true, deviceRunning: (running ?? 0) != 0, inputProcesses: input)
+        update(inUse: now, apps: now ? MicState.apps(input ?? []) : [])
     }
 
     private func update(inUse now: Bool, apps: [String]) {
@@ -93,9 +92,9 @@ final class MicrophoneMonitor {
         onChange(now)
     }
 
-    /// CoreAudio's per-process view (macOS 14): how many processes have an input stream
-    /// running, and the bundle ids of those that have one. Nil when the list can't be read.
-    private static func processesUsingInput() -> (count: Int, bundleIDs: [String])? {
+    /// CoreAudio's per-process view (macOS 14): the bundle ids of the processes with an input
+    /// stream running, "" for one without. Nil when the list can't be read.
+    private static func processesUsingInput() -> [String]? {
         let system = AudioObjectID(kAudioObjectSystemObject)
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyProcessObjectList,
@@ -106,16 +105,12 @@ final class MicrophoneMonitor {
         guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr, size > 0 else { return nil }
         var processes = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
         guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &processes) == noErr else { return nil }
-        let recording = processes.filter { process in
+        return processes.compactMap { process in
             let running: UInt32? = SystemVolume.read(process, runningInputAddress)
-            return running == 1
+            guard running == 1 else { return nil }
+            guard let id: Unmanaged<CFString> = SystemVolume.read(process, bundleIDAddress) else { return "" }
+            return id.takeRetainedValue() as String
         }
-        let bundleIDs = recording.compactMap { process -> String? in
-            guard let id: Unmanaged<CFString> = SystemVolume.read(process, bundleIDAddress) else { return nil }
-            let bundleID = id.takeRetainedValue() as String
-            return bundleID.isEmpty ? nil : bundleID
-        }
-        return (recording.count, bundleIDs.sorted())
     }
 
     /// The device's UID, for diagnosing which mic the monitor reads. Names no person.
