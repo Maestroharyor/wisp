@@ -28,13 +28,18 @@ struct NotchView: View {
                 )
                 .position(x: surface.midX, y: surface.midY)
 
-            if model.layout.placement == .floating, model.spec == .closed {
+            if model.isOrb {
+                // Stays mounted: the glyph shrinks into what grows out of the orb and comes
+                // back as it folds away, rather than popping.
                 let orb = model.local(model.layout.closedRect)
+                let resting = model.spec == .closed || model.spec == .peek
                 OrbFace(model: model)
                     .frame(width: orb.width, height: orb.height)
+                    .scaleEffect(resting || !model.motion.expands ? 1 : 0.6)
+                    .opacity(resting ? 1 : 0)
+                    .animation(resting ? model.motion.surfaceClose : model.motion.contentOut, value: resting)
                     .position(x: orb.midX, y: orb.midY)
                     .allowsHitTesting(false)
-                    .transition(.opacity)
             }
 
             if let pill = model.navPillRect.map(model.local) {
@@ -161,8 +166,8 @@ private struct SurfaceView: View {
         .overlay { FinishFlash(model: model, shape: shape) }
         .compositingGroup()
         .shadow(
-            color: .black.opacity(model.spec == .closed ? 0 : min(look.shadow.opacity, isOpen ? 1 : 0.5)),
-            radius: isOpen ? look.shadow.radius : 6, y: isOpen ? 8 : 2
+            color: .black.opacity(closedShadow ?? min(look.shadow.opacity, isOpen ? 1 : 0.5)),
+            radius: isOpen ? look.shadow.radius : (model.isOrb ? 10 : 6), y: isOpen ? 8 : (model.isOrb ? 4 : 2)
         )
         .modifier(HoverWobble(model: model))
         // The shell rides the same spring as the frame, so closing visibly folds back
@@ -171,13 +176,27 @@ private struct SurfaceView: View {
         .contentShape(shape)
     }
 
+    /// A notch at rest casts no shadow; the orb floats over windows, so it keeps a soft one.
+    private var closedShadow: Double? {
+        guard model.spec == .closed else { return nil }
+        return model.isOrb ? 0.35 : 0
+    }
+
     /// The aurora drift runs only while the shelf is open and motion is allowed.
     private var shimmering: Bool {
         model.preferences.appearance.shimmer && model.phase == .open && !model.reduceMotion
     }
 
+    /// Content unfolds out of an edge, or blooms out of the orb.
+    private var reveal: AnyTransition {
+        model.isOrb ? .bloom(model.motion, from: model.bloomOrigin, pill: false) : .unfold(model.motion)
+    }
+
+    private var pillReveal: AnyTransition {
+        model.isOrb ? .bloom(model.motion, from: model.bloomOrigin, pill: true) : .wingReveal(model.motion)
+    }
+
     @ViewBuilder private var content: some View {
-        let motion = model.motion
         switch model.spec {
         case .closed, .peek:
             Color.clear
@@ -191,33 +210,33 @@ private struct SurfaceView: View {
                     }
                 }
                 .id(activity.kindKey)
-                .transition(.wingReveal(motion))
+                .transition(pillReveal)
             }
         case .medium:
             if let activity = model.activity {
                 MediumActivityView(activity: activity, model: model)
                     .id(activity.kindKey)
-                    .transition(.unfold(motion))
+                    .transition(reveal)
             }
         case .notification:
             if case .agentApproval(let approval) = model.activity {
                 AgentApprovalCard(approval: approval, model: model)
                     .id(approval.id)
-                    .transition(.unfold(motion))
+                    .transition(reveal)
             }
             if case .meetingSoon(let invite) = model.activity {
                 MeetingSoonCard(invite: invite, model: model)
                     .id(invite.id)
-                    .transition(.unfold(motion))
+                    .transition(reveal)
             }
             if case .notification(let item) = model.activity {
                 NotificationCardView(item: item, model: model)
                     .id(item.id)
-                    .transition(.unfold(motion))
+                    .transition(reveal)
             }
         case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
             ShelfContent(model: model)
-                .transition(.unfold(motion))
+                .transition(reveal)
         }
     }
 }

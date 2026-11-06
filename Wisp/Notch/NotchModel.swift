@@ -87,6 +87,12 @@ final class NotchModel {
     var forms: [FormFactor] = FormFactor.allCases
     var onSetForm: (FormFactor) -> Void = { _ in }
     var form: FormFactor { FormFactor(placement: layout.placement) }
+    var isOrb: Bool { layout.placement == .floating }
+    /// Where the orb sits in the current surface: content blooms out of and back into it.
+    var bloomOrigin: UnitPoint {
+        let point = OrbGeometry.bloomAnchor(orb: layout.closedRect, surface: surfaceRect)
+        return UnitPoint(x: point.x, y: point.y)
+    }
 
     let services: AppServices
 

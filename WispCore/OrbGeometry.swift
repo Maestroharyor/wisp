@@ -79,6 +79,15 @@ public enum OrbGeometry {
             width: systemIslandZone.width, height: systemIslandZone.height)
     }
 
+    /// Where the orb sits inside a surface growing out of it, as a unit point with y running
+    /// down (SwiftUI's), so content can grow from and shrink back into the orb.
+    public static func bloomAnchor(orb: CGRect, surface: CGRect) -> CGPoint {
+        guard surface.width > 0, surface.height > 0 else { return CGPoint(x: 0.5, y: 0.5) }
+        let x = (orb.midX - surface.minX) / surface.width
+        let y = (surface.maxY - orb.midY) / surface.height
+        return CGPoint(x: min(max(x, 0), 1), y: min(max(y, 0), 1))
+    }
+
     /// "x,y", as positions are stored in UserDefaults.
     public static func encode(_ point: CGPoint) -> String { "\(Int(point.x.rounded())),\(Int(point.y.rounded()))" }
 

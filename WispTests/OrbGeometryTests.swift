@@ -92,6 +92,17 @@ final class OrbGeometryTests: XCTestCase {
         XCTAssertFalse(zone.intersects(layout.closedRect))
     }
 
+    func testContentGrowsFromWhereTheOrbSits() {
+        let surface = CGRect(x: 100, y: 100, width: 400, height: 200)
+        let topRight = CGRect(x: 460, y: 260, width: 40, height: 40)
+        XCTAssertEqual(OrbGeometry.bloomAnchor(orb: topRight, surface: surface), CGPoint(x: 0.95, y: 0.1))
+        let bottomLeft = CGRect(x: 100, y: 100, width: 40, height: 40)
+        XCTAssertEqual(OrbGeometry.bloomAnchor(orb: bottomLeft, surface: surface), CGPoint(x: 0.05, y: 0.9))
+        let outside = CGRect(x: 900, y: 900, width: 40, height: 40)
+        XCTAssertEqual(OrbGeometry.bloomAnchor(orb: outside, surface: surface), CGPoint(x: 1, y: 0))
+        XCTAssertEqual(OrbGeometry.bloomAnchor(orb: topRight, surface: .zero), CGPoint(x: 0.5, y: 0.5))
+    }
+
     func testPositionsRoundTripAsText() {
         XCTAssertEqual(OrbGeometry.encode(CGPoint(x: 120.4, y: 88.6)), "120,89")
         XCTAssertEqual(OrbGeometry.decode("120,89"), CGPoint(x: 120, y: 89))

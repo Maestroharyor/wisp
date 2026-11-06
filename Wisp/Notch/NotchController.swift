@@ -136,7 +136,7 @@ final class NotchController {
         return services.activities.dismissCurrent()
     }
 
-    private var isOrb: Bool { layout.placement == .floating }
+    private var isOrb: Bool { model.isOrb }
 
     /// The meeting pill's microphone end mutes on click.
     private var showsMeetingPill: Bool {
