@@ -85,6 +85,8 @@ Built: A (flame icon, picked from six drafts), B, C, D, E, F, G, H (all four par
 
 Since then: the agent timeline and spend, Allow All, prompt drafts, lyrics and the mini player, the meeting pill, the lock screen player (public APIs only) and the GitHub workflows.
 
+Since 2026-11-06: the floating orb, the ring and staying clear of the Dynamic Island on the OLED MacBook Pro. The ring is Wisp's own take on a radial action menu (the idea is common to pie-menu utilities and mouse makers' software); no names or assets were borrowed.
+
 ## Still planned
 
 From plan revision 3:
