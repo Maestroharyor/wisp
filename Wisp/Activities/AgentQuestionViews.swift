@@ -111,7 +111,8 @@ struct QuestionAnswers<Header: View>: View {
 
     private func step(for question: AgentQuestion) -> QuestionStep {
         QuestionStep(
-            header: question.header.isEmpty ? "Question" : question.header,
+            // Claude writes the header too, so private mode hides it with the question.
+            header: question.header.isEmpty || hidden ? "Question" : question.header,
             text: hidden ? "Question hidden" : question.question,
             position: questions.count > 1 ? "\(index + 1) of \(questions.count)" : nil)
     }

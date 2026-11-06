@@ -319,6 +319,9 @@ private struct DenyReasonRow: View {
                 .padding(.horizontal, 10)
                 .frame(height: 28)
                 .background(Capsule().fill(.white.opacity(0.1)))
+                Button("Cancel", action: stopTyping)
+                    .buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
                 Button("Deny", action: deny)
                     .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
                     .padding(.horizontal, 12).frame(height: 28)
@@ -334,11 +337,19 @@ private struct DenyReasonRow: View {
             }
         }
         .frame(height: 28)
+        // Collapsing the preview mid-reason mustn't leave the notch holding the keyboard.
+        .onDisappear { if typing { model.onKeyDone() } }
+    }
+
+    private func stopTyping() {
+        typing = false
+        reason = ""
+        model.onKeyDone()
     }
 
     private func deny() {
         model.services.agents.deny(approval.id, reason: reason)
-        model.onKeyDone()
+        stopTyping()
     }
 }
 

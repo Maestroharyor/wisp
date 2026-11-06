@@ -119,7 +119,8 @@ final class NotchModel {
                 }
                 if case .agentApproval(let approval) = activity {
                     if approval.prompt == .question { return .notification(extra: SurfaceSizing.questionRowHeight) }
-                    let open = expandedApproval == approval.id
+                    // Private mode hides the preview, so the card doesn't keep its room either.
+                    let open = expandedApproval == approval.id && !services.agents.detailsHidden
                     return .notification(extra: open ? SurfaceSizing.approvalPreviewHeight : 0)
                 }
                 if case .meetingSoon = activity { return .notification(extra: 0) }
