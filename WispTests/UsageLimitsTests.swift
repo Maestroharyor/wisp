@@ -46,6 +46,22 @@ final class UsageLimitsTests: XCTestCase {
         XCTAssertEqual(watch.record([reading(85, resetsIn: 8 * 3600)], at: start + 60).map(\.level), [80])
     }
 
+    func testAStaleLowerReadingDoesntStartTheWindowOver() {
+        // Two sessions report the same account; one's figure can lag behind.
+        var watch = LimitWatch()
+        _ = watch.record([reading(82)], at: start)
+        XCTAssertEqual(watch.record([reading(79)], at: start + 30), [])
+        XCTAssertEqual(watch.record([reading(83)], at: start + 60), [])
+    }
+
+    func testWithoutAResetTimeAFallMeansANewWindow() {
+        var watch = LimitWatch()
+        let open = { (percent: Double) in UsageReading(window: .sevenDay, percent: percent, resets: nil) }
+        _ = watch.record([open(85)], at: start)
+        _ = watch.record([open(3)], at: start + 60)
+        XCTAssertEqual(watch.record([open(81)], at: start + 120).map(\.level), [80])
+    }
+
     func testWindowsAreWatchedSeparately() {
         var watch = LimitWatch()
         let fired = watch.record([reading(82), reading(83, .sevenDay)], at: start)
@@ -85,7 +101,8 @@ final class UsageLimitsTests: XCTestCase {
         let weekly = LimitAlert(window: .sevenDay, level: 95, percent: 95, resets: nil)
         XCTAssertEqual(weekly.text, "Weekly limit 95%")
         XCTAssertEqual(
-            LimitWatch.clock(start + 3600, locale: posix, timeZone: utc), "9:00\u{202F}AM",
-            "ICU puts a narrow space before AM")
+            LimitWatch.clock(start + 3600, locale: posix, timeZone: utc).replacingOccurrences(
+                of: "\u{202F}", with: " "),
+            "9:00 AM", "newer ICU puts a narrow space before AM, older a plain one")
     }
 }

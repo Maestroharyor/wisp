@@ -75,10 +75,16 @@ public struct LimitWatch: Sendable {
         var due: [LimitAlert] = []
         for reading in readings {
             var track = tracks[reading.window] ?? Track(resets: reading.resets)
-            // A new reset time, or usage falling back, means a fresh window.
+            // A new reset time means a fresh window. Without one, only a fall in usage can say
+            // so; with one, a lower figure is just another session's older snapshot.
             let lastPercent = track.samples.last?.percent ?? 0
-            if track.resets != reading.resets || reading.percent < lastPercent - 1 {
+            let fell = reading.resets == nil && reading.percent < lastPercent - 1
+            if track.resets != reading.resets || fell {
                 track = Track(resets: reading.resets)
+            }
+            if reading.percent < lastPercent, !fell, !track.samples.isEmpty {
+                tracks[reading.window] = track
+                continue
             }
             track.samples.append((date, reading.percent))
             track.samples.removeAll { date.timeIntervalSince($0.date) > Self.paceWindow }
