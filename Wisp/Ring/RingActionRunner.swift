@@ -33,7 +33,11 @@ enum RingActionRunner {
         case .lockScreen: quick.lockScreen()
         case .shortcut: if let name = action.value { services.shortcuts.run(name) }
         case .transform: services.openTransform([])
-        case .dropAction, .airDrop, .zip, .none: break
+        case .dropAction, .airDrop, .zip:
+            services.activities.post(
+                .notice(symbol: action.symbol, text: "Drag files onto the orb, then onto \(action.title)"),
+                slot: .notice, duration: 2)
+        case .none: break
         }
     }
 

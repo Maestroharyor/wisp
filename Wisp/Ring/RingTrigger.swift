@@ -5,9 +5,26 @@ import WispCore
 /// Opens the ring from the mouse button chosen in Settings: hold, move and let go to pick,
 /// or press quickly to leave it open for clicking.
 @MainActor
+@Observable
 final class RingTrigger {
-    private let services: AppServices
-    private let tap = MouseButtonTap()
+    enum Status: Equatable {
+        case off
+        case active
+        case needsAccessibility
+
+        var message: String {
+            switch self {
+            case .off: "Off"
+            case .active: "Active"
+            case .needsAccessibility: "Waiting for Accessibility access"
+            }
+        }
+    }
+
+    private(set) var status: Status = .off
+    @ObservationIgnored private let services: AppServices
+    @ObservationIgnored private let tap = MouseButtonTap()
+    @ObservationIgnored private var accessWaiter: Task<Void, Never>?
 
     init(services: AppServices) {
         self.services = services
@@ -25,9 +42,23 @@ final class RingTrigger {
     }
 
     private func configure() {
+        accessWaiter?.cancel()
         tap.stop()
-        guard let number = services.preferences.ringButton.number else { return }
-        tap.start(button: number)
+        guard let number = services.preferences.ringButton.number else {
+            status = .off
+            return
+        }
+        if tap.start(button: number) {
+            status = .active
+            return
+        }
+        // The tap needs Accessibility; start once it's granted rather than failing silently.
+        status = .needsAccessibility
+        accessWaiter = Task { [weak self] in
+            await AccessibilityPermission.waitUntilTrusted()
+            guard !Task.isCancelled else { return }
+            self?.configure()
+        }
     }
 
     private func observe() {

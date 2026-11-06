@@ -36,6 +36,7 @@ final class HotkeyCenter {
     @ObservationIgnored private let tap = HyperKeyTap()
     @ObservationIgnored private let carbon = CarbonHotkey(id: 1)
     @ObservationIgnored private let clipboardCarbon = CarbonHotkey(id: 2)
+    @ObservationIgnored private let ringCarbon = CarbonHotkey(id: 3)
     @ObservationIgnored private var keyboardWatcher: KeyboardWatcher?
     @ObservationIgnored private var accessWaiter: Task<Void, Never>?
     /// Notices Accessibility being switched off while Hyper is active.
@@ -61,6 +62,7 @@ final class HotkeyCenter {
         tap.stop()
         carbon.unregister()
         clipboardCarbon.unregister()
+        ringCarbon.unregister()
         keyboardWatcher?.stop()
         do {
             try remapper.disable()
@@ -75,6 +77,10 @@ final class HotkeyCenter {
         tap.stop()
         carbon.unregister()
         clipboardCarbon.unregister()
+        ringCarbon.unregister()
+        if let ringHotkey = preferences.ringHotkey {
+            _ = ringCarbon.register(ringHotkey) { [weak self] in self?.onRing() }
+        }
 
         let hotkey = preferences.hotkey
         if hotkey.usesHyper {
@@ -175,6 +181,7 @@ final class HotkeyCenter {
         withObservationTracking {
             _ = preferences.hotkey
             _ = preferences.quickPressTogglesCapsLock
+            _ = preferences.ringHotkey
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.configure()

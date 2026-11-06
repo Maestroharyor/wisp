@@ -6,7 +6,7 @@ import WispCore
 struct RingView: View {
     let model: RingModel
     let reduceMotion: Bool
-    let onHover: @MainActor (RingHit) -> Void
+    let onHover: @MainActor (RingHit, CGFloat) -> Void
     let onPick: @MainActor (RingHit, [URL]) -> Void
 
     @State private var appeared = false
@@ -55,12 +55,15 @@ struct RingView: View {
         .contentShape(Rectangle())
         .onContinuousHover { phase in
             switch phase {
-            case .active(let location): onHover(hit(at: location))
-            case .ended: onHover(.none)
+            case .active(let location): onHover(hit(at: location), distance(to: location))
+            case .ended: onHover(.none, .greatestFiniteMagnitude)
             }
         }
         .onTapGesture(coordinateSpace: .local) { location in onPick(hit(at: location), []) }
-        .onDrop(of: [.fileURL], delegate: RingDropDelegate(hit: hit(at:), onHover: onHover, onPick: onPick))
+        .onDrop(
+            of: [.fileURL],
+            delegate: RingDropDelegate(hit: hit(at:), distance: distance(to:), onHover: onHover, onPick: onPick)
+        )
         .onAppear {
             withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.28, dampingFraction: 0.72)) {
                 appeared = true
@@ -81,9 +84,12 @@ struct RingView: View {
 
     /// The view's y runs down; the ring's geometry runs up like AppKit.
     private func position(angle: CGFloat, radius: CGFloat) -> CGPoint {
-        let flipped = CGPoint(x: model.centre.x, y: model.centre.y)
-        let point = RingGeometry.point(at: angle, radius: radius, from: flipped)
+        let point = RingGeometry.point(at: angle, radius: radius, from: model.centre)
         return CGPoint(x: point.x, y: model.centre.y * 2 - point.y)
+    }
+
+    private func distance(to location: CGPoint) -> CGFloat {
+        hypot(location.x - model.centre.x, location.y - model.centre.y)
     }
 
     private func hit(at location: CGPoint) -> RingHit {
@@ -148,11 +154,12 @@ private struct RingBubble: View {
 /// Files dragged onto the ring go to the segment under the pointer.
 private struct RingDropDelegate: DropDelegate {
     let hit: @MainActor (CGPoint) -> RingHit
-    let onHover: @MainActor (RingHit) -> Void
+    let distance: @MainActor (CGPoint) -> CGFloat
+    let onHover: @MainActor (RingHit, CGFloat) -> Void
     let onPick: @MainActor (RingHit, [URL]) -> Void
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        MainActor.assumeIsolated { onHover(hit(info.location)) }
+        MainActor.assumeIsolated { onHover(hit(info.location), distance(info.location)) }
         return DropProposal(operation: .copy)
     }
 

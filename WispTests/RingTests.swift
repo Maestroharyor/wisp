@@ -168,3 +168,78 @@ final class RingButtonTests: XCTestCase {
         XCTAssertEqual(RingButton.forward.number, 4)
     }
 }
+
+final class RingInteractionTests: XCTestCase {
+    private let slots = RingConfig.defaults.standard.slots
+    private func hasSub(_ index: Int) -> Bool { !slots[index].group.isEmpty }
+
+    func testASubRingStaysOpenOnTheWayOut() {
+        // Media is slot 2; heading out to its first item crosses slot 1's wedge.
+        let outer = RingGeometry.ringRadius + 10
+        XCTAssertEqual(
+            RingInteraction.expanded(current: 2, hit: .slot(1), distance: outer, hasSubItems: hasSub), 2)
+        XCTAssertEqual(
+            RingInteraction.expanded(current: 2, hit: .none, distance: 400, hasSubItems: hasSub), 2)
+    }
+
+    func testInsideTheSegmentsTheHoveredSegmentDecides() {
+        let inner = RingGeometry.ringRadius - 10
+        XCTAssertNil(RingInteraction.expanded(current: 2, hit: .slot(1), distance: inner, hasSubItems: hasSub))
+        XCTAssertEqual(
+            RingInteraction.expanded(current: nil, hit: .slot(2), distance: inner, hasSubItems: hasSub), 2)
+        XCTAssertEqual(
+            RingInteraction.expanded(current: nil, hit: .slot(2), distance: inner + 20, hasSubItems: hasSub), 2)
+        XCTAssertNil(RingInteraction.expanded(current: 2, hit: .centre, distance: 0, hasSubItems: hasSub))
+    }
+
+    func testEverySubItemOfTheMediaRingIsReachableInAStraightLine() {
+        let centre = CGPoint(x: 0, y: 0)
+        let parent = RingGeometry.slotAngle(2, count: slots.count)
+        for item in 0..<3 {
+            let angle = RingGeometry.subAngle(item, count: 3, around: parent)
+            var expanded: Int?
+            var last: RingHit = .none
+            for step in stride(from: CGFloat(10), through: RingGeometry.subRadius, by: 4) {
+                let point = RingGeometry.point(at: angle, radius: step, from: centre)
+                // The pointer passes over the media segment itself first.
+                let hit = RingGeometry.hit(
+                    point, centre: centre, slots: slots.count, expanded: expanded, subItems: expanded == nil ? 0 : 3)
+                let onParent = step < RingGeometry.ringRadius ? RingHit.slot(2) : hit
+                expanded = RingInteraction.expanded(
+                    current: expanded, hit: onParent, distance: step, hasSubItems: hasSub)
+                last = hit
+            }
+            XCTAssertEqual(last, .sub(item), "item \(item)")
+        }
+    }
+
+    func testPicks() {
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .centre, slots: slots, expanded: nil, subItemCount: 0, hasFiles: false),
+            .openShelf)
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .centre, slots: slots, expanded: nil, subItemCount: 0, hasFiles: true),
+            .keepFiles)
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .slot(1), slots: slots, expanded: nil, subItemCount: 2, hasFiles: false),
+            .expand(1))
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .slot(1), slots: slots, expanded: 1, subItemCount: 2, hasFiles: false),
+            .run(slot: 1))
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .slot(1), slots: slots, expanded: nil, subItemCount: 0, hasFiles: false),
+            .run(slot: 1))
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .sub(2), slots: slots, expanded: 2, subItemCount: 3, hasFiles: false),
+            .runSub(slot: 2, item: 2))
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .sub(5), slots: slots, expanded: 2, subItemCount: 3, hasFiles: false),
+            .close)
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .slot(12), slots: slots, expanded: nil, subItemCount: 0, hasFiles: false),
+            .close)
+        XCTAssertEqual(
+            RingInteraction.outcome(of: .none, slots: slots, expanded: nil, subItemCount: 0, hasFiles: false),
+            .close)
+    }
+}

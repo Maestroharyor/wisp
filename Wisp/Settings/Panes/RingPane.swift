@@ -5,17 +5,27 @@ import WispCore
 
 struct RingSettings: View {
     @Bindable var preferences: Preferences
+    let trigger: RingTrigger
 
     var body: some View {
         Form {
             Section("Opening") {
-                LabeledContent("Keyboard", value: "Hyper+R, at the pointer")
+                if preferences.hotkey.usesHyper {
+                    LabeledContent("Hyper key", value: "Hyper+R, at the pointer")
+                }
+                Toggle("Keyboard shortcut", isOn: hasRingHotkey)
+                if preferences.ringHotkey != nil {
+                    LabeledContent("Shortcut") { HotkeyRecorder(hotkey: ringHotkey) }
+                }
                 Picker("Mouse button", selection: $preferences.ringButton) {
                     ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
+                if preferences.ringButton != .off {
+                    LabeledContent("Status", value: trigger.status.message)
+                }
                 Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
                 Text(
-                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose. The centre of the ring opens the shelf; files dragged onto the orb open the ring to drop them on an action."
+                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. The centre of the ring opens the shelf; files dragged onto the orb open the ring to drop them on an action."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -43,6 +53,19 @@ struct RingSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private static let suggestedHotkey = Hotkey(keyCode: KeyCodes.r, modifiers: [.control, .option, .command])
+
+    private var hasRingHotkey: Binding<Bool> {
+        Binding(
+            get: { preferences.ringHotkey != nil },
+            set: { preferences.ringHotkey = $0 ? Self.suggestedHotkey : nil })
+    }
+
+    private var ringHotkey: Binding<Hotkey> {
+        Binding(
+            get: { preferences.ringHotkey ?? Self.suggestedHotkey }, set: { preferences.ringHotkey = $0 })
     }
 
     private var standard: Binding<RingSet> {

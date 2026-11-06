@@ -47,11 +47,6 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         self.value = value
     }
 
-    /// The kinds a user can pick without filling in a value.
-    public static let simpleKinds: [Kind] = Kind.allCases.filter {
-        ![.widget, .timer, .shortcut, .dropAction, .none].contains($0)
-    }
-
     public var title: String {
         switch kind {
         case .home: "Home"
@@ -386,6 +381,58 @@ public enum RingButton: String, CaseIterable, Sendable {
         case .middle: "Middle button"
         case .back: "Back button"
         case .forward: "Forward button"
+        }
+    }
+}
+
+/// What the ring does as the pointer moves and when something is picked.
+public enum RingInteraction {
+    /// The segment whose sub-ring shows after the pointer moved to `hit`, `distance` from
+    /// the centre. Past the segments the pointer is on its way out to the open sub-ring,
+    /// whose outer items lie beyond the neighbouring segments, so the sub-ring stays put.
+    public static func expanded(
+        current: Int?, hit: RingHit, distance: CGFloat, hasSubItems: (Int) -> Bool
+    ) -> Int? {
+        switch hit {
+        case .centre:
+            return nil
+        case .slot(let index):
+            if current != nil, distance >= RingGeometry.ringRadius { return current }
+            return hasSubItems(index) ? index : nil
+        case .sub, .none:
+            return current
+        }
+    }
+
+    public enum Outcome: Equatable, Sendable {
+        case openShelf
+        case keepFiles
+        /// Shows the segment's sub-ring rather than running anything.
+        case expand(Int)
+        case run(slot: Int)
+        case runSub(slot: Int, item: Int)
+        case close
+    }
+
+    /// What picking `hit` does. Agents has nothing to run itself, so a first pick opens its
+    /// sessions; files dropped on the centre go to the tray.
+    public static func outcome(
+        of hit: RingHit, slots: [RingSlot], expanded: Int?, subItemCount: Int, hasFiles: Bool
+    ) -> Outcome {
+        switch hit {
+        case .centre:
+            return hasFiles ? .keepFiles : .openShelf
+        case .slot(let index):
+            guard slots.indices.contains(index) else { return .close }
+            if slots[index].action.kind == .agents, !hasFiles, expanded != index, subItemCount > 0 {
+                return .expand(index)
+            }
+            return .run(slot: index)
+        case .sub(let item):
+            guard let expanded, slots.indices.contains(expanded), item < subItemCount else { return .close }
+            return .runSub(slot: expanded, item: item)
+        case .none:
+            return .close
         }
     }
 }

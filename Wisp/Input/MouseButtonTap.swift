@@ -58,12 +58,16 @@ final class MouseButtonTap {
     fileprivate func handle(_ type: CGEventType, button number: Int64) -> Bool {
         guard number == button else { return false }
         let location = NSEvent.mouseLocation
+        let handler: @MainActor (CGPoint) -> Void
         switch type {
-        case .otherMouseDown: onPress(location)
-        case .otherMouseDragged: onMove(location)
-        case .otherMouseUp: onRelease(location)
+        case .otherMouseDown: handler = onPress
+        case .otherMouseDragged: handler = onMove
+        case .otherMouseUp: handler = onRelease
         default: return false
         }
+        // Showing the ring can take a moment; doing it here could run the tap past its
+        // timeout. The main queue keeps press, move and release in order.
+        DispatchQueue.main.async { MainActor.assumeIsolated { handler(location) } }
         return true
     }
 }

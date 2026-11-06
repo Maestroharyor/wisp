@@ -117,50 +117,41 @@ final class RingController {
 
     /// The pointer moved while a button holds the ring open; the panel doesn't see it then.
     func pointerMoved(to point: CGPoint) {
-        guard isVisible else { return }
-        hovered(hit(atGlobal: point))
+        guard isVisible, let frame = panel?.frame else { return }
+        hovered(hit(atGlobal: point), distance: hypot(point.x - frame.midX, point.y - frame.midY))
     }
 
-    func hovered(_ hit: RingHit) {
+    func hovered(_ hit: RingHit, distance: CGFloat) {
         model.hover = hit
-        switch hit {
-        case .slot(let index):
-            model.expanded = model.subItems(of: index).isEmpty ? nil : index
-        case .centre:
-            model.expanded = nil
-        case .sub, .none:
-            break
-        }
+        model.expanded = RingInteraction.expanded(
+            current: model.expanded, hit: hit, distance: distance,
+            hasSubItems: { [model] in !model.subItems(of: $0).isEmpty })
     }
 
     /// Runs what was picked; files come from a drop.
     func pick(_ hit: RingHit, files: [URL]) {
-        switch hit {
-        case .centre:
-            hide()
-            // Files dropped on the middle go to the tray, like dropping them on the notch.
-            if files.isEmpty { services.openShelf(.home) } else { services.tray.add(files) }
-        case .slot(let index):
-            guard model.set.slots.indices.contains(index) else { return }
-            let slot = model.set.slots[index]
-            // Agents has nothing to run itself; a click opens its sessions instead.
-            if slot.action.kind == .agents, files.isEmpty, !model.agentChoices.isEmpty, model.expanded != index {
-                model.expanded = index
-                return
-            }
-            hide()
-            run(slot.action, files: files)
-        case .sub(let item):
-            guard let index = model.expanded, model.set.slots.indices.contains(index) else { return }
-            let slot = model.set.slots[index]
-            hide()
-            if slot.action.kind == .agents {
-                runAgentChoice(model.agentChoices[safe: item])
-            } else if let action = slot.group[safe: item] {
+        let outcome = RingInteraction.outcome(
+            of: hit, slots: model.set.slots, expanded: model.expanded, subItemCount: model.expandedItems.count,
+            hasFiles: !files.isEmpty)
+        if case .expand(let index) = outcome {
+            model.expanded = index
+            return
+        }
+        let slots = model.set.slots
+        let agentChoices = model.agentChoices
+        hide()
+        switch outcome {
+        case .openShelf: services.openShelf(.home)
+        // Files dropped on the middle go to the tray, like dropping them on the notch.
+        case .keepFiles: services.tray.add(files)
+        case .run(let index): run(slots[index].action, files: files)
+        case .runSub(let index, let item):
+            if slots[index].action.kind == .agents {
+                runAgentChoice(agentChoices[safe: item])
+            } else if let action = slots[index].group[safe: item] {
                 run(action, files: files)
             }
-        case .none:
-            hide()
+        case .expand, .close: break
         }
     }
 
@@ -261,7 +252,7 @@ final class RingController {
         let view = RingView(
             model: model,
             reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
-            onHover: { [weak self] hit in self?.hovered(hit) },
+            onHover: { [weak self] hit, distance in self?.hovered(hit, distance: distance) },
             onPick: { [weak self] hit, files in self?.pick(hit, files: files) })
         panel.contentView = NSHostingView(rootView: view)
         return panel
