@@ -44,6 +44,7 @@ final class AppServices {
     /// the finish sound and confetti fire only when a session first becomes finished.
     @ObservationIgnored private var themeObserver: NSObjectProtocol?
     @ObservationIgnored private var agentStates: [String: AgentSession.State] = [:]
+    @ObservationIgnored private var awakeCheck: Task<Void, Never>?
     @ObservationIgnored private let agentAwake = SleepAssertion(
         type: kIOPMAssertionTypePreventUserIdleSystemSleep, name: "Wisp: an agent is working")
     /// Calls already offered with a Join card, so each is offered once.
@@ -165,12 +166,20 @@ final class AppServices {
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
     }
 
-    /// Holds off system sleep while an agent works, when that's on.
+    /// Holds off system sleep while an agent works, when that's on. While held it looks again
+    /// every minute, since an agent that died quietly sends nothing to trigger a check.
     private func updateAgentAwake() {
-        if preferences.agentKeepAwake, agents.sessions.anyWorking {
-            agentAwake.hold()
-        } else {
+        awakeCheck?.cancel()
+        awakeCheck = nil
+        guard preferences.agentKeepAwake, agents.sessions.anyWorking(now: .now) else {
             agentAwake.release()
+            return
+        }
+        agentAwake.hold()
+        awakeCheck = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(60))
+            guard !Task.isCancelled else { return }
+            self?.updateAgentAwake()
         }
     }
 
