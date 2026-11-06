@@ -164,6 +164,12 @@ private struct SurfaceView: View {
                 .opacity(isOpen ? 1 : 0)
             }
         }
+        .overlay {
+            // Over windows the orb's pills, cards and shelf need an edge to read as panels.
+            if model.isOrb, model.spec != .closed, model.spec != .peek {
+                shape.stroke(.white.opacity(0.1), lineWidth: 1)
+            }
+        }
         .overlay { RimGlow(model: model, shape: shape) }
         .overlay { FinishFlash(model: model, shape: shape) }
         .compositingGroup()
