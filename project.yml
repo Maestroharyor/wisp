@@ -103,6 +103,8 @@ targets:
         SUPublicEDKey: uWF1jHIoXFoGaVJMhVj3Y6lG9o6EXOzkfqqJED1WbIc=
         SUScheduledCheckInterval: 86400
         NSCameraUsageDescription: Wisp shows your camera in the Mirror widget so you can check yourself before a call.
+        NSMicrophoneUsageDescription: Wisp listens only while you hold the dictation key, to type what you say.
+        NSSpeechRecognitionUsageDescription: Wisp turns what you say into text on this Mac when you dictate. The audio never leaves your Mac.
     entitlements:
       path: Wisp/Resources/Wisp.entitlements
       properties:
@@ -114,6 +116,7 @@ targets:
         com.apple.security.personal-information.location: true
         com.apple.security.personal-information.addressbook: true
         com.apple.security.device.camera: true
+        com.apple.security.device.audio-input: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp

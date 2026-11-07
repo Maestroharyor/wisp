@@ -60,7 +60,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .general:
             [
                 "shortcut", "hotkey", "caps lock", "hyper", "space", "launch", "login", "startup", "accessibility",
-                "menu bar", "icon",
+                "menu bar", "icon", "dictation", "dictate", "speech", "speech recognition", "voice", "push to talk",
+                "transcribe", "speak", "microphone",
             ]
         case .notch:
             [
@@ -122,7 +123,10 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "include details",
             ]
         case .permissions:
-            ["accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera"]
+            [
+                "accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera",
+                "microphone", "speech recognition",
+            ]
         case .about: ["version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release"]
         }
     }

@@ -75,7 +75,7 @@ final class SettingsModel {
         let needed = SetupHealth.needed(
             notifications: preferences.notificationsEnabled,
             calendarWidgets: widgets.contains(.calendar) || widgets.contains(.dayProgress),
-            mirror: widgets.contains(.mirror))
+            mirror: widgets.contains(.mirror), dictation: preferences.dictationEnabled)
         let ids = SetupHealth.missing(granted: now, needed: needed)
         let next = ids.compactMap(Permission.init(rawValue:))
         if next != missing { missing = next }
