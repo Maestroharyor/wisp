@@ -90,6 +90,28 @@ final class NotchCoordinator {
         setForm(form.next(systemIsland: systemIsland))
     }
 
+    /// Where dictation goes right now (see `DictationTarget.choose`).
+    func dictationTarget() -> DictationTarget {
+        let shelves = controllers.values
+        return DictationTarget.choose(
+            draftSession: shelves.lazy.compactMap(\.dictationDraftSession).first,
+            questionCard: shelves.lazy.compactMap(\.dictationQuestion).first)
+    }
+
+    /// Hands dictated text to the display that shows its draft box or question card. False
+    /// when it has closed (the shelf closed, or the question was answered elsewhere).
+    func deliverDictation(_ text: String, to target: DictationTarget) -> Bool {
+        let controller: NotchController? =
+            switch target {
+            case .agentDraft(let session): controllers.values.first { $0.dictationDraftSession == session }
+            case .questionAnswer(let id): controllers.values.first { $0.dictationQuestion == id }
+            case .focusedApp: nil
+            }
+        guard let controller else { return false }
+        controller.receiveDictation(text, target: target)
+        return true
+    }
+
     private func targetController() -> NotchController? {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main

@@ -10,7 +10,7 @@ public enum HookLink: Equatable, Sendable {
 }
 
 /// Adds and removes Wisp's hooks in an agent's hook file (`HookFile`): Claude Code's
-/// settings.json or Codex's hooks.json, which share the `hooks` shape. The user's own
+/// settings.json, Codex's hooks.json or Gemini CLI's settings.json, which share the `hooks` shape. The user's own
 /// settings and hooks are left alone. Wisp's entries are recognised by the helper's name.
 public enum HookInstaller {
     public enum Failure: Error { case notAnObject }
@@ -52,9 +52,10 @@ public enum HookInstaller {
         var root = try object(settings)
         var hooks = stripped(root["hooks"])
         for event in file.events + (tools ? file.toolEvents : []) {
-            let timeout = event == "PermissionRequest" ? timeout : 5
+            let seconds = event == "PermissionRequest" ? timeout : 5
+            let scaled = seconds * file.format.timeoutScale
             var handler: [String: JSONValue] = [
-                "type": .string("command"), "command": .string(command), "timeout": .number(Double(timeout)),
+                "type": .string("command"), "command": .string(command), "timeout": .number(Double(scaled)),
             ]
             if file.backgroundEvents.contains(event) { handler["async"] = .bool(true) }
             let group: JSONValue = .object(["matcher": .string(""), "hooks": .array([.object(handler)])])
@@ -80,8 +81,9 @@ public enum HookInstaller {
     }
 
     /// A `timeout` other than the default is passed on, so the helper waits as long as the hook.
+    /// An agent Wisp never answers (monitor only) gets no wait, so push never makes it outdated.
     public static func command(helper: String, file: HookFile, timeout: Int = approvalTimeout) -> String {
-        let wait = timeout == approvalTimeout ? "" : " \(timeoutFlag) \(timeout)"
+        let wait = timeout == approvalTimeout || !file.waitsForApproval ? "" : " \(timeoutFlag) \(timeout)"
         return quote(helper) + file.helperArguments + wait
     }
 

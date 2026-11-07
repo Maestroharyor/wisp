@@ -26,6 +26,7 @@ final class AppServices {
     let notifications: NotificationMonitor
     let lyrics: LyricsStore
     let microphone = MicrophoneMonitor()
+    let dictation: DictationEngine
     let wallpaper = WallpaperTint()
     let dropActions = DropActionRunner()
     let script = ScriptStore()
@@ -68,6 +69,7 @@ final class AppServices {
     private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
     private(set) lazy var push = PushService(preferences: preferences, hub: agents)
+    private(set) lazy var ai = AIService(preferences: preferences)
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -95,6 +97,8 @@ final class AppServices {
         quickActions = QuickActions(preferences: preferences, shortcuts: shortcuts)
         context = ContextEngine(preferences: preferences)
         sounds = SoundPlayer(preferences: preferences)
+        dictation = DictationEngine(preferences: preferences, activities: activities)
+        dictation.onActiveChange = { [microphone] active in microphone.dictating = active }
     }
 
     /// Glow and glass tint: the playing album's colour when allowed, otherwise Wisp's violet.
@@ -253,6 +257,7 @@ final class AppServices {
     }
 
     func start() {
+        dictation.start()
         // So the Automation row shows its status straight away; asking never prompts.
         Task { await AutomationPermission.refresh() }
         // Light and Dark switches retint the accent now rather than on the next minute.
@@ -321,6 +326,8 @@ final class AppServices {
         }
         agents.onMoment = { [weak self] moment in self?.push.moment(moment) }
         push.start()
+        // Features read `ai.isReady` to decide whether to offer AI, so check at launch and on wake.
+        ai.start()
         agents.onNewRequest = { [weak self] in
             guard self?.preferences.approvalSound == true else { return }
             self?.needsYouFeedback()
@@ -464,6 +471,7 @@ final class AppServices {
         accessories.stop()
         lockScreenPlayer.stop()
         push.stop()
+        ai.stop()
         microphone.stop()
         meetingTask?.cancel()
         nowPlaying.stop()
