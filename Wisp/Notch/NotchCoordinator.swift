@@ -273,16 +273,24 @@ final class NotchCoordinator {
         let systemIsland = screen.hasSystemIsland(preferences.islandSetting)
         let seen = CGPoint(x: dragged.x + drag.offset.dx, y: dragged.y + drag.offset.dy)
         let size = controller.layout.closedRect.width
-        let centre = OrbGeometry.fitted(seen, in: visible, size: size, avoidsTopCentre: systemIsland)
-        if OrbGeometry.docks(centre, in: visible, systemIsland: systemIsland), controller.layout.placement == .floating,
-            preferences.placement(for: drag.uuid) == .floating
+        let wasFloating = drag.floating && preferences.placement(for: drag.uuid) == .floating
+        let target: CGPoint
+        switch OrbDrop.outcome(
+            dropped: seen, in: visible, size: size, systemIsland: systemIsland, wasFloating: wasFloating)
         {
+        case .dock:
             controller.vanish { [weak self] in self?.preferences.dockOrb(drag.uuid) }
             return
+        case .restore:
+            // Nothing was saved during the drag, so rebuilding puts the notch back.
+            rebuild()
+            return
+        case .float(let point):
+            target = point
         }
         let before = (preferences.displayPlacements, preferences.orbCentres)
         controller.settle(from: seen)
-        preferences.floatOrb(drag.uuid, at: OrbGeometry.snapped(centre, in: visible, size: size))
+        preferences.floatOrb(drag.uuid, at: target)
         // A changed setting rebuilds through observation; otherwise put the dragged layout back.
         if before == (preferences.displayPlacements, preferences.orbCentres) { rebuild() }
     }

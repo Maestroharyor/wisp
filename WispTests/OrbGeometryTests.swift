@@ -163,3 +163,43 @@ final class OrbPlacementsTests: XCTestCase {
         XCTAssertEqual(state.returns["a"], "right")
     }
 }
+
+final class OrbDropTests: XCTestCase {
+    private let visible = CGRect(x: 0, y: 70, width: 1512, height: 874)
+    private let size: CGFloat = 44
+
+    func testAFloatingOrbDroppedAtTheTopCentreDocks() {
+        let drop = OrbDrop.outcome(
+            dropped: CGPoint(x: 756, y: 920), in: visible, size: size, systemIsland: false, wasFloating: true)
+        XCTAssertEqual(drop, .dock)
+    }
+
+    func testATornOffNotchDroppedBackAtTheTopCentreGoesBack() {
+        let drop = OrbDrop.outcome(
+            dropped: CGPoint(x: 756, y: 920), in: visible, size: size, systemIsland: false, wasFloating: false)
+        XCTAssertEqual(drop, .restore)
+    }
+
+    func testDroppedElsewhereItFloatsSnappedToANearEdge() {
+        let half = size / 2 + OrbGeometry.margin
+        let drop = OrbDrop.outcome(
+            dropped: CGPoint(x: half + 10, y: 500), in: visible, size: size, systemIsland: false, wasFloating: false)
+        XCTAssertEqual(drop, .float(CGPoint(x: visible.minX + half, y: 500)))
+    }
+
+    func testDroppedOffScreenItFloatsInsideTheVisibleFrame() {
+        guard
+            case .float(let point) = OrbDrop.outcome(
+                dropped: CGPoint(x: 5000, y: -300), in: visible, size: size, systemIsland: false, wasFloating: true)
+        else { return XCTFail("expected a float") }
+        let half = size / 2 + OrbGeometry.margin
+        XCTAssertEqual(point, CGPoint(x: visible.maxX - half, y: visible.minY + half))
+    }
+
+    func testWithASystemIslandTheTopCentreNeverDocks() {
+        let drop = OrbDrop.outcome(
+            dropped: CGPoint(x: 756, y: 920), in: visible, size: size, systemIsland: true, wasFloating: true)
+        guard case .float(let point) = drop else { return XCTFail("expected a float") }
+        XCTAssertFalse(OrbGeometry.islandZone(in: visible).contains(point))
+    }
+}

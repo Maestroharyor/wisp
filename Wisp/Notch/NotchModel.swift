@@ -90,8 +90,8 @@ final class NotchModel {
     var isOrb: Bool { layout.placement == .floating }
     /// How far a pull on the notch has gone toward tearing it off, 0 to 1 (a rubber band).
     var pull: CGFloat = 0
-    /// The shell has just appeared in a new form and springs up from smaller.
-    var popping = false
+    /// Counts form changes; each one springs the shell up from smaller.
+    var pops = 0
     /// The orb is shrinking away before it docks.
     var vanishing = false
     /// Where the orb sits in the current surface: content blooms out of and back into it.

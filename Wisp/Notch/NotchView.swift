@@ -519,10 +519,17 @@ private struct FormChange: ViewModifier {
             ? UnitPoint(x: closed.midX / panel.width, y: closed.midY / panel.height) : .center
         // A pulled notch stretches down from the top edge it hangs from.
         let top = panel.height > 0 ? UnitPoint(x: anchor.x, y: closed.minY / panel.height) : .top
-        let size: CGFloat = model.popping ? 0.5 : (model.vanishing ? 0.2 : 1)
         content
             .scaleEffect(x: 1 + model.pull * 0.12, y: 1 + model.pull * 0.45, anchor: top)
-            .scaleEffect(size, anchor: anchor)
+            .scaleEffect(model.vanishing ? 0.2 : 1, anchor: anchor)
             .opacity(model.vanishing ? 0 : 1)
+            // Keyframes start from the small size themselves, so the spring always shows
+            // rather than depending on a frame being drawn in between.
+            .keyframeAnimator(initialValue: CGFloat(1), trigger: model.pops) { view, scale in
+                view.scaleEffect(scale, anchor: anchor)
+            } keyframes: { _ in
+                LinearKeyframe(0.5, duration: 0.001)
+                SpringKeyframe(1, duration: 0.5, spring: Spring(response: 0.38, dampingRatio: 0.62))
+            }
     }
 }

@@ -140,3 +140,23 @@ public struct OrbPlacements: Equatable, Sendable {
         if placement(for: uuid) == .floating { overrides[uuid] = Placement.top.rawValue }
     }
 }
+
+/// What letting go of a dragged shell does.
+public enum OrbDrop: Equatable, Sendable {
+    /// A floating orb dropped at the top centre goes back on its edge.
+    case dock
+    /// A notch torn off and dropped back where it came from stays a notch.
+    case restore
+    /// Everywhere else it floats here, kept on screen and flush with a near edge.
+    case float(CGPoint)
+
+    public static func outcome(
+        dropped: CGPoint, in visible: CGRect, size: CGFloat, systemIsland: Bool, wasFloating: Bool
+    ) -> OrbDrop {
+        let centre = OrbGeometry.fitted(dropped, in: visible, size: size, avoidsTopCentre: systemIsland)
+        if OrbGeometry.docks(centre, in: visible, systemIsland: systemIsland) {
+            return wasFloating ? .dock : .restore
+        }
+        return .float(OrbGeometry.snapped(centre, in: visible, size: size))
+    }
+}

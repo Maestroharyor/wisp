@@ -155,12 +155,17 @@ final class NotchController {
 
     /// Where a dropped orb was on screen, so its new layout glides in from there.
     private var settleFrom: CGPoint?
+    /// A drag moved the panel without a new layout, so the panel is off its layout's frame.
+    private var panelMoved = false
 
     func update(layout: NotchLayout) {
-        guard layout != model.layout else { return }
-        model.layout = layout
         let from = settleFrom
         settleFrom = nil
+        guard layout != model.layout || panelMoved else { return }
+        panelMoved = false
+        model.layout = layout
+        // The shell has its new form now, so a docking orb can stop shrinking.
+        model.vanishing = false
         guard let from, layout.placement == .floating, !model.reduceMotion else {
             panel.setFrame(layout.panelFrame, display: true)
             return
@@ -177,6 +182,7 @@ final class NotchController {
 
     /// Moves a dragged orb by moving its panel; the layout is rebuilt once it's dropped.
     func moveOrb(by delta: CGVector) {
+        panelMoved = true
         panel.setFrameOrigin(CGPoint(x: panel.frame.minX + delta.dx, y: panel.frame.minY + delta.dy))
     }
 
@@ -198,10 +204,7 @@ final class NotchController {
     /// Springs the shell up from smaller after it changed form.
     func popIn() {
         guard !model.reduceMotion else { return }
-        model.popping = true
-        Task { @MainActor [model] in
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.62)) { model.popping = false }
-        }
+        model.pops += 1
     }
 
     /// Shrinks the orb away, then runs `done` (the dock).
@@ -214,8 +217,9 @@ final class NotchController {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(190))
             done()
-            // The rebuild that follows the dock springs the notch in.
-            self?.model.vanishing = false
+            // The dock's rebuild resets this with the new layout; this catches a dock that
+            // changed nothing, after that rebuild has had its turn.
+            Task { @MainActor [weak self] in self?.model.vanishing = false }
         }
     }
 
