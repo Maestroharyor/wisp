@@ -29,6 +29,8 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case screenshot
         case pickColour
         case lockScreen
+        /// Watches part of a window, or stops the watch running.
+        case watchRegion
         /// Runs a Shortcut; `value` is its name.
         case shortcut
         /// Runs a custom drop action; `value` is its identifier.
@@ -68,6 +70,7 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .screenshot: "Screenshot"
         case .pickColour: "Pick colour"
         case .lockScreen: "Lock screen"
+        case .watchRegion: "Watch region"
         case .shortcut: value ?? "Shortcut"
         case .dropAction: "Drop action"
         case .airDrop: "AirDrop"
@@ -97,6 +100,7 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .screenshot: "camera.viewfinder"
         case .pickColour: "eyedropper"
         case .lockScreen: "lock"
+        case .watchRegion: "eye"
         case .shortcut: "square.stack.3d.up"
         case .dropAction: "terminal"
         case .airDrop: "airplayaudio"
