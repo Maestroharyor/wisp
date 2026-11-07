@@ -954,10 +954,7 @@ final class AgentHub {
     /// Writes a settings file Wisp has edited before, keeping the version it replaces.
     private func write(_ data: Data, to url: URL) {
         do {
-            if let current = try? Data(contentsOf: url), !current.isEmpty {
-                try current.write(to: url.appendingPathExtension("wisp-previous"), options: .atomic)
-            }
-            try data.write(to: url, options: .atomic)
+            try SettingsFileWriter.write(data, to: url)
         } catch {
             alert("Couldn't write \(url.path)", detail: error.localizedDescription)
         }
