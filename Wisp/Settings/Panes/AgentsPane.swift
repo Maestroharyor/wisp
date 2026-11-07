@@ -38,16 +38,9 @@ struct AgentSettings: View {
                     }
                 }
             }
-            AgentConnection(
-                hub: hub, source: .claude,
-                about:
-                    "Wisp adds hooks to ~/.claude/settings.json, so every Claude Code session shows in the notch: a pill while it works, Done when it finishes, and an Allow or Deny card for permission prompts. Prompts you don't answer within two minutes fall back to the terminal. Restart running sessions after connecting."
-            )
-            AgentConnection(
-                hub: hub, source: .codex,
-                about:
-                    "Wisp adds hooks to ~/.codex/hooks.json for the same pill, Done and Allow or Deny card. Codex asks you to trust new hooks once: run /hooks in Codex after connecting."
-            )
+            ForEach(AgentAdapters.all, id: \.source) { adapter in
+                AgentConnection(hub: hub, adapter: adapter)
+            }
             TerminalBarSettings(hub: hub, preferences: preferences)
             CommandLineSettings()
             Section {
@@ -58,9 +51,11 @@ struct AgentSettings: View {
                         set: { on in
                             if hub.setToolActivity(on) { preferences.agentToolActivity = on }
                         }))
-                if hub.isConnected(.claude), hub.toolsInstalled != preferences.agentToolActivity {
+                let mismatched = hub.toolHooksMismatched(wanted: preferences.agentToolActivity)
+                if !mismatched.isEmpty {
+                    let names = ListFormatter.localizedString(byJoining: mismatched.map(\.displayName))
                     Label(
-                        "Claude Code's settings don't match this choice. Turn it off and on again to apply it.",
+                        "\(names) hooks don't match this choice. Turn it off and on again to apply it.",
                         systemImage: "exclamationmark.triangle"
                     )
                     .font(.caption).foregroundStyle(.orange)
@@ -180,13 +175,25 @@ struct AgentSettings: View {
 
 private struct AgentConnection: View {
     let hub: AgentHub
-    let source: AgentSource
-    let about: String
+    let adapter: AgentAdapter
+
+    private var source: AgentSource { adapter.source }
+
+    /// What connecting does, built from what the adapter can do.
+    private var about: String {
+        let card =
+            adapter.capabilities.contains(.approve)
+            ? ", and an Allow or Deny card for permission prompts. Prompts you don't answer within two minutes fall back to the terminal."
+            : ". Permission prompts stay in the terminal."
+        let note = adapter.setupNote.map { " " + $0 } ?? ""
+        return
+            "Wisp adds hooks to \(adapter.hookFile.displayPath), so every \(adapter.displayName) session shows in the notch: a pill while it works, Done when it finishes\(card) Restart running sessions after connecting.\(note)"
+    }
 
     var body: some View {
         let connected = hub.isConnected(source)
         let elsewhere = hub.connectedElsewhere.contains(source)
-        Section(source.displayName) {
+        Section {
             LabeledContent("Status") {
                 HStack(spacing: 6) {
                     Circle().fill(connected ? Color.green : elsewhere ? Color.orange : Color.secondary)
@@ -204,6 +211,18 @@ private struct AgentConnection: View {
                 Button("Connect \(source.displayName)") { hub.installHooks(source) }
             }
             Text(about).font(.caption).foregroundStyle(.secondary)
+        } header: {
+            HStack(spacing: 6) {
+                Text(adapter.displayName)
+                if !adapter.capabilities.contains(.approve) {
+                    Text("Monitor only")
+                        .font(.caption2.weight(.medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                        .help("Wisp shows this agent's sessions; approve its requests in the terminal.")
+                }
+            }
         }
     }
 }

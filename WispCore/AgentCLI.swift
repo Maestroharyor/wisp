@@ -83,10 +83,13 @@ public enum AgentCLI {
         return out
     }
 
-    /// "Limits  5 h 82% (resets 9:00, full around 8:40) · weekly 30%".
+    /// "Limits  5 h 82% (resets 9:00, full around 8:40) · weekly 30% · Codex 5 h 10%". Claude
+    /// Code's windows came first, so only other agents are named.
     static func limitsLine(_ limits: [AgentReport.Limit]) -> String {
         let parts = limits.map { limit in
-            let name = LimitWindow(rawValue: limit.window).map { $0 == .fiveHour ? "5 h" : "weekly" } ?? limit.window
+            let window = LimitWindow(rawValue: limit.window).map { $0 == .fiveHour ? "5 h" : "weekly" } ?? limit.window
+            let agent = limit.agent.flatMap { $0 == AgentSource.claude.displayName ? nil : $0 + " " } ?? ""
+            let name = agent + window
             let times = [
                 limit.resets.map { "resets \(LimitWatch.clock($0))" },
                 limit.full.map { "full around \(LimitWatch.clock($0))" },

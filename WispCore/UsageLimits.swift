@@ -1,6 +1,6 @@
 import Foundation
 
-/// A Claude subscription usage window, as the status bar reports it.
+/// A subscription usage window: Claude's from the status bar, Codex's from its rollout.
 public enum LimitWindow: String, CaseIterable, Sendable {
     case fiveHour
     case sevenDay
@@ -11,6 +11,15 @@ public enum LimitWindow: String, CaseIterable, Sendable {
         case .sevenDay: "Weekly"
         }
     }
+
+    /// Codex names a window by its length.
+    init?(minutes: Int) {
+        switch minutes {
+        case 300: self = .fiveHour
+        case 10_080: self = .sevenDay
+        default: return nil
+        }
+    }
 }
 
 /// How much of a window is used, 0 to 100, and when it starts over.
@@ -18,11 +27,14 @@ public struct UsageReading: Equatable, Sendable {
     public let window: LimitWindow
     public let percent: Double
     public let resets: Date?
+    /// Whose plan the window belongs to.
+    public let source: AgentSource
 
-    public init(window: LimitWindow, percent: Double, resets: Date?) {
+    public init(window: LimitWindow, percent: Double, resets: Date?, source: AgentSource = .claude) {
         self.window = window
         self.percent = percent
         self.resets = resets
+        self.source = source
     }
 }
 
@@ -36,6 +48,33 @@ public enum UsageLimits {
         ]
         .compactMap { $0 }
     }
+
+    /// Codex's `rate_limits` from a rollout `token_count` event: `primary` and `secondary`, each
+    /// with `used_percent`, `window_minutes` and `resets_at` (epoch seconds). Older rollouts
+    /// give `resets_in_seconds`, counted from the line's `timestamp`.
+    public static func codexReadings(_ limits: JSONValue?, at timestamp: Date?) -> [UsageReading] {
+        ["primary", "secondary"].compactMap { key in
+            guard let entry = limits?[key], let percent = entry["used_percent"]?.doubleValue,
+                let window = entry["window_minutes"]?.intValue.flatMap(LimitWindow.init(minutes:))
+            else { return nil }
+            let resets =
+                entry["resets_at"]?.doubleValue.map(Date.init(timeIntervalSince1970:))
+                ?? entry["resets_in_seconds"]?.doubleValue.flatMap { seconds in timestamp.map { $0 + seconds } }
+            return UsageReading(window: window, percent: percent, resets: resets, source: .codex)
+        }
+    }
+
+    /// `current` with one agent's readings swapped for its latest: Claude Code's first, and
+    /// each agent's five-hour window before its weekly one.
+    public static func merge(_ current: [UsageReading], with latest: [UsageReading]) -> [UsageReading] {
+        let sources = Set(latest.map(\.source))
+        return (current.filter { !sources.contains($0.source) } + latest).sorted { rank($0) < rank($1) }
+    }
+
+    private static func rank(_ reading: UsageReading) -> Int {
+        let agent = AgentAdapters.all.firstIndex { $0.source == reading.source } ?? 0
+        return agent * LimitWindow.allCases.count + (LimitWindow.allCases.firstIndex(of: reading.window) ?? 0)
+    }
 }
 
 /// A window passing one of the alert levels.
@@ -44,13 +83,17 @@ public struct LimitAlert: Equatable, Sendable {
     public let level: Double
     public let percent: Double
     public let resets: Date?
+    public var source: AgentSource = .claude
 
     /// Short enough for the pill ("5 h limit 82%"); the reset time is in the session's
-    /// details and `wisp status`.
-    public var text: String { "\(window.name) limit \(Int(percent.rounded()))%" }
+    /// details and `wisp status`. Claude Code's windows came first, so only others are named.
+    public var text: String {
+        let agent = source == .claude ? "" : source.displayName + " "
+        return "\(agent)\(window.name) limit \(Int(percent.rounded()))%"
+    }
 }
 
-/// Follows the usage windows across status bar snapshots: alerts once per level in each
+/// Follows the usage windows across snapshots: alerts once per level in each agent's
 /// window, starting again when the window resets, and projects when it will run out.
 public struct LimitWatch: Sendable {
     public static let levels: [Double] = [80, 95]
@@ -65,7 +108,12 @@ public struct LimitWatch: Sendable {
         var samples: [(date: Date, percent: Double)] = []
     }
 
-    private var tracks: [LimitWindow: Track] = [:]
+    private struct Key: Hashable, Sendable {
+        let source: AgentSource
+        let window: LimitWindow
+    }
+
+    private var tracks: [Key: Track] = [:]
 
     public init() {}
 
@@ -74,7 +122,8 @@ public struct LimitWatch: Sendable {
     public mutating func record(_ readings: [UsageReading], at date: Date) -> [LimitAlert] {
         var due: [LimitAlert] = []
         for reading in readings {
-            var track = tracks[reading.window] ?? Track(resets: reading.resets)
+            let key = Key(source: reading.source, window: reading.window)
+            var track = tracks[key] ?? Track(resets: reading.resets)
             // A new reset time means a fresh window. Without one, only a fall in usage can say
             // so; with one, a lower figure is just another session's older snapshot.
             let lastPercent = track.samples.last?.percent ?? 0
@@ -83,7 +132,7 @@ public struct LimitWatch: Sendable {
                 track = Track(resets: reading.resets)
             }
             if reading.percent < lastPercent, !fell, !track.samples.isEmpty {
-                tracks[reading.window] = track
+                tracks[key] = track
                 continue
             }
             track.samples.append((date, reading.percent))
@@ -91,19 +140,21 @@ public struct LimitWatch: Sendable {
             if let level = Self.levels.last(where: { reading.percent >= $0 }), level > track.fired {
                 track.fired = level
                 due.append(
-                    LimitAlert(window: reading.window, level: level, percent: reading.percent, resets: reading.resets))
+                    LimitAlert(
+                        window: reading.window, level: level, percent: reading.percent, resets: reading.resets,
+                        source: reading.source))
             }
-            tracks[reading.window] = track
+            tracks[key] = track
         }
         return due
     }
 
     /// When the window will be used up at the pace of the last hour; nil when it isn't
     /// rising, the stretch is too short to tell, or it resets first.
-    public func forecast(_ window: LimitWindow) -> Date? {
-        guard let track = tracks[window], let first = track.samples.first, let last = track.samples.last else {
-            return nil
-        }
+    public func forecast(_ window: LimitWindow, source: AgentSource = .claude) -> Date? {
+        guard let track = tracks[Key(source: source, window: window)], let first = track.samples.first,
+            let last = track.samples.last
+        else { return nil }
         let elapsed = last.date.timeIntervalSince(first.date)
         let rise = last.percent - first.percent
         guard elapsed >= Self.minimumStretch, rise > 0, last.percent < 100 else { return nil }
