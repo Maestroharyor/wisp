@@ -276,6 +276,7 @@ final class Preferences {
         static let islandSetting = "islandSetting"
         static let orbCentres = "orbCentres"
         static let orbReturnPlacements = "orbReturnPlacements"
+        static let islandSpots = "islandSpots"
         static let displayPlacements = "displayPlacements"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let activityDisplay = "activityDisplay"
@@ -797,7 +798,14 @@ final class Preferences {
     }
 
     /// Where the shell sits on displays without their own choice.
-    var placement: Placement { didSet { defaults.set(placement.rawValue, forKey: Key.placement) } }
+    var placement: Placement {
+        didSet {
+            defaults.set(placement.rawValue, forKey: Key.placement)
+            // A new default puts islands that follow it back on their spot.
+            let kept = islandSpots.filter { displayPlacements[$0.key] != nil }
+            if kept != islandSpots { islandSpots = kept }
+        }
+    }
     var islandSetting: IslandSetting {
         didSet { defaults.set(islandSetting.rawValue, forKey: Key.islandSetting) }
     }
@@ -823,7 +831,22 @@ final class Preferences {
     }
 
     func setForm(_ form: FormFactor, for uuid: String) {
+        // The orb keeps a moved island's spot, so docking goes back there; other forms start fresh.
+        if form != .orb { moveIslandBack(uuid) }
         updateOrbPlacements { $0.set(form, for: uuid) }
+    }
+
+    /// Where each display's dragged island rests, as "placement@x,y" by display UUID.
+    var islandSpots: [String: String] { didSet { defaults.set(islandSpots, forKey: Key.islandSpots) } }
+
+    func islandSpot(for uuid: String) -> IslandSpot? { islandSpots[uuid].flatMap(IslandSpot.init(encoded:)) }
+
+    func moveIsland(_ uuid: String, to spot: IslandSpot) {
+        if islandSpots[uuid] != spot.encoded { islandSpots[uuid] = spot.encoded }
+    }
+
+    func moveIslandBack(_ uuid: String) {
+        if islandSpots[uuid] != nil { islandSpots[uuid] = nil }
     }
 
     private func updateOrbPlacements(_ change: (inout OrbPlacements) -> Void) {
@@ -846,6 +869,7 @@ final class Preferences {
     func placement(for uuid: String) -> Placement { placementOverride(for: uuid) ?? placement }
 
     func setPlacementOverride(_ placement: Placement?, for uuid: String) {
+        moveIslandBack(uuid)
         displayPlacements[uuid] = placement?.rawValue
     }
 
@@ -1094,6 +1118,7 @@ final class Preferences {
         orbCentres = (defaults.dictionary(forKey: Key.orbCentres) ?? [:]).compactMapValues { "\($0)" }
         orbReturnPlacements =
             (defaults.dictionary(forKey: Key.orbReturnPlacements) ?? [:]).compactMapValues { "\($0)" }
+        islandSpots = (defaults.dictionary(forKey: Key.islandSpots) ?? [:]).compactMapValues { "\($0)" }
         displayPlacements = (defaults.dictionary(forKey: Key.displayPlacements) ?? [:]).compactMapValues { "\($0)" }
         hudDuration = defaults.string(forKey: Key.hudDuration).flatMap(HUDDuration.init(rawValue:)) ?? .standard
         volumeSteps = defaults.integer(forKey: Key.volumeSteps)
