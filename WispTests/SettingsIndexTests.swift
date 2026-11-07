@@ -10,6 +10,7 @@ final class SettingsIndexTests: XCTestCase {
 
     func testKeywordsFindTheirPane() {
         XCTAssertEqual(SettingsIndex.panes(matching: "glass"), [.appearance])
+        XCTAssertEqual(SettingsIndex.panes(matching: "download progress"), [.activities])
         XCTAssertEqual(SettingsIndex.panes(matching: "claude"), [.agents])
         XCTAssertEqual(SettingsIndex.panes(matching: "pocket"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "dnd"), [.widgets])

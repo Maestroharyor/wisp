@@ -237,6 +237,11 @@ private struct SurfaceView: View {
                     .id(invite.id)
                     .transition(reveal)
             }
+            if case .downloadDone(let download) = model.activity {
+                DownloadDoneCard(download: download, model: model)
+                    .id(download.path)
+                    .transition(reveal)
+            }
             if case .notification(let item) = model.activity {
                 NotificationCardView(item: item, model: model)
                     .id(item.id)

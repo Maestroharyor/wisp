@@ -64,6 +64,10 @@ enum Activity: Sendable, Equatable {
     case meetingSoon(MeetingInvite)
     /// Headphones just connected, with their battery when they report it.
     case device(BluetoothDevice)
+    /// A browser is downloading into a watched folder.
+    case download(DownloadSummary)
+    /// A download just finished, with Open and Show in Finder.
+    case downloadDone(FinishedDownload)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -76,7 +80,7 @@ enum Activity: Sendable, Equatable {
     /// Level bars need room for the bar and the number, and a notice for a few words.
     var usesWideWings: Bool {
         switch self {
-        case .level, .sent, .focus, .agent, .meeting, .device, .notice: true
+        case .level, .sent, .focus, .agent, .meeting, .device, .notice, .download: true
         default: false
         }
     }
@@ -104,6 +108,8 @@ enum Activity: Sendable, Equatable {
         case .meeting: "meeting"
         case .meetingSoon(let invite): "meetingSoon-\(invite.id)"
         case .device: "device"
+        case .download: "download"
+        case .downloadDone(let done): "downloadDone-\(done.path)"
         }
     }
 }

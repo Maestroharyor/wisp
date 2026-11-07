@@ -65,11 +65,11 @@ final class NotchController {
         }
     }
 
-    /// Approval and Join cards have buttons, so the closed panel stops being click-through
-    /// while one shows.
+    /// Approval, Join and finished download cards have buttons, so the closed panel stops
+    /// being click-through while one shows.
     private var showsApproval: Bool {
         switch model.activity {
-        case .agentApproval, .meetingSoon: true
+        case .agentApproval, .meetingSoon, .downloadDone: true
         default: false
         }
     }
