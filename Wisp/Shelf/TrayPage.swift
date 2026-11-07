@@ -54,7 +54,7 @@ struct TrayPage: View {
         return HStack(spacing: 6) {
             Text(tray.header)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(.ink.opacity(0.85))
                 .lineLimit(1)
                 .fixedSize()
                 .contentTransition(.numericText())
@@ -92,7 +92,7 @@ private struct TrayAction: View {
             }
             .padding(.horizontal, title == nil ? 0 : 9)
             .frame(minWidth: 24, minHeight: 24)
-            .background(Capsule().fill(.white.opacity(hovering ? 0.2 : 0.1)))
+            .background(Capsule().fill(.ink.opacity(hovering ? 0.2 : 0.1)))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -143,7 +143,7 @@ private struct TrayCard: View {
         .frame(width: TrayPage.cardWidth)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white.opacity(selected ? 0.14 : hovering ? 0.1 : 0.05))
+                .fill(.ink.opacity(selected ? 0.14 : hovering ? 0.1 : 0.05))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -178,7 +178,7 @@ private struct DropMoreCard: View {
             Image(systemName: "plus").font(.system(size: 15, weight: .semibold))
             Text("Drop more").font(.system(size: 10, weight: .medium))
         }
-        .foregroundStyle(.white.opacity(active ? 0.9 : 0.45))
+        .foregroundStyle(.ink.opacity(active ? 0.9 : 0.45))
         .frame(width: width)
         .frame(maxWidth: width == nil ? .infinity : nil, maxHeight: .infinity)
         .overlay(DropOutline(active: active, cornerRadius: 12))
@@ -191,7 +191,7 @@ private struct DropOutline: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .strokeBorder(.white.opacity(active ? 0.6 : 0.25), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+            .strokeBorder(.ink.opacity(active ? 0.6 : 0.25), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
     }
 }
 
@@ -236,7 +236,7 @@ struct DropTile: View {
         }
         .frame(width: SurfaceSizing.tileSize, height: SurfaceSizing.tileSize)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(targeted ? 0.22 : 0.08))
+            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.ink.opacity(targeted ? 0.22 : 0.08))
         )
         .scaleEffect(targeted ? 1.05 : 1)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: targeted)

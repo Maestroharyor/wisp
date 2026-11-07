@@ -69,7 +69,7 @@ struct NowPlayingWidget: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 6)
-                    Waveform(tint: .white.opacity(0.55), playing: info.isPlaying, barCount: 6, barWidth: 2)
+                    Waveform(tint: .ink.opacity(0.55), playing: info.isPlaying, barCount: 6, barWidth: 2)
                         .frame(width: 22, height: 16)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .padding(.top, 4)
@@ -134,7 +134,7 @@ struct NowPlayingWidget: View {
 struct PlainIconButton: View {
     let symbol: String
     var size: CGFloat = 16
-    var tint: Color = .white
+    var tint: Color = .ink
     /// What VoiceOver says; defaults to a name for the symbol.
     var label: String?
     let action: () -> Void
@@ -185,7 +185,7 @@ struct ProgressBar: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.22))
+                Capsule().fill(.ink.opacity(0.22))
                 Capsule().fill(tint).frame(width: proxy.size.width * min(max(value, 0), 1))
             }
             .contentShape(Rectangle())
@@ -294,7 +294,7 @@ struct TimerWidget: View {
                 CircleButton(symbol: timer.isRunning ? "pause.fill" : "play.fill", tint: .wispAmber, filled: true) {
                     store.toggleTimer()
                 }
-                CircleButton(symbol: "xmark", tint: .white) { store.resetTimer() }
+                CircleButton(symbol: "xmark", tint: .ink) { store.resetTimer() }
             } else {
                 CircleButton(symbol: "play.fill", tint: .wispAmber, filled: true) { store.toggleTimer() }
                 VStack(spacing: 2) {
@@ -329,9 +329,9 @@ struct CircleButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.4, weight: .bold))
-                .foregroundStyle(filled ? tint : .white.opacity(0.85))
+                .foregroundStyle(filled ? tint : .ink.opacity(0.85))
                 .frame(width: size, height: size)
-                .background(Circle().fill(filled ? tint.opacity(0.28) : .white.opacity(0.14)))
+                .background(Circle().fill(filled ? tint.opacity(0.28) : .ink.opacity(0.14)))
         }
         .buttonStyle(.plain)
         .hoverHint(label ?? SymbolLabel.label(for: symbol))
@@ -367,7 +367,7 @@ struct PomodoroWidget: View {
                 ) {
                     store.togglePomodoro()
                 }
-                CircleButton(symbol: "arrow.counterclockwise", tint: .white, size: 28) { store.resetPomodoro() }
+                CircleButton(symbol: "arrow.counterclockwise", tint: .ink, size: 28) { store.resetPomodoro() }
                 CircleButton(
                     symbol: preferences.scrubberSounds ? "speaker.wave.2.fill" : "speaker.slash.fill",
                     tint: .wispAmber, filled: preferences.scrubberSounds, size: 28
@@ -391,7 +391,7 @@ struct PomodoroWidget: View {
                 .font(.system(size: 11, weight: .semibold))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 3)
-                .background(Capsule().fill(store.phase == phase ? Color.wispAmber.opacity(0.28) : .white.opacity(0.1)))
+                .background(Capsule().fill(store.phase == phase ? Color.wispAmber.opacity(0.28) : .ink.opacity(0.1)))
                 .foregroundStyle(store.phase == phase ? Color.wispAmber : Color.secondaryText)
         }
         .buttonStyle(.plain)
@@ -422,7 +422,7 @@ struct RulerScrubber: View {
                     if major {
                         let label = Text("\(minute)")
                             .font(.system(size: 9, weight: minute == value ? .bold : .medium))
-                            .foregroundStyle(minute == value ? Color.white : Color.wispAmber.opacity(0.8))
+                            .foregroundStyle(minute == value ? Color.ink : Color.wispAmber.opacity(0.8))
                         context.draw(label, at: CGPoint(x: x, y: 6))
                     }
                 }
@@ -667,7 +667,7 @@ struct WeatherWidget: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
         .background(
             RoundedRectangle(cornerRadius: ShellMetrics.widgetCornerRadius, style: .continuous)
                 .fill(

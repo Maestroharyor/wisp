@@ -31,7 +31,7 @@ struct DownloadValue: View {
             }
             ValueText(
                 text: DownloadText.detail(summary.primary),
-                tint: summary.primary.isStalled ? Color.secondaryText : .white)
+                tint: summary.primary.isStalled ? Color.secondaryText : .ink)
         }
         .lineLimit(1)
     }
@@ -63,7 +63,7 @@ struct DownloadDoneCard: View {
                 }
                 .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
                 .padding(.horizontal, 12).frame(height: 28)
-                .background(Capsule().fill(.white.opacity(0.14)))
+                .background(Capsule().fill(.ink.opacity(0.14)))
                 Button("Open") {
                     NSWorkspace.shared.open(url)
                     model.services.activities.remove(.downloadDone)
@@ -76,7 +76,7 @@ struct DownloadDoneCard: View {
             .frame(height: SurfaceSizing.notificationCardHeight - 8)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
         .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
     }
 

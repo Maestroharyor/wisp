@@ -11,7 +11,7 @@ struct LevelBar: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.2))
+                Capsule().fill(.ink.opacity(0.2))
                 Capsule().fill(tint).frame(width: max(proxy.size.width * min(max(value, 0), 1), height))
                     .opacity(value > 0 ? 1 : 0)
             }
@@ -83,9 +83,9 @@ struct ArtworkView: View {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    Color.white.opacity(0.12)
+                    Color.ink.opacity(0.12)
                     Image(systemName: "music.note").font(.system(size: size * 0.45)).foregroundStyle(
-                        .white.opacity(0.6))
+                        .ink.opacity(0.6))
                 }
             }
         }
@@ -97,7 +97,7 @@ struct ArtworkView: View {
 /// Monospaced value text coloured by meaning.
 struct ValueText: View {
     let text: String
-    var tint: Color = .white
+    var tint: Color = .ink
     var size: CGFloat = 12
     @Environment(\.valueFont) private var valueFont
 
@@ -114,7 +114,7 @@ struct ValueText: View {
 struct ShelfButton: View {
     let symbol: String
     var size: CGFloat = 13
-    var tint: Color = .white
+    var tint: Color = .ink
     /// What VoiceOver says; defaults to a name for the symbol.
     var label: String?
     /// The hover label and tooltip, when they should say more than `label`.
@@ -129,7 +129,7 @@ struct ShelfButton: View {
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: size + 15, height: size + 15)
-                .background(Circle().fill(.white.opacity(hovering ? 0.16 : 0.0)))
+                .background(Circle().fill(.ink.opacity(hovering ? 0.16 : 0.0)))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -144,8 +144,17 @@ extension ShapeStyle where Self == Color {
     static var wispViolet: Color { Color(red: 122 / 255, green: 107 / 255, blue: 1) }
     static var wispAmber: Color { Color(red: 1, green: 0.72, blue: 0.2) }
     static var wispGreen: Color { Color(red: 0.3, green: 0.85, blue: 0.4) }
-    static var secondaryText: Color { Color.white.opacity(0.55) }
+    /// Text and icon colour for views shared by the notch and the window: white in Dark mode,
+    /// black in Light. Unlike `.primary` (85% white in Dark mode) it is fully opaque, so the
+    /// notch, which forces Dark mode, keeps its pure white.
+    static var ink: Color { inkColor }
+    static var secondaryText: Color { Color.ink.opacity(0.55) }
 }
+
+private let inkColor = Color(
+    nsColor: NSColor(name: "WispInk") { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .white : .black
+    })
 
 extension EnvironmentValues {
     /// The type chosen in Settings › Appearance for countdowns, percentages and clocks.

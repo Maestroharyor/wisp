@@ -83,7 +83,7 @@ private struct CloudTaskRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(hovering ? 0.12 : 0.06))
+                .fill(Color.ink.opacity(hovering ? 0.12 : 0.06))
         )
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onHover { hovering = $0 }

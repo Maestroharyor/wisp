@@ -35,7 +35,7 @@ struct MeetingSoonCard: View {
             .frame(height: SurfaceSizing.notificationCardHeight - 8)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
     }
 
     /// The driven app's controls, only when this invite is for that app.
@@ -49,7 +49,7 @@ struct MeetingSoonCard: View {
         Button("Later") { model.services.activities.remove(.meetingSoon) }
             .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
             .padding(.horizontal, 12).frame(height: 28)
-            .background(Capsule().fill(.white.opacity(0.14)))
+            .background(Capsule().fill(.ink.opacity(0.14)))
         Button("Join") {
             NSWorkspace.shared.open(invite.link)
             model.services.activities.remove(.meetingSoon)
@@ -98,7 +98,7 @@ struct MeetingControlsCard: View {
             .frame(height: SurfaceSizing.notificationCardHeight - 8)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
     }
 }
 
@@ -122,10 +122,10 @@ struct MeetingControlsRow: View {
                         Image(systemName: state.symbol)
                             .font(.system(size: 13, weight: .semibold))
                             .frame(width: 30, height: 30)
-                            .background(Circle().fill(state.engaged == true ? Color.wispViolet : .white.opacity(0.14)))
+                            .background(Circle().fill(state.engaged == true ? Color.wispViolet : .ink.opacity(0.14)))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(state.engaged == true ? Color.white : Color.ink)
                     .hoverHint(state.help, help: state.help)
                     .accessibilityLabel(state.label)
                 }

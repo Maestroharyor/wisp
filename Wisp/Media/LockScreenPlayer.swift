@@ -85,5 +85,7 @@ private struct LockScreenPlayerView: View {
         .frame(width: 360, height: 96)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(.black.opacity(0.7)))
         .foregroundStyle(.white)
+        // Always on a dark backing, so the shared buttons and artwork keep their Dark mode colours.
+        .environment(\.colorScheme, .dark)
     }
 }

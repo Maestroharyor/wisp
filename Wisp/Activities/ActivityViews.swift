@@ -32,7 +32,7 @@ struct CompactActivityView: View {
         }
         .frame(height: surface.height)
         .font(.system(size: ActivityMetrics.labelFontSize, weight: .semibold))
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
     }
 
     @ViewBuilder private var leading: some View {
@@ -46,7 +46,7 @@ struct CompactActivityView: View {
         case .charging:
             Label("Charging", systemImage: "bolt.fill").labelStyle(.titleOnly).lineLimit(1)
         case .unplugged(let percent), .lowBattery(let percent):
-            Image(systemName: batterySymbol(percent)).foregroundStyle(percent <= 20 ? .red : .white)
+            Image(systemName: batterySymbol(percent)).foregroundStyle(percent <= 20 ? .red : .ink)
         case .capsLock:
             Image(systemName: "capslock.fill")
         case .timer(_, let countdown):
@@ -133,7 +133,7 @@ struct CompactActivityView: View {
         case .lowBattery(let percent):
             ValueText(text: "\(percent)%", tint: .red)
         case .capsLock(let on):
-            ValueText(text: on ? "On" : "Off", tint: on ? .wispGreen : .white)
+            ValueText(text: on ? "On" : "Off", tint: on ? .wispGreen : .ink)
         case .timer(_, let countdown):
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 ValueText(text: Countdown.format(countdown.remaining(now: context.date)), tint: .wispAmber)
@@ -149,7 +149,7 @@ struct CompactActivityView: View {
             Text("You: \(text)").lineLimit(1).foregroundStyle(Color.accentColor)
         case .focus(let state):
             Text(state.isOn ? (state.name ?? "On") : "Off").lineLimit(1)
-                .foregroundStyle(state.isOn ? .white : Color.secondaryText)
+                .foregroundStyle(state.isOn ? .ink : Color.secondaryText)
         case .agent(let status):
             AgentStateLabel(status: status)
         case .meeting(let status):
@@ -159,7 +159,7 @@ struct CompactActivityView: View {
                         text: Countdown.format(max(0, context.date.timeIntervalSince(status.started))), tint: .red)
                 }
                 Image(systemName: model.services.microphone.muted ? "mic.slash.circle.fill" : "mic.circle")
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.ink.opacity(0.8))
                     .help(
                         model.services.microphone.muted
                             ? "Unmute the system microphone (all apps)" : "Mute the system microphone (all apps)")
@@ -194,9 +194,9 @@ struct CompactActivityView: View {
         case .regionWatch(let status):
             HStack(spacing: 6) {
                 Text(status.paused ? "Paused" : status.rule.summary).lineLimit(1)
-                    .foregroundStyle(status.paused ? Color.secondaryText : .white)
+                    .foregroundStyle(status.paused ? Color.secondaryText : .ink)
                 Image(systemName: "stop.circle")
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.ink.opacity(0.8))
                     .help("Stop watching")
             }
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone:
@@ -237,7 +237,7 @@ struct SideActivityView: View {
         .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .font(.system(size: 15, weight: .semibold))
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
     }
 
     @ViewBuilder private var value: some View {
@@ -251,7 +251,7 @@ struct SideActivityView: View {
         case .lowBattery(let percent):
             ValueText(text: "\(percent)%", tint: .red)
         case .capsLock(let on):
-            ValueText(text: on ? "On" : "Off", tint: on ? .wispGreen : .white)
+            ValueText(text: on ? "On" : "Off", tint: on ? .wispGreen : .ink)
         case .timer(_, let countdown):
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 ValueText(text: Countdown.format(countdown.remaining(now: context.date)), tint: .wispAmber)
@@ -262,7 +262,7 @@ struct SideActivityView: View {
         case .tray(let count):
             ValueText(text: "\(count)", tint: .wispGreen)
         case .focus(let state):
-            ValueText(text: state.isOn ? "On" : "Off", tint: state.isOn ? .white : Color.secondaryText)
+            ValueText(text: state.isOn ? "On" : "Off", tint: state.isOn ? .ink : Color.secondaryText)
         case .agent(let status):
             AgentStateLabel(status: status, showsTool: false).font(.system(size: 12, weight: .semibold))
         case .meeting(let status):
@@ -280,7 +280,7 @@ struct SideActivityView: View {
         case .download(let summary):
             ValueText(
                 text: DownloadText.detail(summary.primary),
-                tint: summary.primary.isStalled ? Color.secondaryText : .white)
+                tint: summary.primary.isStalled ? Color.secondaryText : .ink)
         case .notice(_, let text):
             caption(text)
         case .custom(let custom):
@@ -323,7 +323,7 @@ struct ActivityGlyph: View {
         case .charging:
             Image(systemName: "bolt.fill").foregroundStyle(.wispGreen)
         case .unplugged(let percent), .lowBattery(let percent):
-            Image(systemName: batterySymbol(percent)).foregroundStyle(percent <= 20 ? .red : .white)
+            Image(systemName: batterySymbol(percent)).foregroundStyle(percent <= 20 ? .red : .ink)
         case .capsLock:
             Image(systemName: "capslock.fill")
         case .timer(_, let countdown):
@@ -409,7 +409,7 @@ struct MediumActivityView: View {
             .frame(height: ActivityMetrics.cardContentHeight)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
         .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
     }
 

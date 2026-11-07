@@ -44,7 +44,7 @@ struct NotificationCardView: View {
                     }
                     Text(item.body)
                         .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(.ink.opacity(0.85))
                         .lineLimit(item.subtitle.isEmpty ? 2 : 1)
                 }
             }
@@ -59,7 +59,7 @@ struct NotificationCardView: View {
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
         .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
         .onChange(of: replying) { _, now in fieldFocused = now }
         // Rebuilt after another alert took its place: focus the field again.
@@ -75,13 +75,14 @@ struct NotificationCardView: View {
                 .onSubmit(send)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Capsule().fill(.white.opacity(0.1)))
+                .background(Capsule().fill(.ink.opacity(0.1)))
                 .overlay(Capsule().strokeBorder(failed ? Color.red.opacity(0.6) : .clear))
             Button(action: send) {
                 Image(systemName: sending ? "ellipsis" : "arrow.up")
                     .font(.system(size: 13, weight: .bold))
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(Color.accentColor))
+                    .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
             .hoverHint(sending ? "Sending" : "Send reply")
@@ -165,9 +166,9 @@ struct CardCloseGlyph: View {
         if model.showsCloseButton {
             Image(systemName: "xmark")
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(.ink.opacity(0.85))
                 .frame(width: 22, height: 22)
-                .background(Circle().fill(.white.opacity(0.16)))
+                .background(Circle().fill(.ink.opacity(0.16)))
                 .padding(.top, model.cardTopInset + 9)
                 .padding(.trailing, 12)
                 .transition(.opacity)
