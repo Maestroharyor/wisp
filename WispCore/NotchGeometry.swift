@@ -139,11 +139,14 @@ public struct NotchLayout: Sendable, Equatable {
     /// The placement whose geometry surfaces, pills and bubbles follow. The same as
     /// `placement` for a shell resting against an edge.
     public let anchor: Placement
+    /// An island the user dragged off its spot. It keeps its placement (and form) but rests
+    /// where it was dropped and opens like the orb, toward the middle of the screen.
+    public let moved: Bool
     /// The resting shape: the camera housing, a drawn notch, the idle island or a side tab.
     public let closedRect: CGRect
     public let screenFrame: CGRect
     /// Where surfaces must fit: the whole screen for a shell on its edge, the visible frame
-    /// (clear of the menu bar and Dock) for the orb.
+    /// (clear of the menu bar and Dock) for the orb or a moved island.
     public let bounds: CGRect
     /// The fixed panel: big enough for the largest surface plus shadow, flush with the edge.
     public fileprivate(set) var panelFrame: CGRect = .zero
@@ -156,6 +159,19 @@ public struct NotchLayout: Sendable, Equatable {
     public let edgeLine: CGFloat
 
     public var edge: ScreenEdge { anchor.edge }
+
+    /// Free of any edge: the orb, or a moved island.
+    public var floatsFree: Bool { placement == .floating || moved }
+
+    /// An island pill that can be dragged around the screen: the corners, the bottom, and
+    /// the top when it's drawn as an island rather than a notch.
+    public var movesAsIsland: Bool {
+        guard style == .island else { return false }
+        switch placement {
+        case .top, .topLeft, .topRight, .bottom: return true
+        case .left, .right, .floating: return false
+        }
+    }
 
     public var peekRect: CGRect { peekRect(strength: 1) }
 
@@ -228,13 +244,14 @@ public enum NotchGeometry {
         prefersIsland: Bool = false,
         placement: Placement = .top,
         orbCentre: CGPoint? = nil,
+        islandCentre: CGPoint? = nil,
         avoidsTopCentre: Bool = false,
         sizes: NotchSizes = .standard
     ) -> NotchLayout {
         let visible = screen.visibleFrame
         let style: NotchStyle
-        let closed: CGRect
-        let edgeLine: CGFloat
+        var closed: CGRect
+        var edgeLine: CGFloat
         var anchor = placement
 
         switch placement {
@@ -276,14 +293,29 @@ public enum NotchGeometry {
                 anchor == .bottom ? closed.minY - sizes.hoverTolerance : closed.maxY + sizes.hoverTolerance
         }
 
+        var moved = false
+        if let islandCentre, style == .island, placement != .floating, !placement.edge.isSide {
+            moved = true
+            let centre = OrbGeometry.fitted(
+                islandCentre, in: visible, size: sizes.island, avoidsTopCentre: avoidsTopCentre)
+            closed = CGRect(
+                x: centre.x - sizes.island.width / 2, y: centre.y - sizes.island.height / 2,
+                width: sizes.island.width, height: sizes.island.height)
+            anchor = OrbGeometry.anchor(for: centre, in: visible)
+            edgeLine =
+                anchor == .bottom ? closed.minY - sizes.hoverTolerance : closed.maxY + sizes.hoverTolerance
+        }
+
         let side = placement.edge.isSide
+        let free = placement == .floating || moved
         var layout = NotchLayout(
             style: style,
             placement: placement,
             anchor: anchor,
+            moved: moved,
             closedRect: closed,
             screenFrame: screen.frame,
-            bounds: placement == .floating ? visible : screen.frame,
+            bounds: free ? visible : screen.frame,
             // Side tabs swell outward more than they grow taller.
             peekGrowth: placement == .floating
                 ? sizes.orbPeekGrowth
@@ -329,7 +361,7 @@ public enum NotchGeometry {
         let screen = layout.screenFrame
         var panel = layout.surfaceRect(size: sizes.maxSurface).union(layout.closedRect)
             .insetBy(dx: -sizes.shadowPadding, dy: -sizes.shadowPadding)
-        if layout.placement == .floating { return panel.intersection(screen) }
+        if layout.floatsFree { return panel.intersection(screen) }
         switch layout.edge {
         case .top: panel.size.height = screen.maxY - panel.minY
         case .bottom:

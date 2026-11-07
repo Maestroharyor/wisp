@@ -21,7 +21,7 @@ struct NotchSettings: View {
                     ForEach(Placement.allCases) { Text($0.title).tag($0) }
                 }
                 Text(
-                    "Top uses the notch. The left and right edges get a notch on its side. The corners and the bottom float an island below the menu bar or above the Dock. The floating orb goes anywhere: drag it, or pull the notch down to tear it off, and drop it at the top centre to dock it. The shelf grows out from wherever it sits."
+                    "Top uses the notch. The left and right edges get a notch on its side. The corners and the bottom float an island below the menu bar or above the Dock. The floating orb goes anywhere: drag it, or pull the notch down to tear it off, and drop it at the top centre to dock it. Drag an island to move it; it stays where you drop it on that display. The shelf grows out from wherever it sits."
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 if hasSystemIsland {
@@ -113,6 +113,14 @@ struct NotchSettings: View {
                             ForEach(Placement.allCases) { Text($0.title).tag(Placement?.some($0)) }
                         }
                         .padding(.leading, 16)
+                        if let layout = preferences.layout(for: screen, uuid: uuid), layout.moved {
+                            LabeledContent("Moved by dragging") {
+                                Button("Move back to the \(layout.placement.title.lowercased())") {
+                                    preferences.moveIslandBack(uuid)
+                                }
+                            }
+                            .padding(.leading, 16)
+                        }
                     }
                 }
                 Text(

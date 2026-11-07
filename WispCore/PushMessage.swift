@@ -133,6 +133,25 @@ public enum PushMessage {
         PushNotice(title: "Daily budget", message: text, priority: 3, tags: ["moneybag"])
     }
 
+    /// The task's title is often the prompt, so it never goes; only the agent and the repository.
+    public static func cloud(_ event: CloudEvent, hidden: Bool) -> PushNotice {
+        let agent = event.task.source.displayName
+        let place = place(event.task.repository ?? "", hidden: hidden)
+        switch event.kind {
+        case .finished:
+            return PushNotice(
+                title: "Cloud task ready", message: "A \(agent) task is ready\(place).", priority: 3,
+                tags: ["white_check_mark"])
+        case .failed:
+            return PushNotice(
+                title: "Cloud task failed", message: "A \(agent) task failed\(place).", priority: 4, tags: ["x"])
+        case .checksFailed:
+            return PushNotice(
+                title: "Checks failed", message: "Checks failed on a \(agent) pull request\(place).", priority: 4,
+                tags: ["warning"])
+        }
+    }
+
     public static let test = PushNotice(
         title: "Wisp", message: "Phone notifications are working.", priority: 3, tags: ["sparkles"])
 

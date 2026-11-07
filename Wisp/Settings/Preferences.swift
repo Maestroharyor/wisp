@@ -244,6 +244,9 @@ final class Preferences {
         static let pushIdleMinutes = "pushIdleMinutes"
         static let pushTimeoutMinutes = "pushTimeoutMinutes"
         static let pushDetails = "pushDetails"
+        static let cloudEnabled = "cloudEnabled"
+        static let cloudSources = "cloudSources"
+        static let cloudChecks = "cloudChecks"
         static let aiEnabled = "aiEnabled"
         static let aiEngine = "aiEngine"
         static let ollamaAddress = "ollamaAddress"
@@ -273,6 +276,7 @@ final class Preferences {
         static let islandSetting = "islandSetting"
         static let orbCentres = "orbCentres"
         static let orbReturnPlacements = "orbReturnPlacements"
+        static let islandSpots = "islandSpots"
         static let displayPlacements = "displayPlacements"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let activityDisplay = "activityDisplay"
@@ -300,6 +304,7 @@ final class Preferences {
         static let ringHotkey = "ringHotkey"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
+        static let accessoryBatteries = "accessoryBatteries"
         static let downloadActivity = "downloadActivity"
         static let downloadFolders = "downloadFolders"
         static let scriptInterval = "scriptInterval"
@@ -669,6 +674,8 @@ final class Preferences {
     var batteryHUD: Bool { didSet { defaults.set(batteryHUD, forKey: Key.batteryHUD) } }
     /// A pill when Bluetooth headphones connect, with their battery.
     var deviceActivity: Bool { didSet { defaults.set(deviceActivity, forKey: Key.deviceActivity) } }
+    /// Mouse, keyboard and trackpad batteries in the Battery widget, with a warning at 20%.
+    var accessoryBatteries: Bool { didSet { defaults.set(accessoryBatteries, forKey: Key.accessoryBatteries) } }
     /// A progress pill while a browser downloads into Downloads or a chosen folder. Off by
     /// default: turning it on can make macOS ask for access to the Downloads folder.
     var downloadActivity: Bool { didSet { defaults.set(downloadActivity, forKey: Key.downloadActivity) } }
@@ -731,6 +738,14 @@ final class Preferences {
     var ollamaModel: String { didSet { defaults.set(ollamaModel, forKey: Key.ollamaModel) } }
     /// The PermissionRequest hook timeout these settings ask for.
     var approvalTimeout: Int { HookInstaller.approvalTimeout(push: pushEnabled, minutes: pushTimeoutMinutes) }
+    /// Cloud agent tasks in the Agents widget. Off by default: it asks Codex, GitHub and Cursor.
+    var cloudEnabled: Bool { didSet { defaults.set(cloudEnabled, forKey: Key.cloudEnabled) } }
+    /// Which cloud sources to ask; one whose CLI or key is missing is skipped anyway.
+    var cloudSources: Set<CloudSource> {
+        didSet { defaults.set(cloudSources.map(\.rawValue).sorted(), forKey: Key.cloudSources) }
+    }
+    /// Reads each recent pull request's CI with `gh pr checks`.
+    var cloudChecks: Bool { didSet { defaults.set(cloudChecks, forKey: Key.cloudChecks) } }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
     /// Look up album art on iTunes when the player gives none (sends title and artist).
@@ -786,7 +801,14 @@ final class Preferences {
     }
 
     /// Where the shell sits on displays without their own choice.
-    var placement: Placement { didSet { defaults.set(placement.rawValue, forKey: Key.placement) } }
+    var placement: Placement {
+        didSet {
+            defaults.set(placement.rawValue, forKey: Key.placement)
+            // A new default puts islands that follow it back on their spot.
+            let kept = islandSpots.filter { displayPlacements[$0.key] != nil }
+            if kept != islandSpots { islandSpots = kept }
+        }
+    }
     var islandSetting: IslandSetting {
         didSet { defaults.set(islandSetting.rawValue, forKey: Key.islandSetting) }
     }
@@ -812,7 +834,22 @@ final class Preferences {
     }
 
     func setForm(_ form: FormFactor, for uuid: String) {
+        // The orb keeps a moved island's spot, so docking goes back there; other forms start fresh.
+        if form != .orb { moveIslandBack(uuid) }
         updateOrbPlacements { $0.set(form, for: uuid) }
+    }
+
+    /// Where each display's dragged island rests, as "placement@x,y" by display UUID.
+    var islandSpots: [String: String] { didSet { defaults.set(islandSpots, forKey: Key.islandSpots) } }
+
+    func islandSpot(for uuid: String) -> IslandSpot? { islandSpots[uuid].flatMap(IslandSpot.init(encoded:)) }
+
+    func moveIsland(_ uuid: String, to spot: IslandSpot) {
+        if islandSpots[uuid] != spot.encoded { islandSpots[uuid] = spot.encoded }
+    }
+
+    func moveIslandBack(_ uuid: String) {
+        if islandSpots[uuid] != nil { islandSpots[uuid] = nil }
     }
 
     private func updateOrbPlacements(_ change: (inout OrbPlacements) -> Void) {
@@ -835,6 +872,7 @@ final class Preferences {
     func placement(for uuid: String) -> Placement { placementOverride(for: uuid) ?? placement }
 
     func setPlacementOverride(_ placement: Placement?, for uuid: String) {
+        moveIslandBack(uuid)
         displayPlacements[uuid] = placement?.rawValue
     }
 
@@ -929,6 +967,9 @@ final class Preferences {
             Key.pushIdleMinutes: PushPolicy.defaultIdleMinutes,
             Key.pushTimeoutMinutes: HookInstaller.defaultPushTimeoutMinutes,
             Key.pushDetails: false,
+            Key.cloudEnabled: false,
+            Key.cloudSources: CloudSource.allCases.map(\.rawValue),
+            Key.cloudChecks: true,
             Key.aiEnabled: false,
             Key.aiEngine: AIEngineKind.default.rawValue,
             Key.ollamaAddress: OllamaEndpoint.defaultAddress,
@@ -954,6 +995,7 @@ final class Preferences {
             Key.defaultTimerSeconds: 300.0,
             Key.scriptInterval: 60.0,
             Key.deviceActivity: true,
+            Key.accessoryBatteries: true,
             Key.activityDisplay: ActivityDisplayTarget.pointer.rawValue,
             Key.clipboardEnabled: true,
             Key.clipboardLimit: 200,
@@ -1055,6 +1097,10 @@ final class Preferences {
             max(defaults.integer(forKey: Key.pushTimeoutMinutes), HookInstaller.pushTimeoutMinutes.lowerBound),
             HookInstaller.pushTimeoutMinutes.upperBound)
         pushDetails = defaults.bool(forKey: Key.pushDetails)
+        cloudEnabled = defaults.bool(forKey: Key.cloudEnabled)
+        cloudSources = Set(
+            (defaults.stringArray(forKey: Key.cloudSources) ?? []).compactMap(CloudSource.init(rawValue:)))
+        cloudChecks = defaults.bool(forKey: Key.cloudChecks)
         aiEnabled = defaults.bool(forKey: Key.aiEnabled)
         aiEngine = defaults.string(forKey: Key.aiEngine).flatMap(AIEngineKind.init(rawValue:)) ?? .default
         ollamaAddress = defaults.string(forKey: Key.ollamaAddress) ?? OllamaEndpoint.defaultAddress
@@ -1076,6 +1122,7 @@ final class Preferences {
         orbCentres = (defaults.dictionary(forKey: Key.orbCentres) ?? [:]).compactMapValues { "\($0)" }
         orbReturnPlacements =
             (defaults.dictionary(forKey: Key.orbReturnPlacements) ?? [:]).compactMapValues { "\($0)" }
+        islandSpots = (defaults.dictionary(forKey: Key.islandSpots) ?? [:]).compactMapValues { "\($0)" }
         displayPlacements = (defaults.dictionary(forKey: Key.displayPlacements) ?? [:]).compactMapValues { "\($0)" }
         hudDuration = defaults.string(forKey: Key.hudDuration).flatMap(HUDDuration.init(rawValue:)) ?? .standard
         volumeSteps = defaults.integer(forKey: Key.volumeSteps)
@@ -1102,6 +1149,7 @@ final class Preferences {
         favouriteShortcuts = defaults.stringArray(forKey: Key.favouriteShortcuts) ?? []
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
+        accessoryBatteries = defaults.bool(forKey: Key.accessoryBatteries)
         downloadActivity = defaults.bool(forKey: Key.downloadActivity)
         downloadFolders = defaults.stringArray(forKey: Key.downloadFolders) ?? []
         scriptInterval = ScriptOutput.clampedInterval(defaults.double(forKey: Key.scriptInterval))
