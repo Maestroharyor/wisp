@@ -7,7 +7,7 @@ enum NotchMenu {
     static func show(
         at location: CGPoint, customiseHome: @escaping @MainActor () -> Void,
         openPage: @escaping @MainActor (ShelfPage) -> Void, form: FormFactor, forms: [FormFactor],
-        setForm: @escaping @MainActor (FormFactor) -> Void, services: AppServices
+        setForm: @escaping @MainActor (FormFactor) -> Void, moveBack: MoveBack?, services: AppServices
     ) {
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -18,6 +18,9 @@ enum NotchMenu {
         menu.addItem(item("Mini Player", symbol: "pip") { services.miniPlayer.toggle() })
         menu.addItem(profilesItem(services: services))
         menu.addItem(formItem(current: form, forms: forms, setForm: setForm))
+        if let moveBack {
+            menu.addItem(item(moveBack.title, symbol: "arrow.uturn.backward", action: moveBack.action))
+        }
         menu.addItem(.separator())
         let update = item("Check for Updates…", symbol: "arrow.down.circle") { services.updater.checkForUpdates() }
         update.isEnabled = services.updater.canCheckForUpdates
@@ -25,6 +28,18 @@ enum NotchMenu {
         menu.addItem(item("Settings…", symbol: "gearshape", action: services.openSettings))
         menu.addItem(item("Quit Wisp", symbol: "power") { NSApp.terminate(nil) })
         menu.popUp(positioning: nil, at: location, in: nil)
+    }
+
+    /// Puts a dragged island back where its placement puts it.
+    struct MoveBack {
+        let title: String
+        let action: @MainActor () -> Void
+
+        /// `spot` is the placement's title, such as "Top right".
+        init(spot: String, action: @escaping @MainActor () -> Void) {
+            title = "Move back to the \(spot.lowercased())"
+            self.action = action
+        }
     }
 
     /// The shelf's pages, which matters most when the page switcher is hidden.

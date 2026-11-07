@@ -125,20 +125,10 @@ final class NotchCoordinator {
         let screens = NSScreen.screens
 
         for screen in screens {
-            guard let uuid = screen.displayUUID else { continue }
-            let metrics = screen.metrics
+            guard let uuid = screen.displayUUID, let layout = preferences.layout(for: screen, uuid: uuid) else {
+                continue
+            }
             let systemIsland = screen.hasSystemIsland(preferences.islandSetting)
-            let style = DisplayStyle.resolve(
-                preferences.displayStyle(for: uuid), hasNotch: metrics.hasCameraHousing,
-                showOnExternal: preferences.showOnExternalDisplays,
-                externalIsland: preferences.externalStyle == .island,
-                systemIsland: systemIsland
-            )
-            if style == .hidden { continue }
-            let layout = NotchGeometry.layout(
-                for: metrics, prefersIsland: style == .island,
-                placement: preferences.placement(for: uuid).clear(ofSystemIsland: systemIsland),
-                orbCentre: preferences.orbCentre(for: uuid), avoidsTopCentre: systemIsland)
             current.insert(uuid)
             log.notice(
                 "display \(uuid, privacy: .public) style=\(String(describing: layout.style), privacy: .public) closed=\(String(describing: layout.closedRect), privacy: .public) panel=\(String(describing: layout.panelFrame), privacy: .public)"
@@ -202,14 +192,7 @@ final class NotchCoordinator {
             shake.reset()
             dragStarted = .now
             controllers.values.forEach { $0.leftMouseDown(at: location) }
-            // Only a shell that owns its press can be dragged; elsewhere the drag is the app's.
-            shellDrag = controllers.first { $0.value.pendingPress && $0.value.layout.placement.tearsOff }.map {
-                uuid, controller in
-                ShellDrag(
-                    uuid: uuid, start: location,
-                    startCentre: CGPoint(x: controller.layout.closedRect.midX, y: controller.layout.closedRect.midY),
-                    floating: controller.layout.placement == .floating)
-            }
+            shellDrag = pressedShell(at: location)
         case .rightDown:
             controllers.values.forEach { $0.rightMouseDown(at: location) }
         case .dragged:
@@ -246,15 +229,38 @@ final class NotchCoordinator {
         }
     }
 
-    /// Moves the orb with the pointer. The notch stretches as it's pulled and comes off its
-    /// edge once pulled far enough. While dragging only the panel moves; the layout is rebuilt
-    /// on release.
+    /// A press that may become a drag of its shell. Only a shell that owns its press can be
+    /// dragged; elsewhere the drag is the app's. Islands move as pills, the top notch tears
+    /// off into an orb, and the orb moves.
+    private func pressedShell(at location: CGPoint) -> ShellDrag? {
+        for (uuid, controller) in controllers {
+            let layout = controller.layout
+            let kind: ShellDrag.Kind
+            if layout.movesAsIsland {
+                guard controller.ownsIslandPress(at: location) else { continue }
+                kind = .island
+            } else if controller.pendingPress, layout.placement.tearsOff {
+                kind = layout.placement == .floating ? .orb : .tearOff
+            } else {
+                continue
+            }
+            return ShellDrag(
+                uuid: uuid, start: location,
+                startCentre: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY), kind: kind)
+        }
+        return nil
+    }
+
+    /// Moves the orb or an island with the pointer. The notch stretches as it's pulled and
+    /// comes off its edge once pulled far enough. While dragging only the panel moves; the
+    /// layout is rebuilt on release.
     private func dragShell(to location: CGPoint) {
         guard var drag = shellDrag, let controller = controllers[drag.uuid],
             let screen = NSScreen.screens.first(where: { $0.displayUUID == drag.uuid })
         else { return }
+        let free = drag.kind != .tearOff
         let centre =
-            drag.floating
+            free
             ? CGPoint(
                 x: drag.startCentre.x + location.x - drag.start.x, y: drag.startCentre.y + location.y - drag.start.y)
             : location
@@ -264,8 +270,8 @@ final class NotchCoordinator {
             shellDrag = drag
             return
         }
-        guard OrbGeometry.startsDrag(from: drag.start, to: location, floating: drag.floating) else {
-            if !drag.floating {
+        guard OrbGeometry.startsDrag(from: drag.start, to: location, floating: free) else {
+            if !free {
                 let pulled = hypot(location.x - drag.start.x, location.y - drag.start.y)
                 controller.setPull(pulled / OrbGeometry.tearOffDistance)
             }
@@ -273,11 +279,21 @@ final class NotchCoordinator {
         }
         controller.cancelPress()
         controller.setPull(0)
-        controller.update(
-            layout: NotchGeometry.layout(
-                for: screen.metrics, prefersIsland: true, placement: .floating, orbCentre: centre,
-                avoidsTopCentre: screen.hasSystemIsland(preferences.islandSetting)))
-        if !drag.floating { controller.popIn() }
+        let systemIsland = screen.hasSystemIsland(preferences.islandSetting)
+        switch drag.kind {
+        case .island:
+            // Still the same pill, now free of its spot.
+            controller.update(
+                layout: NotchGeometry.layout(
+                    for: screen.metrics, prefersIsland: true, placement: controller.layout.placement,
+                    islandCentre: centre, avoidsTopCentre: systemIsland))
+        case .orb, .tearOff:
+            controller.update(
+                layout: NotchGeometry.layout(
+                    for: screen.metrics, prefersIsland: true, placement: .floating, orbCentre: centre,
+                    avoidsTopCentre: systemIsland))
+        }
+        if drag.kind == .tearOff { controller.popIn() }
         // Where the orb really is: the layout may have nudged it onto the screen.
         let placed = controller.layout.closedRect
         drag.centre = centre
@@ -294,8 +310,12 @@ final class NotchCoordinator {
         let visible = screen.visibleFrame
         let systemIsland = screen.hasSystemIsland(preferences.islandSetting)
         let seen = CGPoint(x: dragged.x + drag.offset.dx, y: dragged.y + drag.offset.dy)
+        if drag.kind == .island {
+            dropIsland(drag, at: seen, controller: controller, screen: screen)
+            return
+        }
         let size = controller.layout.closedRect.width
-        let wasFloating = drag.floating && preferences.placement(for: drag.uuid) == .floating
+        let wasFloating = drag.kind == .orb && preferences.placement(for: drag.uuid) == .floating
         let target: CGPoint
         switch OrbDrop.outcome(
             dropped: seen, in: visible, size: size, systemIsland: systemIsland, wasFloating: wasFloating)
@@ -315,6 +335,27 @@ final class NotchCoordinator {
         preferences.floatOrb(drag.uuid, at: target)
         // A changed setting rebuilds through observation; otherwise put the dragged layout back.
         if before == (preferences.displayPlacements, preferences.orbCentres) { rebuild() }
+    }
+
+    /// Settles a dragged island: it stays where it's dropped, flush with a nearby edge, or goes
+    /// home when dropped back on its own spot. Either way it glides there from the drop.
+    private func dropIsland(_ drag: ShellDrag, at seen: CGPoint, controller: NotchController, screen: NSScreen) {
+        let systemIsland = screen.hasSystemIsland(preferences.islandSetting)
+        let placement = controller.layout.placement
+        let home = NotchGeometry.layout(
+            for: screen.metrics, prefersIsland: true, placement: placement, avoidsTopCentre: systemIsland
+        ).closedRect
+        let before = preferences.islandSpots
+        controller.settle(from: seen)
+        switch IslandDrop.outcome(
+            dropped: seen, in: screen.visibleFrame, size: controller.layout.closedRect.size,
+            systemIsland: systemIsland, home: CGPoint(x: home.midX, y: home.midY))
+        {
+        case .restore: preferences.moveIslandBack(drag.uuid)
+        case .move(let point): preferences.moveIsland(drag.uuid, to: IslandSpot(placement: placement, centre: point))
+        }
+        // A changed setting rebuilds through observation; otherwise put the dragged layout back.
+        if before == preferences.islandSpots { rebuild() }
     }
 
     /// A drag that put file URLs on the drag pasteboard since the mouse went down.
@@ -337,6 +378,7 @@ final class NotchCoordinator {
     private func observePreferences() {
         withObservationTracking {
             _ = preferences.orbCentres
+            _ = preferences.islandSpots
             _ = preferences.showOnExternalDisplays
             _ = preferences.externalStyle
             _ = preferences.displayStyles
@@ -353,15 +395,46 @@ final class NotchCoordinator {
     }
 }
 
+extension Preferences {
+    /// The display's layout from the current settings, or nil when Wisp is hidden there.
+    /// Settings reads it too, to tell whether an island is really showing moved.
+    @MainActor
+    func layout(for screen: NSScreen, uuid: String) -> NotchLayout? {
+        let metrics = screen.metrics
+        let systemIsland = screen.hasSystemIsland(islandSetting)
+        let style = DisplayStyle.resolve(
+            displayStyle(for: uuid), hasNotch: metrics.hasCameraHousing,
+            showOnExternal: showOnExternalDisplays,
+            externalIsland: externalStyle == .island,
+            systemIsland: systemIsland
+        )
+        if style == .hidden { return nil }
+        let placement = placement(for: uuid).clear(ofSystemIsland: systemIsland)
+        // Stored centres are refitted to the display's current frame, so a resolution or
+        // arrangement change can't strand a shell off screen.
+        return NotchGeometry.layout(
+            for: metrics, prefersIsland: style == .island, placement: placement, orbCentre: orbCentre(for: uuid),
+            islandCentre: islandSpot(for: uuid)?.centre(for: placement), avoidsTopCentre: systemIsland)
+    }
+}
+
 /// A press on a closed shell that may become a drag of it.
 private struct ShellDrag {
     let uuid: String
     let start: CGPoint
     let startCentre: CGPoint
-    /// Already an orb, so it moves at a nudge rather than tearing off.
-    let floating: Bool
-    /// Where the pointer has put the orb, once it's moving.
+    let kind: Kind
+    /// Where the pointer has put the orb or island, once it's moving.
     var centre: CGPoint?
-    /// How far the first layout nudged the orb from the pointer to keep it on screen.
+    /// How far the first layout nudged the shell from the pointer to keep it on screen.
     var offset = CGVector(dx: 0, dy: 0)
+
+    enum Kind {
+        /// The top notch, which needs a deliberate pull to tear off into an orb.
+        case tearOff
+        /// Already an orb, so it moves at a nudge.
+        case orb
+        /// An island pill, which moves at a nudge and stays a pill.
+        case island
+    }
 }
