@@ -1,11 +1,13 @@
-/// The shapes Wisp can take on a display, as offered by the form switcher. Each maps to a
-/// placement; the finer choices (which corner, which side) stay in Settings.
+/// The shapes Wisp can take, as offered by the form switcher. Each shell form maps to a
+/// placement; the finer choices (which corner, which side) stay in Settings. The window is
+/// the shelf in an ordinary window, for every display at once (see `ShelfWindowState`).
 public enum FormFactor: String, CaseIterable, Sendable, Identifiable {
     case notch
     case corner
     case bottom
     case side
     case orb
+    case window
 
     public var id: Self { self }
 
@@ -19,13 +21,15 @@ public enum FormFactor: String, CaseIterable, Sendable, Identifiable {
         }
     }
 
-    public var placement: Placement {
+    /// Where the shell sits in this form; nil for the window, which leaves the shell alone.
+    public var placement: Placement? {
         switch self {
         case .notch: .top
         case .corner: .topRight
         case .bottom: .bottom
         case .side: .right
         case .orb: .floating
+        case .window: nil
         }
     }
 
@@ -36,6 +40,7 @@ public enum FormFactor: String, CaseIterable, Sendable, Identifiable {
         case .bottom: "Bottom"
         case .side: "Side"
         case .orb: "Orb"
+        case .window: "Window"
         }
     }
 
@@ -46,6 +51,7 @@ public enum FormFactor: String, CaseIterable, Sendable, Identifiable {
         case .bottom: "rectangle.bottomthird.inset.filled"
         case .side: "rectangle.righthalf.inset.filled"
         case .orb: "circle.circle"
+        case .window: "macwindow"
         }
     }
 
@@ -70,9 +76,10 @@ extension OrbPlacements {
             float(uuid)
             return
         }
+        guard let placement = form.placement else { return }
         // Keep a corner or side the user already picked, rather than forcing the right one.
-        let current = placement(for: uuid)
-        let target = FormFactor(placement: current) == form ? current : form.placement
+        let current = self.placement(for: uuid)
+        let target = FormFactor(placement: current) == form ? current : placement
         returns[uuid] = nil
         overrides[uuid] = target == standard ? nil : target.rawValue
     }
