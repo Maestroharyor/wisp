@@ -192,11 +192,13 @@ final class HotkeyCenter {
         updateApprovalFallback()
     }
 
+    /// Cards are answered with Hyper (Caps Lock) rather than the ⌃⌥⌘ fallback, for their key hints.
+    var approvalKeysUseHyper: Bool { preferences.hotkey.usesHyper && status == .active }
+
     /// The fallback holds only the keys the card on screen uses, only while it shows, and
     /// only when the Hyper tap isn't there to answer.
     private func updateApprovalFallback() {
-        let hyperActive = preferences.hotkey.usesHyper && status == .active
-        guard let prompt = approvalPrompt, !hyperActive else {
+        guard let prompt = approvalPrompt, !approvalKeysUseHyper else {
             unregisterApprovalFallback()
             return
         }

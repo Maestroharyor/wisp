@@ -133,6 +133,9 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     public var timeline: [AgentTimelineEntry] = []
     /// "Allow All" was chosen: later requests are allowed without asking.
     public var autoApprove = false
+    /// The user's last prompt on one line, when the agent sent it. In memory only: never
+    /// logged, saved or sent, and hidden with the other details.
+    public var lastPrompt: String?
     /// When the current turn began, for the elapsed timer.
     public var turnStarted: Date
     /// When the last turn finished; nil while one runs.
@@ -288,11 +291,14 @@ public struct AgentSessions: Sendable {
         switch event.kind {
         case .sessionStart:
             session.state = .idle
+            // A resumed or cleared session's old prompt isn't what it's working on now.
+            session.lastPrompt = nil
             Self.append(.started, "Session started", to: &session, at: date)
         case .userPromptSubmit:
             session.state = .running
             session.turnStarted = date
             session.turnEnded = nil
+            session.lastPrompt = event.promptText
             Self.append(.prompt, "Prompt sent", to: &session, at: date)
         case .permissionRequest where event.prompt == .question:
             // Needs you until answered, from the notch's card or in the terminal.

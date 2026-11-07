@@ -45,6 +45,8 @@ public enum SurfaceSizing {
     public static let questionRowHeight: CGFloat = 40
     /// An approval card opened to show its diff, command or plan, with a reason row.
     public static let approvalPreviewHeight: CGFloat = 220
+    /// An edit's first changed lines (`InlineDiff.maxLines`) under an approval card's summary.
+    public static let inlineDiffHeight: CGFloat = 60
 
     /// `contentScale` zooms the open shelf's content (the shelf size setting); pills and
     /// cards keep their size.
