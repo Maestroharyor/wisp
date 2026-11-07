@@ -22,6 +22,12 @@ final class NotchController {
     private var heldSlot: ActivitySlot?
     /// The page to go back to after a click on a live activity opened its own view.
     private var returnPage: ShelfPage?
+    /// A press on the closed shell. It acts on mouse-up, so dragging the shell moves it instead.
+    private(set) var pendingPress = false
+    /// Apple's island sits at the top of this display; the notch form isn't offered.
+    var systemIsland = false {
+        didSet { model.forms = FormFactor.available(systemIsland: systemIsland) }
+    }
 
     /// Grace period before a shelf closes after the pointer leaves.
     private let closeDelay: Duration = .milliseconds(300)
@@ -39,6 +45,12 @@ final class NotchController {
         syncSettings()
         model.onReplyEnded = { [weak self] in self?.endReply() }
         model.onWantsKey = { [weak self] in self?.panel.makeKey() }
+        model.onSetForm = { [weak self] form in
+            guard let self else { return }
+            // Fold the shelf away first; the new form comes in once the setting rebuilds.
+            self.dismiss()
+            self.services.preferences.setForm(form, for: self.screenUUID)
+        }
         model.onKeyDone = { [weak self] in
             // An open shelf keeps its key status for its own fields.
             guard let self, self.machine.phase != .open else { return }
@@ -79,7 +91,9 @@ final class NotchController {
     /// (AppKit passes clicks through transparent areas only while the property is untouched),
     /// so a closed panel takes the mouse only while the pointer is over something it handles.
     private func updateClickThrough() {
-        let overControls = pointerInside && (isReplying || showsApproval || showsMeetingPill || showsCard)
+        // The orb floats over windows; a press on it must not reach the window underneath.
+        let overControls =
+            pointerInside && (isReplying || showsApproval || showsMeetingPill || showsCard || isOrb)
         panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble
     }
 
@@ -122,6 +136,8 @@ final class NotchController {
         return services.activities.dismissCurrent()
     }
 
+    private var isOrb: Bool { model.isOrb }
+
     /// The meeting pill's microphone end mutes on click.
     private var showsMeetingPill: Bool {
         if case .meeting = model.activity { true } else { false }
@@ -137,10 +153,74 @@ final class NotchController {
         set { model.showsActivities = newValue }
     }
 
+    /// Where a dropped orb was on screen, so its new layout glides in from there.
+    private var settleFrom: CGPoint?
+    /// A drag moved the panel without a new layout, so the panel is off its layout's frame.
+    private var panelMoved = false
+
     func update(layout: NotchLayout) {
-        guard layout != model.layout else { return }
+        let from = settleFrom
+        settleFrom = nil
+        guard layout != model.layout || panelMoved else { return }
+        panelMoved = false
         model.layout = layout
-        panel.setFrame(layout.panelFrame, display: true)
+        // The shell has its new form now, so a docking orb can stop shrinking.
+        model.vanishing = false
+        guard let from, layout.placement == .floating, !model.reduceMotion else {
+            panel.setFrame(layout.panelFrame, display: true)
+            return
+        }
+        // Panel-relative positions stay put, so moving the whole panel moves the orb.
+        let to = CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY)
+        panel.setFrame(layout.panelFrame.offsetBy(dx: from.x - to.x, dy: from.y - to.y), display: true)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.28
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(layout.panelFrame, display: true)
+        }
+    }
+
+    /// Moves a dragged orb by moving its panel; the layout is rebuilt once it's dropped.
+    func moveOrb(by delta: CGVector) {
+        panelMoved = true
+        panel.setFrameOrigin(CGPoint(x: panel.frame.minX + delta.dx, y: panel.frame.minY + delta.dy))
+    }
+
+    /// The next layout glides from `point` instead of jumping.
+    func settle(from point: CGPoint) {
+        settleFrom = point
+    }
+
+    /// The notch stretching toward the pointer while it's pulled.
+    func setPull(_ amount: CGFloat) {
+        model.pull = min(max(amount, 0), 1)
+    }
+
+    func releasePull() {
+        guard model.pull > 0 else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) { model.pull = 0 }
+    }
+
+    /// Springs the shell up from smaller after it changed form.
+    func popIn() {
+        guard !model.reduceMotion else { return }
+        model.pops += 1
+    }
+
+    /// Shrinks the orb away, then runs `done` (the dock).
+    func vanish(then done: @escaping @MainActor () -> Void) {
+        guard !model.reduceMotion else {
+            done()
+            return
+        }
+        withAnimation(.easeIn(duration: 0.18)) { model.vanishing = true }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(190))
+            done()
+            // The dock's rebuild resets this with the new layout; this catches a dock that
+            // changed nothing, after that rebuild has had its turn.
+            Task { @MainActor [weak self] in self?.model.vanishing = false }
+        }
     }
 
     func pointerMoved(to location: CGPoint) {
@@ -174,22 +254,43 @@ final class NotchController {
         }
         // The mic end of the meeting pill mutes the microphone.
         if machine.phase != .open, case .meeting = model.activity,
-            SurfaceSizing.meetingMuteZone(in: model.surfaceRect, placement: layout.placement).contains(location)
+            SurfaceSizing.meetingMuteZone(in: model.surfaceRect, placement: layout.anchor).contains(location)
         {
             services.microphone.toggleMute()
             return
         }
         if model.contains(location) {
             if machine.phase != .open {
-                showActivityView()
-                send(.clicked)
+                pendingPress = true
+                return
             }
             // Let text fields (notes, search) and Esc reach the shelf without activating
             // Wisp. Hover opens stay non-key so typing keeps going to the front app.
-            if machine.phase == .open { panel.makeKey() }
+            panel.makeKey()
         } else if machine.phase == .open {
             send(.clickedOutside)
         }
+    }
+
+    /// A press on the closed shell that didn't turn into a drag opens it.
+    func leftMouseUp(at location: CGPoint) {
+        guard pendingPress else { return }
+        pendingPress = false
+        guard model.contains(location) else { return }
+        if isOrb, machine.phase != .open, model.activity == nil, services.preferences.ringOnOrbClick {
+            services.ring.show(at: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY))
+            return
+        }
+        if machine.phase != .open {
+            showActivityView()
+            send(.clicked)
+        }
+        if machine.phase == .open { panel.makeKey() }
+    }
+
+    /// The press became a drag of the shell.
+    func cancelPress() {
+        pendingPress = false
     }
 
     /// A click on the agent pill opens the Agents widget on its own, on the session the pill
@@ -210,11 +311,11 @@ final class NotchController {
         guard machine.phase != .open, model.contains(location),
             let direction = swipe.add(dx: scroll.dx, dy: scroll.dy)
         else { return }
-        if direction == layout.placement.openingSwipe {
+        if direction == layout.edge.openingSwipe {
             send(.clicked)
             return
         }
-        if direction == layout.placement.closingSwipe, dismissActivity() { return }
+        if direction == layout.edge.closingSwipe, dismissActivity() { return }
         guard model.activity == .media else { return }
         // Skipping runs along the edge: sideways on top and bottom, up and down on the sides.
         switch (layout.edge.isSide, direction) {
@@ -230,6 +331,9 @@ final class NotchController {
             at: location,
             customiseHome: { [weak self] in self?.customiseHome() },
             openPage: { [weak self] page in self?.open(page: page) },
+            form: model.form,
+            forms: model.forms,
+            setForm: { [weak self] form in self?.model.onSetForm(form) },
             services: services
         )
     }
@@ -240,6 +344,13 @@ final class NotchController {
         dragEndTask?.cancel()
         let target = layout.hitRegion(for: model.surfaceRect).insetBy(dx: -24, dy: -24)
         let over = target.contains(location)
+        // Files dragged to the closed orb open the ring, to drop them on an action.
+        if isOrb, over, machine.phase != .open {
+            if !services.ring.isVisible {
+                services.ring.show(at: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY), dropping: true)
+            }
+            return
+        }
         if over, !model.dragging {
             model.dragging = true
             // So leaving again registers as an exit and the shelf closes.
@@ -330,6 +441,13 @@ final class NotchController {
 
     func open(page: ShelfPage) {
         model.page = page
+        if machine.phase != .open { send(.hotkey) }
+    }
+
+    func open(widget: WidgetKind) {
+        returnPage = model.page
+        model.page = .widgets
+        model.soloWidget = widget
         if machine.phase != .open { send(.hotkey) }
     }
 

@@ -1,11 +1,13 @@
 import AppKit
+import WispCore
 
 /// Right-click menu on the notch or shelf.
 @MainActor
 enum NotchMenu {
     static func show(
         at location: CGPoint, customiseHome: @escaping @MainActor () -> Void,
-        openPage: @escaping @MainActor (ShelfPage) -> Void, services: AppServices
+        openPage: @escaping @MainActor (ShelfPage) -> Void, form: FormFactor, forms: [FormFactor],
+        setForm: @escaping @MainActor (FormFactor) -> Void, services: AppServices
     ) {
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -15,6 +17,7 @@ enum NotchMenu {
         menu.addItem(item("Transform Files…", symbol: "wand.and.stars") { services.openTransform([]) })
         menu.addItem(item("Mini Player", symbol: "pip") { services.miniPlayer.toggle() })
         menu.addItem(profilesItem(services: services))
+        menu.addItem(formItem(current: form, forms: forms, setForm: setForm))
         menu.addItem(.separator())
         let update = item("Check for Updates…", symbol: "arrow.down.circle") { services.updater.checkForUpdates() }
         update.isEnabled = services.updater.canCheckForUpdates
@@ -35,6 +38,22 @@ enum NotchMenu {
         ]
         for (page, title, symbol) in pages {
             submenu.addItem(item(title, symbol: symbol) { openPage(page) })
+        }
+        parent.submenu = submenu
+        return parent
+    }
+
+    /// Notch, corner, bottom, side or orb, the current one ticked.
+    private static func formItem(
+        current: FormFactor, forms: [FormFactor], setForm: @escaping @MainActor (FormFactor) -> Void
+    ) -> NSMenuItem {
+        let parent = NSMenuItem(title: "Form", action: nil, keyEquivalent: "")
+        parent.image = NSImage(systemSymbolName: current.symbol, accessibilityDescription: nil)
+        let submenu = NSMenu()
+        for form in forms {
+            let entry = item(form.title, symbol: form.symbol) { setForm(form) }
+            entry.state = form == current ? .on : .off
+            submenu.addItem(entry)
         }
         parent.submenu = submenu
         return parent

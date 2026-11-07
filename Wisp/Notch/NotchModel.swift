@@ -83,6 +83,22 @@ final class NotchModel {
     var expandedApproval: UUID?
     /// The session whose pill was clicked: the Agents view opens on it.
     var focusedSession: String?
+    /// The forms this display can switch to, and the switch itself (the nav pill's form menu).
+    var forms: [FormFactor] = FormFactor.allCases
+    var onSetForm: (FormFactor) -> Void = { _ in }
+    var form: FormFactor { FormFactor(placement: layout.placement) }
+    var isOrb: Bool { layout.placement == .floating }
+    /// How far a pull on the notch has gone toward tearing it off, 0 to 1 (a rubber band).
+    var pull: CGFloat = 0
+    /// Counts form changes; each one springs the shell up from smaller.
+    var pops = 0
+    /// The orb is shrinking away before it docks.
+    var vanishing = false
+    /// Where the orb sits in the current surface: content blooms out of and back into it.
+    var bloomOrigin: UnitPoint {
+        let point = OrbGeometry.bloomAnchor(orb: layout.closedRect, surface: surfaceRect)
+        return UnitPoint(x: point.x, y: point.y)
+    }
 
     let services: AppServices
 
@@ -156,7 +172,7 @@ final class NotchModel {
     var bubbleRects: [CGRect] {
         SurfaceSizing.bubbleRects(
             beside: surfaceRect, count: bubbles.count, firstOnLeft: preferences.firstBubbleOnLeft,
-            placement: layout.placement)
+            placement: layout.anchor)
     }
 
     /// The bubble under a click, if any. Bubbles take clicks but don't open the shelf on hover.
@@ -183,7 +199,7 @@ final class NotchModel {
 
     var navPillRect: CGRect? {
         phase == .open && !dragging && preferences.appearance.navPill != .hidden
-            ? SurfaceSizing.navPillRect(for: surfaceRect, placement: layout.placement) : nil
+            ? SurfaceSizing.navPillRect(for: surfaceRect, placement: layout.anchor) : nil
     }
 
     /// Screen areas that count as "on the notch" for hover and clicks.
@@ -219,7 +235,6 @@ final class NotchModel {
         if case .notification = activity { return true }
         return activity.isMedium
     }
-    var placement: Placement { layout.placement }
 
     var motion: NotchMotion {
         .preset(speed, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)

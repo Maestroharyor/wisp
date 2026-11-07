@@ -61,21 +61,29 @@ public enum Placement: String, CaseIterable, Sendable, Identifiable {
     case bottom
     case left
     case right
+    /// A round orb the user drags anywhere. It opens toward the middle of the screen, so
+    /// geometry follows the layout's anchor rather than this edge.
+    case floating
 
     public var id: Self { self }
 
     public var edge: ScreenEdge {
         switch self {
-        case .top, .topLeft, .topRight: .top
+        case .top, .topLeft, .topRight, .floating: .top
         case .bottom: .bottom
         case .left: .left
         case .right: .right
         }
     }
 
+    public var openingSwipe: Swipe { edge.openingSwipe }
+    public var closingSwipe: Swipe { edge.closingSwipe }
+}
+
+extension ScreenEdge {
     /// The two-finger swipe that opens the shelf: away from the edge, the way it grows.
     public var openingSwipe: Swipe {
-        switch edge {
+        switch self {
         case .top: .down
         case .bottom: .up
         case .left: .right
@@ -85,7 +93,7 @@ public enum Placement: String, CaseIterable, Sendable, Identifiable {
 
     /// The swipe back towards the edge, which puts away a card.
     public var closingSwipe: Swipe {
-        switch edge {
+        switch self {
         case .top: .up
         case .bottom: .down
         case .left: .left
@@ -114,6 +122,10 @@ public struct NotchSizes: Sendable, Equatable {
     public var shadowPadding: CGFloat = 30
     /// Extra margin when hit-testing a small shape, so it is easy to reach.
     public var hoverTolerance: CGFloat = 6
+    /// The floating orb's diameter.
+    public var orb: CGFloat = 44
+    /// The orb lifts evenly on hover, staying round.
+    public var orbPeekGrowth = CGSize(width: 6, height: 6)
 
     public init() {}
 
@@ -124,9 +136,15 @@ public struct NotchSizes: Sendable, Equatable {
 public struct NotchLayout: Sendable, Equatable {
     public let style: NotchStyle
     public let placement: Placement
+    /// The placement whose geometry surfaces, pills and bubbles follow. The same as
+    /// `placement` for a shell resting against an edge.
+    public let anchor: Placement
     /// The resting shape: the camera housing, a drawn notch, the idle island or a side tab.
     public let closedRect: CGRect
     public let screenFrame: CGRect
+    /// Where surfaces must fit: the whole screen for a shell on its edge, the visible frame
+    /// (clear of the menu bar and Dock) for the orb.
+    public let bounds: CGRect
     /// The fixed panel: big enough for the largest surface plus shadow, flush with the edge.
     public fileprivate(set) var panelFrame: CGRect = .zero
     public let peekGrowth: CGSize
@@ -137,7 +155,7 @@ public struct NotchLayout: Sendable, Equatable {
     /// The line hit regions reach out to: the screen edge, or the menu bar or Dock in front of it.
     public let edgeLine: CGFloat
 
-    public var edge: ScreenEdge { placement.edge }
+    public var edge: ScreenEdge { anchor.edge }
 
     public var peekRect: CGRect { peekRect(strength: 1) }
 
@@ -156,12 +174,12 @@ public struct NotchLayout: Sendable, Equatable {
     /// on screen. Top and bottom surfaces are centred on the shape (top corners line up
     /// with it instead); side surfaces are centred vertically.
     public func surfaceRect(size: CGSize) -> CGRect {
-        let width = min(size.width, screenFrame.width)
-        let height = min(size.height, screenFrame.height)
+        let width = min(size.width, bounds.width)
+        let height = min(size.height, bounds.height)
         let closed = closedRect
         let origin: CGPoint
-        switch placement {
-        case .top: origin = CGPoint(x: closed.midX - width / 2, y: closed.maxY - height)
+        switch anchor {
+        case .top, .floating: origin = CGPoint(x: closed.midX - width / 2, y: closed.maxY - height)
         case .topLeft: origin = CGPoint(x: closed.minX, y: closed.maxY - height)
         case .topRight: origin = CGPoint(x: closed.maxX - width, y: closed.maxY - height)
         case .bottom: origin = CGPoint(x: closed.midX - width / 2, y: closed.minY)
@@ -169,8 +187,8 @@ public struct NotchLayout: Sendable, Equatable {
         case .right: origin = CGPoint(x: closed.maxX - width, y: closed.midY - height / 2)
         }
         var rect = CGRect(origin: origin, size: CGSize(width: width, height: height))
-        rect.origin.x = min(max(rect.minX, screenFrame.minX), screenFrame.maxX - width)
-        rect.origin.y = min(max(rect.minY, screenFrame.minY), screenFrame.maxY - height)
+        rect.origin.x = min(max(rect.minX, bounds.minX), bounds.maxX - width)
+        rect.origin.y = min(max(rect.minY, bounds.minY), bounds.maxY - height)
         return rect
     }
 
@@ -209,12 +227,15 @@ public enum NotchGeometry {
         for screen: ScreenMetrics,
         prefersIsland: Bool = false,
         placement: Placement = .top,
+        orbCentre: CGPoint? = nil,
+        avoidsTopCentre: Bool = false,
         sizes: NotchSizes = .standard
     ) -> NotchLayout {
         let visible = screen.visibleFrame
         let style: NotchStyle
         let closed: CGRect
         let edgeLine: CGFloat
+        var anchor = placement
 
         switch placement {
         case .top:
@@ -242,17 +263,31 @@ public enum NotchGeometry {
             edgeLine = placement == .left ? visible.minX : visible.maxX
             let x = placement == .left ? edgeLine : edgeLine - sizes.sideTab.width
             closed = CGRect(origin: CGPoint(x: x, y: visible.midY - sizes.sideTab.height / 2), size: sizes.sideTab)
+        case .floating:
+            style = .island
+            let centre = OrbGeometry.fitted(
+                orbCentre ?? OrbGeometry.defaultCentre(in: visible, size: sizes.orb), in: visible, size: sizes.orb,
+                avoidsTopCentre: avoidsTopCentre)
+            closed = CGRect(
+                x: centre.x - sizes.orb / 2, y: centre.y - sizes.orb / 2, width: sizes.orb, height: sizes.orb)
+            anchor = OrbGeometry.anchor(for: centre, in: visible)
+            // Hit regions stop at the orb's own side instead of reaching to an edge.
+            edgeLine =
+                anchor == .bottom ? closed.minY - sizes.hoverTolerance : closed.maxY + sizes.hoverTolerance
         }
 
         let side = placement.edge.isSide
         var layout = NotchLayout(
             style: style,
             placement: placement,
+            anchor: anchor,
             closedRect: closed,
             screenFrame: screen.frame,
+            bounds: placement == .floating ? visible : screen.frame,
             // Side tabs swell outward more than they grow taller.
-            peekGrowth: side
-                ? CGSize(width: sizes.peekGrowth.height, height: sizes.peekGrowth.width) : sizes.peekGrowth,
+            peekGrowth: placement == .floating
+                ? sizes.orbPeekGrowth
+                : side ? CGSize(width: sizes.peekGrowth.height, height: sizes.peekGrowth.width) : sizes.peekGrowth,
             hoverTolerance: sizes.hoverTolerance,
             barHeight: side ? sizes.island.height : closed.height,
             edgeLine: edgeLine
@@ -294,6 +329,7 @@ public enum NotchGeometry {
         let screen = layout.screenFrame
         var panel = layout.surfaceRect(size: sizes.maxSurface).union(layout.closedRect)
             .insetBy(dx: -sizes.shadowPadding, dy: -sizes.shadowPadding)
+        if layout.placement == .floating { return panel.intersection(screen) }
         switch layout.edge {
         case .top: panel.size.height = screen.maxY - panel.minY
         case .bottom:

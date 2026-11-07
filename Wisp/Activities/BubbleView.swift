@@ -96,7 +96,7 @@ private struct GooBubbles: View, Animatable {
     var body: some View {
         let local = model.local(pill)
         let rests = SurfaceSizing.bubbleRects(
-            beside: pill, count: 2, firstOnLeft: firstOnLeft, placement: model.placement
+            beside: pill, count: 2, firstOnLeft: firstOnLeft, placement: model.layout.anchor
         ).map(model.local)
         let drops = zip(rests, [split.right, split.left]).map { drop(pill: local, rest: $0.0, progress: $0.1) }
         ZStack(alignment: .topLeading) {

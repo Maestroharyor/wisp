@@ -1,4 +1,5 @@
 import SwiftUI
+import WispCore
 
 /// Floating capsule under the open shelf: Home, Tray (with count), Media, Widgets.
 struct NavPill: View {
@@ -28,6 +29,7 @@ struct NavPill: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(name)
             }
+            formMenu.scaleEffect(0.7).frame(width: 22, height: 18)
         }
         .padding(.horizontal, 6)
         .background(Capsule().fill(Color(white: 0.2).opacity(0.92)))
@@ -42,6 +44,8 @@ struct NavPill: View {
             }
             tab("music.note", name: "Media", selected: model.page == .media) { model.page = .media }
             tab("square.grid.2x2.fill", name: "Widgets", selected: model.page == .widgets) { model.page = .widgets }
+            Rectangle().fill(.white.opacity(0.15)).frame(width: 1, height: 16)
+            formMenu
         }
         .padding(4)
         .background(
@@ -50,6 +54,29 @@ struct NavPill: View {
         )
         .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
         .foregroundStyle(.white)
+    }
+
+    /// Switches Wisp between notch, corner, bottom, side and orb on this display.
+    private var formMenu: some View {
+        Menu {
+            ForEach(model.forms) { form in
+                Button {
+                    model.onSetForm(form)
+                } label: {
+                    Label(form.title, systemImage: form == model.form ? "checkmark" : form.symbol)
+                }
+            }
+        } label: {
+            Image(systemName: model.form.symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 30, height: 26)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Change form")
+        .accessibilityLabel("Form: \(model.form.title)")
     }
 
     private func tab(

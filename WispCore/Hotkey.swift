@@ -84,6 +84,8 @@ public enum KeyCodes {
     public static let f18: UInt16 = 79
     public static let escape: UInt16 = 53
     public static let v: UInt16 = 9
+    public static let f: UInt16 = 3
+    public static let r: UInt16 = 15
 
     /// F1 to F20.
     public static func isFunctionKey(_ code: UInt16) -> Bool {

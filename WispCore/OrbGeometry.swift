@@ -1,0 +1,162 @@
+import CoreGraphics
+
+/// The floating orb: where it may rest, which way it opens, and when a drag tears the shell
+/// off its edge or docks it back.
+public enum OrbGeometry {
+    /// Gap kept between the orb and the edges of the visible frame.
+    public static let margin: CGFloat = 8
+    /// An orb released this close to an edge settles against it.
+    public static let snapDistance: CGFloat = 24
+    /// How far the pointer must travel before a press on the shell becomes a drag. An orb
+    /// moves after a nudge; the notch needs a deliberate pull to come off its edge.
+    public static let orbDragThreshold: CGFloat = 4
+    public static let tearOffDistance: CGFloat = 40
+    /// Half the width of the strip at the top centre where a dropped orb docks back.
+    public static let dockHalfWidth: CGFloat = 120
+    public static let dockDepth: CGFloat = 60
+    /// Room left under the menu bar for an expanded system Dynamic Island.
+    public static let systemIslandZone = CGSize(width: 360, height: 90)
+
+    /// Where a new orb starts: the top right corner, below the menu bar.
+    public static func defaultCentre(in visible: CGRect, size: CGFloat) -> CGPoint {
+        CGPoint(x: visible.maxX - margin - size / 2 - 40, y: visible.maxY - margin - size / 2 - 40)
+    }
+
+    /// Keeps the orb inside the visible frame and, on a Mac with a system island, below it.
+    public static func fitted(_ centre: CGPoint, in visible: CGRect, size: CGFloat, avoidsTopCentre: Bool = false)
+        -> CGPoint
+    {
+        let half = size / 2 + margin
+        var point = CGPoint(
+            x: min(max(centre.x, visible.minX + half), visible.maxX - half),
+            y: min(max(centre.y, visible.minY + half), visible.maxY - half))
+        if avoidsTopCentre {
+            let zone = islandZone(in: visible)
+            if zone.insetBy(dx: -size / 2, dy: -size / 2).contains(point) {
+                point.y = zone.minY - half
+            }
+        }
+        return point
+    }
+
+    /// A released orb near an edge or corner settles flush against it.
+    public static func snapped(_ centre: CGPoint, in visible: CGRect, size: CGFloat) -> CGPoint {
+        let half = size / 2 + margin
+        var point = centre
+        if centre.x - half - visible.minX < snapDistance { point.x = visible.minX + half }
+        if visible.maxX - (centre.x + half) < snapDistance { point.x = visible.maxX - half }
+        if centre.y - half - visible.minY < snapDistance { point.y = visible.minY + half }
+        if visible.maxY - (centre.y + half) < snapDistance { point.y = visible.maxY - half }
+        return point
+    }
+
+    /// Which way the orb opens: down from the upper half and up from the lower half, lined
+    /// up with the orb at the sides so the surface grows toward the middle of the screen.
+    public static func anchor(for centre: CGPoint, in visible: CGRect) -> Placement {
+        guard centre.y >= visible.midY else { return .bottom }
+        let third = visible.width / 3
+        if centre.x < visible.minX + third { return .topLeft }
+        if centre.x > visible.maxX - third { return .topRight }
+        return .top
+    }
+
+    /// Whether the pointer has moved far enough from where it went down to start a drag.
+    public static func startsDrag(from start: CGPoint, to point: CGPoint, floating: Bool) -> Bool {
+        hypot(point.x - start.x, point.y - start.y) >= (floating ? orbDragThreshold : tearOffDistance)
+    }
+
+    /// An orb dropped at the top centre goes back to its edge. Not on a Mac whose system
+    /// island lives there.
+    public static func docks(_ centre: CGPoint, in visible: CGRect, systemIsland: Bool) -> Bool {
+        guard !systemIsland else { return false }
+        return abs(centre.x - visible.midX) <= dockHalfWidth && centre.y >= visible.maxY - dockDepth
+    }
+
+    /// The strip under the menu bar an expanded system island can cover.
+    static func islandZone(in visible: CGRect) -> CGRect {
+        CGRect(
+            x: visible.midX - systemIslandZone.width / 2, y: visible.maxY - systemIslandZone.height,
+            width: systemIslandZone.width, height: systemIslandZone.height)
+    }
+
+    /// Where the orb sits inside a surface growing out of it, as a unit point with y running
+    /// down (SwiftUI's), so content can grow from and shrink back into the orb.
+    public static func bloomAnchor(orb: CGRect, surface: CGRect) -> CGPoint {
+        guard surface.width > 0, surface.height > 0 else { return CGPoint(x: 0.5, y: 0.5) }
+        let x = (orb.midX - surface.minX) / surface.width
+        let y = (surface.maxY - orb.midY) / surface.height
+        return CGPoint(x: min(max(x, 0), 1), y: min(max(y, 0), 1))
+    }
+
+    /// "x,y", as positions are stored in UserDefaults.
+    public static func encode(_ point: CGPoint) -> String { "\(Int(point.x.rounded())),\(Int(point.y.rounded()))" }
+
+    public static func decode(_ text: String) -> CGPoint? {
+        let parts = text.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+        guard parts.count == 2 else { return nil }
+        return CGPoint(x: parts[0], y: parts[1])
+    }
+}
+
+extension Placement {
+    /// Whether pulling the closed shell tears it off into an orb. Only where Wisp owns the
+    /// press: the top shell over the menu bar strip, or an orb. Corner, bottom and side
+    /// shells sit over windows and let clicks through, so a drag there belongs to the app
+    /// underneath; they float from the right-click menu instead.
+    public var tearsOff: Bool { self == .top || self == .floating }
+}
+
+/// Each display's position override and where it goes back to when its orb docks.
+/// Overrides and returns are stored by display UUID as `Placement` raw values; a missing
+/// override follows `standard`, and an empty return means "follow the default".
+public struct OrbPlacements: Equatable, Sendable {
+    public var overrides: [String: String]
+    public var returns: [String: String]
+    public let standard: Placement
+
+    public init(overrides: [String: String], returns: [String: String], standard: Placement) {
+        self.overrides = overrides
+        self.returns = returns
+        self.standard = standard
+    }
+
+    public func placement(for uuid: String) -> Placement {
+        overrides[uuid].flatMap(Placement.init(rawValue:)) ?? standard
+    }
+
+    /// Makes the display's shell an orb, remembering what it was.
+    public mutating func float(_ uuid: String) {
+        guard placement(for: uuid) != .floating else { return }
+        returns[uuid] = overrides[uuid] ?? ""
+        overrides[uuid] = Placement.floating.rawValue
+    }
+
+    /// Puts an orb back where its shell was, or at the top. Does nothing to a shell that
+    /// isn't floating, such as one whose tear-off was dropped back where it started.
+    public mutating func dock(_ uuid: String) {
+        guard placement(for: uuid) == .floating else { return }
+        let back = returns.removeValue(forKey: uuid).flatMap(Placement.init(rawValue:))
+        overrides[uuid] = back?.rawValue
+        if placement(for: uuid) == .floating { overrides[uuid] = Placement.top.rawValue }
+    }
+}
+
+/// What letting go of a dragged shell does.
+public enum OrbDrop: Equatable, Sendable {
+    /// A floating orb dropped at the top centre goes back on its edge.
+    case dock
+    /// A notch torn off and dropped back where it came from stays a notch.
+    case restore
+    /// Everywhere else it floats here, kept on screen and flush with a near edge.
+    case float(CGPoint)
+
+    public static func outcome(
+        dropped: CGPoint, in visible: CGRect, size: CGFloat, systemIsland: Bool, wasFloating: Bool
+    ) -> OrbDrop {
+        let centre = OrbGeometry.fitted(dropped, in: visible, size: size, avoidsTopCentre: systemIsland)
+        if OrbGeometry.docks(centre, in: visible, systemIsland: systemIsland) {
+            return wasFloating ? .dock : .restore
+        }
+        return .float(OrbGeometry.snapped(centre, in: visible, size: size))
+    }
+}

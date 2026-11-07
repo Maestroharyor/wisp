@@ -20,6 +20,7 @@ extension Placement {
         case .bottom: "Bottom"
         case .left: "Left edge"
         case .right: "Right edge"
+        case .floating: "Floating orb"
         }
     }
 }
@@ -252,6 +253,9 @@ final class Preferences {
         static let swipeGestures = "swipeGestures"
         static let displayStyles = "displayStyles"
         static let placement = "placement"
+        static let islandSetting = "islandSetting"
+        static let orbCentres = "orbCentres"
+        static let orbReturnPlacements = "orbReturnPlacements"
         static let displayPlacements = "displayPlacements"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let activityDisplay = "activityDisplay"
@@ -273,6 +277,10 @@ final class Preferences {
         static let introducedWidgets = "introducedWidgets"
         static let favouriteShortcuts = "favouriteShortcuts"
         static let dropActions = "dropActions"
+        static let ringConfig = "ringConfig"
+        static let ringOnOrbClick = "ringOnOrbClick"
+        static let ringButton = "ringButton"
+        static let ringHotkey = "ringHotkey"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
         static let scriptInterval = "scriptInterval"
@@ -542,6 +550,20 @@ final class Preferences {
     }
 
     /// The user's own actions for dropped files; the first two also appear as drop tiles.
+    /// The radial ring's segments: the default ring and any per-app rings.
+    var ringConfig: RingConfig {
+        didSet { defaults.set(try? JSONEncoder().encode(ringConfig), forKey: Key.ringConfig) }
+    }
+    /// Clicking the orb opens the ring rather than the shelf (the ring's centre opens the shelf).
+    var ringOnOrbClick: Bool { didSet { defaults.set(ringOnOrbClick, forKey: Key.ringOnOrbClick) } }
+    /// The extra mouse button that opens the ring; off until chosen, since it takes the
+    /// button away from every app.
+    var ringButton: RingButton { didSet { defaults.set(ringButton.rawValue, forKey: Key.ringButton) } }
+    /// A shortcut that opens the ring without the Hyper key; nil when unset.
+    var ringHotkey: Hotkey? {
+        didSet { defaults.set(ringHotkey?.stringValue ?? "", forKey: Key.ringHotkey) }
+    }
+
     var dropActions: [DropAction] {
         didSet { defaults.set(try? JSONEncoder().encode(dropActions), forKey: Key.dropActions) }
     }
@@ -703,6 +725,41 @@ final class Preferences {
 
     /// Where the shell sits on displays without their own choice.
     var placement: Placement { didSet { defaults.set(placement.rawValue, forKey: Key.placement) } }
+    var islandSetting: IslandSetting {
+        didSet { defaults.set(islandSetting.rawValue, forKey: Key.islandSetting) }
+    }
+    /// Where each display's orb rests, as "x,y" by display UUID.
+    var orbCentres: [String: String] { didSet { defaults.set(orbCentres, forKey: Key.orbCentres) } }
+    /// The placement override each display had before its shell became an orb; "" means it
+    /// followed the default.
+    var orbReturnPlacements: [String: String] {
+        didSet { defaults.set(orbReturnPlacements, forKey: Key.orbReturnPlacements) }
+    }
+
+    func orbCentre(for uuid: String) -> CGPoint? { orbCentres[uuid].flatMap(OrbGeometry.decode) }
+
+    /// Turns the display's shell into an orb, at `centre` or where its orb last rested.
+    func floatOrb(_ uuid: String, at centre: CGPoint? = nil) {
+        if let centre, orbCentres[uuid] != OrbGeometry.encode(centre) { orbCentres[uuid] = OrbGeometry.encode(centre) }
+        updateOrbPlacements { $0.float(uuid) }
+    }
+
+    /// Puts the orb back where the shell was before it floated, or at the top.
+    func dockOrb(_ uuid: String) {
+        updateOrbPlacements { $0.dock(uuid) }
+    }
+
+    func setForm(_ form: FormFactor, for uuid: String) {
+        updateOrbPlacements { $0.set(form, for: uuid) }
+    }
+
+    private func updateOrbPlacements(_ change: (inout OrbPlacements) -> Void) {
+        var state = OrbPlacements(overrides: displayPlacements, returns: orbReturnPlacements, standard: placement)
+        change(&state)
+        // Written only when changed, so observers don't rebuild for nothing.
+        if state.returns != orbReturnPlacements { orbReturnPlacements = state.returns }
+        if state.overrides != displayPlacements { displayPlacements = state.overrides }
+    }
     /// Per-display placements by display UUID; a display missing here follows `placement`.
     var displayPlacements: [String: String] {
         didSet { defaults.set(displayPlacements, forKey: Key.displayPlacements) }
@@ -774,6 +831,7 @@ final class Preferences {
             Key.hotkey: Hotkey.hyperSpace.stringValue,
             Key.quickPressTogglesCapsLock: true,
             Key.showOnExternalDisplays: true,
+            Key.ringOnOrbClick: true,
             Key.hoverDelay: 0.15,
             // Hover only peeks; a click opens, so the shelf never appears by accident.
             Key.openTrigger: OpenTrigger.click.rawValue,
@@ -918,6 +976,11 @@ final class Preferences {
         swipeGestures = defaults.bool(forKey: Key.swipeGestures)
         displayStyles = (defaults.dictionary(forKey: Key.displayStyles) ?? [:]).compactMapValues { "\($0)" }
         placement = defaults.string(forKey: Key.placement).flatMap(Placement.init(rawValue:)) ?? .top
+        islandSetting =
+            defaults.string(forKey: Key.islandSetting).flatMap(IslandSetting.init(rawValue:)) ?? .automatic
+        orbCentres = (defaults.dictionary(forKey: Key.orbCentres) ?? [:]).compactMapValues { "\($0)" }
+        orbReturnPlacements =
+            (defaults.dictionary(forKey: Key.orbReturnPlacements) ?? [:]).compactMapValues { "\($0)" }
         displayPlacements = (defaults.dictionary(forKey: Key.displayPlacements) ?? [:]).compactMapValues { "\($0)" }
         hudDuration = defaults.string(forKey: Key.hudDuration).flatMap(HUDDuration.init(rawValue:)) ?? .standard
         volumeSteps = defaults.integer(forKey: Key.volumeSteps)
@@ -945,6 +1008,12 @@ final class Preferences {
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
         scriptInterval = ScriptOutput.clampedInterval(defaults.double(forKey: Key.scriptInterval))
+        ringConfig =
+            defaults.data(forKey: Key.ringConfig).flatMap { try? JSONDecoder().decode(RingConfig.self, from: $0) }
+            ?? RingConfig.defaults
+        ringOnOrbClick = defaults.bool(forKey: Key.ringOnOrbClick)
+        ringButton = defaults.string(forKey: Key.ringButton).flatMap(RingButton.init(rawValue:)) ?? .off
+        ringHotkey = defaults.string(forKey: Key.ringHotkey).flatMap(Hotkey.init(string:))
         dropActions =
             defaults.data(forKey: Key.dropActions).flatMap { try? JSONDecoder().decode([DropAction].self, from: $0) }
             ?? []

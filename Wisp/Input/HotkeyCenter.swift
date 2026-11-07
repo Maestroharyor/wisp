@@ -27,6 +27,10 @@ final class HotkeyCenter {
     private(set) var status: Status = .inactive
     @ObservationIgnored var onToggle: @MainActor () -> Void = {}
     @ObservationIgnored var onClipboard: @MainActor () -> Void = {}
+    @ObservationIgnored var onRing: @MainActor () -> Void = {}
+    @ObservationIgnored var onCycleForm: @MainActor () -> Void = {}
+    /// The ring's shortcut couldn't be registered, for example because Wisp already uses it.
+    private(set) var ringHotkeyTaken = false
     /// Hyper+1…9 picks a profile.
     @ObservationIgnored var onProfileDigit: @MainActor (Int) -> Void = { _ in }
 
@@ -35,6 +39,7 @@ final class HotkeyCenter {
     @ObservationIgnored private let tap = HyperKeyTap()
     @ObservationIgnored private let carbon = CarbonHotkey(id: 1)
     @ObservationIgnored private let clipboardCarbon = CarbonHotkey(id: 2)
+    @ObservationIgnored private let ringCarbon = CarbonHotkey(id: 3)
     @ObservationIgnored private var keyboardWatcher: KeyboardWatcher?
     @ObservationIgnored private var accessWaiter: Task<Void, Never>?
     /// Notices Accessibility being switched off while Hyper is active.
@@ -60,6 +65,7 @@ final class HotkeyCenter {
         tap.stop()
         carbon.unregister()
         clipboardCarbon.unregister()
+        ringCarbon.unregister()
         keyboardWatcher?.stop()
         do {
             try remapper.disable()
@@ -74,6 +80,12 @@ final class HotkeyCenter {
         tap.stop()
         carbon.unregister()
         clipboardCarbon.unregister()
+        ringCarbon.unregister()
+        if let ringHotkey = preferences.ringHotkey {
+            ringHotkeyTaken = !ringCarbon.register(ringHotkey) { [weak self] in self?.onRing() }
+        } else {
+            ringHotkeyTaken = false
+        }
 
         let hotkey = preferences.hotkey
         if hotkey.usesHyper {
@@ -119,6 +131,8 @@ final class HotkeyCenter {
             switch keyCode {
             case hotkey.keyCode: self?.onToggle()
             case KeyCodes.v: self?.onClipboard()
+            case KeyCodes.r: self?.onRing()
+            case KeyCodes.f: self?.onCycleForm()
             default:
                 guard let digit = KeyCodes.digit(forKeyCode: keyCode) else { return false }
                 self?.onProfileDigit(digit)
@@ -173,6 +187,7 @@ final class HotkeyCenter {
         withObservationTracking {
             _ = preferences.hotkey
             _ = preferences.quickPressTogglesCapsLock
+            _ = preferences.ringHotkey
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.configure()

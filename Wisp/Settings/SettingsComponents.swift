@@ -8,6 +8,7 @@ extension SettingsPaneID {
         switch self {
         case .general: "gearshape.fill"
         case .notch: "capsule.portrait.fill"
+        case .ring: "circle.circle.fill"
         case .appearance: "paintpalette.fill"
         case .activities: "waveform"
         case .widgets: "square.grid.2x2.fill"
@@ -24,7 +25,7 @@ extension SettingsPaneID {
         // One violet family: darker for the app itself, lighter for connections.
         switch self {
         case .general, .about, .permissions: Color(red: 0.32, green: 0.27, blue: 0.62)
-        case .notch, .appearance, .activities, .widgets, .profiles, .clipboard: .wispViolet
+        case .notch, .ring, .appearance, .activities, .widgets, .profiles, .clipboard: .wispViolet
         case .notifications, .agents: Color(red: 0.6, green: 0.53, blue: 1)
         }
     }
@@ -268,7 +269,7 @@ struct NotchPreview: View {
         switch placement {
         case .top: .top
         case .topLeft: .topLeading
-        case .topRight: .topTrailing
+        case .topRight, .floating: .topTrailing
         case .bottom: .bottom
         case .left: .leading
         case .right: .trailing
@@ -279,7 +280,8 @@ struct NotchPreview: View {
     private static func inset(for placement: Placement) -> EdgeInsets {
         switch placement {
         case .top, .left, .right: EdgeInsets()
-        case .topLeft, .topRight: EdgeInsets(top: 6, leading: 10, bottom: 0, trailing: 10)
+        // The orb's preview shows the shelf open from its default spot, top right.
+        case .topLeft, .topRight, .floating: EdgeInsets(top: 6, leading: 10, bottom: 0, trailing: 10)
         case .bottom: EdgeInsets(top: 0, leading: 0, bottom: 6, trailing: 0)
         }
     }
@@ -319,7 +321,7 @@ private struct PreviewShellShape: Shape {
         case .right:
             return UnevenRoundedRectangle(topLeadingRadius: radius, bottomLeadingRadius: radius, style: .continuous)
                 .path(in: rect)
-        case .topLeft, .topRight, .bottom:
+        case .topLeft, .topRight, .bottom, .floating:
             return RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect)
         }
     }

@@ -27,6 +27,22 @@ struct NotchView: View {
                     width: surface.width + (side ? 0 : flare * 2), height: surface.height + (side ? flare * 2 : 0)
                 )
                 .position(x: surface.midX, y: surface.midY)
+                .modifier(FormChange(model: model))
+
+            if model.isOrb {
+                // Stays mounted: the glyph shrinks into what grows out of the orb and comes
+                // back as it folds away, rather than popping.
+                let orb = model.local(model.layout.closedRect)
+                let resting = model.spec == .closed || model.spec == .peek
+                OrbFace(model: model)
+                    .frame(width: orb.width, height: orb.height)
+                    .scaleEffect(resting || !model.motion.expands ? 1 : 0.6)
+                    .opacity(resting ? 1 : 0)
+                    .animation(resting ? model.motion.surfaceClose : model.motion.contentOut, value: resting)
+                    .position(x: orb.midX, y: orb.midY)
+                    .allowsHitTesting(false)
+                    .modifier(FormChange(model: model))
+            }
 
             if let pill = model.navPillRect.map(model.local) {
                 NavPill(model: model)
@@ -67,11 +83,16 @@ struct NotchView: View {
         let height = model.notchHeight
         let round = CGFloat(model.preferences.appearance.roundness)
         guard model.drawsNotch else {
+            let orb = model.layout.placement == .floating
             switch model.spec {
-            case .closed, .peek, .compact: return (0, ShellMetrics.closedIslandRadius * round)
-            case .medium, .notification: return (0, ShellMetrics.expandedHUDBottomRadius * round)
+            case .closed, .peek:
+                return (0, orb ? model.layout.peekRect.height / 2 : ShellMetrics.closedIslandRadius * round)
+            case .compact:
+                return (0, (orb ? ShellMetrics.floatingPillRadius : ShellMetrics.closedIslandRadius) * round)
+            case .medium, .notification:
+                return (0, (orb ? ShellMetrics.floatingCardRadius : ShellMetrics.expandedHUDBottomRadius) * round)
             case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
-                return (0, ShellMetrics.expandedIslandRadius * round)
+                return (0, (orb ? ShellMetrics.floatingShelfRadius : ShellMetrics.expandedIslandRadius) * round)
             }
         }
         switch model.spec {
@@ -143,12 +164,18 @@ private struct SurfaceView: View {
                 .opacity(isOpen ? 1 : 0)
             }
         }
+        .overlay {
+            // Over windows the orb's pills, cards and shelf need an edge to read as panels.
+            if model.isOrb, model.spec != .closed, model.spec != .peek {
+                shape.stroke(.white.opacity(0.1), lineWidth: 1)
+            }
+        }
         .overlay { RimGlow(model: model, shape: shape) }
         .overlay { FinishFlash(model: model, shape: shape) }
         .compositingGroup()
         .shadow(
-            color: .black.opacity(model.spec == .closed ? 0 : min(look.shadow.opacity, isOpen ? 1 : 0.5)),
-            radius: isOpen ? look.shadow.radius : 6, y: isOpen ? 8 : 2
+            color: .black.opacity(closedShadow ?? min(look.shadow.opacity, isOpen ? 1 : 0.5)),
+            radius: isOpen ? look.shadow.radius : (model.isOrb ? 10 : 6), y: isOpen ? 8 : (model.isOrb ? 4 : 2)
         )
         .modifier(HoverWobble(model: model))
         // The shell rides the same spring as the frame, so closing visibly folds back
@@ -157,13 +184,27 @@ private struct SurfaceView: View {
         .contentShape(shape)
     }
 
+    /// A notch at rest casts no shadow; the orb floats over windows, so it keeps a soft one.
+    private var closedShadow: Double? {
+        guard model.spec == .closed else { return nil }
+        return model.isOrb ? 0.35 : 0
+    }
+
     /// The aurora drift runs only while the shelf is open and motion is allowed.
     private var shimmering: Bool {
         model.preferences.appearance.shimmer && model.phase == .open && !model.reduceMotion
     }
 
+    /// Content unfolds out of an edge, or blooms out of the orb.
+    private var reveal: AnyTransition {
+        model.isOrb ? .bloom(model.motion, from: model.bloomOrigin, pill: false) : .unfold(model.motion)
+    }
+
+    private var pillReveal: AnyTransition {
+        model.isOrb ? .bloom(model.motion, from: model.bloomOrigin, pill: true) : .wingReveal(model.motion)
+    }
+
     @ViewBuilder private var content: some View {
-        let motion = model.motion
         switch model.spec {
         case .closed, .peek:
             Color.clear
@@ -177,33 +218,33 @@ private struct SurfaceView: View {
                     }
                 }
                 .id(activity.kindKey)
-                .transition(.wingReveal(motion))
+                .transition(pillReveal)
             }
         case .medium:
             if let activity = model.activity {
                 MediumActivityView(activity: activity, model: model)
                     .id(activity.kindKey)
-                    .transition(.unfold(motion))
+                    .transition(reveal)
             }
         case .notification:
             if case .agentApproval(let approval) = model.activity {
                 AgentApprovalCard(approval: approval, model: model)
                     .id(approval.id)
-                    .transition(.unfold(motion))
+                    .transition(reveal)
             }
             if case .meetingSoon(let invite) = model.activity {
                 MeetingSoonCard(invite: invite, model: model)
                     .id(invite.id)
-                    .transition(.unfold(motion))
+                    .transition(reveal)
             }
             if case .notification(let item) = model.activity {
                 NotificationCardView(item: item, model: model)
                     .id(item.id)
-                    .transition(.unfold(motion))
+                    .transition(reveal)
             }
         case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
             ShelfContent(model: model)
-                .transition(.unfold(motion))
+                .transition(reveal)
         }
     }
 }
@@ -370,4 +411,128 @@ struct VisualEffectBlur: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+/// The resting orb: Wisp's glyph, a violet ring while an agent works, and a count of
+/// requests waiting for an answer.
+private struct OrbFace: View {
+    let model: NotchModel
+
+    var body: some View {
+        let agents = model.services.agents
+        let waiting = agents.approvals.count
+        TimelineView(.periodic(from: .now, by: 5)) { context in
+            let working = agents.sessions.anyWorking(now: context.date)
+            ZStack {
+                OrbGlass(lifted: model.spec == .peek)
+                Image("MenuGlyph")
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
+                    .foregroundStyle(.white.opacity(0.92))
+                if waiting > 0 {
+                    Circle().strokeBorder(Color.orange, lineWidth: 2)
+                } else if working {
+                    WorkingSweep(reduceMotion: model.reduceMotion)
+                }
+            }
+        }
+        .scaleEffect(model.spec == .peek ? 1.06 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.spec == .peek)
+        .overlay(alignment: .topTrailing) {
+            if waiting > 0 {
+                Text("\(waiting)")
+                    .font(.system(size: 10, weight: .bold)).monospacedDigit()
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .frame(minWidth: 17, minHeight: 17)
+                    .background(Capsule().fill(.orange).shadow(color: .black.opacity(0.35), radius: 2, y: 1))
+                    .offset(x: 4, y: -4)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.65), value: waiting)
+        .accessibilityLabel(waiting > 0 ? "Wisp, \(waiting) waiting" : "Wisp")
+    }
+}
+
+/// The orb's surface: Liquid Glass on macOS 26, a deep violet sphere elsewhere, with a soft
+/// highlight on top and a thin rim.
+private struct OrbGlass: View {
+    let lifted: Bool
+
+    var body: some View {
+        ZStack {
+            if #available(macOS 26, *) {
+                Circle().fill(.black.opacity(0.55))
+                    .glassEffect(.regular.tint(Color.wispViolet.opacity(0.22)), in: Circle())
+            } else {
+                Circle().fill(
+                    RadialGradient(
+                        colors: [Color.wispViolet.opacity(0.45), Color(white: 0.06)], center: UnitPoint(x: 0.5, y: 0.2),
+                        startRadius: 2, endRadius: 30))
+            }
+            Ellipse()
+                .fill(LinearGradient(colors: [.white.opacity(0.28), .clear], startPoint: .top, endPoint: .bottom))
+                .frame(width: 26, height: 12)
+                .offset(y: -12)
+                .blur(radius: 1)
+            Circle().strokeBorder(.white.opacity(lifted ? 0.32 : 0.18), lineWidth: 1)
+        }
+    }
+}
+
+/// A violet arc running round the orb while an agent works; a still ring with Reduce Motion.
+private struct WorkingSweep: View {
+    let reduceMotion: Bool
+    @State private var turning = false
+
+    var body: some View {
+        if reduceMotion {
+            Circle().strokeBorder(Color.wispViolet, lineWidth: 2)
+        } else {
+            Circle()
+                .trim(from: 0, to: 0.32)
+                .stroke(
+                    AngularGradient(colors: [.clear, Color.wispViolet], center: .center),
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                )
+                .padding(1.25)
+                .rotationEffect(.degrees(turning ? 360 : 0))
+                .animation(.linear(duration: 1.6).repeatForever(autoreverses: false), value: turning)
+                .onAppear { turning = true }
+        }
+    }
+}
+
+/// The shell changing form: stretching as the notch is pulled, springing up in a new form,
+/// and shrinking away as an orb docks. Scales about the closed shape.
+private struct FormChange: ViewModifier {
+    let model: NotchModel
+
+    func body(content: Content) -> some View {
+        let panel = model.layout.panelFrame
+        let closed = model.local(model.layout.closedRect)
+        let anchor =
+            panel.width > 0 && panel.height > 0
+            ? UnitPoint(x: closed.midX / panel.width, y: closed.midY / panel.height) : .center
+        // A pulled notch stretches down from the top edge it hangs from.
+        let top = panel.height > 0 ? UnitPoint(x: anchor.x, y: closed.minY / panel.height) : .top
+        content
+            .scaleEffect(x: 1 + model.pull * 0.12, y: 1 + model.pull * 0.45, anchor: top)
+            .scaleEffect(model.vanishing ? 0.2 : 1, anchor: anchor)
+            .opacity(model.vanishing ? 0 : 1)
+            // Keyframes start from the small size themselves, so the spring always shows
+            // rather than depending on a frame being drawn in between.
+            .keyframeAnimator(initialValue: CGFloat(1), trigger: model.pops) { view, scale in
+                view.scaleEffect(scale, anchor: anchor)
+            } keyframes: { _ in
+                LinearKeyframe(0.5, duration: 0.001)
+                SpringKeyframe(1, duration: 0.5, spring: Spring(response: 0.38, dampingRatio: 0.62))
+                // A spring cut off by its duration can stop short of 1, leaving the shell a hair
+                // small and off its screen edge; this lands it exactly.
+                LinearKeyframe(1, duration: 0.05)
+            }
+    }
 }

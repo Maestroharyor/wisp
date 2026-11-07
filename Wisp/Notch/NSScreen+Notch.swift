@@ -27,4 +27,21 @@ extension NSScreen {
     var isBuiltIn: Bool {
         displayID.map { CGDisplayIsBuiltin($0) != 0 } ?? false
     }
+
+    /// The Mac's model identifier, such as "Mac15,6".
+    static let modelIdentifier: String? = {
+        var size = 0
+        guard sysctlbyname("hw.model", nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var bytes = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("hw.model", &bytes, &size, nil, 0) == 0 else { return nil }
+        return String(decoding: bytes.prefix { $0 != 0 }.map(UInt8.init(bitPattern:)), as: UTF8.self)
+    }()
+
+    func hasSystemIsland(_ setting: IslandSetting) -> Bool {
+        SystemIsland.present(setting: setting, modelIdentifier: Self.modelIdentifier, builtIn: isBuiltIn)
+    }
+
+    var islandReport: String {
+        SystemIsland.report(modelIdentifier: Self.modelIdentifier, builtIn: isBuiltIn, metrics: metrics)
+    }
 }

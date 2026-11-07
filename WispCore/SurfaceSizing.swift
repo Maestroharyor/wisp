@@ -35,7 +35,7 @@ public enum SurfaceSizing {
     public static let tileSize: CGFloat = 96
     public static let tileSpacing: CGFloat = 10
     public static let maxDropActionTiles = 2
-    public static let navPillSize = CGSize(width: 174, height: 34)
+    public static let navPillSize = CGSize(width: 216, height: 34)
     public static let navPillGap: CGFloat = 12
     public static let notificationWidth: CGFloat = 480
     public static let mediaPageWidth: CGFloat = 420
@@ -142,7 +142,7 @@ public enum SurfaceSizing {
         func bubble(x: CGFloat, y: CGFloat) -> CGRect { CGRect(x: x, y: y, width: size, height: size) }
         let rects: [CGRect]
         switch placement {
-        case .top, .bottom:
+        case .top, .bottom, .floating:
             let right = bubble(x: pill.maxX + bubbleGap, y: pill.minY)
             let left = bubble(x: pill.minX - step, y: pill.minY)
             rects = firstOnLeft ? [left, right] : [right, left]

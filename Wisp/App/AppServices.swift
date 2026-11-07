@@ -63,6 +63,8 @@ final class AppServices {
     private(set) lazy var transform = TransformPanelController(services: self)
     private(set) lazy var pocket = QuickPocket(services: self)
     private(set) lazy var miniPlayer = MiniPlayerController(services: self)
+    private(set) lazy var ring = RingController(services: self)
+    private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
 
     func openTransform(_ urls: [URL]) {
@@ -75,6 +77,12 @@ final class AppServices {
     var openClipboard: @MainActor () -> Void = {}
     var openSetup: @MainActor () -> Void = {}
     var openShelf: @MainActor (ShelfPage) -> Void = { _ in }
+    /// Opens one widget on its own in the shelf.
+    var openWidget: @MainActor (WidgetKind) -> Void = { _ in }
+    /// The display under the pointer: its form, and whether it has Apple's island.
+    var formUnderPointer: @MainActor () -> (form: FormFactor, systemIsland: Bool) = { (.notch, false) }
+    var setForm: @MainActor (FormFactor) -> Void = { _ in }
+    var cycleForm: @MainActor () -> Void = {}
 
     init(preferences: Preferences) {
         self.preferences = preferences

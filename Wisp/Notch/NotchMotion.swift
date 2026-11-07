@@ -132,6 +132,18 @@ extension AnyTransition {
         )
     }
 
+    /// Content from the floating orb: it grows out of the orb (`anchor`, where the orb sits in
+    /// the surface) from a blur, and condenses back into it. Pills use the quicker wing timing.
+    static func bloom(_ motion: NotchMotion, from anchor: UnitPoint, pill: Bool) -> AnyTransition {
+        let scale = motion.expands ? CGSize(width: 0.82, height: 0.82) : CGSize(width: 1, height: 1)
+        let hidden = MistModifier(blur: motion.contentBlur, opacity: 0, scale: scale, anchor: anchor)
+        let shown = MistModifier(blur: 0, opacity: 1, anchor: anchor)
+        return .asymmetric(
+            insertion: .modifier(active: hidden, identity: shown).animation(pill ? motion.wingIn : motion.shelfIn),
+            removal: .modifier(active: hidden, identity: shown).animation(pill ? motion.wingOut : motion.contentOut)
+        )
+    }
+
     /// Nav pill drifts out from under the shelf (`drift`) after the content settles. On close
     /// it rides back with the surface (`ride`) and fades into the notch.
     /// With Reduce Motion it only fades in place.
