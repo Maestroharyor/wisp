@@ -300,6 +300,8 @@ final class Preferences {
         static let ringHotkey = "ringHotkey"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
+        static let downloadActivity = "downloadActivity"
+        static let downloadFolders = "downloadFolders"
         static let scriptInterval = "scriptInterval"
         static let doNotDisturbShortcut = "doNotDisturbShortcut"
         static let workdayStart = "workdayStart"
@@ -667,6 +669,11 @@ final class Preferences {
     var batteryHUD: Bool { didSet { defaults.set(batteryHUD, forKey: Key.batteryHUD) } }
     /// A pill when Bluetooth headphones connect, with their battery.
     var deviceActivity: Bool { didSet { defaults.set(deviceActivity, forKey: Key.deviceActivity) } }
+    /// A progress pill while a browser downloads into Downloads or a chosen folder. Off by
+    /// default: turning it on can make macOS ask for access to the Downloads folder.
+    var downloadActivity: Bool { didSet { defaults.set(downloadActivity, forKey: Key.downloadActivity) } }
+    /// Folders watched besides Downloads, as plain paths (Wisp isn't sandboxed).
+    var downloadFolders: [String] { didSet { defaults.set(downloadFolders, forKey: Key.downloadFolders) } }
     var capsLockHUD: Bool { didSet { defaults.set(capsLockHUD, forKey: Key.capsLockHUD) } }
     var mediaActivity: Bool { didSet { defaults.set(mediaActivity, forKey: Key.mediaActivity) } }
     /// A short sound when an agent asks for permission.
@@ -1095,6 +1102,8 @@ final class Preferences {
         favouriteShortcuts = defaults.stringArray(forKey: Key.favouriteShortcuts) ?? []
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
+        downloadActivity = defaults.bool(forKey: Key.downloadActivity)
+        downloadFolders = defaults.stringArray(forKey: Key.downloadFolders) ?? []
         scriptInterval = ScriptOutput.clampedInterval(defaults.double(forKey: Key.scriptInterval))
         ringConfig =
             defaults.data(forKey: Key.ringConfig).flatMap { try? JSONDecoder().decode(RingConfig.self, from: $0) }

@@ -91,7 +91,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "recording",
                 "zoom", "meet", "teams", "mute", "camera", "leave", "call controls", "bubbles", "split", "volume steps",
                 "duration", "low battery", "threshold",
-                "left", "right", "airpods", "headphones", "bluetooth",
+                "left", "right", "airpods", "headphones", "bluetooth", "downloads", "download progress", "safari",
+                "chrome", "firefox", "folder", "finder",
             ]
         case .widgets:
             [

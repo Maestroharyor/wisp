@@ -157,7 +157,7 @@ struct SettingsView: View {
                 preferences: preferences, accent: services.accent, glow: services.glow, shortcuts: services.shortcuts)
         case .ring: RingSettings(preferences: preferences, trigger: services.ringTrigger, hotkeys: hotkeys)
         case .appearance: AppearanceSettings(preferences: preferences, services: services)
-        case .activities: ActivitySettings(preferences: preferences)
+        case .activities: ActivitySettings(preferences: preferences, downloads: services.downloads)
         case .widgets: WidgetSettings(preferences: preferences, shortcuts: services.shortcuts)
         case .profiles: ProfileSettings(preferences: preferences, context: services.context)
         case .clipboard: ClipboardSettings(preferences: preferences, store: services.clipboard)
