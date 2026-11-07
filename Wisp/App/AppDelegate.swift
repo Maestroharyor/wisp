@@ -42,6 +42,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onProfileDigit = { [weak self] digit in self?.services.context.choose(digit: digit) }
         hotkeys.onRing = { [weak self] in self?.services.ring.toggle(at: NSEvent.mouseLocation) }
         hotkeys.onCycleForm = { [weak self] in self?.services.cycleForm() }
+        hotkeys.onDictation = { [weak self] event in self?.services.dictation.handle(event) }
+        services.dictation.onTap = { [weak self] in self?.toggleShelf() }
+        services.dictation.resolveTarget = { [weak self] in self?.coordinator.dictationTarget() ?? .focusedApp }
+        services.dictation.deliverInWisp = { [weak self] text, target in
+            self?.coordinator.deliverDictation(text, to: target) ?? false
+        }
         hotkeys.start()
         services.ringTrigger.start()
         handleTerminationSignal()

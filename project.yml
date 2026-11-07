@@ -16,7 +16,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    MARKETING_VERSION: "0.1.7" # x-release-please-version
+    MARKETING_VERSION: "0.1.8" # x-release-please-version
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Manual
     # Overridden by the Makefile with "Wisp Dev" once that certificate exists.
@@ -103,6 +103,8 @@ targets:
         SUPublicEDKey: uWF1jHIoXFoGaVJMhVj3Y6lG9o6EXOzkfqqJED1WbIc=
         SUScheduledCheckInterval: 86400
         NSCameraUsageDescription: Wisp shows your camera in the Mirror widget so you can check yourself before a call.
+        NSMicrophoneUsageDescription: Wisp listens only while you hold the dictation key, to type what you say.
+        NSSpeechRecognitionUsageDescription: Wisp turns what you say into text on this Mac when you dictate. The audio never leaves your Mac.
         # wisp:// links (wisp-dev:// for Wisp Dev): open a page, switch profile, start a timer or show an
         # activity. ExternalCommand parses them; a link can never approve or deny an agent's request.
         CFBundleURLTypes:
@@ -120,6 +122,7 @@ targets:
         com.apple.security.personal-information.location: true
         com.apple.security.personal-information.addressbook: true
         com.apple.security.device.camera: true
+        com.apple.security.device.audio-input: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp

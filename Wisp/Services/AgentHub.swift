@@ -65,7 +65,7 @@ struct AgentStatus: Sendable, Equatable {
     var terminal: String? = nil
 }
 
-/// Receives Claude Code and Codex hook events and Claude Code status bar snapshots from the
+/// Receives coding agents' hook events and Claude Code status bar snapshots from the
 /// `wisp-agent` helper over a Unix socket, tracks sessions (with live cost and context from
 /// the snapshots, token use from their transcripts), answers permission requests from the
 /// notch, and brings a session's terminal forward.
@@ -852,7 +852,8 @@ final class AgentHub {
             if (try? HookInstaller.toolsInstalled(in: data, file: file)) == true { withTools.insert(source) }
         }
         installedTimeouts = waits
-        let mismatched = here.filter { waits[$0] != approvalTimeout }
+        // A monitor-only agent has no approval hook, so it has no wait to be out of step with.
+        let mismatched = here.filter { $0.adapter.hookFile.waitsForApproval && waits[$0] != approvalTimeout }
         if mismatched != waitMismatched { waitMismatched = mismatched }
         let tools = withTools.intersection(here)
         if tools != toolHooks { toolHooks = tools }
@@ -887,6 +888,12 @@ final class AgentHub {
         let tools = withTools ? Self.toolSentence : ""
         let bar = file.statusLine ? barSentence(terminalBarMode, original: original) : ""
         let trust = adapter.setupNote.map { " " + $0 } ?? ""
+        let waits = file.waitsForApproval
+        let fallBack =
+            waits
+            ? " Permission prompts wait up to \(approvalWaitText) for the notch, then fall back to the terminal."
+            : " Permission prompts stay in the terminal; the session shows Needs you."
+        let wait = waits ? " Permission prompts wait up to \(approvalWaitText) for Wisp." : ""
         let link =
             (try? HookInstaller.link(in: original, helper: helper.path, file: file, timeout: approvalTimeout))
             ?? HookLink.none
@@ -898,17 +905,15 @@ final class AgentHub {
                 detail: """
                     Wisp adds a command hook for \(events) to \(path).\(tools)\(bar) Your other settings and hooks stay as \
                     they are, though the file is rewritten with sorted keys. A backup is saved next to it with \
-                    .wisp-backup on the end. Permission prompts wait up to \(approvalWaitText) for \
-                    the notch, then fall back to the terminal.\(trust)
+                    .wisp-backup on the end.\(fallBack)\(trust)
                     """,
                 action: "Add Hooks")
         case .outdated, .this:
             confirmed = confirm(
                 "Update Wisp's hooks for \(source.displayName)?",
                 detail: """
-                    Wisp brings its hooks in \(path) up to date for this version.\(tools)\(bar) Permission \
-                    prompts wait up to \(approvalWaitText) for Wisp. The current file is saved next to it with \
-                    .wisp-previous on the end.\(trust)
+                    Wisp brings its hooks in \(path) up to date for this version.\(tools)\(bar)\(wait) The current \
+                    file is saved next to it with .wisp-previous on the end.\(trust)
                     """,
                 action: "Update Hooks")
         case .other:
@@ -1038,7 +1043,7 @@ final class AgentHub {
     }
 
     private static let toolSentence =
-        " Background hooks for tool calls show what the agent is doing in the notch; they never make a tool call wait."
+        " Hooks for tool calls show what the agent is doing in the notch; they never make a tool call wait for Wisp."
 
     /// Adds or removes the tool hooks of every connected agent that has them, after the user
     /// confirms, like `setTerminalBar`. False when the user cancelled.
@@ -1074,10 +1079,14 @@ final class AgentHub {
             ? " It also brings Wisp's other hooks up to date." : ""
         // Agents that make the user trust changed hooks (Codex's /hooks) say so up front.
         let notes = on ? changes.compactMap(\.adapter.setupNote).map { " " + $0 }.joined() : ""
+        var events: [String] = []
+        for event in changes.flatMap(\.adapter.hookFile.toolEvents) where !events.contains(event) {
+            events.append(event)
+        }
         let change =
             (on
-                ? "Wisp adds three hooks (PreToolUse, PostToolUse and SubagentStop) to \(paths). They run in the background, so tool calls never wait for them."
-                : "Wisp removes its three tool hooks from \(paths).") + refresh + notes
+                ? "Wisp adds hooks for \(ListFormatter.localizedString(byJoining: events)) to \(paths). They hand the call to Wisp and return at once, so tool calls never wait for Wisp."
+                : "Wisp removes its tool hooks from \(paths).") + refresh + notes
         guard
             confirm(
                 on
