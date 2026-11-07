@@ -69,6 +69,7 @@ final class AppServices {
     private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
     private(set) lazy var push = PushService(preferences: preferences, hub: agents)
+    private(set) lazy var regionWatch = RegionWatchController(services: self)
     private(set) lazy var ai = AIService(preferences: preferences)
 
     func openTransform(_ urls: [URL]) {
@@ -480,6 +481,7 @@ final class AppServices {
         lockScreenPlayer.stop()
         push.stop()
         cloud.stop()
+        regionWatch.stop()
         ai.stop()
         microphone.stop()
         meetingTask?.cancel()
