@@ -233,6 +233,15 @@ final class Preferences {
         static let budgetAlert = "budgetAlert"
         static let limitAlert = "limitAlert"
         static let dailyBudget = "dailyBudget"
+        static let pushEnabled = "pushEnabled"
+        static let pushServer = "pushServer"
+        static let pushTopic = "pushTopic"
+        static let pushReplyTopic = "pushReplyTopic"
+        static let pushKinds = "pushKinds"
+        static let pushMode = "pushMode"
+        static let pushIdleMinutes = "pushIdleMinutes"
+        static let pushTimeoutMinutes = "pushTimeoutMinutes"
+        static let pushDetails = "pushDetails"
         static let lyrics = "lyrics"
         static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
@@ -676,6 +685,26 @@ final class Preferences {
     /// Notices at 80% and 95% of Claude's five-hour and weekly usage limits.
     var limitAlert: Bool { didSet { defaults.set(limitAlert, forKey: Key.limitAlert) } }
     var dailyBudget: Double { didSet { defaults.set(dailyBudget, forKey: Key.dailyBudget) } }
+    /// Phone push through ntfy. Off by default: it sends to a server.
+    var pushEnabled: Bool { didSet { defaults.set(pushEnabled, forKey: Key.pushEnabled) } }
+    /// The ntfy server, `https://ntfy.sh` unless self-hosted.
+    var pushServer: String { didSet { defaults.set(pushServer, forKey: Key.pushServer) } }
+    /// Where Wisp publishes; the phone subscribes to it. Made the first time push is turned on.
+    var pushTopic: String { didSet { defaults.set(pushTopic, forKey: Key.pushTopic) } }
+    /// Where the phone's Allow and Deny buttons post; Wisp listens while approvals wait.
+    var pushReplyTopic: String { didSet { defaults.set(pushReplyTopic, forKey: Key.pushReplyTopic) } }
+    var pushKinds: Set<PushKind> {
+        didSet { defaults.set(pushKinds.map(\.rawValue).sorted(), forKey: Key.pushKinds) }
+    }
+    var pushMode: PushMode { didSet { defaults.set(pushMode.rawValue, forKey: Key.pushMode) } }
+    /// Minutes without input that count as away.
+    var pushIdleMinutes: Int { didSet { defaults.set(pushIdleMinutes, forKey: Key.pushIdleMinutes) } }
+    /// How long permission prompts wait while push is on, so the phone has time to answer.
+    var pushTimeoutMinutes: Int { didSet { defaults.set(pushTimeoutMinutes, forKey: Key.pushTimeoutMinutes) } }
+    /// Adds a masked summary (command, file name) to approval notifications.
+    var pushDetails: Bool { didSet { defaults.set(pushDetails, forKey: Key.pushDetails) } }
+    /// The PermissionRequest hook timeout these settings ask for.
+    var approvalTimeout: Int { HookInstaller.approvalTimeout(push: pushEnabled, minutes: pushTimeoutMinutes) }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
     /// Look up album art on iTunes when the player gives none (sends title and artist).
@@ -860,6 +889,13 @@ final class Preferences {
             Key.budgetAlert: false,
             Key.limitAlert: true,
             Key.dailyBudget: 20.0,
+            Key.pushEnabled: false,
+            Key.pushServer: PushTopic.defaultServer,
+            Key.pushKinds: PushKind.defaults.map(\.rawValue).sorted(),
+            Key.pushMode: PushMode.default.rawValue,
+            Key.pushIdleMinutes: PushPolicy.defaultIdleMinutes,
+            Key.pushTimeoutMinutes: HookInstaller.defaultPushTimeoutMinutes,
+            Key.pushDetails: false,
             Key.lyrics: true,
             Key.artworkLookup: true,
             Key.meetingActivity: true,
@@ -966,6 +1002,19 @@ final class Preferences {
         limitAlert = defaults.bool(forKey: Key.limitAlert)
         let budget = defaults.double(forKey: Key.dailyBudget)
         dailyBudget = budget > 0 ? budget : 20
+        pushEnabled = defaults.bool(forKey: Key.pushEnabled)
+        pushServer = defaults.string(forKey: Key.pushServer) ?? PushTopic.defaultServer
+        pushTopic = defaults.string(forKey: Key.pushTopic) ?? ""
+        pushReplyTopic = defaults.string(forKey: Key.pushReplyTopic) ?? ""
+        pushKinds = Set((defaults.stringArray(forKey: Key.pushKinds) ?? []).compactMap(PushKind.init(rawValue:)))
+        pushMode = defaults.string(forKey: Key.pushMode).flatMap(PushMode.init(rawValue:)) ?? .default
+        pushIdleMinutes = min(
+            max(defaults.integer(forKey: Key.pushIdleMinutes), PushPolicy.idleMinutesRange.lowerBound),
+            PushPolicy.idleMinutesRange.upperBound)
+        pushTimeoutMinutes = min(
+            max(defaults.integer(forKey: Key.pushTimeoutMinutes), HookInstaller.pushTimeoutMinutes.lowerBound),
+            HookInstaller.pushTimeoutMinutes.upperBound)
+        pushDetails = defaults.bool(forKey: Key.pushDetails)
         lyrics = defaults.bool(forKey: Key.lyrics)
         artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)
