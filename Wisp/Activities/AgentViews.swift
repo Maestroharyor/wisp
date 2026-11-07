@@ -95,7 +95,7 @@ struct ContextRing: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(.white.opacity(0.14), lineWidth: 1.5)
+            Circle().stroke(.ink.opacity(0.14), lineWidth: 1.5)
             Circle()
                 .trim(from: 0, to: min(max(percent, 0), 100) / 100)
                 .stroke(ContextUsage.level(percent).tint, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
@@ -111,7 +111,7 @@ struct ContextBar: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Capsule().fill(.white.opacity(0.14)).frame(width: 36, height: 4)
+            Capsule().fill(.ink.opacity(0.14)).frame(width: 36, height: 4)
                 .overlay(alignment: .leading) {
                     Capsule().fill(ContextUsage.level(percent).tint)
                         .frame(width: 36 * min(max(percent, 0), 100) / 100, height: 4)
@@ -184,7 +184,7 @@ struct AgentApprovalCard: View {
                             Text(position)
                                 .font(.system(size: 10, weight: .semibold)).monospacedDigit()
                                 .padding(.horizontal, 6).padding(.vertical, 1)
-                                .background(Capsule().fill(.white.opacity(0.14)))
+                                .background(Capsule().fill(.ink.opacity(0.14)))
                         }
                         Button {
                             hub.focus(session: approval.sessionID)
@@ -240,7 +240,7 @@ struct AgentApprovalCard: View {
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
     }
 
     private var expanded: Bool { model.expandedApproval == approval.id }
@@ -263,10 +263,10 @@ private struct ApprovalPreviewPane: View {
                     }
                     moreLines(more)
                 case .text(let text, let more):
-                    Text(text).foregroundStyle(.white.opacity(0.85))
+                    Text(text).foregroundStyle(.ink.opacity(0.85))
                     moreLines(more)
                 case .markdown(let plan):
-                    Text(Self.markdown(plan)).font(.system(size: 12)).foregroundStyle(.white.opacity(0.9))
+                    Text(Self.markdown(plan)).font(.system(size: 12)).foregroundStyle(.ink.opacity(0.9))
                 }
             }
             .font(.system(size: 11, design: .monospaced))
@@ -274,7 +274,7 @@ private struct ApprovalPreviewPane: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
         }
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.ink.opacity(0.06)))
     }
 
     @ViewBuilder private func moreLines(_ count: Int) -> some View {
@@ -301,7 +301,7 @@ extension DiffLine.Kind {
 
     fileprivate var tint: Color {
         switch self {
-        case .context: .white.opacity(0.6)
+        case .context: .ink.opacity(0.6)
         case .removed: .red
         case .added: .wispGreen
         }
@@ -348,7 +348,7 @@ private struct InlineDiffView: View {
         .monospacedDigit()
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.ink.opacity(0.06)))
     }
 }
 
@@ -373,14 +373,14 @@ private struct DenyReasonRow: View {
                 .onSubmit(deny)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
-                .background(Capsule().fill(.white.opacity(0.1)))
+                .background(Capsule().fill(.ink.opacity(0.1)))
                 Button("Cancel", action: stopTyping)
                     .buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.ink.opacity(0.7))
                 Button("Deny", action: deny)
                     .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
                     .padding(.horizontal, 12).frame(height: 28)
-                    .background(Capsule().fill(.white.opacity(0.14)))
+                    .background(Capsule().fill(.ink.opacity(0.14)))
             } else {
                 Button("Deny with a reason…") {
                     typing = true
@@ -423,7 +423,7 @@ private struct ApprovalSummary: View {
         if hidden && !revealed && !approval.summary.isEmpty {
             HStack(spacing: 6) {
                 Label("Details hidden", systemImage: "eye.slash")
-                    .font(.system(size: size)).foregroundStyle(.white.opacity(0.7))
+                    .font(.system(size: size)).foregroundStyle(.ink.opacity(0.7))
                 Button("Show") { revealed = true }
                     .font(.system(size: size - 1, weight: .semibold))
                     .buttonStyle(.plain)
@@ -433,7 +433,7 @@ private struct ApprovalSummary: View {
         } else {
             Text(AgentPrivacy.summary(approval.summary, hidden: false) ?? fallback)
                 .font(.system(size: size, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(.ink.opacity(0.85))
                 .lineLimit(lines)
                 .truncationMode(.middle)
         }
@@ -457,11 +457,11 @@ struct ApprovalButtons: View {
             } label: {
                 KeyHintLabel(title: "Deny", hint: ApprovalKeys.hint(.deny, hyper: hyper))
             }
-            .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
+            .buttonStyle(ApprovalButtonStyle(fill: .ink.opacity(0.14), text: .ink))
             // Allow All covers tool calls only; each plan is approved on its own.
             if approval.prompt == .tool {
                 Button("Allow All") { hub.allowAll(approval.id) }
-                    .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
+                    .buttonStyle(ApprovalButtonStyle(fill: .ink.opacity(0.14), text: .ink))
                     .help("Allow this and every later request from \(approval.project) until the session ends")
             }
             if approval.prompt == .tool, !approval.rules.isEmpty { AlwaysAllowMenu(approval: approval, hub: hub) }
@@ -516,7 +516,7 @@ struct ApprovalBar: View {
                     Text(position).font(.system(size: 10, weight: .semibold)).monospacedDigit()
                         .foregroundStyle(Color.secondaryText)
                 }
-                Text(step.text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                Text(step.text).font(.system(size: 11)).foregroundStyle(.ink.opacity(0.85)).lineLimit(1)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 18)
@@ -672,7 +672,7 @@ private struct SessionGlanceLines: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             if let prompt = glance.prompt {
-                Text(prompt).font(.system(size: 11)).foregroundStyle(.white.opacity(0.75))
+                Text(prompt).font(.system(size: 11)).foregroundStyle(.ink.opacity(0.75))
                     .lineLimit(1).truncationMode(.tail)
             }
             if glance.activity == .done, let jump {
@@ -709,7 +709,7 @@ private struct SessionTag: View {
             .foregroundStyle(Color.secondaryText)
             .lineLimit(1)
             .padding(.horizontal, 5).padding(.vertical, 1)
-            .background(Capsule().fill(.white.opacity(0.1)))
+            .background(Capsule().fill(.ink.opacity(0.1)))
     }
 }
 
@@ -741,7 +741,7 @@ private struct LimitItem: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(item.label).foregroundStyle(Color.secondaryText)
-            Capsule().fill(.white.opacity(0.14)).frame(width: 28, height: 4)
+            Capsule().fill(.ink.opacity(0.14)).frame(width: 28, height: 4)
                 .overlay(alignment: .leading) {
                     Capsule().fill(tint).frame(width: 28 * CGFloat(item.percent) / 100, height: 4)
                 }
@@ -1116,7 +1116,7 @@ private struct SessionDetail: View {
                 .font(.system(size: 12))
                 .padding(.horizontal, 8)
                 .frame(height: 24)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.08)))
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.ink.opacity(0.08)))
                 .onSubmit(send)
             Button("Paste in \(TerminalApps.name(for: session.terminal) ?? "Terminal")", action: send)
                 .font(.system(size: 11, weight: .semibold))
@@ -1124,6 +1124,7 @@ private struct SessionDetail: View {
                 .padding(.horizontal, 8)
                 .frame(height: 24)
                 .background(Capsule().fill(Color.wispViolet.opacity(draft.isEmpty ? 0.3 : 0.9)))
+                .foregroundStyle(.white)
                 .disabled(draft.isEmpty)
                 .help("Pastes into the session's terminal without sending; press Return there")
         }
@@ -1192,7 +1193,7 @@ extension AgentTimelineEntry.Kind {
 
     var tint: Color {
         switch self {
-        case .started, .prompt, .answered: .white.opacity(0.7)
+        case .started, .prompt, .answered: .ink.opacity(0.7)
         case .request, .waiting: .wispAmber
         case .allowed, .done: .wispGreen
         case .denied: .red

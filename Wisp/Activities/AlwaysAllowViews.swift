@@ -14,9 +14,9 @@ struct AlwaysAllowMenu: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.ink)
                 .frame(width: 28, height: 28)
-                .background(Circle().fill(.white.opacity(0.14)))
+                .background(Circle().fill(.ink.opacity(0.14)))
         }
         .menuStyle(.button)
         .buttonStyle(.plain)

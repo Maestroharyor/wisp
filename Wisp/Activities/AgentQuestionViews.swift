@@ -25,7 +25,7 @@ struct AgentQuestionCard: View {
                                 Text(position)
                                     .font(.system(size: 10, weight: .semibold)).monospacedDigit()
                                     .padding(.horizontal, 6).padding(.vertical, 1)
-                                    .background(Capsule().fill(.white.opacity(0.14)))
+                                    .background(Capsule().fill(.ink.opacity(0.14)))
                             }
                             Button {
                                 hub.focus(session: approval.sessionID)
@@ -38,7 +38,7 @@ struct AgentQuestionCard: View {
                         }
                         Text(step.text)
                             .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.85))
+                            .foregroundStyle(.ink.opacity(0.85))
                             .lineLimit(2)
                     }
                     Spacer(minLength: 0)
@@ -48,7 +48,7 @@ struct AgentQuestionCard: View {
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
     }
 }
 
@@ -140,7 +140,7 @@ struct QuestionAnswers<Header: View>: View {
             if listening {
                 Label("Listening…", systemImage: "mic.fill")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(.ink.opacity(0.85))
             } else if hidden {
                 Button("Show") { revealed = true }
                     .buttonStyle(QuestionChipStyle(selected: false))
@@ -153,7 +153,7 @@ struct QuestionAnswers<Header: View>: View {
                     .onSubmit { submit(question) }
                     .padding(.horizontal, 10)
                     .frame(height: 28)
-                    .background(Capsule().fill(.white.opacity(0.1)))
+                    .background(Capsule().fill(.ink.opacity(0.1)))
                 Button("Cancel") {
                     typing = false
                     other = ""
@@ -252,7 +252,7 @@ private struct OptionNumber: View {
         Text("\(number)")
             .font(.system(size: 9, weight: .bold)).monospacedDigit()
             .frame(width: 14, height: 14)
-            .background(Circle().fill(.white.opacity(0.2)))
+            .background(Circle().fill(.ink.opacity(0.2)))
             .accessibilityHidden(true)
     }
 }
@@ -265,10 +265,10 @@ private struct QuestionChipStyle: ButtonStyle {
         configuration.label
             .font(.system(size: 12, weight: .semibold))
             .lineLimit(1)
-            .foregroundStyle(.white)
+            .foregroundStyle(selected ? Color.white : Color.ink)
             .padding(.horizontal, 11)
             .frame(height: 28)
-            .background(Capsule().fill(selected ? Color.wispViolet : .white.opacity(0.14)))
+            .background(Capsule().fill(selected ? Color.wispViolet : .ink.opacity(0.14)))
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }

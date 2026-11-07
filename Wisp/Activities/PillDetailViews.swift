@@ -39,7 +39,7 @@ struct RegionWatchDetail: View {
                     }
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(.ink)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         } else {
             DetailEmpty(symbol: "eye.slash", text: "Not watching anything")
@@ -65,7 +65,7 @@ struct DownloadsDetail: View {
                     }
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(.ink)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
@@ -83,7 +83,7 @@ private struct DownloadRow: View {
             }
             Spacer(minLength: 8)
             ValueText(
-                text: DownloadText.detail(progress), tint: progress.isStalled ? Color.secondaryText : .white)
+                text: DownloadText.detail(progress), tint: progress.isStalled ? Color.secondaryText : .ink)
         }
     }
 }
@@ -120,7 +120,7 @@ struct ExternalActivityDetail: View {
                     }
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(.ink)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         } else {
             DetailEmpty(symbol: "checkmark.circle", text: "This activity has ended")
@@ -164,7 +164,7 @@ private struct DetailButton: View {
         Button(title, action: action)
             .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
             .padding(.horizontal, 12).frame(height: 28)
-            .background(Capsule().fill(.white.opacity(0.14)))
+            .background(Capsule().fill(.ink.opacity(0.14)))
             .help(help)
     }
 }
@@ -178,7 +178,7 @@ private struct DetailEmpty: View {
             Image(systemName: symbol).font(.system(size: 18))
             Text(text).font(.system(size: 12)).foregroundStyle(Color.secondaryText)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
