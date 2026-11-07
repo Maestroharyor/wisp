@@ -17,6 +17,8 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let input: JSONValue?
     /// The diff, command or plan the card can expand to show.
     let preview: ApprovalPreview?
+    /// The first changed lines and "+N −M", shown in the card itself.
+    let inlineDiff: InlineDiff?
     /// What an AskUserQuestion asks, in order; empty for other requests. Parsed once, since
     /// the question card reads it on every redraw.
     let questions: [AgentQuestion]
@@ -27,8 +29,8 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
 
     init(
         id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
-        prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil, cwd: String = "",
-        rules: [String] = []
+        prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil,
+        inlineDiff: InlineDiff? = nil, cwd: String = "", rules: [String] = []
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -39,6 +41,7 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
         self.prompt = prompt
         self.input = input
         self.preview = preview
+        self.inlineDiff = inlineDiff
         self.cwd = cwd
         self.rules = rules
         questions = prompt == .question ? AgentQuestion.parse(input) : []
@@ -119,6 +122,8 @@ final class AgentHub {
     /// The usage windows the status bar reported last; they're the account's, not a session's.
     private(set) var limitReadings: [UsageReading] = []
     @ObservationIgnored private var limitWatch = LimitWatch()
+    /// Whether card shortcuts use Hyper (true) or ⌃⌥⌘, read from the hotkeys. Set by AppDelegate.
+    @ObservationIgnored var keysUseHyper: @MainActor () -> Bool = { false }
     /// Connected agents whose hook file has Wisp's tool hooks.
     private(set) var toolHooks: Set<AgentSource> = []
 
@@ -411,6 +416,8 @@ final class AgentHub {
                 input: event.prompt.keepsInput ? event.rawToolInput : nil,
                 preview: ApprovalPreview.make(
                     tool: event.toolName ?? "", input: event.rawToolInput, limit: Self.previewLines),
+                inlineDiff: event.prompt == .tool
+                    ? InlineDiff.make(tool: event.toolName ?? "", input: event.rawToolInput) : nil,
                 cwd: event.cwd, rules: Self.suggestedRules(event))
             pending[approval.id] = approval
             queue.enqueue(approval.id)

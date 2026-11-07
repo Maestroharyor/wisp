@@ -47,6 +47,9 @@ public struct AgentEvent: Equatable, Sendable {
     public var terminalContext: TerminalContext?
     /// For SessionStart: how the session began ("startup", "resume", "clear", "compact", ...).
     public let startSource: String?
+    /// For a prompt event: what the user typed, trimmed to one line (`PromptText`). Kept in
+    /// memory only, never logged, saved or sent.
+    public let promptText: String?
 
     public enum DecodeFailure: Error { case notAnObject }
 
@@ -84,6 +87,9 @@ public struct AgentEvent: Equatable, Sendable {
         self.cwd = cwd
         self.transcriptPath = json["transcript_path"]?.stringValue
         self.startSource = json["source"]?.stringValue
+        // Every adapter sends `prompt` with its prompt event (Gemini CLI's BeforeAgent, Copilot CLI's
+        // userPromptSubmitted included).
+        self.promptText = kind == .userPromptSubmit ? PromptText.trimmed(json["prompt"]?.stringValue) : nil
     }
 
     /// What a permission request asks the user for.

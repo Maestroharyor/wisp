@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotkeys.onApprovalKeyUp = { [weak self] keyCode in self?.services.agents.releaseKey(keyCode) }
         services.approvalCardChanged = { [weak self] prompt in self?.hotkeys.setApprovalCard(prompt) }
+        services.agents.keysUseHyper = { [weak self] in self?.hotkeys.approvalKeysUseHyper ?? false }
         services.isShelfOpen = { [weak self] in self?.coordinator.hasOpenShelf ?? false }
         hotkeys.onDictation = { [weak self] event in self?.services.dictation.handle(event) }
         services.dictation.onTap = { [weak self] in self?.toggleShelf() }
