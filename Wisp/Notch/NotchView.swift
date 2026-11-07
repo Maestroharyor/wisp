@@ -237,6 +237,10 @@ private struct SurfaceView: View {
                     .id(invite.id)
                     .transition(reveal)
             }
+            if case .meeting(let status) = model.activity, model.showsMeetingControls {
+                MeetingControlsCard(status: status, model: model)
+                    .transition(reveal)
+            }
             if case .notification(let item) = model.activity {
                 NotificationCardView(item: item, model: model)
                     .id(item.id)
