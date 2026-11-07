@@ -65,6 +65,13 @@ struct AgentStatus: Sendable, Equatable {
     var terminal: String? = nil
 }
 
+/// A shortcut pressed for the question card on screen.
+struct KeyAnswer: Equatable {
+    let approval: UUID
+    let action: ApprovalKeys.Action
+    let serial: Int
+}
+
 /// Receives coding agents' hook events and Claude Code status bar snapshots from the
 /// `wisp-agent` helper over a Unix socket, tracks sessions (with live cost and context from
 /// the snapshots, token use from their transcripts), answers permission requests from the
@@ -76,6 +83,12 @@ final class AgentHub {
     /// Waiting requests in arrival order; the front one is the card on screen.
     private(set) var queue = ApprovalQueue<UUID>()
     private var pending: [UUID: AgentApproval] = [:]
+    @ObservationIgnored private let focuser = TerminalFocuser()
+    @ObservationIgnored private var frontID: UUID?
+    /// Keeps one key press to one answer (see `ApprovalKeys.Gate`).
+    @ObservationIgnored private var keyGate = ApprovalKeys.Gate()
+    /// The latest key answer for a question card; `serial` makes a repeat count as a change.
+    private(set) var keyAnswer: KeyAnswer?
     var approvals: [AgentApproval] { queue.items.compactMap { pending[$0] } }
     /// Sources whose hooks call this copy's helper.
     private(set) var connected: Set<AgentSource> = []
@@ -157,6 +170,9 @@ final class AgentHub {
     /// Needs you, Done, a usage limit or the budget, for phone push. Fired whatever the notch
     /// shows; the receiver decides what goes out.
     var onMoment: (AgentMoment) -> Void = { _ in }
+    /// `wisp activity` (or a script) posted, changed or ended a live activity. Returns why it
+    /// couldn't be done, which goes back to the sender, or nil.
+    var onExternalActivity: (ExternalActivityAction) -> String? = { _ in nil }
 
     @ObservationIgnored private var listener: NWListener?
     @ObservationIgnored private var lastListenerRestart = Date.distantPast
@@ -336,6 +352,9 @@ final class AgentHub {
                 sessions: sessions.list, spend: spend, query: query, now: .now, hidden: hiddenReason,
                 limits: currentLimits(now: .now))
             reply(connection, report.encoded().map { String(decoding: $0, as: UTF8.self) })
+        case .activity(let action):
+            let problem = onExternalActivity(action)
+            reply(connection, (problem.map(AgentProtocol.ActivityReply.rejected) ?? .accepted).encoded)
         case .unsupported(let name):
             if unsupportedLogged.insert(name).inserted {
                 // The name comes from whoever wrote to the socket, so it stays private.
@@ -348,6 +367,8 @@ final class AgentHub {
     }
 
     private func handle(_ event: AgentEvent, from connection: NWConnection) {
+        // A jump to this session will need the login shell's PATH; read it before then.
+        focuser.warmUp()
         // A new prompt or the end of a turn means a pending request was answered in the
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
@@ -400,7 +421,7 @@ final class AgentHub {
                 guard !Task.isCancelled else { return }
                 self?.handBack(approval.id)
             }
-            onApproval(approvals.first)
+            approvalsChanged()
             onNewRequest()
         } else {
             reply(connection, nil)
@@ -412,6 +433,7 @@ final class AgentHub {
 
     private func receive(_ snapshot: StatusLineSnapshot, source: AgentSource, terminal: String?) {
         guard let id = snapshot.sessionID else { return }
+        focuser.warmUp()
         pendingSnapshots[id] = (snapshot, source, terminal)
         guard flushTask == nil else { return }
         flushTask = Task { [weak self, liveInterval] in
@@ -533,7 +555,7 @@ final class AgentHub {
         // Handed back to the terminal (timed out, or answered there) counts as resolved too,
         // so the session doesn't keep saying it waits on the notch.
         sessions.resolveApproval(session: approval.sessionID, at: .now)
-        onApproval(approvals.first)
+        approvalsChanged()
         publishStatus()
     }
 
@@ -545,7 +567,7 @@ final class AgentHub {
         let before = sessions.session(taken.approval.sessionID)?.state
         sessions.handedBack(session: taken.approval.sessionID, at: .now)
         reportMoment(session: taken.approval.sessionID, before: before, stopped: false)
-        onApproval(approvals.first)
+        approvalsChanged()
         publishStatus()
     }
 
@@ -558,7 +580,7 @@ final class AgentHub {
         }
         sessions.record(.denied, "Denied", session: approval.sessionID, at: .now)
         sessions.resolveApproval(session: approval.sessionID, at: .now)
-        onApproval(approvals.first)
+        approvalsChanged()
         publishStatus()
     }
 
@@ -575,8 +597,58 @@ final class AgentHub {
                 approval.input.flatMap { approval.source.adapter.reply(.answer(input: $0, answers: answers)) })
         }
         sessions.answeredQuestion(session: approval.sessionID, at: .now)
-        onApproval(approvals.first)
+        approvalsChanged()
         publishStatus()
+    }
+
+    /// Tells the activity layer which card is on screen, and notes when a new one took the front.
+    private func approvalsChanged() {
+        let front = approvals.first?.id
+        if front != frontID {
+            frontID = front
+            keyGate.cardChanged(at: .now)
+        }
+        // Nothing left to answer: forget keys whose key-up may never arrive.
+        if front == nil { keyGate.releaseAll() }
+        onApproval(approvals.first)
+    }
+
+    // MARK: Keyboard answers
+
+    /// Answers the card on screen from a fresh key press (Hyper+Y, N or a digit, or the ⌃⌥⌘
+    /// fallback; repeats never get here). False when no card shows or the key means nothing
+    /// for it, so the key goes elsewhere.
+    func answerKey(_ keyCode: UInt16) -> Bool {
+        guard let approval = approvals.first,
+            let action = ApprovalKeys.action(keyCode: keyCode, prompt: approval.prompt)
+        else { return false }
+        // Swallowed but ignored: the key wasn't let go since it last answered, or the card or
+        // question only just swapped in.
+        guard keyGate.press(keyCode, isRepeat: false, at: .now) else { return true }
+        switch action {
+        case .allow: answer(approval.id, allow: true)
+        case .deny: answer(approval.id, allow: false)
+        case .pick, .send:
+            // The question card keeps which question is showing and what's picked, so it acts on this.
+            keyAnswer = KeyAnswer(approval: approval.id, action: action, serial: (keyAnswer?.serial ?? 0) + 1)
+        }
+        return true
+    }
+
+    /// Whether `keyCode` means something on the card in front, so it's swallowed even while
+    /// the card is out of sight (a HUD over it) instead of typing into the front app.
+    func keyHasAction(_ keyCode: UInt16) -> Bool {
+        guard let approval = approvals.first else { return false }
+        return ApprovalKeys.action(keyCode: keyCode, prompt: approval.prompt) != nil
+    }
+
+    func releaseKey(_ keyCode: UInt16) {
+        keyGate.release(keyCode)
+    }
+
+    /// The question card moved on to the next question in the same request.
+    func questionStepChanged() {
+        keyGate.cardChanged(at: .now)
     }
 
     /// Takes a request off the queue, with the hook call still waiting for its reply.
@@ -757,26 +829,11 @@ final class AgentHub {
 
     // MARK: Jump to terminal
 
-    /// Brings forward the terminal or editor the session runs in. Without one on record,
-    /// opens the session's folder in Terminal.
+    /// Brings forward the session's tmux pane or terminal tab when the helper said which,
+    /// otherwise the terminal or editor it runs in. Without either, opens its folder in Terminal.
     func focus(session id: String) {
         guard let session = sessions.session(id) else { return }
-        if let bundleID = session.terminal {
-            if let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
-                running.activate()
-                return
-            }
-            if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-                NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
-                return
-            }
-        }
-        guard !session.cwd.isEmpty,
-            let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal")
-        else { return }
-        NSWorkspace.shared.open(
-            [URL(fileURLWithPath: session.cwd)], withApplicationAt: terminal,
-            configuration: NSWorkspace.OpenConfiguration())
+        focuser.focus(TerminalTarget(context: session.terminalContext, bundleID: session.terminal, cwd: session.cwd))
     }
 
     /// Opens the session's working folder in Finder.

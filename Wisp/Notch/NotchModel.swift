@@ -87,6 +87,13 @@ final class NotchModel {
     var onKeyDone: () -> Void = {}
     /// The approval card opened to show its preview.
     var expandedApproval: UUID?
+    /// The meeting pill was clicked open into its call controls.
+    var meetingControlsOpen = false
+    /// The controls card shows while it's open and the call app has controls to drive.
+    var showsMeetingControls: Bool {
+        guard meetingControlsOpen, case .meeting = activity else { return false }
+        return !services.meetingControls.states.isEmpty
+    }
     /// The session whose pill was clicked: the Agents view opens on it.
     var focusedSession: String?
     /// The forms this display can switch to, and the switch itself (the nav pill's form menu).
@@ -148,6 +155,7 @@ final class NotchModel {
                     return .notification(extra: open ? SurfaceSizing.approvalPreviewHeight : 0)
                 }
                 if case .meetingSoon = activity { return .notification(extra: 0) }
+                if showsMeetingControls { return .notification(extra: 0) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }
             // Only the grow feedback changes the shape; glow and wobble play on the closed one.

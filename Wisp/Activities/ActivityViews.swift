@@ -87,6 +87,11 @@ struct CompactActivityView: View {
                 .frame(width: 16)
                 Text(status.title).lineLimit(1)
             }
+        case .custom(let custom):
+            HStack(spacing: ActivityMetrics.contentSpacing) {
+                Image(systemName: custom.symbol).foregroundStyle(Color.wispViolet).frame(width: 16)
+                Text(custom.title).lineLimit(1)
+            }
         case .regionWatch(let status):
             HStack(spacing: ActivityMetrics.contentSpacing) {
                 RegionWatchGlyph(paused: status.paused).frame(width: 16)
@@ -150,7 +155,9 @@ struct CompactActivityView: View {
                 }
                 Image(systemName: model.services.microphone.muted ? "mic.slash.circle.fill" : "mic.circle")
                     .foregroundStyle(.white.opacity(0.8))
-                    .help(model.services.microphone.muted ? "Unmute the microphone" : "Mute the microphone")
+                    .help(
+                        model.services.microphone.muted
+                            ? "Unmute the system microphone (all apps)" : "Mute the system microphone (all apps)")
             }
         case .dictation(let since):
             TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -167,6 +174,15 @@ struct CompactActivityView: View {
                 }
             } else {
                 Text("Connected").lineLimit(1).foregroundStyle(Color.secondaryText)
+            }
+        case .custom(let custom):
+            if let progress = custom.progress {
+                HStack(spacing: 6) {
+                    ValueText(text: "\(LevelStep.percent(progress))%", tint: .wispViolet)
+                    ProgressRing(progress: progress, tint: .wispViolet, lineWidth: 2.5).frame(width: 14, height: 14)
+                }
+            } else {
+                ProgressView().controlSize(.mini).tint(.wispViolet)
             }
         case .regionWatch(let status):
             HStack(spacing: 6) {
@@ -256,6 +272,12 @@ struct SideActivityView: View {
             }
         case .notice(_, let text):
             caption(text)
+        case .custom(let custom):
+            if let progress = custom.progress {
+                ValueText(text: "\(LevelStep.percent(progress))%", tint: .wispViolet)
+            } else {
+                caption(custom.title)
+            }
         case .sent:
             caption("Sent").foregroundStyle(Color.accentColor)
         case .regionWatch(let status):
@@ -317,6 +339,8 @@ struct ActivityGlyph: View {
         case .meeting:
             Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
                 .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
+        case .custom(let custom):
+            Image(systemName: custom.symbol).foregroundStyle(Color.wispViolet)
         case .regionWatch(let status):
             RegionWatchGlyph(paused: status.paused)
         case .dictation:

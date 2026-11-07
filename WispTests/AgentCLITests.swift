@@ -117,6 +117,23 @@ final class AgentCLITests: XCTestCase {
         XCTAssertEqual(AgentCLI.parse(arguments: ["wisp", "watch", "--json"]), .invalid("Unknown option: --json"))
     }
 
+    func testParseActivity() {
+        XCTAssertEqual(
+            AgentCLI.parse(arguments: ["wisp", "activity", "end", "--id", "a"]), .activity(.end(id: "a")))
+        XCTAssertEqual(
+            AgentCLI.parse(arguments: ["/x/wisp-agent", "activity", "end", "--id", "a"]), .activity(.end(id: "a")))
+        XCTAssertEqual(AgentCLI.parse(arguments: ["wisp", "activity", "--help"]), .activityHelp)
+        XCTAssertEqual(AgentCLI.parse(arguments: ["wisp", "activity"]), .activityHelp)
+        guard case .invalid(let message) = AgentCLI.parse(arguments: ["wisp", "activity", "start", "--id", "a"]) else {
+            return XCTFail("expected a usage error")
+        }
+        XCTAssertTrue(message.hasPrefix("Missing --title."))
+    }
+
+    func testActivityHelpListsEverySymbol() {
+        for symbol in ExternalActivity.symbols { XCTAssertTrue(AgentCLI.activityUsage.contains(symbol), symbol) }
+    }
+
     private func row(
         _ project: String, state: String = "working", tool: String? = nil, cost: Double? = 0.41, real: Bool = true
     ) -> AgentReport.Row {

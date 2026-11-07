@@ -39,6 +39,30 @@ final class AgentProtocolTests: XCTestCase {
             try AgentProtocol.decode(Data(#"{"v":1,"kind":"dance","payload":{}}"#.utf8)), .unsupported("dance v1"))
     }
 
+    func testActivityEnvelopeRoundTrips() throws {
+        let action = ExternalActivityAction.start(
+            ExternalActivity(id: "ci", title: "Deploying", symbol: "shippingbox.fill", progress: 0.4))
+        let data = try XCTUnwrap(
+            AgentProtocol.envelope(kind: .activity, source: .claude, terminal: nil, payload: action.payload))
+        XCTAssertEqual(try AgentProtocol.decode(data), .activity(action))
+    }
+
+    func testActivityRepliesRoundTrip() {
+        for reply in [AgentProtocol.ActivityReply.accepted, .rejected("No activity a is showing.")] {
+            XCTAssertEqual(AgentProtocol.ActivityReply(Data(reply.encoded.utf8)), reply)
+        }
+        XCTAssertEqual(AgentProtocol.ActivityReply.accepted.encoded, #"{"ok":true}"#)
+        // An older Wisp answers an unknown kind with nothing.
+        XCTAssertNil(AgentProtocol.ActivityReply(Data()))
+        XCTAssertNil(AgentProtocol.ActivityReply(Data(#"{"v":1}"#.utf8)))
+    }
+
+    func testInvalidActivityIsUnsupported() throws {
+        let data = Data(
+            #"{"v":1,"kind":"activity","payload":{"action":"start","id":"a","title":"x","progress":3}}"#.utf8)
+        XCTAssertEqual(try AgentProtocol.decode(data), .unsupported("activity payload"))
+    }
+
     func testEnvelopeNeedsAnObject() {
         XCTAssertNil(AgentProtocol.envelope(kind: .hook, source: .claude, terminal: nil, payload: Data("[1]".utf8)))
         XCTAssertNil(AgentProtocol.envelope(kind: .hook, source: .claude, terminal: nil, payload: Data("x".utf8)))
