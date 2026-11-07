@@ -22,9 +22,9 @@ extension AgentHub {
         case noProject
     }
 
-    /// Whether Wisp writes this agent's rules. Claude Code only for now; the `rules` capability
-    /// from Phase 1's agent adapters replaces this check.
-    static func writesRules(_ source: AgentSource) -> Bool { source == .claude }
+    /// Whether Wisp writes this agent's rules: only agents whose rule format Wisp knows
+    /// (Claude Code's `permissions.allow` for now).
+    static func writesRules(_ source: AgentSource) -> Bool { source.adapter.capabilities.contains(.rules) }
 
     /// Rules for a tool request's card; plans and questions never get them.
     static func suggestedRules(_ event: AgentEvent) -> [String] {
