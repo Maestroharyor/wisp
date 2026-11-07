@@ -216,6 +216,8 @@ private struct BubbleGlyph: View {
                         .foregroundStyle(Color.wispViolet)
                 }
                 .frame(width: glyph, height: glyph)
+            case .regionWatch(let status):
+                RegionWatchGlyph(paused: status.paused).font(.system(size: glyph * 0.6, weight: .semibold))
             default:
                 EmptyView()
             }

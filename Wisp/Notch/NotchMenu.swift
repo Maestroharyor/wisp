@@ -16,6 +16,11 @@ enum NotchMenu {
         menu.addItem(item("Clipboard History", symbol: "doc.on.clipboard", action: services.openClipboard))
         menu.addItem(item("Transform Files…", symbol: "wand.and.stars") { services.openTransform([]) })
         menu.addItem(item("Mini Player", symbol: "pip") { services.miniPlayer.toggle() })
+        if services.regionWatch.isWatching {
+            menu.addItem(item("Stop Watching Region", symbol: "eye.slash") { services.regionWatch.stop() })
+        } else {
+            menu.addItem(item("Watch a Window Region…", symbol: "eye") { services.regionWatch.begin() })
+        }
         menu.addItem(profilesItem(services: services))
         menu.addItem(formItem(current: form, forms: forms, setForm: setForm))
         menu.addItem(.separator())

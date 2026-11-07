@@ -20,6 +20,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case device
     /// Posted by a script, Shortcut or link (`wisp activity`, `wisp://activity`).
     case external
+    case regionWatch
     case dictation
 
     /// Ongoing activities sit below every short alert, so a battery or device alert still
@@ -29,6 +30,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         case .media: 10
         case .agent: 15
         case .external: 17
+        case .regionWatch: 18
         case .timer: 20
         case .meeting: 25
         case .tray: 30
@@ -50,7 +52,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     /// Sticky activities that a glyph can sum up, so they can sit in a bubble.
     public var canBeBubble: Bool {
         switch self {
-        case .media, .timer, .agent, .meeting, .external: true
+        case .media, .timer, .agent, .meeting, .external, .regionWatch: true
         default: false
         }
     }
