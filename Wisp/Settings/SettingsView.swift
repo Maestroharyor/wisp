@@ -147,8 +147,8 @@ struct SettingsView: View {
         switch pane {
         case .general:
             GeneralSettings(
-                preferences: preferences, hotkeys: hotkeys, accent: services.accent, glow: services.glow,
-                missing: model.missing
+                preferences: preferences, hotkeys: hotkeys, dictation: services.dictation, accent: services.accent,
+                glow: services.glow, missing: model.missing
             ) {
                 model.selection = .permissions
             }
@@ -164,6 +164,7 @@ struct SettingsView: View {
         case .notifications: NotificationSettings(preferences: preferences, monitor: services.notifications)
         case .agents: AgentSettings(hub: services.agents, preferences: preferences)
         case .phone: PhoneSettings(push: services.push, hub: services.agents, preferences: preferences)
+        case .ai: AISettings(ai: services.ai, preferences: preferences)
         case .permissions: PermissionSettings(model: model)
         case .about: AboutSettings(preferences: preferences, updater: services.updater, runSetup: services.openSetup)
         }

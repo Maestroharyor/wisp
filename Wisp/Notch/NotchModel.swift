@@ -73,6 +73,12 @@ final class NotchModel {
     /// Prompt drafts in the Agents detail, per session, so closing the shelf keeps them and
     /// one session's draft never goes to another.
     var agentDrafts: [String: String] = [:]
+    /// The session whose draft box is on screen in the Agents view, so dictation can type into
+    /// it. Nil while details are private (the box is hidden then).
+    var draftClaim: DraftBoxClaim?
+    var draftSession: String? { draftClaim?.session }
+    /// Dictated text for the question card, taken (and cleared) by the card.
+    var dictatedAnswer: DictatedAnswer?
     /// Called by the card when a reply is sent or abandoned.
     var onReplyEnded: () -> Void = {}
     /// A card wants typing (a question's "Other…" answer): the panel takes key status, and
@@ -249,4 +255,12 @@ final class NotchModel {
     var surfaceAnimation: Animation {
         spec == .closed ? motion.surfaceClose : motion.surfaceOpen
     }
+}
+
+/// Dictated text on its way to a question card's typed answer.
+struct DictatedAnswer: Equatable {
+    let approval: UUID
+    let text: String
+    /// Two dictations with the same words are still two changes.
+    let id = UUID()
 }

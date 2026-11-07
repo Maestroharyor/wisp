@@ -20,6 +20,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case device
     case download
     case downloadDone
+    case dictation
 
     /// Ongoing activities sit below every short alert, so a battery or device alert still
     /// shows during a call and then hands the pill back.
@@ -40,6 +41,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         case .meetingSoon: 48
         case .notification: 50
         case .agentApproval: 55
+        // Held down on purpose, so it shows over cards; only HUDs (volume, Caps Lock) go above.
+        case .dictation: 57
         case .capsLock: 60
         case .level: 70
         }

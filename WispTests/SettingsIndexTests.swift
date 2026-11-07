@@ -65,10 +65,11 @@ final class SetupHealthTests: XCTestCase {
 
     func testNeededFollowsFeatures() {
         XCTAssertEqual(
-            SetupHealth.needed(notifications: false, calendarWidgets: false, mirror: false), ["accessibility"])
+            SetupHealth.needed(notifications: false, calendarWidgets: false, mirror: false, dictation: false),
+            ["accessibility"])
         XCTAssertEqual(
-            SetupHealth.needed(notifications: true, calendarWidgets: true, mirror: true),
-            ["accessibility", "fullDiskAccess", "calendars", "camera"])
+            SetupHealth.needed(notifications: true, calendarWidgets: true, mirror: true, dictation: true),
+            ["accessibility", "fullDiskAccess", "calendars", "camera", "microphone", "speechRecognition"])
     }
 
     func testFindsTheNewAppearanceAndHUDOptions() {
@@ -92,5 +93,12 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "ntfy"), [.phone])
         XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.phone])
         XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.phone))
+    }
+
+    func testAIPaneIsFound() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "ollama"), [.ai])
+        XCTAssertEqual(SettingsIndex.panes(matching: "apple intelligence"), [.ai])
+        XCTAssertEqual(SettingsIndex.panes(matching: "AI").first, .ai)
+        XCTAssertTrue(SettingsIndex.panes(matching: "summarize").contains(.ai))
     }
 }

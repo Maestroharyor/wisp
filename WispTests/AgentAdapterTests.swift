@@ -4,20 +4,22 @@ import XCTest
 
 final class AgentAdapterTests: XCTestCase {
     func testRegistryListsEachAgentOnceByItsWireID() {
-        XCTAssertEqual(AgentAdapters.all.map(\.source), [.claude, .codex])
+        XCTAssertEqual(AgentAdapters.all.map(\.source), [.claude, .codex, .gemini])
         XCTAssertEqual(AgentAdapters.adapter(id: "codex")?.displayName, "Codex")
-        XCTAssertNil(AgentAdapters.adapter(id: "gemini"))
+        XCTAssertEqual(AgentAdapters.adapter(id: "gemini")?.displayName, "Gemini CLI")
+        XCTAssertNil(AgentAdapters.adapter(id: "aider"))
         XCTAssertEqual(Set(AgentAdapters.all.map(\.source.rawValue)).count, AgentAdapters.all.count)
     }
 
     func testSourcesAreStringIDsAndUnknownOnesDontExist() throws {
         XCTAssertEqual(AgentSource(rawValue: "claude"), .claude)
         XCTAssertEqual(AgentSource(rawValue: "codex"), .codex)
-        XCTAssertNil(AgentSource(rawValue: "gemini"))
+        XCTAssertEqual(AgentSource(rawValue: "gemini"), .gemini)
+        XCTAssertNil(AgentSource(rawValue: "aider"))
         let encoded = try JSONEncoder().encode([AgentSource.codex])
         XCTAssertEqual(String(decoding: encoded, as: UTF8.self), #"["codex"]"#)
         XCTAssertEqual(try JSONDecoder().decode([AgentSource].self, from: encoded), [.codex])
-        XCTAssertThrowsError(try JSONDecoder().decode([AgentSource].self, from: Data(#"["gemini"]"#.utf8)))
+        XCTAssertThrowsError(try JSONDecoder().decode([AgentSource].self, from: Data(#"["aider"]"#.utf8)))
     }
 
     func testNamesSymbolsAndHookFiles() {
@@ -65,11 +67,11 @@ final class AgentAdapterTests: XCTestCase {
     func testAnUnknownSourceIsUnsupported() throws {
         XCTAssertEqual(
             try AgentProtocol.decode(
-                Data(#"{"v":1,"kind":"hook","source":"gemini","payload":{"hook_event_name":"Stop"}}"#.utf8)),
-            .unsupported("source gemini"))
+                Data(#"{"v":1,"kind":"hook","source":"aider","payload":{"hook_event_name":"Stop"}}"#.utf8)),
+            .unsupported("source aider"))
         XCTAssertEqual(
-            try AgentProtocol.decode(Data(#"{"session_id":"s","hook_event_name":"Stop","wisp_source":"gemini"}"#.utf8)),
-            .unsupported("source gemini"))
+            try AgentProtocol.decode(Data(#"{"session_id":"s","hook_event_name":"Stop","wisp_source":"aider"}"#.utf8)),
+            .unsupported("source aider"))
     }
 
     func testAMissingSourceIsClaude() throws {
