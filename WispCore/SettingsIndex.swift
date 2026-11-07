@@ -89,7 +89,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "volume", "brightness", "battery", "hud", "overlay", "media", "music", "pointer", "display", "focus",
                 "lyrics", "lrclib", "album art", "artwork", "itunes", "lock screen", "meeting", "call", "microphone",
                 "recording",
-                "zoom", "meet", "bubbles", "split", "volume steps", "duration", "low battery", "threshold",
+                "zoom", "meet", "teams", "mute", "camera", "leave", "call controls", "bubbles", "split", "volume steps",
+                "duration", "low battery", "threshold",
                 "left", "right", "airpods", "headphones", "bluetooth",
             ]
         case .widgets:
@@ -119,6 +120,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
                 "usage limit", "rate limit", "weekly limit", "question", "answer", "preview", "diff", "plan",
                 "keep awake", "sleep", "power", "rules", "always allow", "permission rule", "settings.local.json",
+                "tmux", "iterm", "ghostty", "wezterm", "jump to terminal", "tab", "pane", "keyboard",
             ]
         case .phone:
             [
@@ -137,7 +139,11 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera",
                 "microphone", "speech recognition",
             ]
-        case .about: ["version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release"]
+        case .about:
+            [
+                "version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release", "keyboard",
+                "approve with keyboard", "hyper y",
+            ]
         }
     }
 }

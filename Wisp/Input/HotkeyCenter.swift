@@ -33,6 +33,11 @@ final class HotkeyCenter {
     private(set) var ringHotkeyTaken = false
     /// Hyper+1…9 picks a profile.
     @ObservationIgnored var onProfileDigit: @MainActor (Int) -> Void = { _ in }
+    /// Y, N or a digit for the approval card on screen (`ApprovalKeys`); false leaves the key
+    /// to the other shortcuts.
+    @ObservationIgnored var onApprovalKey: @MainActor (UInt16) -> Bool = { _ in false }
+    /// The key of a swallowed chord or fallback shortcut came back up.
+    @ObservationIgnored var onApprovalKeyUp: @MainActor (UInt16) -> Void = { _ in }
     /// The dictation key held with Hyper: pressed, let go or cancelled.
     @ObservationIgnored var onDictation: @MainActor (HoldKey.Event) -> Void = { _ in }
 
@@ -42,6 +47,15 @@ final class HotkeyCenter {
     @ObservationIgnored private let carbon = CarbonHotkey(id: 1)
     @ObservationIgnored private let clipboardCarbon = CarbonHotkey(id: 2)
     @ObservationIgnored private let ringCarbon = CarbonHotkey(id: 3)
+    /// ⌃⌥⌘Y, N and 1 to 9 without Hyper, registered only while a card shows.
+    /// One per key in `ApprovalKeys.allFallbackKeys`, so each key keeps its Carbon id.
+    @ObservationIgnored private let approvalCarbons = ApprovalKeys.allFallbackKeys.indices.map {
+        CarbonHotkey(id: 10 + UInt32($0))
+    }
+    /// The kind of card on screen; nil when none shows.
+    @ObservationIgnored private var approvalPrompt: PermissionPrompt?
+    /// The fallback keys registered now.
+    @ObservationIgnored private var fallbackKeys: [UInt16] = []
     @ObservationIgnored private var keyboardWatcher: KeyboardWatcher?
     @ObservationIgnored private var holdDrain: Task<Void, Never>?
     @ObservationIgnored private var accessWaiter: Task<Void, Never>?
@@ -80,6 +94,7 @@ final class HotkeyCenter {
         carbon.unregister()
         clipboardCarbon.unregister()
         ringCarbon.unregister()
+        unregisterApprovalFallback()
         keyboardWatcher?.stop()
         do {
             try remapper.disable()
@@ -100,6 +115,7 @@ final class HotkeyCenter {
         } else {
             ringHotkeyTaken = false
         }
+        defer { updateApprovalFallback() }
 
         let hotkey = preferences.hotkey
         if hotkey.usesHyper {
@@ -141,6 +157,7 @@ final class HotkeyCenter {
         keyboardWatcher?.start()
 
         tap.quickPressTogglesCapsLock = preferences.quickPressTogglesCapsLock
+        tap.onChordReleased = { [weak self] keyCode in self?.onApprovalKeyUp(keyCode) }
         tap.holdKey = preferences.dictationEnabled ? preferences.dictationKey.keyCode : nil
         tap.onHyperChord = { [weak self] keyCode in
             switch keyCode {
@@ -149,6 +166,7 @@ final class HotkeyCenter {
             case KeyCodes.r: self?.onRing()
             case KeyCodes.f: self?.onCycleForm()
             default:
+                if self?.onApprovalKey(keyCode) == true { return true }
                 guard let digit = KeyCodes.digit(forKeyCode: keyCode) else { return false }
                 self?.onProfileDigit(digit)
             }
@@ -163,6 +181,40 @@ final class HotkeyCenter {
         status = .active
         accessRevoked = false
         watchTrust()
+    }
+
+    /// The kind of approval or question card on screen (nil when none), for the ⌃⌥⌘ fallback.
+    func setApprovalCard(_ prompt: PermissionPrompt?) {
+        guard prompt != approvalPrompt else { return }
+        approvalPrompt = prompt
+        updateApprovalFallback()
+    }
+
+    /// The fallback holds only the keys the card on screen uses, only while it shows, and
+    /// only when the Hyper tap isn't there to answer.
+    private func updateApprovalFallback() {
+        let hyperActive = preferences.hotkey.usesHyper && status == .active
+        guard let prompt = approvalPrompt, !hyperActive else {
+            unregisterApprovalFallback()
+            return
+        }
+        let wanted = ApprovalKeys.fallbackHotkeys(for: prompt)
+        guard wanted.map(\.keyCode) != fallbackKeys else { return }
+        unregisterApprovalFallback()
+        for hotkey in wanted {
+            guard let slot = ApprovalKeys.allFallbackKeys.firstIndex(of: hotkey.keyCode) else { continue }
+            let registered = approvalCarbons[slot].register(
+                hotkey, onRelease: { [weak self] in self?.onApprovalKeyUp(hotkey.keyCode) },
+                action: { [weak self] in _ = self?.onApprovalKey(hotkey.keyCode) })
+            if registered { fallbackKeys.append(hotkey.keyCode) }
+        }
+    }
+
+    /// A key held while its shortcut goes away never reports coming up, so it counts as up.
+    private func unregisterApprovalFallback() {
+        approvalCarbons.forEach { $0.unregister() }
+        fallbackKeys.forEach(onApprovalKeyUp)
+        fallbackKeys = []
     }
 
     /// Without Accessibility the tap gets no events, so a remapped Caps Lock would send F18

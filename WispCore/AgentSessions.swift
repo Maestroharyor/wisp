@@ -60,6 +60,8 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     public var project: String
     public var source: AgentSource = .claude
     public var terminal: String?
+    /// The pane or tab the agent runs in, for jumping straight to it.
+    public var terminalContext: TerminalContext?
     public var cwd = ""
     public var transcriptPath: String?
     /// Tokens used so far, read from the transcript, and the cost in dollars: Claude Code's
@@ -250,6 +252,7 @@ public struct AgentSessions: Sendable {
                 updated: date)
         session.project = event.project
         if let terminal = event.terminal { session.terminal = terminal }
+        if let context = event.terminalContext { session.terminalContext = context }
         session.report(event.process)
         if !event.cwd.isEmpty { session.cwd = event.cwd }
         if let path = event.transcriptPath { session.transcriptPath = path }
@@ -388,6 +391,7 @@ public struct AgentSessions: Sendable {
             session.project = snapshot.project
         }
         if let terminal, !terminal.isEmpty { session.terminal = terminal }
+        if let context = snapshot.terminalContext { session.terminalContext = context }
         session.report(snapshot.process)
         if let path = snapshot.transcriptPath { session.transcriptPath = path }
         if let cost = snapshot.cost {

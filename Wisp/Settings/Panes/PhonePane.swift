@@ -17,8 +17,11 @@ struct PhoneSettings: View {
     var body: some View {
         Form {
             Section {
+                // A closure, not `set: setEnabled`: Swift 6.3's optimiser crashes converting a method
+                // reference to Binding's @isolated(any) setter, which broke the 0.1.8 and 0.1.9 releases.
                 Toggle(
-                    "Send agent alerts to my phone", isOn: Binding(get: { preferences.pushEnabled }, set: setEnabled))
+                    "Send agent alerts to my phone",
+                    isOn: Binding(get: { preferences.pushEnabled }, set: { setEnabled($0) }))
             } footer: {
                 Text(
                     "Off by default. When on, Wisp sends short alerts to an ntfy server, and the ntfy app shows them on your phone and Apple Watch. Commands, file paths, diffs and prompts stay on your Mac."

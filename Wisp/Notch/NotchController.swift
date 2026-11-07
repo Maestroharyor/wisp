@@ -17,6 +17,7 @@ final class NotchController {
     /// also reach the window underneath.
     private var pointerOverIsland = false
     private var dwellTask: Task<Void, Never>?
+    private var collapseControlsTask: Task<Void, Never>?
     private var closeTask: Task<Void, Never>?
     private var dragEndTask: Task<Void, Never>?
     private var motionObserver: NSObjectProtocol?
@@ -68,11 +69,12 @@ final class NotchController {
         }
     }
 
-    /// Approval and Join cards have buttons, so the closed panel stops being click-through
-    /// while one shows.
+    /// Approval, Join and call control cards have buttons, so the closed panel stops being
+    /// click-through while one shows.
     private var showsApproval: Bool {
         switch model.activity {
         case .agentApproval, .meetingSoon: true
+        case .meeting: model.showsMeetingControls
         default: false
         }
     }
@@ -80,8 +82,10 @@ final class NotchController {
     private func observeActivity() {
         withObservationTracking {
             _ = model.activity
+            _ = services.microphone.inUse
         } onChange: { [weak self] in
             Task { @MainActor in
+                self?.closeMeetingControlsAfterCall()
                 self?.releaseKeyAfterCard()
                 self?.updateCardHover()
                 self?.resyncPointer()
@@ -96,7 +100,7 @@ final class NotchController {
     private func updateClickThrough() {
         // The orb floats over windows; a press on it must not reach the window underneath.
         let overControls =
-            pointerInside && (isReplying || showsApproval || showsMeetingPill || showsCard || isOrb)
+            pointerInside && (isReplying || showsApproval || showsPillButton || showsCard || isOrb)
         panel.ignoresMouseEvents =
             machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble && !pointerOverIsland
     }
@@ -125,6 +129,27 @@ final class NotchController {
         if let target { services.activities.hold(target) }
     }
 
+    /// The controls card belongs to one call: it stays open while another alert passes over
+    /// the pill, and goes when the microphone does, so the next call starts as a plain pill.
+    private func closeMeetingControlsAfterCall() {
+        guard model.meetingControlsOpen, !services.microphone.inUse else { return }
+        collapseControlsTask?.cancel()
+        model.meetingControlsOpen = false
+    }
+
+    /// Folds the controls card back into the pill a few seconds after the pointer leaves it,
+    /// and keeps it while the pointer is back on it.
+    private func scheduleControlsCollapse(pointerInside inside: Bool) {
+        collapseControlsTask?.cancel()
+        collapseControlsTask = nil
+        guard !inside, model.meetingControlsOpen else { return }
+        collapseControlsTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, !Task.isCancelled, !self.pointerInside else { return }
+            self.model.meetingControlsOpen = false
+        }
+    }
+
     /// A card that took the keyboard for typing (an answer, a reason) went away: hand the
     /// keyboard back to the app the user was in.
     private func releaseKeyAfterCard() {
@@ -142,9 +167,21 @@ final class NotchController {
 
     private var isOrb: Bool { model.isOrb }
 
-    /// The meeting pill's microphone end mutes on click.
-    private var showsMeetingPill: Bool {
-        if case .meeting = model.activity { true } else { false }
+    /// Pills with a button at their trailing end: the meeting pill's mute, the watch pill's stop.
+    private var showsPillButton: Bool {
+        switch model.activity {
+        case .meeting: true
+        case .regionWatch: watchStopZone != nil
+        default: false
+        }
+    }
+
+    /// Where the watch pill draws its stop button, when it draws one. Only the main pill has
+    /// it: as a bubble during a call the watch is just a glyph, and the mute zone stays the call's.
+    private var watchStopZone: CGRect? {
+        guard case .regionWatch = model.activity else { return nil }
+        return SurfaceSizing.pillButtonZone(
+            in: model.surfaceRect, placement: layout.anchor, minimal: services.preferences.appearance.minimalPill)
     }
 
     var isReplying: Bool { model.replyingTo != nil }
@@ -266,6 +303,7 @@ final class NotchController {
         let inside = model.contains(location)
         guard inside != pointerInside else { return }
         pointerInside = inside
+        scheduleControlsCollapse(pointerInside: inside)
         send(inside ? .pointerEntered : .pointerExited)
     }
 
@@ -290,6 +328,22 @@ final class NotchController {
         {
             services.microphone.toggleMute()
             return
+        }
+        // The watch pill's stop button, where it's drawn.
+        if machine.phase != .open, let zone = watchStopZone, zone.contains(location) {
+            services.regionWatch.stopAndConfirm()
+            return
+        }
+        // The rest of the meeting pill opens the call app's controls, when it has any. Only the
+        // states already read count: Accessibility reads never run in a click.
+        if machine.phase != .open, case .meeting = model.activity, model.contains(location) {
+            if !services.meetingControls.states.isEmpty {
+                model.meetingControlsOpen = true
+                // The pointer is reaching for the buttons, not waiting to open the shelf.
+                dwellTask?.cancel()
+                dwellTask = nil
+                return
+            }
         }
         if model.contains(location) {
             if machine.phase != .open {
@@ -614,6 +668,7 @@ final class NotchController {
         pointerOverIsland = closed && IslandDrag.ownsPointer(at: mouse, layout: layout, shape: model.surfaceRect)
         if pointerInside, !model.contains(mouse), !model.dragging {
             pointerInside = false
+            scheduleControlsCollapse(pointerInside: false)
             send(.pointerExited)
             return
         }

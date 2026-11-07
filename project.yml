@@ -16,7 +16,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    MARKETING_VERSION: "0.1.8" # x-release-please-version
+    MARKETING_VERSION: "0.1.10" # x-release-please-version
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Manual
     # Overridden by the Makefile with "Wisp Dev" once that certificate exists.
@@ -94,7 +94,7 @@ targets:
         # Menu bar app: no Dock icon or app menu.
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 Ayomide Odewale"
-        NSAppleEventsUsageDescription: Wisp reads what is playing in Music and Spotify and controls playback from the notch.
+        NSAppleEventsUsageDescription: Wisp reads what is playing in Music and Spotify, controls playback from the notch, and brings a coding agent's terminal tab forward.
         NSCalendarsFullAccessUsageDescription: Wisp shows your next events in the Calendar widget.
         NSLocationUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSLocationWhenInUseUsageDescription: Wisp uses your approximate location for the Weather widget.
@@ -105,6 +105,12 @@ targets:
         NSCameraUsageDescription: Wisp shows your camera in the Mirror widget so you can check yourself before a call.
         NSMicrophoneUsageDescription: Wisp listens only while you hold the dictation key, to type what you say.
         NSSpeechRecognitionUsageDescription: Wisp turns what you say into text on this Mac when you dictate. The audio never leaves your Mac.
+        # wisp:// links (wisp-dev:// for Wisp Dev): open a page, switch profile, start a timer or show an
+        # activity. ExternalCommand parses them; a link can never approve or deny an agent's request.
+        CFBundleURLTypes:
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
+            CFBundleTypeRole: Viewer
+            CFBundleURLSchemes: [$(WISP_URL_SCHEME)]
     entitlements:
       path: Wisp/Resources/Wisp.entitlements
       properties:
@@ -122,6 +128,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp
         PRODUCT_NAME: Wisp
         WISP_DISPLAY_NAME: Wisp
+        WISP_URL_SCHEME: wisp
         # Only notarisation needs the hardened runtime. Self-signed builds ("Wisp Dev"
         # has no Team ID) leave it off, or library validation refuses Sparkle.framework.
         # scripts/release.sh turns it on for Developer ID builds.
@@ -138,6 +145,7 @@ targets:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp.dev
           WISP_DISPLAY_NAME: Wisp Dev
+          WISP_URL_SCHEME: wisp-dev
 
   WispTests:
     type: bundle.unit-test
