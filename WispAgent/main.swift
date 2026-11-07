@@ -8,7 +8,8 @@ import WispCore
 // terminal app it runs in. Any failure exits 0 with no output, so the agent carries on as
 // if no hook ran. Tool activity hooks are sent without waiting for a reply.
 // `wisp-agent statusline` is Claude Code's status bar (StatusLineCommand), and `status`,
-// `watch` and `spend` are the `wisp` command line (CLICommand), also run through a `wisp` link.
+// `watch`, `spend` and `activity` are the `wisp` command line (CLICommand), also run through a
+// `wisp` link.
 
 // The socket belongs to the app this helper ships in, so a hook pointing at Wisp Dev
 // talks to Wisp Dev and one pointing at Wisp talks to Wisp.
