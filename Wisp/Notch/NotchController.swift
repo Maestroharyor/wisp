@@ -380,14 +380,14 @@ final class NotchController {
         if machine.phase == .open { panel.makeKey() }
     }
 
-    /// The window has the shelf: a click on the shell brings it forward, on the agent pill's
-    /// session when that's what was clicked.
+    /// The window has the shelf: a click on the shell brings it forward, on the clicked pill's
+    /// own view when it has one.
     private func activateWindow() {
-        if case .agent(let status) = model.activity {
-            services.shelfWindow.activateShell(widget: .agents, session: status.sessionID)
-        } else {
+        guard let pill = pillView() else {
             services.shelfWindow.activateShell()
+            return
         }
+        services.shelfWindow.activateShell(view: pill.view, fromPill: true, session: pill.session)
     }
 
     /// The press became a drag of the shell; hovering must not open the shelf mid-drag.
@@ -404,10 +404,11 @@ final class NotchController {
         return ShelfTearOff.mayStart(at: location, surface: model.surfaceRect, insets: insets)
     }
 
-    /// The page the open shelf shows, for the window it's torn off into.
-    var page: ShelfPage { model.page }
-    /// The widget the open shelf shows on its own, if any.
-    var soloWidget: WidgetKind? { model.soloWidget }
+    /// What the open shelf shows, for the window it's torn off into: the view, whether a pill
+    /// opened it, and the page it goes back to.
+    var shown: (view: ShelfView, fromPill: Bool, returnPage: ShelfPage?) {
+        (model.shownView, model.soloFromPill, model.returnPage)
+    }
 
     /// A press on the closed island that only Wisp received, so dragging it may move it.
     func ownsIslandPress(at location: CGPoint) -> Bool {
@@ -420,21 +421,27 @@ final class NotchController {
     /// holds: the agent pill opens the Agents widget on the session it showed. Pills with
     /// nothing more to show open the usual page. Closing goes back to where the shelf was.
     private func showActivityView() {
-        guard let activity = model.activity else { return }
+        guard let pill = pillView() else { return }
+        if let session = pill.session { model.focusedSession = session }
+        model.show(pill.view, fromPill: true)
+    }
+
+    /// The view a click on the live pill opens, and the agent session it showed; nil for pills
+    /// with nothing more to show. The shelf window opens the same view.
+    private func pillView() -> (view: ShelfView, session: String?)? {
+        guard let activity = model.activity else { return nil }
         switch PillDestination(slot: services.activities.currentSlot) {
-        case .home: return
+        case .home: return nil
         case .agents:
-            if case .agent(let status) = activity { model.focusedSession = status.sessionID }
-            showSolo(.agents)
-        case .timer: showSolo(Self.timerWidget(for: activity))
-        case .nowPlaying: showSolo(.nowPlaying)
-        case .battery: showSolo(.battery)
-        case .tray:
-            model.returnPage = model.page
-            model.page = .tray
-        case .downloads: showDetail(.downloads)
-        case .regionWatch: showDetail(.regionWatch)
-        case .externalDetails: showDetail(.external)
+            guard case .agent(let status) = activity else { return (.widget(.agents), nil) }
+            return (.widget(.agents), status.sessionID)
+        case .timer: return (.widget(Self.timerWidget(for: activity)), nil)
+        case .nowPlaying: return (.widget(.nowPlaying), nil)
+        case .battery: return (.widget(.battery), nil)
+        case .tray: return (.page(.tray), nil)
+        case .downloads: return (.detail(.downloads), nil)
+        case .regionWatch: return (.detail(.regionWatch), nil)
+        case .externalDetails: return (.detail(.external), nil)
         }
     }
 
@@ -445,20 +452,6 @@ final class NotchController {
             label == TimerStore.timerLabel ? .timer : .pomodoro
         default: .timer
         }
-    }
-
-    private func showSolo(_ widget: WidgetKind) {
-        model.returnPage = model.page
-        model.page = .widgets
-        model.soloWidget = widget
-        model.soloFromPill = true
-    }
-
-    private func showDetail(_ detail: ActivityDetail) {
-        model.returnPage = model.page
-        model.page = .widgets
-        model.activityDetail = detail
-        model.soloFromPill = true
     }
 
     /// Two fingers on the closed notch: down opens the shelf, up puts away a card or alert,
@@ -606,7 +599,7 @@ final class NotchController {
 
     func open(page: ShelfPage) {
         guard services.shelfWindow.opensUnderShell else {
-            services.shelfWindow.activateShell(page: page)
+            services.shelfWindow.activateShell(view: .page(page))
             return
         }
         model.page = page
@@ -615,7 +608,7 @@ final class NotchController {
 
     func open(widget: WidgetKind) {
         guard services.shelfWindow.opensUnderShell else {
-            services.shelfWindow.activateShell(widget: widget)
+            services.shelfWindow.activateShell(view: .widget(widget))
             return
         }
         model.returnPage = model.page

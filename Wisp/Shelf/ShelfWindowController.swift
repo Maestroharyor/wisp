@@ -39,13 +39,14 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
 
     /// "Open as Window" from the menu.
     func openAsWindow(page: ShelfPage) {
-        prepare(page: page)
+        prepare(.page(page))
         run(.openAsWindow)
     }
 
     /// The shell was clicked, swiped or asked for a page while the window has the shelf.
-    func activateShell(page: ShelfPage? = nil, widget: WidgetKind? = nil, session: String? = nil) {
-        prepare(page: page, widget: widget, session: session)
+    /// `view` is what to open on, if anything: a page, a widget, or a clicked pill's own view.
+    func activateShell(view: ShelfView? = nil, fromPill: Bool = false, session: String? = nil) {
+        prepare(view, fromPill: fromPill, session: session)
         run(.activateShell)
     }
 
@@ -66,7 +67,7 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
 
     /// Customise Home from the menu, in the window.
     func customiseHome() {
-        prepare(page: .home)
+        prepare(.page(.home))
         model?.homeSnapshot = (preferences.homeLayout, preferences.enabledWidgets, preferences.homeProfile)
         model?.editingHome = true
         run(.activateShell)
@@ -74,9 +75,11 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
 
     // MARK: Tearing the shelf off
 
-    /// The open shelf was pulled off: the window opens on its page, held by its title bar.
-    func tearOff(page: ShelfPage, widget: WidgetKind?, at pointer: CGPoint) {
-        prepare(page: page, widget: widget)
+    /// The open shelf was pulled off: the window opens on what it showed, held by its title bar.
+    /// A pill's view keeps its way back to the page the shelf came from.
+    func tearOff(_ view: ShelfView, fromPill: Bool, returnPage: ShelfPage?, at pointer: CGPoint) {
+        prepare(view, fromPill: fromPill)
+        if fromPill, let returnPage { model?.returnPage = returnPage }
         let visible = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }?.visibleFrame
         let size = preferences.shelfWindowFrame.flatMap(ShelfWindowFrame.decode)?.size ?? ShelfWindowFrame.defaultSize
         if let visible {
@@ -119,15 +122,10 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     }
 
     /// Points the window's pages where the request asked.
-    private func prepare(page: ShelfPage? = nil, widget: WidgetKind? = nil, session: String? = nil) {
+    private func prepare(_ view: ShelfView?, fromPill: Bool = false, session: String? = nil) {
         guard let model = model ?? makeModel() else { return }
         self.model = model
-        if let widget {
-            model.page = .widgets
-            model.soloWidget = widget
-        } else if let page {
-            model.page = page
-        }
+        if let view { model.show(view, fromPill: fromPill) }
         if let session { model.focusedSession = session }
     }
 
@@ -173,10 +171,11 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         return window === own
     }
 
-    /// Esc in the window backs out of a solo widget to the Widgets grid; false when there's none.
+    /// Esc in the window leaves a solo widget or pill view (back to the page a pill came from, or
+    /// the grid); false when there's none.
     func leaveSoloWidget() -> Bool {
-        guard let model, model.soloWidget != nil else { return false }
-        model.soloWidget = nil
+        guard let model, model.soloWidget != nil || model.activityDetail != nil else { return false }
+        model.leaveSolo()
         return true
     }
 

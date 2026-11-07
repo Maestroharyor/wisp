@@ -36,6 +36,13 @@ enum ActivityDetail: Hashable {
     case external
 }
 
+/// A view the shelf can open on: a widget or a pill's view alone on the Widgets page, or a page.
+enum ShelfView: Equatable {
+    case widget(WidgetKind)
+    case detail(ActivityDetail)
+    case page(ShelfPage)
+}
+
 /// What the SwiftUI notch view renders for one display.
 @MainActor
 @Observable
@@ -69,6 +76,32 @@ final class NotchModel {
     var returnPage: ShelfPage?
     /// The solo view on screen was opened by a pill, so its way back is `returnPage`, not the grid.
     var soloFromPill = false
+
+    /// Opens `view`, remembering the page it was on. A pill's widget or view goes back there
+    /// with the back chevron and Esc, not to the grid.
+    func show(_ view: ShelfView, fromPill: Bool) {
+        let from = page
+        switch view {
+        case .page(let target):
+            page = target
+        case .widget(let widget):
+            page = .widgets
+            soloWidget = widget
+            soloFromPill = fromPill
+        case .detail(let detail):
+            page = .widgets
+            activityDetail = detail
+            soloFromPill = fromPill
+        }
+        returnPage = from
+    }
+
+    /// What's on screen as a `ShelfView`, for the window it's torn off into.
+    var shownView: ShelfView {
+        if let activityDetail { return .detail(activityDetail) }
+        if let soloWidget { return .widget(soloWidget) }
+        return .page(page)
+    }
 
     /// The back chevron and Esc on a solo view: to the page a pill's view came from, or to the grid.
     func leaveSolo() {

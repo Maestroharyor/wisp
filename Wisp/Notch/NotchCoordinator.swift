@@ -348,7 +348,8 @@ final class NotchCoordinator {
             return
         }
         guard ShelfTearOff.tearsOff(from: drag.start, to: location) else { return }
-        services.shelfWindow.tearOff(page: controller.page, widget: controller.soloWidget, at: location)
+        let shown = controller.shown
+        services.shelfWindow.tearOff(shown.view, fromPill: shown.fromPill, returnPage: shown.returnPage, at: location)
         drag.centre = location
     }
 
