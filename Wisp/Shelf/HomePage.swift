@@ -315,7 +315,7 @@ private struct SoloWidgetView: View {
     var body: some View {
         Group {
             if kind == .agents {
-                AgentsDetail(hub: model.services.agents, model: model)
+                AgentsDetail(hub: model.services.agents, cloud: model.services.cloud, model: model)
             } else {
                 WidgetCard(kind: kind, model: model)
             }
