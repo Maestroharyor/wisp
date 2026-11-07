@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.14](https://github.com/Maestroharyor/wisp/compare/v0.1.13...v0.1.14) (2026-11-07)
+
+
+### Bug fixes
+
+* bring back Check for Updates in the right-click menu ([#56](https://github.com/Maestroharyor/wisp/issues/56)) ([81fc696](https://github.com/Maestroharyor/wisp/commit/81fc696f86ab278fdfad08c4b9491f1749f9b3e5))
+* faster page switches in the notch and the window ([#53](https://github.com/Maestroharyor/wisp/issues/53)) ([d3c0e6e](https://github.com/Maestroharyor/wisp/commit/d3c0e6e0151582d1e9cb2edaf591e21f24895118))
+* show hover labels on icon buttons in the notch ([#54](https://github.com/Maestroharyor/wisp/issues/54)) ([1ccbdb2](https://github.com/Maestroharyor/wisp/commit/1ccbdb2ad1f8506244645c1e309327be9c0038ed))
+
+
+### Changes under the hood
+
+* colours that work in light and dark mode ([#57](https://github.com/Maestroharyor/wisp/issues/57)) ([f9c05cb](https://github.com/Maestroharyor/wisp/commit/f9c05cbb9d9d61df338d984336f6e0a35773178d))
+
 ## [0.1.13](https://github.com/Maestroharyor/wisp/compare/v0.1.12...v0.1.13) (2026-11-07)
 
 
