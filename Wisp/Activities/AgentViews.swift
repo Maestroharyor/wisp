@@ -220,6 +220,14 @@ struct AgentApprovalCard: View {
             }
             .padding(.horizontal, 18)
             .frame(height: SurfaceSizing.notificationCardHeight - 8)
+            // The full preview replaces it when open; private mode shows neither.
+            if !expanded, let diff = approval.inlineDiff, !hub.detailsHidden {
+                InlineDiffView(diff: diff)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 8)
+                    .frame(height: SurfaceSizing.inlineDiffHeight, alignment: .top)
+                    .transition(.opacity)
+            }
             if expanded, let preview = approval.preview, !hub.detailsHidden {
                 VStack(spacing: 8) {
                     ApprovalPreviewPane(preview: preview)
@@ -248,10 +256,10 @@ private struct ApprovalPreviewPane: View {
                 switch preview {
                 case .diff(let lines, let more):
                     ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                        Text(Self.marker(line.kind) + line.text)
-                            .foregroundStyle(Self.tint(line.kind))
+                        Text(line.kind.marker + line.text)
+                            .foregroundStyle(line.kind.tint)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Self.tint(line.kind).opacity(line.kind == .context ? 0 : 0.12))
+                            .background(line.kind.tint.opacity(line.kind == .context ? 0 : 0.12))
                     }
                     moreLines(more)
                 case .text(let text, let more):
@@ -275,26 +283,72 @@ private struct ApprovalPreviewPane: View {
         }
     }
 
-    private static func marker(_ kind: DiffLine.Kind) -> String {
-        switch kind {
+    /// Bold, code and links render; headings and lists stay as written, line breaks and all.
+    private static func markdown(_ plan: String) -> AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: plan, options: options)) ?? AttributedString(plan)
+    }
+}
+
+extension DiffLine.Kind {
+    fileprivate var marker: String {
+        switch self {
         case .context: "  "
         case .removed: "- "
         case .added: "+ "
         }
     }
 
-    private static func tint(_ kind: DiffLine.Kind) -> Color {
-        switch kind {
+    fileprivate var tint: Color {
+        switch self {
         case .context: .white.opacity(0.6)
         case .removed: .red
         case .added: .wispGreen
         }
     }
+}
 
-    /// Bold, code and links render; headings and lists stay as written, line breaks and all.
-    private static func markdown(_ plan: String) -> AttributedString {
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        return (try? AttributedString(markdown: plan, options: options)) ?? AttributedString(plan)
+/// The first changed lines of an edit, in the card itself, with the whole change's counts.
+private struct InlineDiffView: View {
+    let diff: InlineDiff
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                ForEach(Array(diff.lines.enumerated()), id: \.offset) { _, line in
+                    HStack(spacing: 6) {
+                        if let number = line.number {
+                            Text("\(number)").foregroundStyle(Color.secondaryText)
+                                .frame(minWidth: 18, alignment: .trailing)
+                        }
+                        Text(line.kind.marker + line.text).foregroundStyle(line.kind.tint)
+                            .lineLimit(1).truncationMode(.tail)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(line.kind.tint.opacity(0.12))
+                }
+            }
+            Group {
+                if diff.wholeFile {
+                    Text(diff.counts).foregroundStyle(Color.secondaryText)
+                        .help("The file's whole new content")
+                        .accessibilityLabel("New content, \(diff.counts)")
+                } else {
+                    HStack(spacing: 4) {
+                        Text("+\(diff.added)").foregroundStyle(Color.wispGreen)
+                        Text("−\(diff.removed)").foregroundStyle(.red.opacity(0.85))
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(diff.added) lines added, \(diff.removed) removed")
+                }
+            }
+            .fixedSize()
+        }
+        .font(.system(size: 11, design: .monospaced))
+        .monospacedDigit()
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.06)))
     }
 }
 
@@ -396,9 +450,14 @@ struct ApprovalButtons: View {
     @State private var ready = false
 
     var body: some View {
+        let hyper = hub.keysUseHyper()
         HStack(spacing: 8) {
-            Button("Deny") { hub.answer(approval.id, allow: false) }
-                .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
+            Button {
+                hub.answer(approval.id, allow: false)
+            } label: {
+                KeyHintLabel(title: "Deny", hint: ApprovalKeys.hint(.deny, hyper: hyper))
+            }
+            .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
             // Allow All covers tool calls only; each plan is approved on its own.
             if approval.prompt == .tool {
                 Button("Allow All") { hub.allowAll(approval.id) }
@@ -406,8 +465,14 @@ struct ApprovalButtons: View {
                     .help("Allow this and every later request from \(approval.project) until the session ends")
             }
             if approval.prompt == .tool, !approval.rules.isEmpty { AlwaysAllowMenu(approval: approval, hub: hub) }
-            Button(approval.prompt == .plan ? "Approve" : "Allow") { hub.answer(approval.id, allow: true) }
-                .buttonStyle(ApprovalButtonStyle(fill: .wispGreen, text: .black))
+            Button {
+                hub.answer(approval.id, allow: true)
+            } label: {
+                KeyHintLabel(
+                    title: approval.prompt == .plan ? "Approve" : "Allow", hint: ApprovalKeys.hint(.allow, hyper: hyper)
+                )
+            }
+            .buttonStyle(ApprovalButtonStyle(fill: .wispGreen, text: .black))
         }
         .disabled(!ready)
         .opacity(ready ? 1 : 0.6)
@@ -479,6 +544,24 @@ struct ApprovalBar: View {
     }
 }
 
+/// A button's title with its shortcut beside it, dimmed ("Allow ⇪ Y").
+struct KeyHintLabel: View {
+    let title: String
+    let hint: String?
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(title)
+            if let hint {
+                Text(hint).font(.system(size: 10, weight: .semibold)).opacity(0.6).accessibilityHidden(true)
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
+        .help(hint.map { "\(title) (\($0))" } ?? title)
+    }
+}
+
 private struct ApprovalButtonStyle: ButtonStyle {
     let fill: Color
     let text: Color
@@ -510,8 +593,10 @@ struct AgentsWidget: View {
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 5) {
+                        LimitsHeader(readings: hub.limitReadings)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         ForEach(sessions) { session in
-                            SessionBar(session: session) { hub.focus(session: session.id) }
+                            SessionBar(session: session, hidden: hub.detailsHidden) { hub.focus(session: session.id) }
                                 .help("Show the terminal")
                         }
                         CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
@@ -552,28 +637,133 @@ private struct NoSessionsHint: View {
     }
 }
 
-/// Elapsed time while working, "Compacting…", or the state with how long the last turn took.
-private struct SessionStateText: View {
-    let session: AgentSession
+extension SessionGlance.Activity {
+    var symbol: String {
+        switch self {
+        case .tool(let tool): tool.symbol
+        case .compacting: "arrow.down.right.and.arrow.up.left"
+        case .working: "ellipsis"
+        case .approval: "hand.raised"
+        case .waiting: "ellipsis.bubble"
+        case .done: "arrow.up.forward.app"
+        case .ready: "circle"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .tool, .compacting, .working: .wispViolet
+        case .approval, .waiting: .wispAmber
+        case .done: .wispGreen
+        case .ready: .secondaryText
+        }
+    }
+}
+
+/// Under a session's title: "You: <last prompt>" (left out while details are private), what
+/// it's doing now, then its agent and terminal tags with how long it's been in this state.
+/// With `jump`, a finished session's line brings its terminal forward; without it the row's
+/// own tap decides (the detail list selects).
+private struct SessionGlanceLines: View {
+    let glance: SessionGlance
+    let terminal: String?
+    var jump: (() -> Void)?
 
     var body: some View {
-        Group {
-            if session.compacting {
-                Text("Compacting…").foregroundStyle(Color.wispViolet)
-            } else if session.state == .running {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(Countdown.format(max(0, context.date.timeIntervalSince(session.turnStarted))))
-                        .monospacedDigit()
-                        .foregroundStyle(session.state.tint)
-                }
-            } else if session.state == .finished, let took = session.lastTurnDuration {
-                Text("Done in \(Countdown.format(took))").monospacedDigit().foregroundStyle(session.state.tint)
+        VStack(alignment: .leading, spacing: 2) {
+            if let prompt = glance.prompt {
+                Text(prompt).font(.system(size: 11)).foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(1).truncationMode(.tail)
+            }
+            if glance.activity == .done, let jump {
+                Button(action: jump) { activity }
+                    .buttonStyle(.plain)
+                    .help("Show the terminal")
             } else {
-                Text(session.state.label).foregroundStyle(session.state.tint)
+                activity
+            }
+            HStack(spacing: 4) {
+                SessionTag(text: glance.agent)
+                if let name = TerminalApps.name(for: terminal) { SessionTag(text: name) }
+                Spacer(minLength: 4)
+                Text(glance.age).font(.system(size: 10)).monospacedDigit().foregroundStyle(Color.secondaryText)
+                    .lineLimit(1).fixedSize()
             }
         }
-        .font(.system(size: 11, weight: .medium))
-        .lineLimit(1)
+    }
+
+    private var activity: some View {
+        Label(glance.activity.text, systemImage: glance.activity.symbol)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(glance.activity.tint)
+            .lineLimit(1).truncationMode(.middle)
+    }
+}
+
+private struct SessionTag: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .semibold))
+            .foregroundStyle(Color.secondaryText)
+            .lineLimit(1)
+            .padding(.horizontal, 5).padding(.vertical, 1)
+            .background(Capsule().fill(.white.opacity(0.1)))
+    }
+}
+
+/// The account's usage windows over the sessions list: percent used and time to reset.
+/// Windows nobody reported are left out, and the header with them.
+private struct LimitsHeader: View {
+    let readings: [UsageReading]
+
+    var body: some View {
+        if !readings.isEmpty {
+            TimelineView(.everyMinute) { context in
+                let items = LimitSummary.make(readings, now: context.date)
+                if !items.isEmpty {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 12) { ForEach(items, id: \.label, content: LimitItem.init) }
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(items, id: \.label, content: LimitItem.init)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct LimitItem: View {
+    let item: LimitSummary
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(item.label).foregroundStyle(Color.secondaryText)
+            Capsule().fill(.white.opacity(0.14)).frame(width: 28, height: 4)
+                .overlay(alignment: .leading) {
+                    Capsule().fill(tint).frame(width: 28 * CGFloat(item.percent) / 100, height: 4)
+                }
+            Text("\(item.percent)%").foregroundStyle(tint)
+            if let resets = item.resetsIn { Text(resets).foregroundStyle(Color.secondaryText) }
+        }
+        .font(.system(size: 10, weight: .medium)).monospacedDigit()
+        .lineLimit(1).fixedSize()
+        .help(
+            item.resetsIn.map { "\(item.label) limit \(item.percent)% used, resets in \($0)" } ?? "\(item.label) limit"
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(item.label) limit \(item.percent) percent used" + (item.resetsIn.map { ", resets in \($0)" } ?? ""))
+    }
+
+    /// The same levels the limit alerts use.
+    private var tint: Color {
+        let percent = Double(item.percent)
+        if percent >= (LimitWatch.levels.last ?? 95) { return .red }
+        if percent >= (LimitWatch.levels.first ?? 80) { return .wispAmber }
+        return .wispViolet
     }
 }
 
@@ -582,6 +772,7 @@ private struct SessionStateText: View {
 /// widget is narrow the last ones go first, as in the terminal.
 private struct SessionBar: View {
     let session: AgentSession
+    let hidden: Bool
     let open: () -> Void
 
     @State private var hovering = false
@@ -605,8 +796,13 @@ private struct SessionBar: View {
                     Text(model).font(.system(size: 11)).foregroundStyle(Color.secondaryText).lineLimit(1)
                 }
                 Spacer(minLength: 4)
-                SessionStateText(session: session)
             }
+            TimelineView(.periodic(from: .now, by: 15)) { context in
+                SessionGlanceLines(
+                    glance: SessionGlance.make(session, now: context.date, hidden: hidden), terminal: session.terminal,
+                    jump: open)
+            }
+            .padding(.leading, 25)
             if partCount > 0 {
                 ViewThatFits(in: .horizontal) {
                     ForEach((0..<partCount).reversed(), id: \.self) { dropped in
@@ -696,14 +892,17 @@ struct AgentsDetail: View {
                     Spacer(minLength: 0)
                     PrivacyButton(hub: hub)
                 }
+                LimitsHeader(readings: hub.limitReadings)
                 if sessions.isEmpty && CloudLane.visible(cloud.tasks, now: .now).isEmpty {
                     if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 4) {
                             ForEach(sessions) { session in
-                                DetailSessionRow(session: session, selected: session.id == selected?.id)
-                                    .onTapGesture { selection = session.id }
+                                DetailSessionRow(
+                                    session: session, selected: session.id == selected?.id, hidden: hub.detailsHidden
+                                )
+                                .onTapGesture { selection = session.id }
                             }
                             CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                         }
@@ -808,9 +1007,12 @@ private struct PrivacyButton: View {
     }
 }
 
+/// The title line (project and branch), then the glance lines. A tap selects the session,
+/// done or not; the detail pane's terminal button jumps.
 private struct DetailSessionRow: View {
     let session: AgentSession
     let selected: Bool
+    let hidden: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -822,14 +1024,18 @@ private struct DetailSessionRow: View {
                 .font(.system(size: 11))
                 TerminalIcon(bundleID: session.terminal, size: 13)
                 Text(session.project).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                Spacer(minLength: 4)
-                SessionStateText(session: session)
+                    .layoutPriority(1)
+                if let branch = session.branch {
+                    Text(branch).font(.system(size: 10, design: .monospaced)).foregroundStyle(Color.secondaryText)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                Spacer(minLength: 0)
             }
-            if let branch = session.branch {
-                Text(branch).font(.system(size: 10, design: .monospaced)).foregroundStyle(Color.secondaryText)
-                    .lineLimit(1).truncationMode(.middle)
-                    .padding(.leading, 22)
+            TimelineView(.periodic(from: .now, by: 15)) { context in
+                SessionGlanceLines(
+                    glance: SessionGlance.make(session, now: context.date, hidden: hidden), terminal: session.terminal)
             }
+            .padding(.leading, 22)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)

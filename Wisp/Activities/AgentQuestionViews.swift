@@ -79,6 +79,7 @@ struct QuestionAnswers<Header: View>: View {
     @FocusState private var fieldFocused: Bool
 
     private var questions: [AgentQuestion] { approval.questions }
+    private var hyper: Bool { hub.keysUseHyper() }
     private var hidden: Bool { hub.detailsHidden && !revealed }
     private var listening: Bool {
         let dictation = model.services.dictation
@@ -161,10 +162,19 @@ struct QuestionAnswers<Header: View>: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(question.options, id: \.label) { option in
-                            Button(option.label) { pick(option.label, in: question) }
-                                .buttonStyle(QuestionChipStyle(selected: picked.contains(option.label)))
-                                .help(option.detail ?? option.label)
+                        ForEach(Array(question.options.enumerated()), id: \.element.label) { index, option in
+                            let hint = ApprovalKeys.hint(.pick(index), hyper: hyper)
+                            Button {
+                                pick(option.label, in: question)
+                            } label: {
+                                HStack(spacing: 5) {
+                                    // Only options 1 to 9 have a key.
+                                    if hint != nil { OptionNumber(number: index + 1) }
+                                    Text(option.label)
+                                }
+                            }
+                            .buttonStyle(QuestionChipStyle(selected: picked.contains(option.label)))
+                            .help([option.detail ?? option.label, hint].compactMap { $0 }.joined(separator: " · "))
                         }
                         Button("Other…") { typing = true }
                             .buttonStyle(QuestionChipStyle(selected: false))
@@ -173,9 +183,14 @@ struct QuestionAnswers<Header: View>: View {
             }
             Spacer(minLength: 4)
             if typing || (question.multiSelect && !picked.isEmpty) {
-                Button("Send") { submit(question) }
-                    .buttonStyle(QuestionChipStyle(selected: true))
-                    .disabled(AgentQuestion.answer(picked: picked, other: other) == nil)
+                Button {
+                    submit(question)
+                } label: {
+                    // The send key only answers a multiple choice; a typed answer is sent with Return.
+                    KeyHintLabel(title: "Send", hint: typing ? nil : ApprovalKeys.hint(.send, hyper: hyper))
+                }
+                .buttonStyle(QuestionChipStyle(selected: true))
+                .disabled(AgentQuestion.answer(picked: picked, other: other) == nil)
             }
             Button("Terminal") {
                 typing = false
@@ -226,6 +241,19 @@ struct QuestionAnswers<Header: View>: View {
     private func reset() {
         picked = []
         other = ""
+    }
+}
+
+/// The option's number, matching its Hyper+digit (or ⌃⌥⌘digit) key.
+private struct OptionNumber: View {
+    let number: Int
+
+    var body: some View {
+        Text("\(number)")
+            .font(.system(size: 9, weight: .bold)).monospacedDigit()
+            .frame(width: 14, height: 14)
+            .background(Circle().fill(.white.opacity(0.2)))
+            .accessibilityHidden(true)
     }
 }
 

@@ -31,6 +31,38 @@ final class ApprovalPreviewTests: XCTestCase {
         XCTAssertEqual(lines.first, DiffLine(kind: .removed, text: "old 1"))
     }
 
+    func testAnEmptySideIsNoLines() {
+        XCTAssertEqual(
+            ApprovalPreview.make(tool: "Edit", input: input(["old_string": "", "new_string": "x"]), limit: 5),
+            .diff([DiffLine(kind: .added, text: "x")], more: 0))
+    }
+
+    func testAMultiEditShowsEveryEdit() {
+        let edits: JSONValue = .array([
+            .object(["old_string": .string("a"), "new_string": .string("b")]),
+            .object(["old_string": .string("c"), "new_string": .string("d")]),
+        ])
+        XCTAssertEqual(
+            ApprovalPreview.make(tool: "MultiEdit", input: .object(["edits": edits]), limit: 10),
+            .diff(
+                [
+                    DiffLine(kind: .removed, text: "a"), DiffLine(kind: .added, text: "b"),
+                    DiffLine(kind: .removed, text: "c"), DiffLine(kind: .added, text: "d"),
+                ], more: 0))
+    }
+
+    func testACodexPatchReadsAsADiff() {
+        let patch = "*** Begin Patch\n*** Update File: a.py\n@@\n-old\n+new\n keep\n*** End Patch"
+        XCTAssertEqual(
+            ApprovalPreview.make(tool: "apply_patch", input: input(["command": patch]), limit: 10),
+            .diff(
+                [
+                    DiffLine(kind: .context, text: "*** Update File: a.py"), DiffLine(kind: .context, text: "@@"),
+                    DiffLine(kind: .removed, text: "old"), DiffLine(kind: .added, text: "new"),
+                    DiffLine(kind: .context, text: "keep"),
+                ], more: 0))
+    }
+
     func testAWriteShowsItsFirstLines() {
         let content = (1...50).map { "line \($0)" }.joined(separator: "\n")
         XCTAssertEqual(
@@ -42,6 +74,12 @@ final class ApprovalPreviewTests: XCTestCase {
         XCTAssertEqual(
             ApprovalPreview.make(tool: "Bash", input: input(["command": "npm test && npm run build"]), limit: 3),
             .text("npm test && npm run build", more: 0))
+    }
+
+    func testOpenCodesBashRequestShowsItsCommand() {
+        XCTAssertEqual(
+            ApprovalPreview.make(tool: "bash", input: input(["command": "npm test"]), limit: 3),
+            .text("npm test", more: 0))
     }
 
     func testAPlanIsMarkdown() {
