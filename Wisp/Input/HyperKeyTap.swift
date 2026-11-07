@@ -24,7 +24,8 @@ final class HyperKeyTap {
     private var hold = HoldKey()
 
     init() {
-        (holdEvents, holdContinuation) = AsyncStream.makeStream(of: HoldKey.Event.self)
+        (holdEvents, holdContinuation) = AsyncStream.makeStream(
+            of: HoldKey.Event.self, bufferingPolicy: .bufferingNewest(16))
     }
 
     var isRunning: Bool { tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false }
@@ -70,6 +71,11 @@ final class HyperKeyTap {
     /// The key-up will never come (the tap stopped or missed it): a hold can't finish.
     private func endHold() {
         if let event = hold.reset() { report(event) }
+    }
+
+    /// Ends the hold-event stream, so its reader finishes. Call on quit.
+    func finishHoldEvents() {
+        holdContinuation.finish()
     }
 
     private func report(_ event: HoldKey.Event) {

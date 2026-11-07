@@ -28,25 +28,22 @@ enum PasteShortcut {
         return pasteboard.changeCount
     }
 
-    /// The kinds of clipboard content worth putting back. App-private types (and promised
-    /// data that would make the source app render it now) are skipped.
-    private static let restorableTypes: [NSPasteboard.PasteboardType] = [
-        .string, .rtf, .png, .tiff, .fileURL, .URL,
-    ]
-
-    /// The clipboard's common content, or nil when it's too big to hold and put back.
+    /// The clipboard's content, or nil when it can't be put back exactly: a type Wisp doesn't
+    /// keep (see `DictationPaste.canCapture`), data that can't be read, or too much of it.
     static func snapshot() -> Snapshot? {
+        let items = NSPasteboard.general.pasteboardItems ?? []
+        guard DictationPaste.canCapture(itemTypes: items.map { $0.types.map(\.rawValue) }) else { return nil }
         var total = 0
         var snapshot: Snapshot = []
-        for item in NSPasteboard.general.pasteboardItems ?? [] {
+        for item in items {
             var types: [NSPasteboard.PasteboardType: Data] = [:]
-            for type in restorableTypes where item.types.contains(type) {
-                guard let data = item.data(forType: type) else { continue }
+            for type in item.types {
+                guard let data = item.data(forType: type) else { return nil }
                 total += data.count
                 guard DictationPaste.canRestore(byteCount: total) else { return nil }
                 types[type] = data
             }
-            if !types.isEmpty { snapshot.append(types) }
+            snapshot.append(types)
         }
         return snapshot
     }

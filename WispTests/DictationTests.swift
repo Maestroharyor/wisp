@@ -351,6 +351,26 @@ final class DictationPasteTests: XCTestCase {
         XCTAssertEqual(DictationPaste.action(appAtStart: 42, appNow: nil), .copy)
     }
 
+    func testClipboardIsCapturedOnlyWhenNothingWouldBeLost() {
+        let text = ["public.utf8-plain-text"]
+        let web = ["public.utf8-plain-text", "public.html", "public.rtf"]
+        XCTAssertTrue(DictationPaste.canCapture(itemTypes: []), "an empty clipboard comes back empty")
+        XCTAssertTrue(DictationPaste.canCapture(itemTypes: [text]))
+        XCTAssertTrue(DictationPaste.canCapture(itemTypes: [web, ["public.jpeg"], ["com.adobe.pdf"]]))
+        XCTAssertTrue(DictationPaste.canCapture(itemTypes: [["public.png", "public.tiff", "public.file-url"]]))
+    }
+
+    func testClipboardWithOtherTypesIsLeftAlone() {
+        XCTAssertFalse(DictationPaste.canCapture(itemTypes: [["com.figma.design"]]), "nothing capturable")
+        XCTAssertFalse(
+            DictationPaste.canCapture(itemTypes: [["public.utf8-plain-text", "com.microsoft.Excel.sheet"]]),
+            "a type would be left out, so it would come back partial")
+        XCTAssertFalse(
+            DictationPaste.canCapture(itemTypes: [["public.utf8-plain-text"], ["com.example.private"]]),
+            "one item can't be captured")
+        XCTAssertFalse(DictationPaste.canCapture(itemTypes: [[]]), "an item with no types can't be put back")
+    }
+
     func testLargeClipboardsAreNotRestored() {
         XCTAssertTrue(DictationPaste.canRestore(byteCount: 0))
         XCTAssertTrue(DictationPaste.canRestore(byteCount: DictationPaste.restoreLimit))

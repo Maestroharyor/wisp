@@ -221,6 +221,21 @@ public enum DictationPaste {
         return .paste
     }
 
+    /// Clipboard types Wisp can hold and put back after a paste (plain text, rich text, HTML,
+    /// images, PDF, file and web links).
+    public static let restorableTypes = [
+        "public.utf8-plain-text", "public.rtf", "public.html", "public.png", "public.tiff", "public.jpeg",
+        "com.adobe.pdf", "public.file-url", "public.url",
+    ]
+
+    /// Whether the clipboard, given each item's types, can be put back exactly. Anything else
+    /// (app-private data such as Figma or Excel, or an item with no types) would come back
+    /// partial or not at all, so the restore is skipped and the dictated text stays instead.
+    public static func canCapture(itemTypes: [[String]]) -> Bool {
+        let restorable = Set(restorableTypes)
+        return itemTypes.allSatisfy { types in !types.isEmpty && types.allSatisfy(restorable.contains) }
+    }
+
     /// The most clipboard data put back after a paste. Bigger clipboards (a large image or
     /// file contents) are left alone rather than held in memory and rewritten.
     public static let restoreLimit = 10 * 1024 * 1024

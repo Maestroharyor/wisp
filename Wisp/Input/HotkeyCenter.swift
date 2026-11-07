@@ -73,6 +73,7 @@ final class HotkeyCenter {
 
     /// Restores Caps Lock. Call on quit.
     func shutdown() {
+        tap.finishHoldEvents()
         accessWaiter?.cancel()
         trustWatcher?.cancel()
         tap.stop()
