@@ -13,6 +13,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     case notifications
     case agents
     case phone
+    case ai
     case permissions
     case about
 
@@ -31,6 +32,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .notifications: "Notifications"
         case .agents: "Agents"
         case .phone: "Phone"
+        case .ai: "AI"
         case .permissions: "Permissions"
         case .about: "About"
         }
@@ -47,8 +49,9 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .profiles: "Saved setups, and switching them automatically"
         case .clipboard: "Clipboard history"
         case .notifications: "Notifications in the notch, and quick replies"
-        case .agents: "Claude Code and Codex sessions, approvals and status bar"
+        case .agents: "Claude Code, Codex and Gemini CLI sessions, approvals and status bar"
         case .phone: "Agent alerts and approvals on your phone and watch"
+        case .ai: "On-device AI with Apple Intelligence or Ollama"
         case .permissions: "What Wisp can access, and why"
         case .about: "Version, updates, shortcuts and reset"
         }
@@ -60,7 +63,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .general:
             [
                 "shortcut", "hotkey", "caps lock", "hyper", "space", "launch", "login", "startup", "accessibility",
-                "menu bar", "icon",
+                "menu bar", "icon", "dictation", "dictate", "speech", "speech recognition", "voice", "push to talk",
+                "transcribe", "speak", "microphone",
             ]
         case .notch:
             [
@@ -109,7 +113,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .agents:
             [
-                "claude", "claude code", "codex", "ai", "hooks", "approve", "allow", "deny", "sessions", "sound",
+                "claude", "claude code", "codex", "gemini", "gemini cli", "ai", "hooks", "approve", "allow", "deny",
+                "sessions", "sound",
                 "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
@@ -122,8 +127,17 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "locked", "topic", "qr", "server", "self-hosted", "access token", "approval timeout", "test",
                 "include details",
             ]
+        case .ai:
+            [
+                "apple intelligence", "foundation models", "ollama", "llm", "language model", "on-device", "local",
+                "localhost", "summarise", "summarize", "translate", "grammar", "rewrite", "action items", "explain",
+                "try it",
+            ]
         case .permissions:
-            ["accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera"]
+            [
+                "accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera",
+                "microphone", "speech recognition",
+            ]
         case .about: ["version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release"]
         }
     }
@@ -150,7 +164,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .wisp: [.general, .notch, .ring, .appearance, .activities]
         case .shelf: [.widgets, .profiles, .clipboard]
-        case .connections: [.notifications, .agents, .phone]
+        case .connections: [.notifications, .agents, .phone, .ai]
         case .system: [.permissions, .about]
         }
     }

@@ -677,6 +677,8 @@ struct AgentsDetail: View {
 
     @State private var selection: String?
     @State private var note: String?
+    /// This view's claim on dictation's draft box target; see `DraftBoxClaim`.
+    @State private var owner = UUID()
 
     var body: some View {
         let sessions = hub.sessions.list
@@ -708,7 +710,7 @@ struct AgentsDetail: View {
             if let selected {
                 SessionDetail(
                     session: selected, hub: hub, hidden: hub.detailsHidden, draft: draft(for: selected.id),
-                    note: $note)
+                    note: $note, listening: listening(to: selected.id))
             } else {
                 Spacer()
             }
@@ -716,6 +718,11 @@ struct AgentsDetail: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { hub.refreshInstalled() }
         .onChange(of: selected?.id) { note = nil }
+        // Dictation types into the draft box on screen; it's hidden while details are private.
+        .onChange(of: hub.detailsHidden ? nil : selected?.id, initial: true) { _, session in
+            model.draftClaim = DraftBoxClaim.claim(model.draftClaim, owner: owner, session: session)
+        }
+        .onDisappear { model.draftClaim = DraftBoxClaim.release(model.draftClaim, owner: owner) }
         .onAppear {
             // Opened from the pill: start on that session, once.
             if let focused = model.focusedSession {
@@ -723,6 +730,11 @@ struct AgentsDetail: View {
                 model.focusedSession = nil
             }
         }
+    }
+
+    private func listening(to session: String) -> Bool {
+        let dictation = model.services.dictation
+        return dictation.phase.isActive && dictation.target == .agentDraft(session: session)
     }
 
     private func draft(for session: String) -> Binding<String> {
@@ -827,6 +839,7 @@ private struct SessionDetail: View {
     let hidden: Bool
     @Binding var draft: String
     @Binding var note: String?
+    var listening = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -897,7 +910,7 @@ private struct SessionDetail: View {
 
     private var draftBox: some View {
         HStack(spacing: 6) {
-            TextField(note ?? "Draft a prompt…", text: $draft)
+            TextField(listening ? "Listening…" : note ?? "Draft a prompt…", text: $draft)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .padding(.horizontal, 8)

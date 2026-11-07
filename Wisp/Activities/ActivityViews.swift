@@ -87,6 +87,11 @@ struct CompactActivityView: View {
                 .frame(width: 16)
                 Text(status.title).lineLimit(1)
             }
+        case .dictation:
+            HStack(spacing: ActivityMetrics.contentSpacing) {
+                Image(systemName: "mic.fill").foregroundStyle(.red).frame(width: 16)
+                Text("Listening").lineLimit(1)
+            }
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()
         }
@@ -143,6 +148,10 @@ struct CompactActivityView: View {
                     .help(
                         model.services.microphone.muted
                             ? "Unmute the system microphone (all apps)" : "Mute the system microphone (all apps)")
+            }
+        case .dictation(let since):
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                ValueText(text: Countdown.format(max(0, context.date.timeIntervalSince(since))), tint: .red)
             }
         case .device(let device):
             if let level = device.headline {
@@ -226,6 +235,10 @@ struct SideActivityView: View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 ValueText(text: Countdown.format(max(0, context.date.timeIntervalSince(status.started))), tint: .red)
             }
+        case .dictation(let since):
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                ValueText(text: Countdown.format(max(0, context.date.timeIntervalSince(since))), tint: .red)
+            }
         case .device(let device):
             if let level = device.headline {
                 ValueText(text: "\(level)%", tint: level <= 20 ? .red : .wispGreen)
@@ -291,6 +304,8 @@ struct ActivityGlyph: View {
         case .meeting:
             Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
                 .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
+        case .dictation:
+            Image(systemName: "mic.fill").foregroundStyle(.red)
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()
         }
