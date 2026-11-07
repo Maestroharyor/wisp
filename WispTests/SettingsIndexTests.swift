@@ -24,6 +24,8 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "sparkle release"), [.about])
         XCTAssertEqual(SettingsIndex.panes(matching: "dismiss"), [.notifications])
         XCTAssertEqual(SettingsIndex.panes(matching: "rate limit"), [.agents])
+        XCTAssertEqual(SettingsIndex.panes(matching: "always allow"), [.agents])
+        XCTAssertTrue(SettingsIndex.panes(matching: "rules").contains(.agents))
         XCTAssertTrue(SettingsIndex.panes(matching: "stay on screen").contains(.notifications))
         XCTAssertEqual(SettingsIndex.panes(matching: "dynamic island"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "radial"), [.ring])

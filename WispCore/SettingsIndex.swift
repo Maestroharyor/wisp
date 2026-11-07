@@ -113,7 +113,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
                 "usage limit", "rate limit", "weekly limit", "question", "answer", "preview", "diff", "plan",
-                "keep awake", "sleep", "power",
+                "keep awake", "sleep", "power", "rules", "always allow", "permission rule", "settings.local.json",
             ]
         case .phone:
             [

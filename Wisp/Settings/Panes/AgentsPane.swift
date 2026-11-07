@@ -146,6 +146,7 @@ struct AgentSettings: View {
                     "Hides commands, file paths, session names and prompt drafts in the notch, so they don't show on a shared screen. macOS doesn't tell apps when the screen is shared, so a call app or browser using the microphone counts as a call. The eye button beside today's spend in the Agents widget (Wide size, as in the Code profile) hides them any time."
                 )
             }
+            AgentRulesSection(hub: hub)
             let sessions = hub.sessions.list
             if !sessions.isEmpty {
                 Section("Sessions") {

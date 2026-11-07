@@ -107,20 +107,29 @@ final class ClaudeAdapterTests: XCTestCase {
         XCTAssertEqual(adapter.prompt(tool: "AskUserQuestion"), .question)
     }
 
+    /// Replies compared as parsed JSON: the encoder doesn't fix key order, so two encodings of
+    /// the same reply can differ as text.
+    private func json(_ text: String?) -> JSONValue? {
+        text.flatMap { try? JSONDecoder().decode(JSONValue.self, from: Data($0.utf8)) }
+    }
+
     func testRepliesMatchPermissionReply() {
         let plan: JSONValue = .object(["plan": .string("# Fix")])
+        XCTAssertNotNil(json(adapter.reply(.decide(.plan, allow: true, input: plan))))
         XCTAssertEqual(
-            adapter.reply(.decide(.plan, allow: true, input: plan)),
-            PermissionReply.answer(.plan, allow: true, input: plan))
-        XCTAssertEqual(adapter.reply(.decide(.tool, allow: true, input: nil)), PermissionReply.json(allow: true))
+            json(adapter.reply(.decide(.plan, allow: true, input: plan))),
+            json(PermissionReply.answer(.plan, allow: true, input: plan)))
         XCTAssertEqual(
-            adapter.reply(.deny(.tool, reason: "no")),
-            PermissionReply.json(allow: false, denial: "Denied from the Wisp notch: no"))
+            json(adapter.reply(.decide(.tool, allow: true, input: nil))), json(PermissionReply.json(allow: true)))
+        XCTAssertEqual(
+            json(adapter.reply(.deny(.tool, reason: "no"))),
+            json(PermissionReply.json(allow: false, denial: "Denied from the Wisp notch: no")))
         XCTAssertNil(adapter.reply(.decide(.question, allow: true, input: nil)))
         let questions: JSONValue = .object(["questions": .array([])])
+        XCTAssertNotNil(json(adapter.reply(.answer(input: questions, answers: ["Q": "A"]))))
         XCTAssertEqual(
-            adapter.reply(.answer(input: questions, answers: ["Q": "A"])),
-            QuestionReply.json(input: questions, answers: ["Q": "A"]))
+            json(adapter.reply(.answer(input: questions, answers: ["Q": "A"]))),
+            json(QuestionReply.json(input: questions, answers: ["Q": "A"])))
     }
 
     func testParseNeedsAnObject() {

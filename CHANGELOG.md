@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/Maestroharyor/wisp/compare/v0.1.6...v0.1.7) (2026-11-07)
+
+
+### Features
+
+* agent adapters and Codex parity ([#24](https://github.com/Maestroharyor/wisp/issues/24)) ([bdc26df](https://github.com/Maestroharyor/wisp/commit/bdc26df4336b39e730d94bdecedee552b8652ede))
+* always allow Claude Code requests from the notch ([#25](https://github.com/Maestroharyor/wisp/issues/25)) ([7245a64](https://github.com/Maestroharyor/wisp/commit/7245a64ca76f31326a5e473440904658f73a1902))
+
 ## [0.1.6](https://github.com/Maestroharyor/wisp/compare/v0.1.5...v0.1.6) (2026-11-07)
 
 
