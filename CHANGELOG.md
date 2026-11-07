@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.12](https://github.com/Maestroharyor/wisp/compare/v0.1.11...v0.1.12) (2026-11-07)
+
+
+### Features
+
+* clicking a live pill opens that activity's view ([#47](https://github.com/Maestroharyor/wisp/issues/47)) ([c6e02a2](https://github.com/Maestroharyor/wisp/commit/c6e02a26504d4a58b52649331b6500b398701ba9))
+* Copilot CLI sessions in the notch (monitor only) ([#46](https://github.com/Maestroharyor/wisp/issues/46)) ([edca2f1](https://github.com/Maestroharyor/wisp/commit/edca2f15fede06059f3982852d3c8f9ac5229c21))
+* Cursor sessions in the notch (monitor only) ([#45](https://github.com/Maestroharyor/wisp/issues/45)) ([bb30cb6](https://github.com/Maestroharyor/wisp/commit/bb30cb64687f1e8f643065996e85de29d542a03c))
+* window mode and a shorter right-click menu ([#49](https://github.com/Maestroharyor/wisp/issues/49)) ([1c98efd](https://github.com/Maestroharyor/wisp/commit/1c98efda221474412f7a8296d01f0ce937cc6b68))
+
 ## [0.1.11](https://github.com/Maestroharyor/wisp/compare/v0.1.10...v0.1.11) (2026-11-07)
 
 
