@@ -33,6 +33,8 @@ The status below is as of 2026-11-06. Testing approach: decision logic lives in 
 
 Live status for coding agents: a Claude Code `statusLine` bar in the terminal, live session data, context window %, tool activity, git branch, a `wisp` CLI and alerts. Each phase is its own PR. Phase A shipped in #12, Phase B in #14, Phase C in #15 and Phase D in #16; Phase E is on `feat/agent-alerts`.
 
+Roadmap Phase 2, always-allow rules (Claude Code only, written to `permissions.allow`, listed in Settings › Agents › Rules), is on `feat/approval-rules`, pending review.
+
 | Phase | Scope | Status |
 |---|---|---|
 | A | Also pulled in from B at review: Code profile is one Wide Agents widget (sessions left, details right, every figure Claude Code reports); new Stats profile for System Stats, Timer and Day Progress; saved profiles and Home upgraded once when untouched. `wisp-agent statusline` (Wisp's bar by default; an existing bar is chained, never replaced; "Keep my bar" and "Off" restore it exactly). Snapshots forwarded fire-and-forget to Wisp: model, real cost, lines +/−, durations, context %. Context ring in the pill, context alert (default 80%), "Compacting…" via PreCompact/PostCompact. Versioned socket envelope (`docs/agent-protocol.md`). `GitHead` branch parsing. "Update hooks" card for existing installs | Done |
