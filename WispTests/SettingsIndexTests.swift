@@ -89,6 +89,12 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "timer length").contains(.widgets))
     }
 
+    func testAccessoryBatteriesAreFound() {
+        XCTAssertTrue(SettingsIndex.panes(matching: "magic mouse").contains(.activities))
+        XCTAssertTrue(SettingsIndex.panes(matching: "trackpad battery").contains(.activities))
+        XCTAssertTrue(SettingsIndex.panes(matching: "keyboard").contains(.activities))
+    }
+
     func testPhonePaneIsFound() {
         XCTAssertEqual(SettingsIndex.panes(matching: "ntfy"), [.phone])
         XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.phone])

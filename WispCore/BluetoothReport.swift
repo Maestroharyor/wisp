@@ -27,9 +27,10 @@ public struct BluetoothDevice: Sendable, Equatable {
         if lowered.contains("airpods max") { return "airpodsmax" }
         if lowered.contains("airpods") { return "airpods" }
         if lowered.contains("headphone") || lowered.contains("headset") { return "headphones" }
+        // Trackpad first: a Magic Trackpad may report its kind as a mouse.
+        if lowered.contains("trackpad") { return "rectangle.and.hand.point.up.left.fill" }
         if lowered.contains("mouse") { return "computermouse.fill" }
         if lowered.contains("keyboard") { return "keyboard.fill" }
-        if lowered.contains("trackpad") { return "rectangle.and.hand.point.up.left.fill" }
         if lowered.contains("speaker") { return "hifispeaker.fill" }
         if lowered.contains("gamepad") || lowered.contains("controller") { return "gamecontroller.fill" }
         return "dot.radiowaves.left.and.right"
@@ -37,6 +38,11 @@ public struct BluetoothDevice: Sendable, Equatable {
 
     public var isHeadphones: Bool {
         ["airpods", "airpodsmax", "headphones", "airpods.pro"].contains(symbol)
+    }
+
+    /// Mice, keyboards and trackpads.
+    public var isAccessory: Bool {
+        ["computermouse.fill", "keyboard.fill", "rectangle.and.hand.point.up.left.fill"].contains(symbol)
     }
 
     /// The number worth showing first: the weaker bud, else the main battery.
@@ -63,6 +69,24 @@ public enum BluetoothReport {
                 }
             }
         }
+    }
+
+    /// Connected mice, keyboards and trackpads that report a battery level, by name.
+    public static func accessories(_ devices: [BluetoothDevice]) -> [BluetoothDevice] {
+        devices.filter { $0.isAccessory && $0.battery[.main] != nil }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// The `limit` devices with the lowest main battery, ties broken by name. Devices
+    /// without a level come last.
+    public static func lowest(_ devices: [BluetoothDevice], limit: Int) -> [BluetoothDevice] {
+        let sorted = devices.sorted { first, second in
+            let a = first.battery[.main] ?? Int.max
+            let b = second.battery[.main] ?? Int.max
+            if a != b { return a < b }
+            return first.name.localizedStandardCompare(second.name) == .orderedAscending
+        }
+        return Array(sorted.prefix(max(limit, 0)))
     }
 
     public static func newlyConnected(_ devices: [BluetoothDevice], previous: Set<String>) -> [BluetoothDevice] {

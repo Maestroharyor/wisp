@@ -304,6 +304,7 @@ final class Preferences {
         static let ringHotkey = "ringHotkey"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
+        static let accessoryBatteries = "accessoryBatteries"
         static let downloadActivity = "downloadActivity"
         static let downloadFolders = "downloadFolders"
         static let scriptInterval = "scriptInterval"
@@ -673,6 +674,8 @@ final class Preferences {
     var batteryHUD: Bool { didSet { defaults.set(batteryHUD, forKey: Key.batteryHUD) } }
     /// A pill when Bluetooth headphones connect, with their battery.
     var deviceActivity: Bool { didSet { defaults.set(deviceActivity, forKey: Key.deviceActivity) } }
+    /// Mouse, keyboard and trackpad batteries in the Battery widget, with a warning at 20%.
+    var accessoryBatteries: Bool { didSet { defaults.set(accessoryBatteries, forKey: Key.accessoryBatteries) } }
     /// A progress pill while a browser downloads into Downloads or a chosen folder. Off by
     /// default: turning it on can make macOS ask for access to the Downloads folder.
     var downloadActivity: Bool { didSet { defaults.set(downloadActivity, forKey: Key.downloadActivity) } }
@@ -992,6 +995,7 @@ final class Preferences {
             Key.defaultTimerSeconds: 300.0,
             Key.scriptInterval: 60.0,
             Key.deviceActivity: true,
+            Key.accessoryBatteries: true,
             Key.activityDisplay: ActivityDisplayTarget.pointer.rawValue,
             Key.clipboardEnabled: true,
             Key.clipboardLimit: 200,
@@ -1145,6 +1149,7 @@ final class Preferences {
         favouriteShortcuts = defaults.stringArray(forKey: Key.favouriteShortcuts) ?? []
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
+        accessoryBatteries = defaults.bool(forKey: Key.accessoryBatteries)
         downloadActivity = defaults.bool(forKey: Key.downloadActivity)
         downloadFolders = defaults.stringArray(forKey: Key.downloadFolders) ?? []
         scriptInterval = ScriptOutput.clampedInterval(defaults.double(forKey: Key.scriptInterval))
