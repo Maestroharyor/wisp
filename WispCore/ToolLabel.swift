@@ -30,26 +30,26 @@ public enum ToolLabel {
         // `verb` is empty when the subject says it all.
         let verb: String
         let subject: String
-        // Claude Code's tool names, then Codex's and Gemini CLI's for the same jobs.
+        // Claude Code's tool names, then Codex's, Gemini CLI's and OpenCode's for the same jobs.
         switch name {
-        case "Bash", "run_shell_command":
+        case "Bash", "run_shell_command", "bash":
             (symbol, verb) = ("terminal", "Running")
             subject = hidden ? "a command" : firstLine(mask(input.command ?? ""))
-        case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch", "replace", "write_file":
+        case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch", "replace", "write_file", "edit", "write":
             (symbol, verb) = ("pencil", "Editing")
             subject = hidden ? "a file" : fileName(input.filePath ?? input.notebookPath)
-        case "Read", "read_file":
+        case "Read", "read_file", "read":
             (symbol, verb) = ("doc.text", "Reading")
             subject = hidden ? "a file" : fileName(input.filePath)
-        case "Grep", "Glob", "grep_search", "glob":
+        case "Grep", "Glob", "grep_search", "glob", "grep":
             (symbol, verb) = ("magnifyingglass", "Searching")
             subject = hidden ? "files" : firstLine(mask(input.pattern ?? ""))
-        case "WebFetch", "web_fetch":
+        case "WebFetch", "web_fetch", "webfetch":
             (symbol, verb) = ("globe", "Fetching")
             subject = hidden ? "a page" : input.url.flatMap { URL(string: $0)?.host } ?? "a page"
-        case "WebSearch", "google_web_search":
+        case "WebSearch", "google_web_search", "websearch":
             (symbol, verb, subject) = ("globe", "", "Searching the web")
-        case "Task", "Agent":
+        case "Task", "Agent", "task":
             symbol = "person.2"
             let kind = input.subagentType ?? input.description.map { firstLine(mask($0)) }
             if let kind, !hidden {

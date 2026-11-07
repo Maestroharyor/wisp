@@ -1,6 +1,6 @@
 import Foundation
 
-/// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`, `"gemini"`). Only ids
+/// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`, `"gemini"`, `"opencode"`). Only ids
 /// in `AgentAdapters` can be made, so every source has an adapter.
 public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public let rawValue: String
@@ -17,6 +17,7 @@ public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public static let claude = AgentSource(registered: "claude")
     public static let codex = AgentSource(registered: "codex")
     public static let gemini = AgentSource(registered: "gemini")
+    public static let opencode = AgentSource(registered: "opencode")
 
     public init(from decoder: Decoder) throws {
         let id = try decoder.singleValueContainer().decode(String.self)
@@ -73,9 +74,14 @@ public struct HookFile: Equatable, Sendable {
         /// Gemini CLI's settings.json: the same `hooks` groups next to its other settings, with
         /// timeouts in milliseconds and no `async`.
         case geminiSettings
+        /// A JavaScript plugin of Wisp's own in OpenCode's plugin folder (`OpenCodePlugin`),
+        /// written whole and deleted to disconnect.
+        case opencodePlugin
 
         /// What a timeout in seconds is multiplied by in this file.
         public var timeoutScale: Int { self == .geminiSettings ? 1000 : 1 }
+        /// A file Wisp owns outright, rather than entries in the agent's settings.
+        public var isPlugin: Bool { self == .opencodePlugin }
     }
 
     /// Relative to the home folder.
@@ -92,7 +98,9 @@ public struct HookFile: Equatable, Sendable {
     public let helperArguments: String
 
     /// Wisp holds a hook open for the user's answer, so the command carries the approval wait.
-    public var waitsForApproval: Bool { events.contains(AgentEvent.Kind.permissionRequest.rawValue) }
+    public var waitsForApproval: Bool {
+        events.contains(AgentEvent.Kind.permissionRequest.rawValue) || events.contains(OpenCodeHooks.permissionAsked)
+    }
 
     public var displayPath: String { "~/" + path }
     public func url(home: URL) -> URL { home.appendingPathComponent(path) }
@@ -145,7 +153,7 @@ public struct AgentAdapter: Sendable {
 
 /// Every agent Wisp knows, in the order Settings and onboarding list them.
 public enum AgentAdapters {
-    public static let all: [AgentAdapter] = [claude, codex, gemini]
+    public static let all: [AgentAdapter] = [claude, codex, gemini, opencode]
 
     public static func adapter(id: String) -> AgentAdapter? { all.first { $0.source.rawValue == id } }
 

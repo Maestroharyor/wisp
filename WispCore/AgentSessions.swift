@@ -213,8 +213,12 @@ public struct AgentSessions: Sendable {
     /// prompt brings it back at once.
     public static let endedGrace: TimeInterval = 60
     /// Notifications that mean the agent waits on the user: Claude Code idle or asking an MCP
-    /// question, or Gemini CLI asking to confirm a tool call in the terminal.
-    static let waitingNotifications: Set<String> = ["idle_prompt", "elicitation_dialog", GeminiHooks.toolPermission]
+    /// question, Gemini CLI asking to confirm a tool call in the terminal, or OpenCode asking a
+    /// question or still asking after it didn't take the notch's answer.
+    static let waitingNotifications: Set<String> = [
+        "idle_prompt", "elicitation_dialog", GeminiHooks.toolPermission, OpenCodeHooks.question,
+        OpenCodeHooks.replyFailed,
+    ]
 
     public init() {}
 
