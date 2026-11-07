@@ -85,6 +85,8 @@ connection.stateUpdateHandler = { state in
     }
 }
 connection.start(queue: .main)
-// Wisp answers approvals within the hook timeout; never outlive it.
-DispatchQueue.main.asyncAfter(deadline: .now() + 125) { exit(0) }
+// Wisp answers approvals within the hook timeout (`--timeout`, longer while phone push is on);
+// never outlive it.
+let hookTimeout = HookInstaller.timeout(arguments: arguments) ?? HookInstaller.approvalTimeout
+DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(hookTimeout + HookInstaller.helperGrace)) { exit(0) }
 dispatchMain()
