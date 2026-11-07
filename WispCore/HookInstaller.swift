@@ -163,17 +163,11 @@ public enum HookInstaller {
     }
 
     private static func object(_ data: Data) throws -> [String: JSONValue] {
-        let trimmed = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return [:] }
-        guard case .object(let root) = try JSONDecoder().decode(JSONValue.self, from: data) else {
-            throw Failure.notAnObject
-        }
+        guard let root = try SettingsJSON.object(data) else { throw Failure.notAnObject }
         return root
     }
 
     private static func encode(_ value: JSONValue) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(value)
+        try SettingsJSON.encode(value)
     }
 }
