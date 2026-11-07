@@ -46,7 +46,7 @@ struct HomePage: View {
     private var emptyHint: some View {
         VStack(spacing: 6) {
             Image(systemName: "square.grid.2x2").font(.system(size: 18))
-            Text("Right-click the notch and choose Customise Home")
+            Text("Right-click the notch and choose Tools › Customise Home")
                 .font(.system(size: 11)).foregroundStyle(Color.secondaryText).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -202,7 +202,10 @@ struct WidgetsPage: View {
 
     var body: some View {
         ZStack {
-            if let solo = model.soloWidget {
+            if let detail = model.activityDetail {
+                ActivityDetailView(detail: detail, model: model)
+                    .transition(.opacity)
+            } else if let solo = model.soloWidget {
                 SoloWidgetView(kind: solo, model: model, zoom: zoomSpace)
                     .transition(.opacity)
             } else {
@@ -211,6 +214,7 @@ struct WidgetsPage: View {
             }
         }
         .animation(model.surfaceAnimation, value: model.soloWidget)
+        .animation(model.surfaceAnimation, value: model.activityDetail)
     }
 
     /// No zoom from tile to card with Reduce Motion; the pages just cross-fade.
@@ -327,20 +331,56 @@ private struct SoloWidgetView: View {
         )
         .zoomSource(id: kind, in: zoom)
         .overlay(alignment: .topLeading) {
-            Button {
-                model.soloWidget = nil
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 10, weight: .bold))
-                    .frame(width: 20, height: 20)
-                    .background(Circle().fill(.white.opacity(0.12)))
-            }
-            .buttonStyle(.plain)
-            .offset(x: -26, y: 2)
-            .accessibilityLabel("Back to widgets")
-            .help("Back to widgets")
+            SoloBackButton(model: model)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// A pill's own view, at the solo card width, with the same back chevron.
+private struct ActivityDetailView: View {
+    let detail: ActivityDetail
+    let model: NotchModel
+
+    var body: some View {
+        Group {
+            switch detail {
+            case .regionWatch: RegionWatchDetail(watch: model.services.regionWatch)
+            case .downloads: DownloadsDetail(monitor: model.services.downloads)
+            case .external: ExternalActivityDetail(automation: model.services.automation)
+            }
+        }
+        .padding(.vertical, 4)
+        .frame(
+            width: ShellMetrics.soloCardWidth(notchStyle: model.isNotchStyle),
+            height: SurfaceSizing.shelfContentHeight, alignment: .topLeading
+        )
+        .overlay(alignment: .topLeading) {
+            SoloBackButton(model: model)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// The chevron left of a solo card: back to the Widgets grid, or to the page a pill's view
+/// came from.
+private struct SoloBackButton: View {
+    let model: NotchModel
+
+    var body: some View {
+        let label = model.soloFromPill ? "Back" : "Back to widgets"
+        Button {
+            model.leaveSolo()
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 10, weight: .bold))
+                .frame(width: 20, height: 20)
+                .background(Circle().fill(.white.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+        .offset(x: -26, y: 2)
+        .accessibilityLabel(label)
+        .help(label)
     }
 }
 

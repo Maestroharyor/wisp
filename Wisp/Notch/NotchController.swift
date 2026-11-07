@@ -24,8 +24,6 @@ final class NotchController {
     private var swipe = SwipeDetector()
     /// The card whose countdown is paused because the pointer is on it.
     private var heldSlot: ActivitySlot?
-    /// The page to go back to after a click on a live activity opened its own view.
-    private var returnPage: ShelfPage?
     /// A press on the closed shell. It acts on mouse-up, so dragging the shell moves it instead.
     private(set) var pendingPress = false
     /// Apple's island sits at the top of this display; the notch form isn't offered.
@@ -51,9 +49,13 @@ final class NotchController {
         model.onWantsKey = { [weak self] in self?.panel.makeKey() }
         model.onSetForm = { [weak self] form in
             guard let self else { return }
-            // Fold the shelf away first; the new form comes in once the setting rebuilds.
-            self.dismiss()
-            self.services.preferences.setForm(form, for: self.screenUUID)
+            self.services.shelfWindow.pick(form) { [weak self] shellForm in
+                // Already that form: applying it again would forget a moved island's spot.
+                guard let self, shellForm != FormFactor(placement: self.layout.placement) else { return }
+                // Fold the shelf away first; the new form comes in once the setting rebuilds.
+                self.dismiss()
+                self.services.preferences.setForm(shellForm, for: self.screenUUID)
+            }
         }
         model.onKeyDone = { [weak self] in
             // An open shelf keeps its key status for its own fields.
@@ -367,11 +369,25 @@ final class NotchController {
             services.ring.show(at: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY))
             return
         }
+        if machine.phase != .open, !services.shelfWindow.opensUnderShell {
+            activateWindow()
+            return
+        }
         if machine.phase != .open {
             showActivityView()
             send(.clicked)
         }
         if machine.phase == .open { panel.makeKey() }
+    }
+
+    /// The window has the shelf: a click on the shell brings it forward, on the clicked pill's
+    /// own view when it has one.
+    private func activateWindow() {
+        guard let pill = pillView() else {
+            services.shelfWindow.activateShell()
+            return
+        }
+        services.shelfWindow.activateShell(view: pill.view, fromPill: true, session: pill.session)
     }
 
     /// The press became a drag of the shell; hovering must not open the shelf mid-drag.
@@ -381,6 +397,19 @@ final class NotchController {
         dwellTask = nil
     }
 
+    /// A press on the open shelf outside its pages, so pulling it may tear it off into the window.
+    func ownsShelfGrab(at location: CGPoint) -> Bool {
+        guard machine.phase == .open, !model.dragging, !model.editingHome else { return false }
+        let insets = ShellMetrics.shelfInsets(notchStyle: model.isNotchStyle, notchHeight: model.notchHeight)
+        return ShelfTearOff.mayStart(at: location, surface: model.surfaceRect, insets: insets)
+    }
+
+    /// What the open shelf shows, for the window it's torn off into: the view, whether a pill
+    /// opened it, and the page it goes back to.
+    var shown: (view: ShelfView, fromPill: Bool, returnPage: ShelfPage?) {
+        (model.shownView, model.soloFromPill, model.returnPage)
+    }
+
     /// A press on the closed island that only Wisp received, so dragging it may move it.
     func ownsIslandPress(at location: CGPoint) -> Bool {
         pendingPress
@@ -388,14 +417,41 @@ final class NotchController {
                 at: location, layout: layout, shape: model.surfaceRect, panelTakesClicks: !panel.ignoresMouseEvents)
     }
 
-    /// A click on the agent pill opens the Agents widget on its own, on the session the pill
-    /// showed, whatever the profile's Home holds. Other pills open the usual page.
+    /// A click on a live pill opens that activity's own view, whatever the profile's Home
+    /// holds: the agent pill opens the Agents widget on the session it showed. Pills with
+    /// nothing more to show open the usual page. Closing goes back to where the shelf was.
     private func showActivityView() {
-        guard case .agent(let status) = model.activity else { return }
-        model.focusedSession = status.sessionID
-        returnPage = model.page
-        model.page = .widgets
-        model.soloWidget = .agents
+        guard let pill = pillView() else { return }
+        if let session = pill.session { model.focusedSession = session }
+        model.show(pill.view, fromPill: true)
+    }
+
+    /// The view a click on the live pill opens, and the agent session it showed; nil for pills
+    /// with nothing more to show. The shelf window opens the same view.
+    private func pillView() -> (view: ShelfView, session: String?)? {
+        guard let activity = model.activity else { return nil }
+        switch PillDestination(slot: services.activities.currentSlot) {
+        case .home: return nil
+        case .agents:
+            guard case .agent(let status) = activity else { return (.widget(.agents), nil) }
+            return (.widget(.agents), status.sessionID)
+        case .timer: return (.widget(Self.timerWidget(for: activity)), nil)
+        case .nowPlaying: return (.widget(.nowPlaying), nil)
+        case .battery: return (.widget(.battery), nil)
+        case .tray: return (.page(.tray), nil)
+        case .downloads: return (.detail(.downloads), nil)
+        case .regionWatch: return (.detail(.regionWatch), nil)
+        case .externalDetails: return (.detail(.external), nil)
+        }
+    }
+
+    /// The timer slot carries the plain timer or the Pomodoro; each has its own widget.
+    private static func timerWidget(for activity: Activity) -> WidgetKind {
+        switch activity {
+        case .timer(let label, _), .timerDone(let label):
+            label == TimerStore.timerLabel ? .timer : .pomodoro
+        default: .timer
+        }
     }
 
     /// Two fingers on the closed notch: down opens the shelf, up puts away a card or alert,
@@ -407,7 +463,7 @@ final class NotchController {
             let direction = swipe.add(dx: scroll.dx, dy: scroll.dy)
         else { return }
         if direction == layout.edge.openingSwipe {
-            send(.clicked)
+            if services.shelfWindow.opensUnderShell { send(.clicked) } else { services.shelfWindow.activateShell() }
             return
         }
         if direction == layout.edge.closingSwipe, dismissActivity() { return }
@@ -429,6 +485,10 @@ final class NotchController {
             form: model.form,
             forms: model.forms,
             setForm: { [weak self] form in self?.model.onSetForm(form) },
+            openAsWindow: { [weak self] in
+                guard let self else { return }
+                self.services.shelfWindow.openAsWindow(page: self.model.page)
+            },
             moveBack: layout.moved
                 ? NotchMenu.MoveBack(spot: layout.placement.title) { [weak self] in self?.moveIslandBack() } : nil,
             services: services
@@ -523,10 +583,11 @@ final class NotchController {
         updateClickThrough()
     }
 
-    /// Esc on a solo widget goes back to the grid rather than closing the shelf.
+    /// Esc on a solo view steps back (to the grid, or to the page a pill's view came from)
+    /// rather than closing the shelf.
     func leaveSoloWidget() -> Bool {
-        guard machine.phase == .open, model.soloWidget != nil else { return false }
-        model.soloWidget = nil
+        guard machine.phase == .open, model.soloWidget != nil || model.activityDetail != nil else { return false }
+        model.leaveSolo()
         return true
     }
 
@@ -537,12 +598,20 @@ final class NotchController {
     }
 
     func open(page: ShelfPage) {
+        guard services.shelfWindow.opensUnderShell else {
+            services.shelfWindow.activateShell(view: .page(page))
+            return
+        }
         model.page = page
         if machine.phase != .open { send(.hotkey) }
     }
 
     func open(widget: WidgetKind) {
-        returnPage = model.page
+        guard services.shelfWindow.opensUnderShell else {
+            services.shelfWindow.activateShell(view: .widget(widget))
+            return
+        }
+        model.returnPage = model.page
         model.page = .widgets
         model.soloWidget = widget
         if machine.phase != .open { send(.hotkey) }
@@ -559,7 +628,7 @@ final class NotchController {
         panel.close()
     }
 
-    /// Puts a dragged island back on its spot (the right-click menu's "Move back").
+    /// Puts a dragged island back on its spot (the right-click menu's Form › "Move back").
     private func moveIslandBack() {
         let from = CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY)
         dismiss()
@@ -568,6 +637,10 @@ final class NotchController {
     }
 
     private func customiseHome() {
+        guard services.shelfWindow.opensUnderShell else {
+            services.shelfWindow.customiseHome()
+            return
+        }
         model.page = .home
         model.homeSnapshot = (
             services.preferences.homeLayout, services.preferences.enabledWidgets, services.preferences.homeProfile
@@ -578,7 +651,8 @@ final class NotchController {
 
     private func syncSettings() {
         let preferences = services.preferences
-        machine.opensOnHover = preferences.openTrigger == .hover
+        // While the window has the shelf, hovering the shell mustn't open a second one.
+        machine.opensOnHover = preferences.openTrigger == .hover && services.shelfWindow.opensUnderShell
         machine.closing = preferences.shelfClosing
         model.speed = preferences.animationSpeed
         model.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -644,10 +718,11 @@ final class NotchController {
             panel.resignKey()
             model.editingHome = false
             model.soloWidget = nil
-            // The next plain click opens where it used to, not on the agent view.
-            if let returnPage {
+            model.activityDetail = nil
+            // The next plain click opens where it used to, not on the activity's view.
+            if let returnPage = model.returnPage {
                 model.page = returnPage
-                self.returnPage = nil
+                model.returnPage = nil
             }
             model.dragging = false
             // Re-sync with the smaller closed region so the next hover is detected cleanly, and

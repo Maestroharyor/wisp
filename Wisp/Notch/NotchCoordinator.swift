@@ -33,6 +33,7 @@ final class NotchCoordinator {
         services.closeShelves = { [weak self] in
             self?.controllers.values.filter { $0.phase == .open }.forEach { $0.dismiss() }
         }
+        services.shelfWindow.shellRect = { [weak self] frame in self?.shellRect(near: frame) }
         rebuild()
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -50,7 +51,12 @@ final class NotchCoordinator {
         }
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard event.keyCode == KeyCodes.escape else { return event }
-            let handled = MainActor.assumeIsolated { self?.dismissOpenShelves() ?? false }
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self else { return false }
+                // The shelf window's Esc is its own: a field's, or back out of a solo widget.
+                if self.services.shelfWindow.owns(event.window) { return self.services.shelfWindow.leaveSoloWidget() }
+                return self.dismissOpenShelves()
+            }
             return handled ? nil : event
         }
         observePreferences()
@@ -58,6 +64,10 @@ final class NotchCoordinator {
 
     /// Toggles the shelf on the display under the pointer.
     func toggleShelf() {
+        guard services.shelfWindow.opensUnderShell else {
+            services.shelfWindow.toggle()
+            return
+        }
         let target = targetController()
         for controller in controllers.values where controller !== target && controller.phase == .open {
             controller.dismiss()
@@ -73,16 +83,32 @@ final class NotchCoordinator {
         targetController()?.open(widget: kind)
     }
 
+    /// The form shown as current there: Window while that form is on.
     func formUnderPointer() -> (form: FormFactor, systemIsland: Bool) {
-        guard let controller = targetController() else { return (.notch, false) }
-        return (FormFactor(placement: controller.layout.placement), controller.systemIsland)
+        guard let controller = targetController() else { return (services.shelfWindow.form(shell: .notch), false) }
+        let shell = FormFactor(placement: controller.layout.placement)
+        return (services.shelfWindow.form(shell: shell), controller.systemIsland)
     }
 
     func setForm(_ form: FormFactor) {
-        guard let controller = targetController() else { return }
-        controller.dismiss()
-        preferences.setForm(form, for: controller.screenUUID)
+        services.shelfWindow.pick(form) { [weak self] shellForm in
+            guard let self, let controller = self.targetController() else { return }
+            // Already that form (leaving the window for the shell it had): applying it again
+            // would forget a moved island's spot.
+            guard shellForm != FormFactor(placement: controller.layout.placement) else { return }
+            controller.dismiss()
+            self.preferences.setForm(shellForm, for: controller.screenUUID)
+        }
     }
+
+    /// The closed shell on the display holding most of `frame`, for the window to leave toward.
+    private func shellRect(near frame: CGRect) -> CGRect? {
+        let screen = NSScreen.screens.max { area($0.frame.intersection(frame)) < area($1.frame.intersection(frame)) }
+        let controller = screen?.displayUUID.flatMap { controllers[$0] } ?? targetController()
+        return controller?.layout.closedRect
+    }
+
+    private func area(_ rect: CGRect) -> CGFloat { rect.isNull ? 0 : rect.width * rect.height }
 
     var hasOpenShelf: Bool { controllers.values.contains { $0.phase == .open } }
 
@@ -238,7 +264,11 @@ final class NotchCoordinator {
         for (uuid, controller) in controllers {
             let layout = controller.layout
             let kind: ShellDrag.Kind
-            if layout.movesAsIsland {
+            if controller.phase == .open {
+                // The open shelf tears off into the window, from outside its pages only.
+                guard controller.ownsShelfGrab(at: location) else { continue }
+                kind = .shelf
+            } else if layout.movesAsIsland {
                 guard controller.ownsIslandPress(at: location) else { continue }
                 kind = .island
             } else if controller.pendingPress, layout.placement.tearsOff {
@@ -260,6 +290,11 @@ final class NotchCoordinator {
         guard var drag = shellDrag, let controller = controllers[drag.uuid],
             let screen = NSScreen.screens.first(where: { $0.displayUUID == drag.uuid })
         else { return }
+        if drag.kind == .shelf {
+            tearOffShelf(&drag, to: location, controller: controller)
+            shellDrag = drag
+            return
+        }
         let free = drag.kind != .tearOff
         let centre =
             free
@@ -289,6 +324,8 @@ final class NotchCoordinator {
                 layout: NotchGeometry.layout(
                     for: screen.metrics, prefersIsland: true, placement: controller.layout.placement,
                     islandCentre: centre, avoidsTopCentre: systemIsland))
+        case .shelf:
+            return
         case .orb, .tearOff:
             controller.update(
                 layout: NotchGeometry.layout(
@@ -303,9 +340,26 @@ final class NotchCoordinator {
         shellDrag = drag
     }
 
+    /// Pulled far enough, the open shelf folds away and the window takes its page, held by
+    /// its title bar under the pointer until the button is let go.
+    private func tearOffShelf(_ drag: inout ShellDrag, to location: CGPoint, controller: NotchController) {
+        if drag.centre != nil {
+            services.shelfWindow.followTearOff(to: location)
+            return
+        }
+        guard ShelfTearOff.tearsOff(from: drag.start, to: location) else { return }
+        let shown = controller.shown
+        services.shelfWindow.tearOff(shown.view, fromPill: shown.fromPill, returnPage: shown.returnPage, at: location)
+        drag.centre = location
+    }
+
     /// Settles a dragged orb: it glides flush against a nearby edge, or shrinks away and docks
     /// back on its edge when dropped at the top centre.
     private func dropShell(_ drag: ShellDrag) {
+        if drag.kind == .shelf {
+            services.shelfWindow.endTearOff()
+            return
+        }
         guard let controller = controllers[drag.uuid], let dragged = drag.centre,
             let screen = NSScreen.screens.first(where: { $0.displayUUID == drag.uuid })
         else { return }
@@ -438,5 +492,7 @@ private struct ShellDrag {
         case orb
         /// An island pill, which moves at a nudge and stays a pill.
         case island
+        /// The open shelf, which a deliberate pull tears off into the window.
+        case shelf
     }
 }

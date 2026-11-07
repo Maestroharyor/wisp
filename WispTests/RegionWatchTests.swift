@@ -106,6 +106,68 @@ final class RegionWatchTests: XCTestCase {
         XCTAssertEqual(RegionWatchRule.stoppedChanging(seconds: 10).firedText, "Stopped changing")
     }
 
+    func testPlainDescriptions() {
+        XCTAssertEqual(RegionWatchRule.changed.plainDescription, "Tells you when anything in it changes")
+        XCTAssertEqual(RegionWatchRule.containsText("done").plainDescription, "Tells you when it shows “done”")
+        XCTAssertEqual(
+            RegionWatchRule.stoppedChanging(seconds: 30).plainDescription,
+            "Tells you when it changes, then stays still for 30 s")
+        XCTAssertEqual(
+            RegionWatchRule.stoppedChanging(seconds: 120).plainDescription,
+            "Tells you when it changes, then stays still for 2 min")
+    }
+
+    // MARK: Watch view text
+
+    func testHowLongItHasBeenWatching() {
+        XCTAssertEqual(RegionWatchText.watching(since: start, now: start.addingTimeInterval(20)), "Under a minute")
+        XCTAssertEqual(RegionWatchText.watching(since: start, now: start.addingTimeInterval(61)), "1 min")
+        XCTAssertEqual(RegionWatchText.watching(since: start, now: start.addingTimeInterval(45 * 60)), "45 min")
+        XCTAssertEqual(RegionWatchText.watching(since: start, now: start.addingTimeInterval(80 * 60)), "1 h 20 min")
+        XCTAssertEqual(RegionWatchText.watching(since: start, now: start.addingTimeInterval(2 * 3600)), "2 h")
+        // A clock that went backwards doesn't show a negative time.
+        XCTAssertEqual(RegionWatchText.watching(since: start, now: start.addingTimeInterval(-30)), "Under a minute")
+    }
+
+    func testWhenTheRegionLastChanged() {
+        XCTAssertEqual(RegionWatchText.lastChange(nil, now: start), "No change seen yet")
+        XCTAssertEqual(RegionWatchText.lastChange(start, now: start.addingTimeInterval(10)), "Just now")
+        XCTAssertEqual(RegionWatchText.lastChange(start, now: start.addingTimeInterval(5 * 60)), "5 min ago")
+        XCTAssertEqual(RegionWatchText.lastChange(start, now: start.addingTimeInterval(90 * 60)), "1 h 30 min ago")
+    }
+
+    func testMonitorRemembersWhenTheRegionLastMoved() {
+        var monitor = RegionWatchMonitor(rule: .containsText("done"))
+        XCTAssertNil(monitor.lastMovement)
+        _ = monitor.observe(sample(frame(50), text: "Working", at: 0))
+        _ = monitor.observe(sample(frame(50), text: "Working", at: 4))
+        XCTAssertNil(monitor.lastMovement)
+        _ = monitor.observe(sample(frame(90), text: "Working", at: 8))
+        XCTAssertEqual(monitor.lastMovement, start.addingTimeInterval(8))
+        _ = monitor.observe(sample(frame(90), text: "Working", at: 12))
+        XCTAssertEqual(monitor.lastMovement, start.addingTimeInterval(8))
+    }
+
+    func testLastMovementSurvivesAPause() {
+        // Unlike the stillness clock, which restarts on resume, this is only ever a real change.
+        var monitor = RegionWatchMonitor(rule: .stoppedChanging(seconds: 6))
+        _ = monitor.observe(sample(frame(50), at: 0))
+        _ = monitor.observe(sample(frame(90), at: 2))
+        monitor.resume(at: start.addingTimeInterval(60))
+        _ = monitor.observe(sample(frame(90), at: 62))
+        XCTAssertEqual(monitor.lastMovement, start.addingTimeInterval(2))
+    }
+
+    func testABlinkingCursorStopsCountingAsMovementOnceRecognised() {
+        var monitor = RegionWatchMonitor(rule: .containsText("done"))
+        for step in 0..<12 {
+            _ = monitor.observe(sample(screen(cursor: step % 2 == 1), text: nil, at: Double(step) * 3))
+        }
+        // The first blinks can't be told from a change yet; after that the cursor is masked.
+        guard let lastMovement = monitor.lastMovement else { return XCTFail("the first blink counts as movement") }
+        XCTAssertLessThanOrEqual(lastMovement, start.addingTimeInterval(9))
+    }
+
     // MARK: Monitor
 
     func testChangedFiresAfterTwoChangedFrames() {

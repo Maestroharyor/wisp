@@ -37,6 +37,7 @@ extension AgentAdapters {
 /// Claude Code uses, so the common reader takes it.
 public enum OpenCodeHooks {
     public static let permissionAsked = "permission.asked"
+    public static let questionAsked = "question.asked"
     /// The notification type for a question the agent asks in the terminal.
     public static let question = "opencode_question"
     /// The notification type for an answer from the notch that OpenCode didn't take, so its
@@ -48,7 +49,7 @@ public enum OpenCodeHooks {
     /// `permission.reply_failed` its own for an answer no route took.
     static let events = [
         "session.created", "session.status", "session.deleted", "session.compacting", "session.compacted",
-        permissionAsked, "permission.replied", "permission.reply_failed", "question.asked", "question.replied",
+        permissionAsked, "permission.replied", "permission.reply_failed", questionAsked, "question.replied",
         "question.rejected",
     ]
     static let toolEvents = ["tool.execute.before", "tool.execute.after"]
@@ -82,7 +83,7 @@ public enum OpenCodeHooks {
         case "permission.replied", "question.replied", "question.rejected":
             kind = .postToolUse
             out["tool_use_id"] = fields["request_id"]
-        case "question.asked":
+        case questionAsked:
             kind = .notification
             out["notification_type"] = .string(question)
         case "permission.reply_failed":

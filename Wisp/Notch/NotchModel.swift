@@ -29,6 +29,20 @@ enum ShelfPage: Hashable {
     }
 }
 
+/// A live activity's own view, opened by clicking its pill, for activities that have no widget.
+enum ActivityDetail: Hashable {
+    case regionWatch
+    case downloads
+    case external
+}
+
+/// A view the shelf can open on: a widget or a pill's view alone on the Widgets page, or a page.
+enum ShelfView: Equatable {
+    case widget(WidgetKind)
+    case detail(ActivityDetail)
+    case page(ShelfPage)
+}
+
 /// What the SwiftUI notch view renders for one display.
 @MainActor
 @Observable
@@ -46,6 +60,8 @@ final class NotchModel {
     var page: ShelfPage = .home {
         didSet {
             soloWidget = nil
+            activityDetail = nil
+            soloFromPill = false
             pageMovedForward = page.order >= oldValue.order
         }
     }
@@ -53,6 +69,50 @@ final class NotchModel {
     private(set) var pageMovedForward = true
     /// The widget opened on its own from the Widgets page grid.
     var soloWidget: WidgetKind?
+    /// A pill's own view, shown on the Widgets page the way a solo widget is.
+    var activityDetail: ActivityDetail?
+    /// The page to go back to once the shelf closes, after a pill (or a widget opened from
+    /// outside the grid) took the shelf to its own view.
+    var returnPage: ShelfPage?
+    /// The solo view on screen was opened by a pill, so its way back is `returnPage`, not the grid.
+    var soloFromPill = false
+
+    /// Opens `view`, remembering the page it was on. A pill's widget or view goes back there
+    /// with the back chevron and Esc, not to the grid.
+    func show(_ view: ShelfView, fromPill: Bool) {
+        let from = page
+        switch view {
+        case .page(let target):
+            page = target
+        case .widget(let widget):
+            page = .widgets
+            soloWidget = widget
+            soloFromPill = fromPill
+        case .detail(let detail):
+            page = .widgets
+            activityDetail = detail
+            soloFromPill = fromPill
+        }
+        returnPage = from
+    }
+
+    /// What's on screen as a `ShelfView`, for the window it's torn off into.
+    var shownView: ShelfView {
+        if let activityDetail { return .detail(activityDetail) }
+        if let soloWidget { return .widget(soloWidget) }
+        return .page(page)
+    }
+
+    /// The back chevron and Esc on a solo view: to the page a pill's view came from, or to the grid.
+    func leaveSolo() {
+        if soloFromPill, let returnPage {
+            self.returnPage = nil
+            page = returnPage
+        } else {
+            soloWidget = nil
+            activityDetail = nil
+        }
+    }
     var editingHome = false
     /// Widget order when customising began, restored on cancel.
     var homeSnapshot: (layout: HomeLayout, enabled: [WidgetKind], profile: String)?
@@ -99,7 +159,13 @@ final class NotchModel {
     /// The forms this display can switch to, and the switch itself (the nav pill's form menu).
     var forms: [FormFactor] = FormFactor.allCases
     var onSetForm: (FormFactor) -> Void = { _ in }
-    var form: FormFactor { FormFactor(placement: layout.placement) }
+    /// The shelf window's pages have no shell of their own; they show the form of the shell
+    /// they stand in for.
+    var standInForm: FormFactor?
+    /// Window while the Window form is on, otherwise the shell's own form.
+    var form: FormFactor {
+        services.shelfWindow.form(shell: standInForm ?? FormFactor(placement: layout.placement))
+    }
     var isOrb: Bool { layout.placement == .floating }
     /// How far a pull on the notch has gone toward tearing it off, 0 to 1 (a rubber band).
     var pull: CGFloat = 0
@@ -137,6 +203,7 @@ final class NotchModel {
                 return .home(contentWidth: preferences.homeLayout.contentWidth, editing: editingHome)
             case .media: return .media
             case .widgets:
+                if activityDetail != nil { return .widgetSolo(wide: false) }
                 if let soloWidget { return .widgetSolo(wide: soloWidget.hasDetailPage) }
                 let count = preferences.gridWidgets.count
                 return .widgetGrid(
