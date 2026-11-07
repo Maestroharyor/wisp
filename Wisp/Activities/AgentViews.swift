@@ -605,7 +605,7 @@ struct AgentsWidget: View {
             }
         }
         .onAppear {
-            hub.refreshInstalled()
+            hub.refreshInstalledIfStale()
             cloud.refreshNow()
         }
     }
@@ -921,7 +921,7 @@ struct AgentsDetail: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
-            hub.refreshInstalled()
+            hub.refreshInstalledIfStale()
             cloud.refreshNow()
         }
         .onChange(of: selected?.id) { note = nil }

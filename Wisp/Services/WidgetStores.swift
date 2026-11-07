@@ -86,7 +86,7 @@ final class SystemStatsStore {
 @MainActor
 @Observable
 final class CalendarStore {
-    struct Event: Identifiable, Equatable {
+    struct Event: Identifiable, Equatable, Sendable {
         /// One occurrence: recurring events repeat `eventID` with a different start.
         let id: String
         /// The calendar's id for the event, used to open it in Calendar.
@@ -110,9 +110,21 @@ final class CalendarStore {
     private(set) var dayEvents: [ClosedRange<Date>] = []
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
 
+    /// Asks for access. Queries go through `reader`, whose own store runs them off the main actor.
     @ObservationIgnored private let store = EKEventStore()
+    @ObservationIgnored private let reader = CalendarReader()
     @ObservationIgnored private var observer: NSObjectProtocol?
     @ObservationIgnored private var lastRefresh: Date?
+    /// Set by EKEventStoreChanged, so the next check reads again whatever the cache's age.
+    @ObservationIgnored private var dirty = false
+    @ObservationIgnored private var fetching = false
+    /// A refresh asked for while a query was running; it runs once that one lands.
+    @ObservationIgnored private var refetch = false
+    @ObservationIgnored private var hadAccess = false
+    /// Times access went away, so the reader makes a fresh store after a new grant.
+    @ObservationIgnored private var revocations = 0
+    /// Called on the main actor each time a fresh week lands.
+    @ObservationIgnored var onWeekLoaded: () -> Void = {}
 
     func requestAccess() {
         Task {
@@ -122,56 +134,62 @@ final class CalendarStore {
         }
     }
 
-    /// Edits arrive through EKEventStoreChanged, so a fresh query is only needed when the
-    /// cached week has aged (a new day, finished events) rather than on every check.
+    /// Pages rebuild on every switch, so they ask this rather than querying each time. A new
+    /// day, a change in access or an EKEventStoreChanged notice reads again straight away.
     func refreshIfStale() {
-        if let lastRefresh, Calendar.current.isDateInToday(lastRefresh), Date.now.timeIntervalSince(lastRefresh) < 600,
-            EKEventStore.authorizationStatus(for: .event) == access
-        {
-            return
-        }
+        let now = Date.now
+        let changed =
+            dirty || EKEventStore.authorizationStatus(for: .event) != access
+            || lastRefresh.map { !Calendar.current.isDate($0, inSameDayAs: now) } ?? true
+        guard RefreshRule.calendar.isDue(lastRefresh: lastRefresh, now: now, dirty: changed) else { return }
         refresh()
     }
 
     func refresh() {
         access = EKEventStore.authorizationStatus(for: .event)
+        dirty = false
         guard access == .fullAccess else {
             // Access was revoked: stop showing (and offering Join cards for) the cached week.
             upcoming = []
             dayEvents = []
             lastRefresh = nil
+            if hadAccess { revocations += 1 }
+            hadAccess = false
             return
         }
         lastRefresh = .now
+        hadAccess = true
         if observer == nil {
+            // The reader queries its own store, so this listens to every store's changes.
             observer = NotificationCenter.default.addObserver(
-                forName: .EKEventStoreChanged, object: store, queue: .main
+                forName: .EKEventStoreChanged, object: nil, queue: .main
             ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refresh() }
+                MainActor.assumeIsolated {
+                    self?.dirty = true
+                    self?.refreshIfStale()
+                }
             }
         }
-        let now = Date.now
-        let calendar = Calendar.current
-        let dayStart = calendar.startOfDay(for: now)
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? now
-        let weekEnd = calendar.date(byAdding: .day, value: 7, to: dayStart) ?? now
-        let week = store.events(matching: store.predicateForEvents(withStart: dayStart, end: weekEnd, calendars: nil))
-            .sorted { $0.startDate < $1.startDate }
-        dayEvents = week.filter { !$0.isAllDay && $0.startDate < tomorrow && $0.startDate <= $0.endDate }
-            .map { $0.startDate...$0.endDate }
-        upcoming =
-            week
-            .filter { $0.endDate > now }
-            .prefix(30)
-            .map {
-                let eventID = $0.eventIdentifier ?? UUID().uuidString
-                return Event(
-                    id: Meetings.occurrenceID(eventID: eventID, start: $0.startDate), eventID: eventID,
-                    title: $0.title ?? "Event", start: $0.startDate,
-                    end: $0.endDate, isAllDay: $0.isAllDay,
-                    color: Color(nsColor: $0.calendar.color ?? .systemPurple),
-                    link: MeetingLink.find(in: [$0.url?.absoluteString, $0.location, $0.notes]))
+        guard !fetching else {
+            refetch = true
+            return
+        }
+        fetching = true
+        let revocations = revocations
+        Task {
+            let week = await reader.week(from: .now, calendar: .current, revocations: revocations)
+            fetching = false
+            // Access can go while the query runs, and the revoked branch has already cleared the week.
+            if access == .fullAccess {
+                upcoming = week.upcoming
+                dayEvents = week.day
+                onWeekLoaded()
             }
+            if refetch {
+                refetch = false
+                refresh()
+            }
+        }
     }
 
     /// Opens the event in Calendar.
@@ -183,6 +201,47 @@ final class CalendarStore {
         if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") {
             NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
         }
+    }
+}
+
+/// Runs the synchronous week query off the main actor. Its store is made on first use, after
+/// access is granted, and made again after access went, so a later grant starts from a fresh one.
+private actor CalendarReader {
+    struct Week: Sendable {
+        let upcoming: [CalendarStore.Event]
+        let day: [ClosedRange<Date>]
+    }
+
+    private var store: EKEventStore?
+    private var storeRevocations = 0
+
+    /// `revocations` counts the times access went; it travels with the query itself, so a
+    /// revoke can't be ordered after the next grant's query.
+    func week(from now: Date, calendar: Calendar, revocations: Int) -> Week {
+        let store = storeRevocations == revocations ? self.store ?? EKEventStore() : EKEventStore()
+        self.store = store
+        storeRevocations = revocations
+        let dayStart = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? now
+        let weekEnd = calendar.date(byAdding: .day, value: 7, to: dayStart) ?? now
+        let week = store.events(matching: store.predicateForEvents(withStart: dayStart, end: weekEnd, calendars: nil))
+            .sorted { $0.startDate < $1.startDate }
+        let day = week.filter { !$0.isAllDay && $0.startDate < tomorrow && $0.startDate <= $0.endDate }
+            .map { $0.startDate...$0.endDate }
+        let upcoming =
+            week
+            .filter { $0.endDate > now }
+            .prefix(30)
+            .map {
+                let eventID = $0.eventIdentifier ?? UUID().uuidString
+                return CalendarStore.Event(
+                    id: Meetings.occurrenceID(eventID: eventID, start: $0.startDate), eventID: eventID,
+                    title: $0.title ?? "Event", start: $0.startDate,
+                    end: $0.endDate, isAllDay: $0.isAllDay,
+                    color: Color(nsColor: $0.calendar.color ?? .systemPurple),
+                    link: MeetingLink.find(in: [$0.url?.absoluteString, $0.location, $0.notes]))
+            }
+        return Week(upcoming: Array(upcoming), day: day)
     }
 }
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.13](https://github.com/Maestroharyor/wisp/compare/v0.1.12...v0.1.13) (2026-11-07)
+
+
+### Features
+
+* glanceable agent list with prompts, limits and inline diffs ([#51](https://github.com/Maestroharyor/wisp/issues/51)) ([942fc40](https://github.com/Maestroharyor/wisp/commit/942fc40ac6ab0f66ceaebd3fdc197e0ed2db3d57))
+* OpenCode sessions and approvals in the notch ([#50](https://github.com/Maestroharyor/wisp/issues/50)) ([bb2e9a8](https://github.com/Maestroharyor/wisp/commit/bb2e9a8b566e9ef08e0a6c976689622832b424a0))
+
 ## [0.1.12](https://github.com/Maestroharyor/wisp/compare/v0.1.11...v0.1.12) (2026-11-07)
 
 
