@@ -76,6 +76,7 @@ final class AgentHub {
     /// Waiting requests in arrival order; the front one is the card on screen.
     private(set) var queue = ApprovalQueue<UUID>()
     private var pending: [UUID: AgentApproval] = [:]
+    @ObservationIgnored private let focuser = TerminalFocuser()
     var approvals: [AgentApproval] { queue.items.compactMap { pending[$0] } }
     /// Sources whose hooks call this copy's helper.
     private(set) var connected: Set<AgentSource> = []
@@ -348,6 +349,8 @@ final class AgentHub {
     }
 
     private func handle(_ event: AgentEvent, from connection: NWConnection) {
+        // A jump to this session will need the login shell's PATH; read it before then.
+        focuser.warmUp()
         // A new prompt or the end of a turn means a pending request was answered in the
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
@@ -412,6 +415,7 @@ final class AgentHub {
 
     private func receive(_ snapshot: StatusLineSnapshot, source: AgentSource, terminal: String?) {
         guard let id = snapshot.sessionID else { return }
+        focuser.warmUp()
         pendingSnapshots[id] = (snapshot, source, terminal)
         guard flushTask == nil else { return }
         flushTask = Task { [weak self, liveInterval] in
@@ -757,26 +761,11 @@ final class AgentHub {
 
     // MARK: Jump to terminal
 
-    /// Brings forward the terminal or editor the session runs in. Without one on record,
-    /// opens the session's folder in Terminal.
+    /// Brings forward the session's tmux pane or terminal tab when the helper said which,
+    /// otherwise the terminal or editor it runs in. Without either, opens its folder in Terminal.
     func focus(session id: String) {
         guard let session = sessions.session(id) else { return }
-        if let bundleID = session.terminal {
-            if let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
-                running.activate()
-                return
-            }
-            if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-                NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
-                return
-            }
-        }
-        guard !session.cwd.isEmpty,
-            let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal")
-        else { return }
-        NSWorkspace.shared.open(
-            [URL(fileURLWithPath: session.cwd)], withApplicationAt: terminal,
-            configuration: NSWorkspace.OpenConfiguration())
+        focuser.focus(TerminalTarget(context: session.terminalContext, bundleID: session.terminal, cwd: session.cwd))
     }
 
     /// Opens the session's working folder in Finder.
