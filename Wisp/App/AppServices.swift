@@ -295,6 +295,11 @@ final class AppServices {
             self?.refreshMeetingControls()
         }
         microphone.start()
+        // The week is read in the background, so a mic that was already on names its call once it lands.
+        calendar.onWeekLoaded = { [weak self] in
+            self?.updateMeeting()
+            self?.updateOnCall()
+        }
         // Calendar-driven: look for calls about to start twice a minute. A meeting can also start
         // while the mic is already on (a browser call), which the mic alone never reports.
         meetingTask = Task { [weak self] in

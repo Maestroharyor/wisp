@@ -297,7 +297,7 @@ struct DayProgressWidget: View {
             }
             .frame(maxHeight: .infinity)
         }
-        .onAppear { calendar.refresh() }
+        .onAppear { calendar.refreshIfStale() }
     }
 
     private func hourLabel(_ hour: Int) -> String {
