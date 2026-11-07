@@ -322,7 +322,11 @@ public struct AgentSessions: Sendable {
         case .preToolUse:
             Self.startTool(event, in: &session, at: date)
         case .postToolUse:
-            Self.endTool(id: event.toolUseID, in: &session, at: date)
+            if !Self.endTool(id: event.toolUseID, in: &session, at: date),
+                event.source.adapter.hookFile.format.reportsToolsWhenDone
+            {
+                Self.finishedTool(event, in: &session, at: date)
+            }
             // A tool that ran was answered in the terminal (Gemini's tool confirmation, a request
             // handed back): the agent is working again.
             if session.state == .waiting { session.state = .running }
@@ -365,13 +369,26 @@ public struct AgentSessions: Sendable {
         session.runningTools.remove(at: index)
     }
 
-    /// Ends the call with `id`, or the newest one when the hook carried no id.
-    private static func endTool(id: String?, in session: inout AgentSession, at date: Date) {
+    /// Ends the call with `id`, or the newest one when the hook carried no id. False when no
+    /// running call matched.
+    private static func endTool(id: String?, in session: inout AgentSession, at date: Date) -> Bool {
         let index =
             if let id { session.runningTools.lastIndex { $0.id == id } } else { session.runningTools.indices.last }
-        guard let index else { return }
+        guard let index else { return false }
         session.lastTool = session.runningTools.remove(at: index)
         session.toolEnded = date
+        return true
+    }
+
+    /// A call reported only once it's done: counted, and shown as the last tool while it lingers.
+    private static func finishedTool(_ event: AgentEvent, in session: inout AgentSession, at date: Date) {
+        let name = event.toolName ?? "Tool"
+        session.lastTool = ActiveTool(
+            id: event.toolUseID, name: name,
+            shown: ToolLabel.describe(tool: name, input: event.toolInput, hidden: false),
+            hidden: ToolLabel.describe(tool: name, input: event.toolInput, hidden: true), started: date)
+        session.toolEnded = date
+        session.toolCount += 1
     }
 
     /// Live figures from Claude Code's status bar. Creates the session when Wisp started

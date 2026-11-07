@@ -86,6 +86,14 @@ public enum AgentProtocol {
         return event.kind.isToolActivity ? .tool : .hook
     }
 
+    /// What the helper prints for a hook when Wisp has no reply (or isn't there): nothing for
+    /// most agents, Cursor's "carry on" for Cursor's hooks and for Claude Code hooks Cursor runs.
+    public static func silentReply(forHook payload: Data, source: AgentSource) -> String? {
+        guard source == .cursor || CursorHooks.isImported(payload, source: source) else { return nil }
+        let event = (try? JSONDecoder().decode(JSONValue.self, from: payload))?["hook_event_name"]?.stringValue
+        return AgentSource.cursor.adapter.hookFile.format.silentReply(event: event)
+    }
+
     /// A missing source reads as Claude Code, as protocol v1 always did. One no adapter knows
     /// is unsupported, so a request from it gets an empty reply.
     public static func decode(_ data: Data) throws -> AgentMessage {
