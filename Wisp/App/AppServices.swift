@@ -33,6 +33,7 @@ final class AppServices {
     let script = ScriptStore()
     let headphones = HeadphoneMonitor()
     let accessories = AccessoryBatteryStore()
+    let downloads = DownloadMonitor()
     let sounds: SoundPlayer
     let updater = Updater()
     /// Bumped for each confetti burst; the notch watches it.
@@ -375,6 +376,18 @@ final class AppServices {
             let text = "\(device.name) battery at \(level)%"
             self?.activities.post(.notice(symbol: device.symbol, text: text), slot: .notice, duration: 4)
         }
+        downloads.onChange = { [weak self] summary in
+            guard let self else { return }
+            if let summary {
+                self.activities.post(.download(summary), slot: .download, duration: nil)
+            } else {
+                self.activities.remove(.download)
+            }
+        }
+        downloads.onFinish = { [weak self] download in
+            self?.activities.post(.downloadDone(download), slot: .downloadDone, duration: 8)
+        }
+        syncDownloads()
         dropActions.onNotice = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 2)
         }
@@ -459,6 +472,20 @@ final class AppServices {
         appliedActivitySwitches = switches
     }
 
+    /// Watches the download folders only while the switch is on, and follows folder changes.
+    private func syncDownloads() {
+        let (enabled, extra) = withObservationTracking {
+            (preferences.downloadActivity, preferences.downloadFolders)
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.syncDownloads() }
+        }
+        if enabled {
+            downloads.start(folders: DownloadFolders.resolve(extra: extra, home: NSHomeDirectory()))
+        } else {
+            downloads.stop()
+        }
+    }
+
     /// Ticks on each minute boundary.
     private func startClock() {
         guard clockTask == nil else { return }
@@ -492,6 +519,7 @@ final class AppServices {
         wallpaper.stop()
         headphones.stop()
         accessories.stop()
+        downloads.stop()
         lockScreenPlayer.stop()
         push.stop()
         automation.stop()
