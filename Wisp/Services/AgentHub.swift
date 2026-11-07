@@ -229,6 +229,9 @@ final class AgentHub {
     /// The wait each connected agent's hooks were actually installed with, which can lag behind
     /// `approvalTimeout` until the user updates them.
     @ObservationIgnored private var installedTimeouts: [AgentSource: Int] = [:]
+    @ObservationIgnored private var lastInstalledRead: Date?
+    /// Counts hook-file reads, so a background read that a newer one overtook is dropped.
+    @ObservationIgnored private var installedReads = 0
 
     /// Answer before the agent's hook timeout so it can still show its own prompt.
     private func approvalWait(_ source: AgentSource) -> Duration {
@@ -247,7 +250,7 @@ final class AgentHub {
     }
 
     /// Where each agent keeps its hooks (its adapter's `HookFile`).
-    static func settingsURL(_ source: AgentSource) -> URL {
+    nonisolated static func settingsURL(_ source: AgentSource) -> URL {
         source.adapter.hookFile.url(home: FileManager.default.homeDirectoryForCurrentUser)
     }
 
@@ -875,42 +878,79 @@ final class AgentHub {
 
     func isConnected(_ source: AgentSource) -> Bool { connected.contains(source) }
 
-    func refreshInstalled() {
+    /// What every agent's hook file says about Wisp, read in one pass.
+    private struct InstalledHooks: Sendable {
         var here: Set<AgentSource> = []
         var elsewhere: Set<AgentSource> = []
         var old: Set<AgentSource> = []
         var withTools: Set<AgentSource> = []
         var waits: [AgentSource: Int] = [:]
+        /// The status bar's owner, from the last file that carries one.
+        var statusLine: StatusLineState?
+        let timeout: Int
+    }
+
+    /// Reads the hook files now. Wisp's own installs, removals and setting changes use this, so
+    /// what they show is never a throttled read behind.
+    func refreshInstalled() {
+        installedReads += 1
+        lastInstalledRead = .now
+        apply(Self.readInstalled(helper: Self.helperURL?.path ?? "", timeout: approvalTimeout))
+    }
+
+    /// For pages that rebuild on every switch: reads at most every 30 seconds, off the main actor.
+    func refreshInstalledIfStale() {
+        guard RefreshRule.agentHooks.isDue(lastRefresh: lastInstalledRead, now: .now) else { return }
+        installedReads += 1
+        lastInstalledRead = .now
+        let read = installedReads
         let helper = Self.helperURL?.path ?? ""
+        let timeout = approvalTimeout
+        Task {
+            let hooks = await Task.detached(priority: .userInitiated) {
+                Self.readInstalled(helper: helper, timeout: timeout)
+            }.value
+            // A newer read (an install that just finished) already has the files as they are now.
+            guard read == installedReads else { return }
+            apply(hooks)
+        }
+    }
+
+    private nonisolated static func readInstalled(helper: String, timeout: Int) -> InstalledHooks {
+        var hooks = InstalledHooks(timeout: timeout)
         for adapter in AgentAdapters.all {
             let source = adapter.source
             let file = adapter.hookFile
-            let data = (try? Data(contentsOf: Self.settingsURL(source))) ?? Data()
-            waits[source] = try? HookInstaller.installedApprovalTimeout(in: data, file: file)
-            let link = (try? HookInstaller.link(in: data, helper: helper, file: file, timeout: approvalTimeout))
+            let data = (try? Data(contentsOf: settingsURL(source))) ?? Data()
+            hooks.waits[source] = try? HookInstaller.installedApprovalTimeout(in: data, file: file)
+            let link = (try? HookInstaller.link(in: data, helper: helper, file: file, timeout: timeout))
             switch link ?? HookLink.none {
-            case .this: here.insert(source)
+            case .this: hooks.here.insert(source)
             case .outdated:
-                here.insert(source)
-                old.insert(source)
-            case .other: elsewhere.insert(source)
+                hooks.here.insert(source)
+                hooks.old.insert(source)
+            case .other: hooks.elsewhere.insert(source)
             case .none: break
             }
-            if file.statusLine {
-                let bar = (try? StatusLineChain.state(in: data)) ?? .none
-                if bar != statusLine { statusLine = bar }
-            }
-            if (try? HookInstaller.toolsInstalled(in: data, file: file)) == true { withTools.insert(source) }
+            if file.statusLine { hooks.statusLine = (try? StatusLineChain.state(in: data)) ?? StatusLineState.none }
+            if (try? HookInstaller.toolsInstalled(in: data, file: file)) == true { hooks.withTools.insert(source) }
         }
-        installedTimeouts = waits
+        return hooks
+    }
+
+    private func apply(_ hooks: InstalledHooks) {
+        if let bar = hooks.statusLine, bar != statusLine { statusLine = bar }
+        installedTimeouts = hooks.waits
         // A monitor-only agent has no approval hook, so it has no wait to be out of step with.
-        let mismatched = here.filter { $0.adapter.hookFile.waitsForApproval && waits[$0] != approvalTimeout }
+        let mismatched = hooks.here.filter {
+            $0.adapter.hookFile.waitsForApproval && hooks.waits[$0] != hooks.timeout
+        }
         if mismatched != waitMismatched { waitMismatched = mismatched }
-        let tools = withTools.intersection(here)
+        let tools = hooks.withTools.intersection(hooks.here)
         if tools != toolHooks { toolHooks = tools }
-        if here != connected { connected = here }
-        if elsewhere != connectedElsewhere { connectedElsewhere = elsewhere }
-        if old != outdated { outdated = old }
+        if hooks.here != connected { connected = hooks.here }
+        if hooks.elsewhere != connectedElsewhere { connectedElsewhere = hooks.elsewhere }
+        if hooks.old != outdated { outdated = hooks.old }
     }
 
     /// Adds Wisp's hooks after the user confirms; keeps a backup of the original file.
