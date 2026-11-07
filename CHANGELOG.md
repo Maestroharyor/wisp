@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.11](https://github.com/Maestroharyor/wisp/compare/v0.1.10...v0.1.11) (2026-11-07)
+
+
+### Features
+
+* cloud agent tasks and pull request checks in the Agents widget ([#32](https://github.com/Maestroharyor/wisp/issues/32)) ([6453c0a](https://github.com/Maestroharyor/wisp/commit/6453c0a82771e8182ffd1b00f34c8140c520b252))
+* download progress in the notch ([#29](https://github.com/Maestroharyor/wisp/issues/29)) ([f89d0d5](https://github.com/Maestroharyor/wisp/commit/f89d0d5c92a6db1355eba526a3403b716ab76ee9))
+* drag the island anywhere on screen ([#44](https://github.com/Maestroharyor/wisp/issues/44)) ([926383e](https://github.com/Maestroharyor/wisp/commit/926383ec661f8cb3bcb30e209b415df3af499802))
+* mouse, keyboard and trackpad batteries ([#33](https://github.com/Maestroharyor/wisp/issues/33)) ([036d8d5](https://github.com/Maestroharyor/wisp/commit/036d8d5cb68a91958ec1fcc45c51257504e4a498))
+
+
+### Bug fixes
+
+* keep agent detail buttons on one line, icons only when narrow ([#42](https://github.com/Maestroharyor/wisp/issues/42)) ([4150f63](https://github.com/Maestroharyor/wisp/commit/4150f638cdd9b9afe2583ea97620e5d6cce15005))
+
 ## [0.1.10](https://github.com/Maestroharyor/wisp/compare/v0.1.9...v0.1.10) (2026-11-07)
 
 
