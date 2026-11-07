@@ -251,6 +251,8 @@ final class Preferences {
         static let lyrics = "lyrics"
         static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
+        static let meetingControls = "meetingControls"
+        static let meetingShortcutControls = "meetingShortcutControls"
         static let lockScreenPlayer = "lockScreenPlayer"
         static let activityBubbles = "activityBubbles"
         static let theme = "theme"
@@ -728,6 +730,13 @@ final class Preferences {
     var artworkLookup: Bool { didSet { defaults.set(artworkLookup, forKey: Key.artworkLookup) } }
     /// The meeting pill while the microphone is in use, and the Join card before calls.
     var meetingActivity: Bool { didSet { defaults.set(meetingActivity, forKey: Key.meetingActivity) } }
+    /// Mute, camera, share and leave for Zoom, Teams and Meet, through Accessibility.
+    var meetingControls: Bool { didSet { defaults.set(meetingControls, forKey: Key.meetingControls) } }
+    /// Teams and Meet controls type shortcuts into the call window. Off by default: Teams marks
+    /// no meeting window Wisp could confirm before typing.
+    var meetingShortcutControls: Bool {
+        didSet { defaults.set(meetingShortcutControls, forKey: Key.meetingShortcutControls) }
+    }
     /// Show a player while the screen is locked, where macOS allows it.
     var lockScreenPlayer: Bool { didSet { defaults.set(lockScreenPlayer, forKey: Key.lockScreenPlayer) } }
     /// Extra live activities split off into round bubbles beside the pill.
@@ -919,6 +928,8 @@ final class Preferences {
             Key.lyrics: true,
             Key.artworkLookup: true,
             Key.meetingActivity: true,
+            Key.meetingControls: true,
+            Key.meetingShortcutControls: false,
             Key.lockScreenPlayer: true,
             Key.activityBubbles: true,
             Key.firstBubbleOnLeft: false,
@@ -1044,6 +1055,8 @@ final class Preferences {
         lyrics = defaults.bool(forKey: Key.lyrics)
         artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)
+        meetingControls = defaults.bool(forKey: Key.meetingControls)
+        meetingShortcutControls = defaults.bool(forKey: Key.meetingShortcutControls)
         lockScreenPlayer = defaults.bool(forKey: Key.lockScreenPlayer)
         activityBubbles = defaults.bool(forKey: Key.activityBubbles)
         firstBubbleOnLeft = defaults.bool(forKey: Key.firstBubbleOnLeft)

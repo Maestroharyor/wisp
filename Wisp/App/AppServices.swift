@@ -26,6 +26,7 @@ final class AppServices {
     let notifications: NotificationMonitor
     let lyrics: LyricsStore
     let microphone = MicrophoneMonitor()
+    let meetingControls = MeetingControlsDriver()
     let dictation: DictationEngine
     let wallpaper = WallpaperTint()
     let dropActions = DropActionRunner()
@@ -52,14 +53,15 @@ final class AppServices {
     /// Meeting occurrences already offered a Join card, with their start times.
     @ObservationIgnored private var offeredMeetings: [String: Date] = [:]
     @ObservationIgnored private var meetingTask: Task<Void, Never>?
+    @ObservationIgnored private var meetingControlsTask: Task<Void, Never>?
     /// The notification being replied to; new notifications wait until it is done.
     private(set) var replyingTo: NotificationItem?
     /// The newest notification that arrived during a reply, shown when the reply ends.
     private var waitingNotification: NotificationItem?
     /// The default timer length last given to the timer, so only a change resets it.
     private var appliedTimerLength: Double?
-    /// The Now Playing and Meeting switches as last applied, so flipping one updates its pill now.
-    private var appliedActivitySwitches: (media: Bool, meeting: Bool)?
+    /// The Now Playing, Meeting and call control switches as last applied, so flipping one acts now.
+    private var appliedActivitySwitches: (media: Bool, meeting: Bool, controls: Bool, shortcutControls: Bool)?
 
     private(set) lazy var transform = TransformPanelController(services: self)
     private(set) lazy var pocket = QuickPocket(services: self)
@@ -285,6 +287,7 @@ final class AppServices {
         microphone.onChange = { [weak self] _ in
             self?.updateMeeting()
             self?.updateOnCall()
+            self?.refreshMeetingControls()
         }
         microphone.start()
         // Calendar-driven: look for calls about to start twice a minute. A meeting can also start
@@ -393,7 +396,10 @@ final class AppServices {
             let timeEars = [look.leftEar, look.rightEar].contains { [.time, .date, .meeting, .weather].contains($0) }
             return (
                 preferences.wallpaperTint, preferences.defaultTimerSeconds, look.timeOfDay != .off || timeEars,
-                (media: preferences.mediaActivity, meeting: preferences.meetingActivity),
+                (
+                    media: preferences.mediaActivity, meeting: preferences.meetingActivity,
+                    controls: preferences.meetingControls, shortcutControls: preferences.meetingShortcutControls
+                ),
                 (
                     bar: preferences.terminalBarMode,
                     threshold: preferences.contextAlert ? Double(preferences.contextThreshold) : nil,
@@ -434,6 +440,11 @@ final class AppServices {
         if let applied = appliedActivitySwitches {
             if applied.media != switches.media { mediaChanged(nowPlaying.info) }
             if applied.meeting != switches.meeting { updateMeeting() }
+            if applied.meeting != switches.meeting || applied.controls != switches.controls
+                || applied.shortcutControls != switches.shortcutControls
+            {
+                refreshMeetingControls()
+            }
         }
         appliedActivitySwitches = switches
     }
@@ -476,6 +487,7 @@ final class AppServices {
         ai.stop()
         microphone.stop()
         meetingTask?.cancel()
+        meetingControlsTask?.cancel()
         nowPlaying.stop()
         battery.stop()
         clipboard.stop()
@@ -503,6 +515,30 @@ final class AppServices {
         activities.post(
             .meeting(MeetingStatus(title: title, started: microphone.since ?? .now, kind: kind)), slot: .meeting,
             duration: nil)
+    }
+
+    /// Reads the call app's controls, or clears them when they're off or no call is on.
+    /// While a call is on it re-reads every three seconds in the background, since the app's own
+    /// buttons change the controls too and a click on the pill only uses what's already read.
+    func refreshMeetingControls() {
+        guard preferences.meetingActivity, preferences.meetingControls, microphone.inUse else {
+            meetingControlsTask?.cancel()
+            meetingControlsTask = nil
+            meetingControls.clear()
+            return
+        }
+        meetingControls.allowsShortcutApps = preferences.meetingShortcutControls
+        meetingControls.refresh(inputApps: microphone.inputApps)
+        guard meetingControlsTask == nil else { return }
+        // Each pass goes back through this guard, so turning a switch off or the call ending
+        // stops the loop.
+        meetingControlsTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard let self, !Task.isCancelled else { return }
+                self.refreshMeetingControls()
+            }
+        }
     }
 
     /// Whether a call is on, for hiding agent details. Judged whether or not the meeting pill is on.
