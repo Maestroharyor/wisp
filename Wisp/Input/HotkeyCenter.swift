@@ -56,7 +56,7 @@ final class HotkeyCenter {
     @ObservationIgnored private var approvalPrompt: PermissionPrompt?
     /// The fallback keys registered now.
     @ObservationIgnored private var fallbackKeys: [UInt16] = []
-    @ObservationIgnored private var keyboardWatcher: KeyboardWatcher?
+    @ObservationIgnored private var keyboardWatcher: HIDDeviceWatcher?
     @ObservationIgnored private var holdDrain: Task<Void, Never>?
     @ObservationIgnored private var accessWaiter: Task<Void, Never>?
     /// Notices Accessibility being switched off while Hyper is active.
@@ -152,7 +152,9 @@ final class HotkeyCenter {
             return
         }
         if keyboardWatcher == nil {
-            keyboardWatcher = KeyboardWatcher { [weak self] in self?.reapplyRemap() }
+            keyboardWatcher = HIDDeviceWatcher(matching: HIDDeviceWatcher.keyboards) { [weak self] in
+                self?.reapplyRemap()
+            }
         }
         keyboardWatcher?.start()
 

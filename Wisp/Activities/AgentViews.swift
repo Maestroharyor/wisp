@@ -118,6 +118,7 @@ struct ContextBar: View {
                 }
             Text("\(Int(percent.rounded()))%").font(.system(size: 10)).monospacedDigit()
                 .foregroundStyle(ContextUsage.level(percent).tint)
+                .lineLimit(1).fixedSize()
         }
         .help("Context window used")
     }
@@ -498,14 +499,14 @@ private struct ApprovalButtonStyle: ButtonStyle {
 /// widget shows `AgentsDetail` instead, with the selected session's details on the right.
 struct AgentsWidget: View {
     let hub: AgentHub
+    let cloud: CloudAgentStore
 
     var body: some View {
         let sessions = hub.sessions.list
+        let hasCloud = !CloudLane.visible(cloud.tasks, now: .now).isEmpty
         Group {
-            if hub.connected.isEmpty {
-                ConnectAgentsHint(hub: hub)
-            } else if sessions.isEmpty {
-                NoSessionsHint()
+            if sessions.isEmpty && !hasCloud {
+                if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 5) {
@@ -513,11 +514,15 @@ struct AgentsWidget: View {
                             SessionBar(session: session) { hub.focus(session: session.id) }
                                 .help("Show the terminal")
                         }
+                        CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                     }
                 }
             }
         }
-        .onAppear { hub.refreshInstalled() }
+        .onAppear {
+            hub.refreshInstalled()
+            cloud.refreshNow()
+        }
     }
 }
 
@@ -673,6 +678,7 @@ private struct SessionBar: View {
 /// tokens and a prompt draft on the right.
 struct AgentsDetail: View {
     let hub: AgentHub
+    let cloud: CloudAgentStore
     let model: NotchModel
 
     @State private var selection: String?
@@ -690,10 +696,8 @@ struct AgentsDetail: View {
                     Spacer(minLength: 0)
                     PrivacyButton(hub: hub)
                 }
-                if hub.connected.isEmpty {
-                    ConnectAgentsHint(hub: hub)
-                } else if sessions.isEmpty {
-                    NoSessionsHint()
+                if sessions.isEmpty && CloudLane.visible(cloud.tasks, now: .now).isEmpty {
+                    if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 4) {
@@ -701,6 +705,7 @@ struct AgentsDetail: View {
                                 DetailSessionRow(session: session, selected: session.id == selected?.id)
                                     .onTapGesture { selection = session.id }
                             }
+                            CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                         }
                     }
                 }
@@ -716,7 +721,10 @@ struct AgentsDetail: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onAppear { hub.refreshInstalled() }
+        .onAppear {
+            hub.refreshInstalled()
+            cloud.refreshNow()
+        }
         .onChange(of: selected?.id) { note = nil }
         // Dictation types into the draft box on screen; it's hidden while details are private.
         .onChange(of: hub.detailsHidden ? nil : selected?.id, initial: true) { _, session in
@@ -845,25 +853,12 @@ private struct SessionDetail: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 10) {
                 if let percent = session.contextPercent { ContextBar(percent: percent) }
-                Spacer()
-                action(TerminalApps.name(for: session.terminal) ?? "Terminal", symbol: "arrow.up.forward.app") {
-                    hub.focus(session: session.id)
-                }
-                if !session.cwd.isEmpty {
-                    action("Folder", symbol: "folder") { hub.openFolder(session: session.id) }
-                }
-                if session.transcriptPath != nil {
-                    action("Transcript", symbol: "doc.text") {
-                        if !hub.revealTranscript(session: session.id) { note = "Transcript not found" }
-                    }
-                    .help("Show the transcript in Finder")
-                }
-                // Wisp's clipboard history would show the ID, so it isn't offered while private.
-                if !hidden {
-                    action("Copy ID", symbol: "doc.on.doc") {
-                        hub.copyID(session: session.id)
-                        note = "Session ID copied"
-                    }
+                Spacer(minLength: 4)
+                // Full labels when they fit, icons with tooltips when the panel is narrow,
+                // so a label never wraps onto a second line.
+                ViewThatFits(in: .horizontal) {
+                    actions.labelStyle(.titleAndIcon)
+                    actions.labelStyle(.iconOnly)
                 }
             }
             ScrollView(.vertical, showsIndicators: false) {
@@ -928,12 +923,39 @@ private struct SessionDetail: View {
         }
     }
 
-    private func action(_ title: String, symbol: String, perform: @escaping () -> Void) -> some View {
+    private var actions: some View {
+        HStack(spacing: 10) {
+            action(TerminalApps.name(for: session.terminal) ?? "Terminal", symbol: "arrow.up.forward.app") {
+                hub.focus(session: session.id)
+            }
+            if !session.cwd.isEmpty {
+                action("Folder", symbol: "folder") { hub.openFolder(session: session.id) }
+            }
+            if session.transcriptPath != nil {
+                action("Transcript", symbol: "doc.text", help: "Show the transcript in Finder") {
+                    if !hub.revealTranscript(session: session.id) { note = "Transcript not found" }
+                }
+            }
+            // Wisp's clipboard history would show the ID, so it isn't offered while private.
+            if !hidden {
+                action("Copy ID", symbol: "doc.on.doc") {
+                    hub.copyID(session: session.id)
+                    note = "Session ID copied"
+                }
+            }
+        }
+    }
+
+    private func action(
+        _ title: String, symbol: String, help: String? = nil, perform: @escaping () -> Void
+    ) -> some View {
         Button(action: perform) {
             Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold))
+                .lineLimit(1).fixedSize()
         }
         .buttonStyle(.plain)
         .foregroundStyle(Color.project(session.project))
+        .help(help ?? title)
     }
 
     private func send() {

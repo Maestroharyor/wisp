@@ -7,6 +7,8 @@ public enum PushKind: String, CaseIterable, Sendable {
     case done
     case limit
     case budget
+    /// Cloud agent tasks that finished or failed, and pull requests whose checks failed.
+    case cloud
 
     public var title: String {
         switch self {
@@ -15,11 +17,13 @@ public enum PushKind: String, CaseIterable, Sendable {
         case .done: "Done"
         case .limit: "Usage limits"
         case .budget: "Daily budget"
+        case .cloud: "Cloud tasks"
         }
     }
 
     /// On when push is first turned on: the moments that need the user. Done can be chatty.
-    public static let defaults: Set<PushKind> = [.approval, .needsYou, .limit, .budget]
+    /// Cloud tasks only send while Cloud agents is on, which is off by default.
+    public static let defaults: Set<PushKind> = [.approval, .needsYou, .limit, .budget, .cloud]
 }
 
 /// When pushes go out.
@@ -106,6 +110,7 @@ public enum AgentMoment: Equatable, Sendable {
     /// Wisp's own notice text for a usage window or the daily budget.
     case limit(String)
     case budget(String)
+    case cloud(CloudEvent)
 
     public var kind: PushKind {
         switch self {
@@ -113,6 +118,7 @@ public enum AgentMoment: Equatable, Sendable {
         case .done: .done
         case .limit: .limit
         case .budget: .budget
+        case .cloud: .cloud
         }
     }
 
@@ -121,6 +127,7 @@ public enum AgentMoment: Equatable, Sendable {
         switch self {
         case .needsYou(let session, _, _), .done(let session, _, _): session
         case .limit(let text), .budget(let text): text
+        case .cloud(let event): event.kind.rawValue + "|" + event.task.id
         }
     }
 
@@ -133,6 +140,7 @@ public enum AgentMoment: Equatable, Sendable {
             PushMessage.done(agent: source.displayName, project: project, hidden: hidden)
         case .limit(let text): PushMessage.limit(text)
         case .budget(let text): PushMessage.budget(text)
+        case .cloud(let event): PushMessage.cloud(event, hidden: hidden)
         }
     }
 }

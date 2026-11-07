@@ -64,6 +64,10 @@ enum Activity: Sendable, Equatable {
     case meetingSoon(MeetingInvite)
     /// Headphones just connected, with their battery when they report it.
     case device(BluetoothDevice)
+    /// A browser is downloading into a watched folder.
+    case download(DownloadSummary)
+    /// A download just finished, with Open and Show in Finder.
+    case downloadDone(FinishedDownload)
     /// Posted by a script, Shortcut or link.
     case custom(ExternalActivity)
     /// Part of a window being watched for a change.
@@ -82,7 +86,8 @@ enum Activity: Sendable, Equatable {
     /// Level bars need room for the bar and the number, and a notice for a few words.
     var usesWideWings: Bool {
         switch self {
-        case .level, .sent, .focus, .agent, .meeting, .device, .notice, .custom, .regionWatch, .dictation: true
+        case .level, .sent, .focus, .agent, .meeting, .device, .notice, .download, .custom, .regionWatch, .dictation:
+            true
         default: false
         }
     }
@@ -110,6 +115,8 @@ enum Activity: Sendable, Equatable {
         case .meeting: "meeting"
         case .meetingSoon(let invite): "meetingSoon-\(invite.id)"
         case .device: "device"
+        case .download: "download"
+        case .downloadDone(let done): "downloadDone-\(done.path)"
         case .custom: "custom"
         case .regionWatch: "regionWatch"
         case .dictation: "dictation"
