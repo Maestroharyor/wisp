@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Maestroharyor/wisp/compare/v0.1.5...v0.1.6) (2026-11-07)
+
+
+### Features
+
+* floating orb, radial ring and Dynamic Island support ([#22](https://github.com/Maestroharyor/wisp/issues/22)) ([2e78b71](https://github.com/Maestroharyor/wisp/commit/2e78b7148cf0fdb3d78b6df6170e4c335d23570b))
+
 ## [0.1.5](https://github.com/Maestroharyor/wisp/compare/v0.1.4...v0.1.5) (2026-11-06)
 
 
