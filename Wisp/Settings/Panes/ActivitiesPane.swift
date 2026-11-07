@@ -41,6 +41,9 @@ struct ActivitySettings: View {
                 }
                 .disabled(!preferences.batteryHUD)
                 Toggle("Headphones connecting, with their battery", isOn: $preferences.deviceActivity)
+                Toggle(
+                    "Mouse, keyboard and trackpad batteries, with a warning at 20%",
+                    isOn: $preferences.accessoryBatteries)
                 Toggle("Split extra activities into bubbles beside the notch", isOn: $preferences.activityBubbles)
                 Picker("First bubble", selection: $preferences.firstBubbleOnLeft) {
                     Text("Right").tag(false)

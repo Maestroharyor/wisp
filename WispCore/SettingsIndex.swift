@@ -90,7 +90,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "lyrics", "lrclib", "album art", "artwork", "itunes", "lock screen", "meeting", "call", "microphone",
                 "recording",
                 "zoom", "meet", "bubbles", "split", "volume steps", "duration", "low battery", "threshold",
-                "left", "right", "airpods", "headphones", "bluetooth",
+                "left", "right", "airpods", "headphones", "bluetooth", "mouse", "keyboard", "trackpad",
+                "magic mouse", "accessory", "accessories", "low battery warning",
             ]
         case .widgets:
             [
