@@ -40,7 +40,7 @@ final class HotkeyCenter {
     @ObservationIgnored private let carbon = CarbonHotkey(id: 1)
     @ObservationIgnored private let clipboardCarbon = CarbonHotkey(id: 2)
     @ObservationIgnored private let ringCarbon = CarbonHotkey(id: 3)
-    @ObservationIgnored private var keyboardWatcher: KeyboardWatcher?
+    @ObservationIgnored private var keyboardWatcher: HIDDeviceWatcher?
     @ObservationIgnored private var accessWaiter: Task<Void, Never>?
     /// Notices Accessibility being switched off while Hyper is active.
     @ObservationIgnored private var trustWatcher: Task<Void, Never>?
@@ -122,7 +122,9 @@ final class HotkeyCenter {
             return
         }
         if keyboardWatcher == nil {
-            keyboardWatcher = KeyboardWatcher { [weak self] in self?.reapplyRemap() }
+            keyboardWatcher = HIDDeviceWatcher(matching: HIDDeviceWatcher.keyboards) { [weak self] in
+                self?.reapplyRemap()
+            }
         }
         keyboardWatcher?.start()
 
