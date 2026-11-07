@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Maestroharyor/wisp/compare/v0.1.7...v0.1.8) (2026-11-07)
+
+
+### Features
+
+* phone and Apple Watch alerts and approvals via ntfy ([#27](https://github.com/Maestroharyor/wisp/issues/27)) ([312885f](https://github.com/Maestroharyor/wisp/commit/312885f87c16447976c37da0ccdb62af940eff6f))
+
 ## [0.1.7](https://github.com/Maestroharyor/wisp/compare/v0.1.6...v0.1.7) (2026-11-07)
 
 
