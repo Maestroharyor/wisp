@@ -12,7 +12,8 @@ public enum HookLink: Equatable, Sendable {
 /// Adds and removes Wisp's hooks in an agent's hook file (`HookFile`): Claude Code's
 /// settings.json, Codex's hooks.json, Gemini CLI's settings.json, Copilot CLI's hooks folder or Cursor's
 /// hooks.json, which share the `hooks` shape (the last two list handlers without matcher groups). The user's
-/// own settings and hooks are left alone. Wisp's entries are recognised by the helper's name.
+/// own settings and hooks are left alone. Wisp's entries are recognised by the helper's name. OpenCode's
+/// plugin is a file of Wisp's own (`OpenCodePlugin`), written whole.
 public enum HookInstaller {
     public enum Failure: Error { case notAnObject }
 
@@ -50,6 +51,8 @@ public enum HookInstaller {
     public static func install(
         into settings: Data, command: String, file: HookFile, tools: Bool = false, timeout: Int = approvalTimeout
     ) throws -> Data {
+        // A plugin is Wisp's own file, written whole.
+        if file.format.isPlugin { return OpenCodePlugin.source(command: command, tools: tools) }
         var root = try object(settings)
         var hooks = stripped(root["hooks"])
         for event in file.events + (tools ? file.toolEvents : []) {
@@ -111,6 +114,12 @@ public enum HookInstaller {
         return seconds
     }
 
+    /// The approval wait Wisp's hooks in `file` were installed with: the PermissionRequest hook's
+    /// timeout, or the wait in a plugin's command. Nil when there's neither.
+    public static func installedApprovalTimeout(in settings: Data, file: HookFile) throws -> Int? {
+        file.format.isPlugin ? OpenCodePlugin.approvalTimeout(in: settings) : try installedApprovalTimeout(in: settings)
+    }
+
     /// The PermissionRequest timeout Wisp's hook in `settings` was installed with; nil when
     /// there's no such hook.
     public static func installedApprovalTimeout(in settings: Data) throws -> Int? {
@@ -158,6 +167,9 @@ public enum HookInstaller {
     public static func link(
         in settings: Data, helper: String, file: HookFile, timeout: Int = approvalTimeout
     ) throws -> HookLink {
+        if file.format.isPlugin {
+            return OpenCodePlugin.link(in: settings, helper: helper, file: file, timeout: timeout)
+        }
         let commands = try wispCommands(in: settings)
         if commands.isEmpty { return .none }
         let base = command(helper: helper, file: file)
@@ -170,7 +182,7 @@ public enum HookInstaller {
     }
 
     /// A hook command without a trailing ` --timeout <seconds>` (before any ` || true`).
-    private static func withoutTimeout(_ command: String) -> String {
+    static func withoutTimeout(_ command: String) -> String {
         let suffix = command.hasSuffix(failOpenSuffix) ? failOpenSuffix : ""
         let body = command.dropLast(suffix.count)
         guard let range = body.range(of: " \(timeoutFlag) ", options: .backwards) else { return command }
@@ -183,6 +195,7 @@ public enum HookInstaller {
     public static func toolsInstalled(in settings: Data, file: HookFile = AgentSource.claude.adapter.hookFile) throws
         -> Bool
     {
+        if file.format.isPlugin { return OpenCodePlugin.toolsOn(in: settings) }
         let events = Set(try wispCommands(in: settings).map(\.event))
         return !events.isDisjoint(with: file.toolEvents)
     }

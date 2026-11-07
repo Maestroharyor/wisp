@@ -1,7 +1,7 @@
 import Foundation
 
 /// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`, `"gemini"`, `"cursor"`,
-/// `"copilot"`). Only ids in `AgentAdapters` can be made, so every source has an adapter.
+/// `"copilot"`, `"opencode"`). Only ids in `AgentAdapters` can be made, so every source has an adapter.
 public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public let rawValue: String
 
@@ -19,6 +19,7 @@ public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public static let gemini = AgentSource(registered: "gemini")
     public static let cursor = AgentSource(registered: "cursor")
     public static let copilot = AgentSource(registered: "copilot")
+    public static let opencode = AgentSource(registered: "opencode")
 
     public init(from decoder: Decoder) throws {
         let id = try decoder.singleValueContainer().decode(String.self)
@@ -81,6 +82,9 @@ public struct HookFile: Equatable, Sendable {
         /// A file of Wisp's own in Copilot CLI's hooks folder, as GitHub documents it: `"version": 1`
         /// and handlers listed straight under each event (no matcher groups), with `timeoutSec`.
         case copilotHooks
+        /// A JavaScript plugin of Wisp's own in OpenCode's plugin folder (`OpenCodePlugin`),
+        /// written whole and deleted to disconnect.
+        case opencodePlugin
 
         /// What a timeout in seconds is multiplied by in this file.
         public var timeoutScale: Int { self == .geminiSettings ? 1000 : 1 }
@@ -97,6 +101,8 @@ public struct HookFile: Equatable, Sendable {
         /// the command ends in `|| true`: a helper that's gone (Wisp moved or deleted) can't stop
         /// the agent's work. Cursor fails open on a failed command unless a hook sets `failClosed`.
         public var failsClosed: Bool { self == .copilotHooks }
+        /// A JavaScript file Wisp owns outright and writes whole, rather than JSON hook entries.
+        public var isPlugin: Bool { self == .opencodePlugin }
 
         /// What the helper prints for `event` when Wisp has nothing to say: nothing, or for
         /// Cursor, which reads a hook's stdout as JSON, its "carry on" answer.
@@ -123,9 +129,14 @@ public struct HookFile: Equatable, Sendable {
     public let helperArguments: String
 
     /// Wisp holds a hook open for the user's answer, so the command carries the approval wait.
-    public var waitsForApproval: Bool { events.contains(AgentEvent.Kind.permissionRequest.rawValue) }
-    /// The agent says when it waits on the user (a Notification hook), so a session can show Needs you.
-    public var reportsWaiting: Bool { events.contains(AgentEvent.Kind.notification.rawValue) }
+    public var waitsForApproval: Bool {
+        events.contains(AgentEvent.Kind.permissionRequest.rawValue) || events.contains(OpenCodeHooks.permissionAsked)
+    }
+    /// The agent says when it waits on the user (a Notification hook, or OpenCode's question
+    /// event), so a session can show Needs you.
+    public var reportsWaiting: Bool {
+        events.contains(AgentEvent.Kind.notification.rawValue) || events.contains(OpenCodeHooks.questionAsked)
+    }
 
     public var displayPath: String { "~/" + path }
     public func url(home: URL) -> URL { home.appendingPathComponent(path) }
@@ -178,7 +189,7 @@ public struct AgentAdapter: Sendable {
 
 /// Every agent Wisp knows, in the order Settings and onboarding list them.
 public enum AgentAdapters {
-    public static let all: [AgentAdapter] = [claude, codex, gemini, copilot, cursor]
+    public static let all: [AgentAdapter] = [claude, codex, gemini, copilot, cursor, opencode]
 
     public static func adapter(id: String) -> AgentAdapter? { all.first { $0.source.rawValue == id } }
 

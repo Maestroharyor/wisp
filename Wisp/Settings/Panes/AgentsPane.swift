@@ -194,6 +194,10 @@ private struct AgentConnection: View {
             ? ", and an Allow or Deny card for permission prompts. Prompts you don't answer within two minutes fall back to the terminal."
             : ". Permission prompts stay in the terminal."
         let note = adapter.setupNote.map { " " + $0 } ?? ""
+        if adapter.hookFile.format.isPlugin {
+            return
+                "Wisp adds a plugin at \(adapter.hookFile.displayPath), so every \(adapter.displayName) session shows in the notch: a pill while it works, Done when it finishes, and an Allow or Deny card for permission prompts, which you can also answer in \(adapter.displayName). Restart \(adapter.displayName) after connecting.\(note)"
+        }
         return
             "Wisp adds hooks to \(adapter.hookFile.displayPath), so every \(adapter.displayName) session shows in the notch: a pill while it works, Done when it finishes\(card) Restart running sessions after connecting.\(note)"
     }

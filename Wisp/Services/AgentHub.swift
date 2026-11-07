@@ -893,7 +893,7 @@ final class AgentHub {
             let source = adapter.source
             let file = adapter.hookFile
             let data = (try? Data(contentsOf: Self.settingsURL(source))) ?? Data()
-            waits[source] = try? HookInstaller.installedApprovalTimeout(in: data)
+            waits[source] = try? HookInstaller.installedApprovalTimeout(in: data, file: file)
             let link = (try? HookInstaller.link(in: data, helper: helper, file: file, timeout: approvalTimeout))
             switch link ?? HookLink.none {
             case .this: here.insert(source)
@@ -959,6 +959,15 @@ final class AgentHub {
             ?? HookLink.none
         let confirmed: Bool
         switch link {
+        case .none where file.format.isPlugin:
+            confirmed = confirm(
+                "Add Wisp's plugin to \(source.displayName)?",
+                detail: """
+                    Wisp adds a plugin at \(path) that sends \(source.displayName)'s session events to Wisp.\(tools) \
+                    Permission prompts show in the notch for up to \(approvalWaitText) while \(source.displayName) \
+                    asks too; answer in either place. Restart \(source.displayName) to load it.\(trust)
+                    """,
+                action: "Add Plugin")
         case .none:
             confirmed = confirm(
                 "Add Wisp's hooks to \(source.displayName)?",
@@ -973,9 +982,17 @@ final class AgentHub {
                 "Update Wisp's hooks for \(source.displayName)?",
                 detail: """
                     Wisp brings its hooks in \(path) up to date for this version.\(tools)\(bar)\(wait) The current \
-                    file is saved next to it with .wisp-previous on the end.\(trust)
+                    file is saved next to it with .wisp-previous on the end.\(trust)\(Self.restartNote([adapter]))
                     """,
                 action: "Update Hooks")
+        case .other where file.format.isPlugin:
+            confirmed = confirm(
+                "Point \(source.displayName)'s plugin at this Wisp?",
+                detail: """
+                    \(path) calls another copy of Wisp, or isn't Wisp's, so this one doesn't see your sessions. \
+                    Wisp replaces it with a plugin that calls this copy.\(trust)\(Self.restartNote([adapter]))
+                    """,
+                action: "Use This Wisp")
         case .other:
             // Hooks from another copy (a dev build, a moved app) are replaced, not added to.
             confirmed = confirm(
@@ -1011,6 +1028,10 @@ final class AgentHub {
 
     func removeHooks(_ source: AgentSource) {
         let url = Self.settingsURL(source)
+        if source.adapter.hookFile.format.isPlugin {
+            removePlugin(source, at: url)
+            return
+        }
         let statusLine = source.adapter.hookFile.statusLine
         guard let original = try? Data(contentsOf: url),
             let removed = try? HookInstaller.remove(from: original),
@@ -1034,6 +1055,32 @@ final class AgentHub {
             return
         }
         write(updated, to: url)
+    }
+
+    /// A plugin is Wisp's own file, so disconnecting deletes it.
+    private func removePlugin(_ source: AgentSource, at url: URL) {
+        guard let data = try? Data(contentsOf: url) else { return }
+        // Someone else's file of the same name is left alone.
+        guard OpenCodePlugin.command(in: data)?.contains(HookInstaller.helperName) == true else {
+            alert(
+                "\(source.adapter.hookFile.displayPath) isn't Wisp's",
+                detail:
+                    "Wisp didn't write this file, so it leaves it as it is. Remove it yourself if you don't need it.")
+            return
+        }
+        guard
+            confirm(
+                "Remove Wisp's plugin from \(source.displayName)?",
+                detail:
+                    "Wisp deletes \(source.adapter.hookFile.displayPath). Restart \(source.displayName) to unload it.",
+                action: "Remove")
+        else { return }
+        do {
+            try FileManager.default.removeItem(at: url)
+        } catch {
+            alert("Couldn't remove \(url.path)", detail: error.localizedDescription)
+        }
+        refreshInstalled()
     }
 
     /// Switches Claude Code's status bar after the user confirms. Only touches the file when
@@ -1096,7 +1143,9 @@ final class AgentHub {
         guard !changes.isEmpty else { return }
         let paths = ListFormatter.localizedString(byJoining: changes.map { $0.adapter.hookFile.displayPath })
         let names = ListFormatter.localizedString(byJoining: changes.map { $0.adapter.displayName })
-        let notes = changes.compactMap(\.adapter.setupNote).map { " " + $0 }.joined()
+        let notes =
+            changes.compactMap(\.adapter.setupNote).map { " " + $0 }.joined()
+            + Self.restartNote(changes.map(\.adapter))
         let longer = approvalTimeout > HookInstaller.approvalTimeout
         let why =
             longer
@@ -1110,6 +1159,13 @@ final class AgentHub {
                 action: "Update Hooks")
         else { return }
         for change in changes { write(change.data, to: change.url) }
+    }
+
+    /// Agents that load Wisp's plugin only at start pick up a changed file after a restart.
+    private static func restartNote(_ adapters: [AgentAdapter]) -> String {
+        let names = adapters.filter { $0.hookFile.format.isPlugin }.map(\.displayName)
+        guard !names.isEmpty else { return "" }
+        return " Restart \(ListFormatter.localizedString(byJoining: names)) to load the change."
     }
 
     private static let toolSentence =
@@ -1148,7 +1204,9 @@ final class AgentHub {
             changes.contains { outdated.contains($0.adapter.source) }
             ? " It also brings Wisp's other hooks up to date." : ""
         // Agents that make the user trust changed hooks (Codex's /hooks) say so up front.
-        let notes = on ? changes.compactMap(\.adapter.setupNote).map { " " + $0 }.joined() : ""
+        let notes =
+            (on ? changes.compactMap(\.adapter.setupNote).map { " " + $0 }.joined() : "")
+            + Self.restartNote(changes.map(\.adapter))
         var events: [String] = []
         for event in changes.flatMap(\.adapter.hookFile.toolEvents) where !events.contains(event) {
             events.append(event)
