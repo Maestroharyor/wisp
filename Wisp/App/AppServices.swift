@@ -67,6 +67,7 @@ final class AppServices {
     private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
     private(set) lazy var push = PushService(preferences: preferences, hub: agents)
+    private(set) lazy var ai = AIService(preferences: preferences)
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -320,6 +321,8 @@ final class AppServices {
         }
         agents.onMoment = { [weak self] moment in self?.push.moment(moment) }
         push.start()
+        // Features read `ai.isReady` to decide whether to offer AI, so check at launch and on wake.
+        ai.start()
         agents.onNewRequest = { [weak self] in
             guard self?.preferences.approvalSound == true else { return }
             self?.needsYouFeedback()
@@ -455,6 +458,7 @@ final class AppServices {
         headphones.stop()
         lockScreenPlayer.stop()
         push.stop()
+        ai.stop()
         microphone.stop()
         meetingTask?.cancel()
         nowPlaying.stop()

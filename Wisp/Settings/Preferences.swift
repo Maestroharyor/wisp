@@ -242,6 +242,10 @@ final class Preferences {
         static let pushIdleMinutes = "pushIdleMinutes"
         static let pushTimeoutMinutes = "pushTimeoutMinutes"
         static let pushDetails = "pushDetails"
+        static let aiEnabled = "aiEnabled"
+        static let aiEngine = "aiEngine"
+        static let ollamaAddress = "ollamaAddress"
+        static let ollamaModel = "ollamaModel"
         static let lyrics = "lyrics"
         static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
@@ -703,6 +707,13 @@ final class Preferences {
     var pushTimeoutMinutes: Int { didSet { defaults.set(pushTimeoutMinutes, forKey: Key.pushTimeoutMinutes) } }
     /// Adds a masked summary (command, file name) to approval notifications.
     var pushDetails: Bool { didSet { defaults.set(pushDetails, forKey: Key.pushDetails) } }
+    /// On-device AI for features that offer it. Off by default.
+    var aiEnabled: Bool { didSet { defaults.set(aiEnabled, forKey: Key.aiEnabled) } }
+    var aiEngine: AIEngineKind { didSet { defaults.set(aiEngine.rawValue, forKey: Key.aiEngine) } }
+    /// Ollama's address; only addresses on this Mac are used (`OllamaEndpoint.base`).
+    var ollamaAddress: String { didSet { defaults.set(ollamaAddress, forKey: Key.ollamaAddress) } }
+    /// The Ollama model to use; empty means the first one pulled.
+    var ollamaModel: String { didSet { defaults.set(ollamaModel, forKey: Key.ollamaModel) } }
     /// The PermissionRequest hook timeout these settings ask for.
     var approvalTimeout: Int { HookInstaller.approvalTimeout(push: pushEnabled, minutes: pushTimeoutMinutes) }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
@@ -896,6 +907,9 @@ final class Preferences {
             Key.pushIdleMinutes: PushPolicy.defaultIdleMinutes,
             Key.pushTimeoutMinutes: HookInstaller.defaultPushTimeoutMinutes,
             Key.pushDetails: false,
+            Key.aiEnabled: false,
+            Key.aiEngine: AIEngineKind.default.rawValue,
+            Key.ollamaAddress: OllamaEndpoint.defaultAddress,
             Key.lyrics: true,
             Key.artworkLookup: true,
             Key.meetingActivity: true,
@@ -1015,6 +1029,10 @@ final class Preferences {
             max(defaults.integer(forKey: Key.pushTimeoutMinutes), HookInstaller.pushTimeoutMinutes.lowerBound),
             HookInstaller.pushTimeoutMinutes.upperBound)
         pushDetails = defaults.bool(forKey: Key.pushDetails)
+        aiEnabled = defaults.bool(forKey: Key.aiEnabled)
+        aiEngine = defaults.string(forKey: Key.aiEngine).flatMap(AIEngineKind.init(rawValue:)) ?? .default
+        ollamaAddress = defaults.string(forKey: Key.ollamaAddress) ?? OllamaEndpoint.defaultAddress
+        ollamaModel = defaults.string(forKey: Key.ollamaModel) ?? ""
         lyrics = defaults.bool(forKey: Key.lyrics)
         artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)
