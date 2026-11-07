@@ -498,14 +498,14 @@ private struct ApprovalButtonStyle: ButtonStyle {
 /// widget shows `AgentsDetail` instead, with the selected session's details on the right.
 struct AgentsWidget: View {
     let hub: AgentHub
+    let cloud: CloudAgentStore
 
     var body: some View {
         let sessions = hub.sessions.list
+        let hasCloud = !CloudLane.visible(cloud.tasks, now: .now).isEmpty
         Group {
-            if hub.connected.isEmpty {
-                ConnectAgentsHint(hub: hub)
-            } else if sessions.isEmpty {
-                NoSessionsHint()
+            if sessions.isEmpty && !hasCloud {
+                if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 5) {
@@ -513,11 +513,15 @@ struct AgentsWidget: View {
                             SessionBar(session: session) { hub.focus(session: session.id) }
                                 .help("Show the terminal")
                         }
+                        CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                     }
                 }
             }
         }
-        .onAppear { hub.refreshInstalled() }
+        .onAppear {
+            hub.refreshInstalled()
+            cloud.refreshNow()
+        }
     }
 }
 
@@ -673,6 +677,7 @@ private struct SessionBar: View {
 /// tokens and a prompt draft on the right.
 struct AgentsDetail: View {
     let hub: AgentHub
+    let cloud: CloudAgentStore
     let model: NotchModel
 
     @State private var selection: String?
@@ -688,10 +693,8 @@ struct AgentsDetail: View {
                     Spacer(minLength: 0)
                     PrivacyButton(hub: hub)
                 }
-                if hub.connected.isEmpty {
-                    ConnectAgentsHint(hub: hub)
-                } else if sessions.isEmpty {
-                    NoSessionsHint()
+                if sessions.isEmpty && CloudLane.visible(cloud.tasks, now: .now).isEmpty {
+                    if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 4) {
@@ -699,6 +702,7 @@ struct AgentsDetail: View {
                                 DetailSessionRow(session: session, selected: session.id == selected?.id)
                                     .onTapGesture { selection = session.id }
                             }
+                            CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                         }
                     }
                 }
@@ -714,7 +718,10 @@ struct AgentsDetail: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onAppear { hub.refreshInstalled() }
+        .onAppear {
+            hub.refreshInstalled()
+            cloud.refreshNow()
+        }
         .onChange(of: selected?.id) { note = nil }
         .onAppear {
             // Opened from the pill: start on that session, once.

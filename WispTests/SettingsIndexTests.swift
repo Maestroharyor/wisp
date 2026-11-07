@@ -92,4 +92,10 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.phone])
         XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.phone))
     }
+
+    func testCloudAgentsAreFound() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "codex cloud"), [.agents])
+        XCTAssertEqual(SettingsIndex.panes(matching: "background agent"), [.agents])
+        XCTAssertTrue(SettingsIndex.panes(matching: "copilot").contains(.agents))
+    }
 }
