@@ -170,6 +170,9 @@ final class AgentHub {
     /// Needs you, Done, a usage limit or the budget, for phone push. Fired whatever the notch
     /// shows; the receiver decides what goes out.
     var onMoment: (AgentMoment) -> Void = { _ in }
+    /// `wisp activity` (or a script) posted, changed or ended a live activity. Returns why it
+    /// couldn't be done, which goes back to the sender, or nil.
+    var onExternalActivity: (ExternalActivityAction) -> String? = { _ in nil }
 
     @ObservationIgnored private var listener: NWListener?
     @ObservationIgnored private var lastListenerRestart = Date.distantPast
@@ -349,6 +352,9 @@ final class AgentHub {
                 sessions: sessions.list, spend: spend, query: query, now: .now, hidden: hiddenReason,
                 limits: currentLimits(now: .now))
             reply(connection, report.encoded().map { String(decoding: $0, as: UTF8.self) })
+        case .activity(let action):
+            let problem = onExternalActivity(action)
+            reply(connection, (problem.map(AgentProtocol.ActivityReply.rejected) ?? .accepted).encoded)
         case .unsupported(let name):
             if unsupportedLogged.insert(name).inserted {
                 // The name comes from whoever wrote to the socket, so it stays private.

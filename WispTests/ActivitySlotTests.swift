@@ -15,7 +15,8 @@ final class ActivitySlotTests: XCTestCase {
 
     func testOnlyStickyGlyphSourcesBecomeBubbles() {
         XCTAssertEqual(
-            Set(ActivitySlot.allCases.filter(\.canBeBubble)), [.media, .timer, .agent, .meeting, .regionWatch])
+            Set(ActivitySlot.allCases.filter(\.canBeBubble)),
+            [.media, .timer, .agent, .meeting, .external, .regionWatch])
     }
 
     func testCardsAndAlertsCanBeDismissedButOngoingActivitiesCant() {
@@ -33,9 +34,12 @@ final class ActivitySlotTests: XCTestCase {
 
     func testOngoingActivitiesKeepTheirOrder() {
         XCTAssertGreaterThan(ActivitySlot.meeting.priority, ActivitySlot.timer.priority)
-        XCTAssertGreaterThan(ActivitySlot.timer.priority, ActivitySlot.agent.priority)
+        XCTAssertGreaterThan(ActivitySlot.timer.priority, ActivitySlot.external.priority)
+        XCTAssertGreaterThan(ActivitySlot.external.priority, ActivitySlot.agent.priority)
         XCTAssertGreaterThan(ActivitySlot.agent.priority, ActivitySlot.media.priority)
         XCTAssertGreaterThan(ActivitySlot.timer.priority, ActivitySlot.regionWatch.priority)
         XCTAssertGreaterThan(ActivitySlot.regionWatch.priority, ActivitySlot.agent.priority)
+        // A watch the user set up in Wisp outranks a script's activity.
+        XCTAssertGreaterThan(ActivitySlot.regionWatch.priority, ActivitySlot.external.priority)
     }
 }

@@ -166,6 +166,15 @@ final class ProfileTests: XCTestCase {
         XCTAssertNil(Profile.index(forDigit: 0, count: 3))
     }
 
+    func testProfileByTypedName() {
+        let profiles = ["Base", "Deep work"].map {
+            Profile(name: $0, home: HomeLayout(), defaultPage: "home", surface: "notch")
+        }
+        XCTAssertEqual(Profile.index(named: "Deep work", in: profiles), 1)
+        XCTAssertEqual(Profile.index(named: "deep WORK", in: profiles), 1)
+        XCTAssertNil(Profile.index(named: "Gaming", in: profiles))
+    }
+
     func testDigitKeyCodes() {
         XCTAssertEqual(KeyCodes.digit(forKeyCode: 18), 1)
         XCTAssertEqual(KeyCodes.digit(forKeyCode: 23), 5)

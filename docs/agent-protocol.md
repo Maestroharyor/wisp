@@ -60,6 +60,25 @@ Inside tmux, the tty and the host terminal's ids belong to tmux's pane or are le
 | `statusline` | Claude Code's statusLine stdin JSON (`session_id`, `model`, `cost`, `context_window`, `workspace`, ...). | None. |
 | `tool` | Tool activity: the stdin JSON of PreToolUse, PostToolUse or SubagentStop. The helper sends it without waiting (50 ms, like `statusline`), so a tool call never waits on Wisp. | None. |
 | `query` | `{"query": "status"}` or `{"query": "spend"}`, from `wisp status`, `wisp watch` and `wisp spend`. | A report as JSON (below). An unknown query gets an empty reply. |
+| `activity` | A live activity from `wisp activity` or your own script (below). | `{"ok":true}` once Wisp has taken it, or `{"ok":false,"error":"..."}` when it understood the message but couldn't act on it (an `update` for an id that isn't showing, without a `title`). An invalid payload, or a Wisp too old to know the kind, gets an empty reply. |
+
+## Activity payload
+
+`source` isn't used for `activity`, but like every message it must be a known source or left out.
+
+```json
+{"action": "start", "id": "build", "title": "Building", "symbol": "hammer.fill", "progress": 0.4}
+```
+
+| Key | Meaning |
+|---|---|
+| `action` | `start` (show or replace), `update` (change only the fields given; with a `title` it starts an unknown id) or `end`. |
+| `id` | Letters, digits, `.`, `-` and `_`, up to 64 characters. Required. |
+| `title` | Up to 60 characters (and 240 Unicode scalars) after cleaning: control characters such as newlines and the line and paragraph separators become spaces, format characters such as bidi overrides are removed (the joiner, non-joiner and the tag characters of subdivision flags stay), then it's trimmed. Required for `start`. |
+| `symbol` | One of the SF Symbols listed by `wisp activity --help`. Defaults to `bolt.fill`. |
+| `progress` | A number from 0 to 1. Leave it out for an activity with no measurable end. |
+
+The same rules apply to `wisp activity` and `wisp://activity/...` links (`WispCore/ExternalCommand.swift`). The activity touched last shows in the notch. Each lasts 15 minutes after its last `start` or `update`, then goes away on its own; at most 8 are kept, dropping the oldest.
 
 ## Query reply
 

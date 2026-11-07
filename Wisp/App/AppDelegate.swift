@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         services.cycleForm = { [weak self] in self?.coordinator.cycleForm() }
         services.start()
         coordinator.start()
+        services.automation.acceptLinks()
         hotkeys.onToggle = { [weak self] in self?.toggleShelf() }
         hotkeys.onClipboard = { [weak self] in self?.toggleClipboard() }
         hotkeys.onProfileDigit = { [weak self] digit in self?.services.context.choose(digit: digit) }
@@ -99,6 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showSettings()
         return false
+    }
+
+    /// `wisp://` links. Opening one launches Wisp first if needed, after which this runs.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { services.automation.open(url) }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
