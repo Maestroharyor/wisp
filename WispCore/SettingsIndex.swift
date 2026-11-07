@@ -72,7 +72,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "hidden", "drop actions", "command", "script", "island", "external", "display", "pocket", "drag",
                 "shake", "position", "placement", "bottom", "left", "right", "corner", "edge", "side", "dock",
                 "dynamic island", "camera", "hole punch", "display info", "orb", "float", "detach", "move", "form",
-                "shape",
+                "shape", "move back", "reset position",
             ]
         case .appearance:
             [
@@ -91,7 +91,9 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "recording",
                 "zoom", "meet", "teams", "mute", "camera", "leave", "call controls", "bubbles", "split", "volume steps",
                 "duration", "low battery", "threshold",
-                "left", "right", "airpods", "headphones", "bluetooth",
+                "left", "right", "airpods", "headphones", "bluetooth", "downloads", "download progress", "safari",
+                "chrome", "firefox", "folder", "finder", "mouse", "keyboard", "trackpad", "magic mouse", "accessory",
+                "accessories", "low battery warning",
             ]
         case .widgets:
             [
@@ -120,6 +122,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
                 "usage limit", "rate limit", "weekly limit", "question", "answer", "preview", "diff", "plan",
                 "keep awake", "sleep", "power", "rules", "always allow", "permission rule", "settings.local.json",
+                "cloud", "cloud agents", "codex cloud", "copilot", "coding agent", "agent task", "github", "gh",
+                "cursor", "background agent", "api key", "pull request", "pr", "ci", "checks", "codex apply",
                 "tmux", "iterm", "ghostty", "wezterm", "jump to terminal", "tab", "pane", "keyboard",
             ]
         case .phone:

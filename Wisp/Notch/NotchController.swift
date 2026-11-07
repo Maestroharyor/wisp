@@ -13,6 +13,9 @@ final class NotchController {
     private var machine = NotchMachine()
     private var pointerInside = false
     private var pointerOverBubble = false
+    /// On a draggable island's visible shape, where its panel takes the press so a drag can't
+    /// also reach the window underneath.
+    private var pointerOverIsland = false
     private var dwellTask: Task<Void, Never>?
     private var collapseControlsTask: Task<Void, Never>?
     private var closeTask: Task<Void, Never>?
@@ -66,11 +69,11 @@ final class NotchController {
         }
     }
 
-    /// Approval, Join and call control cards have buttons, so the closed panel stops being
-    /// click-through while one shows.
+    /// Approval, Join, call control and finished download cards have buttons, so the closed
+    /// panel stops being click-through while one shows.
     private var showsApproval: Bool {
         switch model.activity {
-        case .agentApproval, .meetingSoon: true
+        case .agentApproval, .meetingSoon, .downloadDone: true
         case .meeting: model.showsMeetingControls
         default: false
         }
@@ -85,7 +88,7 @@ final class NotchController {
                 self?.closeMeetingControlsAfterCall()
                 self?.releaseKeyAfterCard()
                 self?.updateCardHover()
-                self?.updateClickThrough()
+                self?.resyncPointer()
                 self?.observeActivity()
             }
         }
@@ -98,7 +101,8 @@ final class NotchController {
         // The orb floats over windows; a press on it must not reach the window underneath.
         let overControls =
             pointerInside && (isReplying || showsApproval || showsPillButton || showsCard || isOrb)
-        panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble
+        panel.ignoresMouseEvents =
+            machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble && !pointerOverIsland
     }
 
     /// Notification and two-line cards take their own clicks (close, reply), so they don't
@@ -223,10 +227,12 @@ final class NotchController {
         settleFrom = nil
         guard layout != model.layout || panelMoved else { return }
         panelMoved = false
+        // The shell may have moved out from under a still pointer (a drop, Move back).
+        defer { resyncPointer() }
         model.layout = layout
         // The shell has its new form now, so a docking orb can stop shrinking.
         model.vanishing = false
-        guard let from, layout.placement == .floating, !model.reduceMotion else {
+        guard let from, !model.reduceMotion else {
             panel.setFrame(layout.panelFrame, display: true)
             return
         }
@@ -240,7 +246,7 @@ final class NotchController {
         }
     }
 
-    /// Moves a dragged orb by moving its panel; the layout is rebuilt once it's dropped.
+    /// Moves a dragged orb or island by moving its panel; the layout is rebuilt once it's dropped.
     func moveOrb(by delta: CGVector) {
         panelMoved = true
         panel.setFrameOrigin(CGPoint(x: panel.frame.minX + delta.dx, y: panel.frame.minY + delta.dy))
@@ -287,8 +293,11 @@ final class NotchController {
         // Bubbles sit outside the hit regions (hovering one doesn't open the shelf), but a
         // click on one must not also reach the menu bar item underneath.
         let overBubble = machine.phase != .open && model.bubble(at: location) != nil
-        if overBubble != pointerOverBubble {
+        let overIsland =
+            machine.phase != .open && IslandDrag.ownsPointer(at: location, layout: layout, shape: model.surfaceRect)
+        if overBubble != pointerOverBubble || overIsland != pointerOverIsland {
             pointerOverBubble = overBubble
+            pointerOverIsland = overIsland
             updateClickThrough()
         }
         let inside = model.contains(location)
@@ -365,9 +374,18 @@ final class NotchController {
         if machine.phase == .open { panel.makeKey() }
     }
 
-    /// The press became a drag of the shell.
+    /// The press became a drag of the shell; hovering must not open the shelf mid-drag.
     func cancelPress() {
         pendingPress = false
+        dwellTask?.cancel()
+        dwellTask = nil
+    }
+
+    /// A press on the closed island that only Wisp received, so dragging it may move it.
+    func ownsIslandPress(at location: CGPoint) -> Bool {
+        pendingPress
+            && IslandDrag.mayStart(
+                at: location, layout: layout, shape: model.surfaceRect, panelTakesClicks: !panel.ignoresMouseEvents)
     }
 
     /// A click on the agent pill opens the Agents widget on its own, on the session the pill
@@ -411,6 +429,8 @@ final class NotchController {
             form: model.form,
             forms: model.forms,
             setForm: { [weak self] form in self?.model.onSetForm(form) },
+            moveBack: layout.moved
+                ? NotchMenu.MoveBack(spot: layout.placement.title) { [weak self] in self?.moveIslandBack() } : nil,
             services: services
         )
     }
@@ -539,6 +559,14 @@ final class NotchController {
         panel.close()
     }
 
+    /// Puts a dragged island back on its spot (the right-click menu's "Move back").
+    private func moveIslandBack() {
+        let from = CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY)
+        dismiss()
+        settle(from: from)
+        services.preferences.moveIslandBack(screenUUID)
+    }
+
     private func customiseHome() {
         model.page = .home
         model.homeSnapshot = (
@@ -624,10 +652,26 @@ final class NotchController {
             model.dragging = false
             // Re-sync with the smaller closed region so the next hover is detected cleanly, and
             // so click-through doesn't wait for the pointer to move.
-            let mouse = NSEvent.mouseLocation
-            pointerInside = model.contains(mouse)
-            pointerOverBubble = model.bubble(at: mouse) != nil
-            updateClickThrough()
+            pointerInside = model.contains(NSEvent.mouseLocation)
+            resyncPointer()
         }
+    }
+
+    /// Re-reads where the pointer is after the shape changed under it, so a shell that moved
+    /// or shrank away neither keeps eating clicks meant for the window below nor stays peeking.
+    /// Entering is left to the next pointer move, so a shape landing under the pointer doesn't
+    /// start the hover timer.
+    private func resyncPointer() {
+        let mouse = NSEvent.mouseLocation
+        let closed = machine.phase != .open
+        pointerOverBubble = closed && model.bubble(at: mouse) != nil
+        pointerOverIsland = closed && IslandDrag.ownsPointer(at: mouse, layout: layout, shape: model.surfaceRect)
+        if pointerInside, !model.contains(mouse), !model.dragging {
+            pointerInside = false
+            scheduleControlsCollapse(pointerInside: false)
+            send(.pointerExited)
+            return
+        }
+        updateClickThrough()
     }
 }
