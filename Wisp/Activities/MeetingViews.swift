@@ -91,7 +91,7 @@ struct MeetingControlsCard: View {
                         .frame(width: 24, height: 30)
                 }
                 .buttonStyle(.plain).foregroundStyle(Color.secondaryText)
-                .help("Hide call controls")
+                .hoverHint("Hide call controls")
                 .accessibilityLabel("Hide call controls")
             }
             .padding(.horizontal, 18)
@@ -126,7 +126,7 @@ struct MeetingControlsRow: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(state.engaged == true ? Color.white : Color.ink)
-                    .help(state.help)
+                    .hoverHint(state.help, help: state.help)
                     .accessibilityLabel(state.label)
                 }
             }
@@ -142,6 +142,7 @@ struct MeetingControlsRow: View {
 
     private func leaveButton(_ state: MeetingControlState) -> some View {
         let armed = leave.isArmed(now: .now)
+        let tip = armed ? "Click again to leave the call" : state.help
         return Button {
             if leave.tap(now: .now) { model.services.meetingControls.perform(.leave) }
         } label: {
@@ -157,7 +158,7 @@ struct MeetingControlsRow: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)
-        .help(armed ? "Click again to leave the call" : state.help)
+        .hoverHint(tip, help: tip)
         .accessibilityLabel(leave.label(now: .now))
     }
 }

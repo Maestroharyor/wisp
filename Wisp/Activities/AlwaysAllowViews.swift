@@ -22,7 +22,7 @@ struct AlwaysAllowMenu: View {
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Always allow…")
+        .hoverHint("Always allow…", help: "Always allow…")
         .accessibilityLabel("More ways to allow")
     }
 }

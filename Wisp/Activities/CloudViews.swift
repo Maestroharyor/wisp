@@ -115,7 +115,7 @@ private struct ChecksBadge: View {
         Image(systemName: symbol)
             .font(.system(size: 11))
             .foregroundStyle(tint)
-            .help(label)
+            .hoverHint(label)
             .accessibilityLabel(label)
     }
 }
