@@ -20,7 +20,7 @@ final class ActivitySlotTests: XCTestCase {
 
     func testCardsAndAlertsCanBeDismissedButOngoingActivitiesCant() {
         let dismissable: Set<ActivitySlot> = [
-            .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray,
+            .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone,
         ]
         XCTAssertEqual(Set(ActivitySlot.allCases.filter(\.isDismissable)), dismissable)
     }
@@ -37,5 +37,19 @@ final class ActivitySlotTests: XCTestCase {
         XCTAssertGreaterThan(ActivitySlot.agent.priority, ActivitySlot.media.priority)
         XCTAssertGreaterThan(ActivitySlot.timer.priority, ActivitySlot.regionWatch.priority)
         XCTAssertGreaterThan(ActivitySlot.regionWatch.priority, ActivitySlot.agent.priority)
+    }
+}
+
+final class DownloadSlotTests: XCTestCase {
+    func testADownloadInProgressIsOngoingAndSitsUnderAlerts() {
+        XCTAssertFalse(ActivitySlot.download.isDismissable)
+        XCTAssertGreaterThan(ActivitySlot.download.priority, ActivitySlot.timer.priority)
+        XCTAssertLessThan(ActivitySlot.download.priority, ActivitySlot.meeting.priority)
+    }
+
+    func testTheFinishedCardCanBeClosedAndShowsOverOngoingActivities() {
+        XCTAssertTrue(ActivitySlot.downloadDone.isDismissable)
+        XCTAssertGreaterThan(ActivitySlot.downloadDone.priority, ActivitySlot.tray.priority)
+        XCTAssertLessThan(ActivitySlot.downloadDone.priority, ActivitySlot.notification.priority)
     }
 }

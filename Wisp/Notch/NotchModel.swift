@@ -148,6 +148,7 @@ final class NotchModel {
                     return .notification(extra: open ? SurfaceSizing.approvalPreviewHeight : 0)
                 }
                 if case .meetingSoon = activity { return .notification(extra: 0) }
+                if case .downloadDone = activity { return .notification(extra: 0) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }
             // Only the grow feedback changes the shape; glow and wobble play on the closed one.

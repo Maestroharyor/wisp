@@ -4,6 +4,7 @@ import WispCore
 
 struct ActivitySettings: View {
     @Bindable var preferences: Preferences
+    let downloads: DownloadMonitor
 
     var body: some View {
         Form {
@@ -54,7 +55,43 @@ struct ActivitySettings: View {
                     Text("All displays").tag(ActivityDisplayTarget.all)
                 }
             }
+            Section("Downloads") {
+                Toggle("Download progress, with Open when it's done", isOn: $preferences.downloadActivity)
+                LabeledContent("Downloads") {
+                    Text("Always watched").foregroundStyle(.secondary)
+                }
+                .disabled(!preferences.downloadActivity)
+                ForEach(preferences.downloadFolders, id: \.self) { path in
+                    LabeledContent((path as NSString).abbreviatingWithTildeInPath) {
+                        Button("Remove") { preferences.downloadFolders.removeAll { $0 == path } }
+                    }
+                }
+                .disabled(!preferences.downloadActivity)
+                Button("Add folder…", action: addDownloadFolder)
+                    .disabled(!preferences.downloadActivity)
+                Text(
+                    "Works with Safari, Chrome, Edge, Brave, Arc and Firefox. Wisp reads only file names and sizes, and macOS may ask before it can see the Downloads folder."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                if !downloads.deniedFolders.isEmpty {
+                    Text(
+                        "Wisp can't see \(downloads.deniedFolders.map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")). Allow it in System Settings › Privacy & Security › Files and Folders."
+                    )
+                    .font(.caption).foregroundStyle(.orange)
+                }
+            }
         }
         .formStyle(.grouped)
+    }
+
+    private func addDownloadFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Watch"
+        guard panel.runModal() == .OK else { return }
+        let chosen = panel.urls.map(\.path).filter { !preferences.downloadFolders.contains($0) }
+        preferences.downloadFolders += chosen
     }
 }

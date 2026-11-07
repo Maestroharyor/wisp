@@ -18,6 +18,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case meeting
     case meetingSoon
     case device
+    case download
+    case downloadDone
     case regionWatch
     case dictation
 
@@ -29,6 +31,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         case .agent: 15
         case .regionWatch: 18
         case .timer: 20
+        case .download: 22
         case .meeting: 25
         case .tray: 30
         case .battery: 40
@@ -36,6 +39,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         case .focus: 42
         case .notice: 45
         case .timerDone: 46
+        case .downloadDone: 47
         case .meetingSoon: 48
         case .notification: 50
         case .agentApproval: 55
@@ -58,7 +62,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     /// call, a timer, an agent at work), approvals and HUDs can't be.
     public var isDismissable: Bool {
         switch self {
-        case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray: true
+        case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone: true
         default: false
         }
     }

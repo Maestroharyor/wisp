@@ -77,6 +77,11 @@ struct CompactActivityView: View {
                 Image(systemName: device.symbol).frame(width: 18)
                 Text(device.name).lineLimit(1)
             }
+        case .download(let summary):
+            HStack(spacing: ActivityMetrics.contentSpacing) {
+                DownloadGlyph(progress: summary.primary)
+                Text(summary.primary.name).lineLimit(1).truncationMode(.middle)
+            }
         case .meeting(let status):
             HStack(spacing: ActivityMetrics.contentSpacing) {
                 Image(
@@ -97,7 +102,7 @@ struct CompactActivityView: View {
                 Image(systemName: "mic.fill").foregroundStyle(.red).frame(width: 16)
                 Text("Listening").lineLimit(1)
             }
-        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
+        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone:
             EmptyView()
         }
     }
@@ -168,6 +173,8 @@ struct CompactActivityView: View {
             } else {
                 Text("Connected").lineLimit(1).foregroundStyle(Color.secondaryText)
             }
+        case .download(let summary):
+            DownloadValue(summary: summary)
         case .regionWatch(let status):
             HStack(spacing: 6) {
                 Text(status.paused ? "Paused" : status.rule.summary).lineLimit(1)
@@ -176,7 +183,7 @@ struct CompactActivityView: View {
                     .foregroundStyle(.white.opacity(0.8))
                     .help("Stop watching")
             }
-        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
+        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone:
             EmptyView()
         }
     }
@@ -254,13 +261,17 @@ struct SideActivityView: View {
             if let level = device.headline {
                 ValueText(text: "\(level)%", tint: level <= 20 ? .red : .wispGreen)
             }
+        case .download(let summary):
+            ValueText(
+                text: DownloadText.detail(summary.primary),
+                tint: summary.primary.isStalled ? Color.secondaryText : .white)
         case .notice(_, let text):
             caption(text)
         case .sent:
             caption("Sent").foregroundStyle(Color.accentColor)
         case .regionWatch(let status):
             caption(status.paused ? "Paused" : "Watching")
-        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
+        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone:
             EmptyView()
         }
     }
@@ -314,6 +325,8 @@ struct ActivityGlyph: View {
                 others: status.others)
         case .device(let device):
             Image(systemName: device.symbol)
+        case .download(let summary):
+            DownloadGlyph(progress: summary.primary, size: 18)
         case .meeting:
             Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
                 .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
@@ -321,7 +334,7 @@ struct ActivityGlyph: View {
             RegionWatchGlyph(paused: status.paused)
         case .dictation:
             Image(systemName: "mic.fill").foregroundStyle(.red)
-        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
+        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone:
             EmptyView()
         }
     }
