@@ -71,7 +71,7 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
   - Headphones: when AirPods or other Bluetooth headphones take over the sound, a pill shows them with their battery and case levels.
   - Battery: charging, unplugged, low (at a level you pick) and full.
   - Timers and Pomodoro; Now Playing from any app, including browsers. When a browser gives no album art, Wisp finds it on iTunes (only the title and artist are sent; switch it off in Settings › Live Activities).
-  - Calls and recordings: a pill while the microphone is on, with elapsed time and a mute button. It says "On a call" (or the calendar event's name) when a call app such as Zoom, Teams, FaceTime, Slack or Discord has the mic, or a meeting is on the calendar; otherwise it says "Recording". Only apps actually recording count: playback through a headset or USB mic and macOS's "Hey Siri" listener don't, and the pill goes as soon as the mic is unplugged. A Join card appears two minutes before a call with a Zoom, Meet, Teams or Webex link.
+  - Calls and recordings: a pill while the microphone is on, with elapsed time and a mute button. It says "On a call" (or the calendar event's name) when a call app such as Zoom, Teams, FaceTime, Slack or Discord has the mic, or a meeting is on the calendar; otherwise it says "Recording". Only apps actually recording count: playback through a headset or USB mic and macOS's "Hey Siri" listener don't, and the pill goes as soon as the mic is unplugged. A Join card appears two minutes before a call with a Zoom, Meet, Teams or Webex link. Click the pill for the call app's own controls. In Zoom that's mute, camera, share and leave, pressed through its menu bar, so the buttons show whether you're muted, on video or sharing. Leave takes a second tap within three seconds. Microsoft Teams (mute, camera, leave) and Google Meet in Chromium browsers (mic and camera) are a separate switch, off by default: Wisp brings the call window forward and types their documented shortcuts, never into the address bar, and their buttons only toggle since those apps don't say which way it went. Other apps show no controls. When you're already in a meeting's app, the Join card adds its mic and camera beside Later and Join. Uses Accessibility; turn it off in Settings › Activities.
   - Focus changes, tray count and file-action notices.
   - **Bubbles:** with more than one live activity, the extras pinch off the pill into round bubbles, one on each side, as on iPhone. Click a bubble to swap it into the pill. The first bubble can sit on either side.
 - **Notifications** in the notch, with quick replies to iMessage, WhatsApp and Telegram, and the system banner hidden. Pointing at a card keeps it open; close it (or any short alert) with the ×, a two-finger swipe back into the notch, or Esc while Wisp is active. Settings › Notifications › Stay on screen sets 3, 6 or 10 seconds.
@@ -191,7 +191,7 @@ These secrets live in the repository settings (Settings › Secrets and variable
 
 | Permission | Used for |
 |---|---|
-| Accessibility | Caps Lock as Hyper, volume and brightness keys, pasting, hiding system banners, Lock Screen |
+| Accessibility | Caps Lock as Hyper, volume and brightness keys, pasting, hiding system banners, Lock Screen, call controls |
 | Full Disk Access | Reading notifications, Messages chats and Focus status |
 | Automation | Replying in Messages, Dark Mode and Empty Trash toggles, Music fallback |
 | Calendars | Calendar and Day Progress widgets |
