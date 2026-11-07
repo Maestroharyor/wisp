@@ -297,6 +297,7 @@ private struct ShelfWindowView: View {
                 Color.clear
             }
         }
+        .hoverHintHost()
         .background {
             SurfaceBackground(
                 style: look.surface, glass: look.glassEdge, accent: model.accent, glow: model.glow,
