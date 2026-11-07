@@ -64,10 +64,11 @@ final class SetupHealthTests: XCTestCase {
 
     func testNeededFollowsFeatures() {
         XCTAssertEqual(
-            SetupHealth.needed(notifications: false, calendarWidgets: false, mirror: false), ["accessibility"])
+            SetupHealth.needed(notifications: false, calendarWidgets: false, mirror: false, dictation: false),
+            ["accessibility"])
         XCTAssertEqual(
-            SetupHealth.needed(notifications: true, calendarWidgets: true, mirror: true),
-            ["accessibility", "fullDiskAccess", "calendars", "camera"])
+            SetupHealth.needed(notifications: true, calendarWidgets: true, mirror: true, dictation: true),
+            ["accessibility", "fullDiskAccess", "calendars", "camera", "microphone", "speechRecognition"])
     }
 
     func testFindsTheNewAppearanceAndHUDOptions() {
