@@ -21,6 +21,7 @@ Every message is a JSON object:
   "kind": "statusline",
   "source": "claude",
   "terminal": "com.mitchellh.ghostty",
+  "terminalContext": { "TMUX_PANE": "%3", "tty": "/dev/ttys004" },
   "payload": { }
 }
 ```
@@ -31,7 +32,25 @@ Every message is a JSON object:
 | `kind` | What the payload is (below). Unknown kinds are ignored and logged once. |
 | `source` | `claude` or `codex` (an agent in `AgentAdapters`). Defaults to `claude` when missing. Any other value is ignored and logged once, and a hook from it gets an empty reply. |
 | `terminal` | Optional bundle id of the app the agent runs in, so Wisp can bring it forward. |
+| `terminalContext` | Optional object saying where in the terminal the agent runs, so Wisp can bring forward the exact pane or tab (below). Sent with `hook`, `tool` and `statusline`. |
 | `payload` | The agent's own JSON, unchanged. |
+
+## Terminal context
+
+`wisp-agent` copies these environment variables, when set, and nothing else from the environment. Every value is a string; empty values and values over 512 bytes are left out, and so is the whole object when nothing is set. Keys are only ever added; Wisp ignores keys it doesn't know and values that aren't strings, and older Wisps ignore the whole object.
+
+| Key | From | Used for |
+|---|---|---|
+| `TMUX` | `$TMUX` (socket path, server pid, session index) | The tmux server to talk to (`tmux -S <socket>`). |
+| `TMUX_PANE` | `$TMUX_PANE` (`%3`) | `select-window` and `select-pane` on that pane; `switch-client` when no client shows its session. |
+| `ITERM_SESSION_ID` | `$ITERM_SESSION_ID` (`w0t1p0:<GUID>`) | Selecting the iTerm2 session whose AppleScript `id` is the GUID. |
+| `TERM_SESSION_ID` | `$TERM_SESSION_ID` | Sent for completeness; not used yet. |
+| `KITTY_WINDOW_ID` | `$KITTY_WINDOW_ID` | Sent for completeness; kitty also needs its remote control socket, which isn't sent, so kitty is only brought forward. |
+| `WEZTERM_PANE` | `$WEZTERM_PANE` | `wezterm cli activate-pane --pane-id`. |
+| `TERM_PROGRAM` | `$TERM_PROGRAM` | Naming the terminal when `terminal` is missing. |
+| `tty` | The agent process's controlling terminal (`/dev/ttys004`), from the process table | Selecting the tab in Terminal, iTerm2 (without a session id) and Ghostty, whose AppleScript dictionaries expose each tab's tty. |
+
+Inside tmux, the tty and the host terminal's ids belong to tmux's pane or are left over from when the tmux server started, so Wisp finds the outer tab from the tty of the tmux client showing the pane instead. Wisp skips the tmux step when `terminal` names an editor (editors started from a tmux shell pass `TMUX` on to their own terminals), and when tmux reports a `pane_tty` other than the context's `tty` (a shell started from tmux keeps `TMUX` and `TMUX_PANE`); the agent's own `tty` and ids then name the tab.
 
 ## Kinds
 

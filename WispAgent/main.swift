@@ -39,17 +39,26 @@ let source: AgentSource =
 let hookJSON = FileHandle.standardInput.readDataToEndOfFile()
 // The agent that ran this hook, so Wisp can end its session if it quits without saying so.
 let agentProcess = AgentProcess.ownerOfThisProcess()
+// The pane or tab it runs in, from a fixed list of variables and the agent's tty (the hook's
+// own stdio are pipes). A hook run without a terminal falls back to this process's tty.
+let terminalContext = TerminalContext(
+    environment: environment,
+    tty: agentProcess.flatMap { TerminalContext.controllingTTY(of: $0.pid) }
+        ?? TerminalContext.controllingTTY(of: getpid()))
 // Tool activity fires on every tool call and needs no answer, so it never waits on Wisp.
 if AgentProtocol.kind(forHook: hookJSON, source: source) == .tool {
     if let message = AgentProtocol.envelope(
-        kind: .tool, source: source, terminal: terminal, process: agentProcess, payload: hookJSON)
+        kind: .tool, source: source, terminal: terminal, process: agentProcess, context: terminalContext,
+        payload: hookJSON)
     {
         SocketSend.send(message, to: socketPath, timeout: 0.05)
     }
     exit(0)
 }
 let input =
-    AgentProtocol.envelope(kind: .hook, source: source, terminal: terminal, process: agentProcess, payload: hookJSON)
+    AgentProtocol.envelope(
+        kind: .hook, source: source, terminal: terminal, process: agentProcess, context: terminalContext,
+        payload: hookJSON)
     ?? AgentTerminal.tag(hookJSON, source: source, terminal: terminal)
 let connection = NWConnection(to: .unix(path: socketPath), using: .tcp)
 

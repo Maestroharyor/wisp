@@ -26,9 +26,11 @@ public enum AgentProtocol {
     }
 
     /// The envelope around `payload`, or nil when the payload isn't a JSON object.
-    /// `process` is the agent the helper runs under, so Wisp can tell when it has quit.
+    /// `process` is the agent the helper runs under, so Wisp can tell when it has quit, and
+    /// `context` is where in the terminal it runs, so Wisp can bring that pane forward.
     public static func envelope(
-        kind: Kind, source: AgentSource, terminal: String?, process: AgentProcess? = nil, payload: Data
+        kind: Kind, source: AgentSource, terminal: String?, process: AgentProcess? = nil,
+        context: TerminalContext? = nil, payload: Data
     ) -> Data? {
         guard let payloadJSON = try? JSONDecoder().decode(JSONValue.self, from: payload),
             case .object = payloadJSON
@@ -39,6 +41,7 @@ public enum AgentProtocol {
         ]
         if let terminal, !terminal.isEmpty { fields["terminal"] = .string(terminal) }
         if let process { fields["process"] = process.json }
+        if let context, !context.isEmpty { fields[TerminalContext.envelopeKey] = context.json }
         return try? JSONEncoder().encode(JSONValue.object(fields))
     }
 
@@ -67,16 +70,19 @@ public enum AgentProtocol {
         guard let source = AgentSource(rawValue: id) else { return .unsupported("source \(id)") }
         let terminal = json["terminal"]?.stringValue
         let process = AgentProcess(json: json["process"])
+        let context = TerminalContext(json: json[TerminalContext.envelopeKey])
         switch kind {
         case .hook, .tool:
             guard var event = source.adapter.parse(payload, terminal: terminal) else {
                 return .unsupported("hook payload")
             }
             event.process = process
+            event.terminalContext = context
             return .hook(event)
         case .statusline:
             var snapshot = StatusLineSnapshot(json: payload)
             snapshot.process = process
+            snapshot.terminalContext = context
             return .statusline(snapshot, source: source, terminal: terminal)
         case .query:
             let name = payload["query"]?.stringValue ?? "?"
