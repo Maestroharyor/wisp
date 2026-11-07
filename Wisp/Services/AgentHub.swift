@@ -20,10 +20,15 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     /// What an AskUserQuestion asks, in order; empty for other requests. Parsed once, since
     /// the question card reads it on every redraw.
     let questions: [AgentQuestion]
+    /// The session's folder, where "This project" rules are saved.
+    let cwd: String
+    /// Suggested "Always allow" rules; empty when the card doesn't offer it.
+    let rules: [String]
 
     init(
         id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
-        prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil
+        prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil, cwd: String = "",
+        rules: [String] = []
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -34,6 +39,8 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
         self.prompt = prompt
         self.input = input
         self.preview = preview
+        self.cwd = cwd
+        self.rules = rules
         questions = prompt == .question ? AgentQuestion.parse(input) : []
     }
 
@@ -349,7 +356,8 @@ final class AgentHub {
                 summary: event.summary, prompt: event.prompt,
                 input: event.prompt.keepsInput ? event.rawToolInput : nil,
                 preview: ApprovalPreview.make(
-                    tool: event.toolName ?? "", input: event.rawToolInput, limit: Self.previewLines))
+                    tool: event.toolName ?? "", input: event.rawToolInput, limit: Self.previewLines),
+                cwd: event.cwd, rules: Self.suggestedRules(event))
             pending[approval.id] = approval
             queue.enqueue(approval.id)
             waiting[approval.id] = connection

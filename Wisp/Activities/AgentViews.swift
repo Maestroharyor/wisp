@@ -404,6 +404,7 @@ struct ApprovalButtons: View {
                     .buttonStyle(ApprovalButtonStyle(fill: .white.opacity(0.14), text: .white))
                     .help("Allow this and every later request from \(approval.project) until the session ends")
             }
+            if approval.prompt == .tool, !approval.rules.isEmpty { AlwaysAllowMenu(approval: approval, hub: hub) }
             Button(approval.prompt == .plan ? "Approve" : "Allow") { hub.answer(approval.id, allow: true) }
                 .buttonStyle(ApprovalButtonStyle(fill: .wispGreen, text: .black))
         }
