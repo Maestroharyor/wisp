@@ -34,7 +34,7 @@ public enum ToolLabel {
         case "Bash":
             (symbol, verb) = ("terminal", "Running")
             subject = hidden ? "a command" : firstLine(mask(input.command ?? ""))
-        case "Edit", "Write", "MultiEdit", "NotebookEdit":
+        case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch":
             (symbol, verb) = ("pencil", "Editing")
             subject = hidden ? "a file" : fileName(input.filePath ?? input.notebookPath)
         case "Read":

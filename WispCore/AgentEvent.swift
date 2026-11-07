@@ -1,41 +1,5 @@
 import Foundation
 
-/// The coding agent a hook call came from.
-public enum AgentSource: String, Equatable, Sendable {
-    case claude
-    case codex
-
-    public var displayName: String { self == .claude ? "Claude Code" : "Codex" }
-
-    /// Hook events Wisp listens to. Codex has no Notification event.
-    public var hookEvents: [String] {
-        switch self {
-        case .claude:
-            [
-                "SessionStart", "UserPromptSubmit", "PermissionRequest", "Notification", "Stop", "SessionEnd",
-                "PreCompact", "PostCompact",
-            ]
-        case .codex:
-            [
-                "SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "SessionEnd", "PreCompact",
-                "PostCompact",
-            ]
-        }
-    }
-
-    /// Events whose hooks only report and never answer, so Claude Code may run them in the
-    /// background (`"async": true`). Codex documents no such option.
-    public var backgroundHookEvents: Set<String> {
-        self == .claude ? Set(["PreCompact", "PostCompact"] + toolHookEvents) : []
-    }
-
-    /// Tool activity hooks, added only when the user turns tool activity on. They fire on
-    /// every tool call, so they always run in the background. Codex's come in a later phase.
-    public var toolHookEvents: [String] {
-        self == .claude ? AgentEvent.Kind.toolActivity.map(\.rawValue) : []
-    }
-}
-
 /// One coding-agent hook call, as Wisp's helper forwards it.
 public struct AgentEvent: Equatable, Sendable {
     public enum Kind: String, Sendable {
@@ -64,11 +28,11 @@ public struct AgentEvent: Equatable, Sendable {
     public let toolName: String?
     /// Pairs a PreToolUse with its PostToolUse.
     public let toolUseID: String?
-    public let toolInput: ToolInput
+    public internal(set) var toolInput: ToolInput
     /// The tool's input as sent, for replies that must echo it back (a plan approval).
     public let rawToolInput: JSONValue?
     /// The command, file or description the tool call is about.
-    public let summary: String
+    public internal(set) var summary: String
     public let message: String?
     public let notificationType: String?
     public let source: AgentSource
@@ -82,16 +46,23 @@ public struct AgentEvent: Equatable, Sendable {
     /// For SessionStart: how the session began ("startup", "resume", "clear", "compact", ...).
     public let startSource: String?
 
-    /// Today's hook format: the hook's JSON tagged with `wisp_source` and `wisp_terminal`.
+    public enum DecodeFailure: Error { case notAnObject }
+
+    /// The original hook format: the hook's JSON tagged with `wisp_source` and `wisp_terminal`.
+    /// A missing source reads as Claude Code; `AgentProtocol.decode` turns unknown ones away
+    /// before they get here.
     public static func decode(_ data: Data) throws -> AgentEvent {
         let json = try JSONDecoder().decode(JSONValue.self, from: data)
-        return AgentEvent(
-            json: json,
-            source: json["wisp_source"]?.stringValue.flatMap(AgentSource.init(rawValue:)) ?? .claude,
-            terminal: json["wisp_terminal"]?.stringValue)
+        let source = json["wisp_source"]?.stringValue.flatMap(AgentSource.init(rawValue:)) ?? .claude
+        guard let event = source.adapter.parse(json, terminal: json["wisp_terminal"]?.stringValue) else {
+            throw DecodeFailure.notAnObject
+        }
+        return event
     }
 
-    public init(json: JSONValue, source: AgentSource, terminal: String?) {
+    /// The hook fields Claude Code and Codex share. Adapters build on this; everything else
+    /// reads events through `AgentAdapter.parse`.
+    init(json: JSONValue, source: AgentSource, terminal: String?) {
         let cwd = json["cwd"]?.stringValue ?? ""
         let input = json["tool_input"]
         self.kind = json["hook_event_name"]?.stringValue.flatMap(Kind.init(rawValue:)) ?? .other
@@ -114,7 +85,7 @@ public struct AgentEvent: Equatable, Sendable {
     }
 
     /// What a permission request asks the user for.
-    public var prompt: PermissionPrompt { PermissionPrompt(tool: toolName) }
+    public var prompt: PermissionPrompt { source.adapter.prompt(tool: toolName) }
 
     /// A plan's first non-empty line without its heading marks ("Two agent fixes").
     static func planTitle(_ plan: String) -> String? {
@@ -129,7 +100,7 @@ public struct AgentEvent: Equatable, Sendable {
     /// The working folder's name, or the agent's name when there's no usable folder.
     public static func projectName(cwd: String, source: AgentSource) -> String {
         let folder = URL(fileURLWithPath: cwd).lastPathComponent
-        return cwd.isEmpty || folder == "/" ? (source == .codex ? "Codex" : "Claude") : folder
+        return cwd.isEmpty || folder == "/" ? source.adapter.fallbackProject : folder
     }
 }
 

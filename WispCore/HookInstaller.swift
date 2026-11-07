@@ -9,29 +9,35 @@ public enum HookLink: Equatable, Sendable {
     case other
 }
 
-/// Adds and removes Wisp's hooks in Claude Code's settings.json or Codex's hooks.json
-/// (the same shape) without touching the user's own settings or hooks. Wisp's entries
-/// are recognised by the helper's name.
+/// Adds and removes Wisp's hooks in an agent's hook file (`HookFile`): Claude Code's
+/// settings.json or Codex's hooks.json, which share the `hooks` shape. The user's own
+/// settings and hooks are left alone. Wisp's entries are recognised by the helper's name.
 public enum HookInstaller {
     public enum Failure: Error { case notAnObject }
 
     public static let helperName = "wisp-agent"
     public static let events = AgentSource.claude.hookEvents
-    /// Seconds a permission prompt waits for the notch before Claude Code shows its own.
+    /// Seconds a permission prompt waits for the notch before the agent shows its own.
     public static let approvalTimeout = 120
 
     /// `tools` adds the tool activity hooks too; without it they're taken out.
     public static func install(
         into settings: Data, command: String, source: AgentSource = .claude, tools: Bool = false
     ) throws -> Data {
+        try install(into: settings, command: command, file: source.adapter.hookFile, tools: tools)
+    }
+
+    public static func install(into settings: Data, command: String, file: HookFile, tools: Bool = false) throws
+        -> Data
+    {
         var root = try object(settings)
         var hooks = stripped(root["hooks"])
-        for event in source.hookEvents + (tools ? source.toolHookEvents : []) {
+        for event in file.events + (tools ? file.toolEvents : []) {
             let timeout = event == "PermissionRequest" ? approvalTimeout : 5
             var handler: [String: JSONValue] = [
                 "type": .string("command"), "command": .string(command), "timeout": .number(Double(timeout)),
             ]
-            if source.backgroundHookEvents.contains(event) { handler["async"] = .bool(true) }
+            if file.backgroundEvents.contains(event) { handler["async"] = .bool(true) }
             let group: JSONValue = .object(["matcher": .string(""), "hooks": .array([.object(handler)])])
             var groups: [JSONValue] = []
             if case .array(let existing) = hooks[event] { groups = existing }
@@ -48,9 +54,14 @@ public enum HookInstaller {
         return try encode(.object(root))
     }
 
-    /// The hook command for `helper`: the path in POSIX single quotes, tagged for Codex.
+    /// The hook command for `helper`: the path in POSIX single quotes, tagged with the agent
+    /// unless it's the default.
     public static func command(helper: String, source: AgentSource) -> String {
-        source == .claude ? quote(helper) : quote(helper) + " --source codex"
+        command(helper: helper, file: source.adapter.hookFile)
+    }
+
+    public static func command(helper: String, file: HookFile) -> String {
+        quote(helper) + file.helperArguments
     }
 
     /// `text` as one POSIX shell word in single quotes.
@@ -81,19 +92,25 @@ public enum HookInstaller {
     /// Whether the hooks call this copy's helper, another copy's (a dev build, a moved app),
     /// or no Wisp at all. Another copy's helper talks to that copy, so this one hears nothing.
     public static func link(in settings: Data, helper: String, source: AgentSource) throws -> HookLink {
+        try link(in: settings, helper: helper, file: source.adapter.hookFile)
+    }
+
+    public static func link(in settings: Data, helper: String, file: HookFile) throws -> HookLink {
         let commands = try wispCommands(in: settings)
         if commands.isEmpty { return .none }
-        let mine = command(helper: helper, source: source)
+        let mine = command(helper: helper, file: file)
         guard commands.allSatisfy({ $0.command == mine }) else { return .other }
         let installed = Set(commands.map(\.event))
-        let base = Set(source.hookEvents)
-        return installed == base || installed == base.union(source.toolHookEvents) ? .this : .outdated
+        let base = Set(file.events)
+        return installed == base || installed == base.union(file.toolEvents) ? .this : .outdated
     }
 
     /// Whether Wisp's tool activity hooks are in the file.
-    public static func toolsInstalled(in settings: Data) throws -> Bool {
+    public static func toolsInstalled(in settings: Data, file: HookFile = AgentSource.claude.adapter.hookFile) throws
+        -> Bool
+    {
         let events = Set(try wispCommands(in: settings).map(\.event))
-        return !events.isDisjoint(with: AgentSource.claude.toolHookEvents)
+        return !events.isDisjoint(with: file.toolEvents)
     }
 
     public static func isInstalled(in settings: Data) throws -> Bool {

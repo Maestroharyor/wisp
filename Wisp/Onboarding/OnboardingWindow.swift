@@ -235,7 +235,7 @@ private struct AgentsStep: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            ForEach([AgentSource.claude, .codex], id: \.self) { source in
+            ForEach(AgentAdapters.all.map(\.source), id: \.self) { source in
                 HStack(spacing: 12) {
                     IconTile(symbol: source.symbol, tint: .wispViolet, size: 32)
                     VStack(alignment: .leading, spacing: 2) {

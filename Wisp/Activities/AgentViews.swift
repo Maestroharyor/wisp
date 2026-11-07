@@ -40,7 +40,7 @@ extension Color {
 }
 
 extension AgentSource {
-    var symbol: String { self == .claude ? "sparkle" : "chevron.left.forwardslash.chevron.right" }
+    var symbol: String { adapter.symbol }
 }
 
 /// The agent's mark in its project's colour, pulsing while it works, ringed by how full
@@ -525,9 +525,12 @@ private struct ConnectAgentsHint: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Text("See Claude Code and Codex sessions here")
+            Text("See \(ListFormatter.localizedString(byJoining: AgentAdapters.all.map(\.displayName))) sessions here")
                 .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
-            Button("Connect Claude Code") { hub.installHooks(.claude) }.controlSize(.small)
+            // The first adapter is the main one; Settings connects the rest.
+            if let main = AgentAdapters.all.first {
+                Button("Connect \(main.displayName)") { hub.installHooks(main.source) }.controlSize(.small)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
