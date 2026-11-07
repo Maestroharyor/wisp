@@ -244,6 +244,9 @@ final class Preferences {
         static let pushIdleMinutes = "pushIdleMinutes"
         static let pushTimeoutMinutes = "pushTimeoutMinutes"
         static let pushDetails = "pushDetails"
+        static let cloudEnabled = "cloudEnabled"
+        static let cloudSources = "cloudSources"
+        static let cloudChecks = "cloudChecks"
         static let aiEnabled = "aiEnabled"
         static let aiEngine = "aiEngine"
         static let ollamaAddress = "ollamaAddress"
@@ -731,6 +734,14 @@ final class Preferences {
     var ollamaModel: String { didSet { defaults.set(ollamaModel, forKey: Key.ollamaModel) } }
     /// The PermissionRequest hook timeout these settings ask for.
     var approvalTimeout: Int { HookInstaller.approvalTimeout(push: pushEnabled, minutes: pushTimeoutMinutes) }
+    /// Cloud agent tasks in the Agents widget. Off by default: it asks Codex, GitHub and Cursor.
+    var cloudEnabled: Bool { didSet { defaults.set(cloudEnabled, forKey: Key.cloudEnabled) } }
+    /// Which cloud sources to ask; one whose CLI or key is missing is skipped anyway.
+    var cloudSources: Set<CloudSource> {
+        didSet { defaults.set(cloudSources.map(\.rawValue).sorted(), forKey: Key.cloudSources) }
+    }
+    /// Reads each recent pull request's CI with `gh pr checks`.
+    var cloudChecks: Bool { didSet { defaults.set(cloudChecks, forKey: Key.cloudChecks) } }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
     /// Look up album art on iTunes when the player gives none (sends title and artist).
@@ -929,6 +940,9 @@ final class Preferences {
             Key.pushIdleMinutes: PushPolicy.defaultIdleMinutes,
             Key.pushTimeoutMinutes: HookInstaller.defaultPushTimeoutMinutes,
             Key.pushDetails: false,
+            Key.cloudEnabled: false,
+            Key.cloudSources: CloudSource.allCases.map(\.rawValue),
+            Key.cloudChecks: true,
             Key.aiEnabled: false,
             Key.aiEngine: AIEngineKind.default.rawValue,
             Key.ollamaAddress: OllamaEndpoint.defaultAddress,
@@ -1055,6 +1069,10 @@ final class Preferences {
             max(defaults.integer(forKey: Key.pushTimeoutMinutes), HookInstaller.pushTimeoutMinutes.lowerBound),
             HookInstaller.pushTimeoutMinutes.upperBound)
         pushDetails = defaults.bool(forKey: Key.pushDetails)
+        cloudEnabled = defaults.bool(forKey: Key.cloudEnabled)
+        cloudSources = Set(
+            (defaults.stringArray(forKey: Key.cloudSources) ?? []).compactMap(CloudSource.init(rawValue:)))
+        cloudChecks = defaults.bool(forKey: Key.cloudChecks)
         aiEnabled = defaults.bool(forKey: Key.aiEnabled)
         aiEngine = defaults.string(forKey: Key.aiEngine).flatMap(AIEngineKind.init(rawValue:)) ?? .default
         ollamaAddress = defaults.string(forKey: Key.ollamaAddress) ?? OllamaEndpoint.defaultAddress

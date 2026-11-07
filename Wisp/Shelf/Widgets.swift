@@ -31,9 +31,9 @@ struct WidgetCard: View {
             case .agents:
                 // Wide fills the shelf: room for the sessions and the selected one's details side by side.
                 if services.preferences.size(of: .agents) == .wide {
-                    AgentsDetail(hub: services.agents, model: model)
+                    AgentsDetail(hub: services.agents, cloud: services.cloud, model: model)
                 } else {
-                    AgentsWidget(hub: services.agents)
+                    AgentsWidget(hub: services.agents, cloud: services.cloud)
                 }
             case .script: ScriptWidget(store: services.script, preferences: services.preferences)
             }

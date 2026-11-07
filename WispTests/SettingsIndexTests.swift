@@ -95,6 +95,12 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.phone))
     }
 
+    func testCloudAgentsAreFound() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "codex cloud"), [.agents])
+        XCTAssertEqual(SettingsIndex.panes(matching: "background agent"), [.agents])
+        XCTAssertTrue(SettingsIndex.panes(matching: "copilot").contains(.agents))
+    }
+
     func testAIPaneIsFound() {
         XCTAssertEqual(SettingsIndex.panes(matching: "ollama"), [.ai])
         XCTAssertEqual(SettingsIndex.panes(matching: "apple intelligence"), [.ai])

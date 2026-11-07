@@ -121,6 +121,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
                 "usage limit", "rate limit", "weekly limit", "question", "answer", "preview", "diff", "plan",
                 "keep awake", "sleep", "power", "rules", "always allow", "permission rule", "settings.local.json",
+                "cloud", "cloud agents", "codex cloud", "copilot", "coding agent", "agent task", "github", "gh",
+                "cursor", "background agent", "api key", "pull request", "pr", "ci", "checks", "codex apply",
                 "tmux", "iterm", "ghostty", "wezterm", "jump to terminal", "tab", "pane", "keyboard",
             ]
         case .phone:

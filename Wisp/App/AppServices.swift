@@ -19,6 +19,7 @@ final class AppServices {
     let shortcuts = ShortcutsRunner()
     let camera = CameraMirror()
     let agents = AgentHub()
+    let cloud = CloudAgentStore()
     let context: ContextEngine
     let quickActions: QuickActions
     let clipboard: ClipboardStore
@@ -361,6 +362,16 @@ final class AppServices {
         automation.start()
         agents.start()
 
+        cloud.onEvent = { [weak self] event in
+            guard let self else { return }
+            self.activities.post(
+                .notice(symbol: event.symbol, text: event.notice(hidden: self.agents.detailsHidden)), slot: .notice,
+                duration: 3)
+            self.push.moment(.cloud(event))
+        }
+        cloud.onNotice = notice
+        cloud.start()
+
         context.onSwitch = { [weak self] profile, swapsHome in self?.applyProfile(profile, swapsHome: swapsHome) }
         context.start()
 
@@ -428,6 +439,10 @@ final class AppServices {
                     push: (
                         enabled: preferences.pushEnabled, kinds: preferences.pushKinds, mode: preferences.pushMode,
                         idle: preferences.pushIdleMinutes
+                    ),
+                    cloud: (
+                        enabled: preferences.cloudEnabled, sources: preferences.cloudSources,
+                        checks: preferences.cloudChecks
                     )
                 )
             )
@@ -445,6 +460,8 @@ final class AppServices {
         push.apply(
             kinds: agentPrefs.push.kinds, mode: agentPrefs.push.mode, idleMinutes: agentPrefs.push.idle,
             enabled: agentPrefs.push.enabled)
+        cloud.apply(
+            enabled: agentPrefs.cloud.enabled, sources: agentPrefs.cloud.sources, checks: agentPrefs.cloud.checks)
         updateAgentAwake()
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
         if needsClock { startClock() } else { stopClock() }
@@ -513,6 +530,7 @@ final class AppServices {
         downloads.stop()
         lockScreenPlayer.stop()
         push.stop()
+        cloud.stop()
         automation.stop()
         regionWatch.stop()
         ai.stop()
