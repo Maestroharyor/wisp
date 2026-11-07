@@ -530,6 +530,9 @@ private struct FormChange: ViewModifier {
             } keyframes: { _ in
                 LinearKeyframe(0.5, duration: 0.001)
                 SpringKeyframe(1, duration: 0.5, spring: Spring(response: 0.38, dampingRatio: 0.62))
+                // A spring cut off by its duration can stop short of 1, leaving the shell a hair
+                // small and off its screen edge; this lands it exactly.
+                LinearKeyframe(1, duration: 0.05)
             }
     }
 }
