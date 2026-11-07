@@ -24,6 +24,15 @@ public enum RegionWatchRule: Equatable, Sendable {
         }
     }
 
+    /// The rule in a sentence, for the watch view.
+    public var plainDescription: String {
+        switch self {
+        case .changed: "Tells you when anything in it changes"
+        case .containsText(let text): "Tells you when it shows “\(text)”"
+        case .stoppedChanging(let seconds): "Tells you when it changes, then stays still for \(Self.duration(seconds))"
+        }
+    }
+
     /// What the alert says once the rule fires.
     public var firedText: String {
         switch self {
@@ -48,6 +57,31 @@ public enum RegionWatchRule: Equatable, Sendable {
     private static func duration(_ seconds: TimeInterval) -> String {
         let whole = Int(seconds.rounded())
         return whole < 60 ? "\(whole) s" : "\(Int((Double(whole) / 60).rounded())) min"
+    }
+}
+
+/// The watch view's times, to the minute: the view only refreshes every 15 seconds, so
+/// seconds would be stale.
+public enum RegionWatchText {
+    /// How long the watch has been running.
+    public static func watching(since start: Date, now: Date) -> String {
+        minutes(now.timeIntervalSince(start)) ?? "Under a minute"
+    }
+
+    /// When the region last moved, if it has since the watch began.
+    public static func lastChange(_ date: Date?, now: Date) -> String {
+        guard let date else { return "No change seen yet" }
+        return minutes(now.timeIntervalSince(date)).map { "\($0) ago" } ?? "Just now"
+    }
+
+    /// "5 min", "1 h 20 min", "2 h"; nil under a minute.
+    private static func minutes(_ seconds: TimeInterval) -> String? {
+        let total = Int(max(0, seconds)) / 60
+        guard total > 0 else { return nil }
+        let hours = total / 60
+        let rest = total % 60
+        if hours == 0 { return "\(rest) min" }
+        return rest == 0 ? "\(hours) h" : "\(hours) h \(rest) min"
     }
 }
 
@@ -223,6 +257,9 @@ public struct RegionWatchMonitor: Sendable {
     private var streak = 0
     /// The last time the region moved; nil until it has moved once.
     private var lastChange: Date?
+    /// When a sample last differed from the one before, for every rule. Unlike `lastChange`,
+    /// resuming never moves it, so it is only ever a change that was seen.
+    public private(set) var lastMovement: Date?
     private var fired = false
 
     public init(rule: RegionWatchRule) {
@@ -241,6 +278,12 @@ public struct RegionWatchMonitor: Sendable {
             older = previous
             previous = sample.frame
         }
+        // A pixel going back to what it was two samples ago isn't movement on its own, so
+        // a cursor doesn't count before it has flipped enough to be masked.
+        let ignored = zip(flicker.mask, flipped ?? flicker.mask).map { $0 || $1 }
+        let moved =
+            flickersTooMuch || (previous.map { sample.frame.isChanged(from: $0, ignoring: ignored) } ?? false)
+        if moved { lastMovement = sample.time }
         switch rule {
         case .changed:
             guard let baseline else {
@@ -251,10 +294,7 @@ public struct RegionWatchMonitor: Sendable {
         case .containsText:
             confirm(sample.text.map(rule.matches(text:)) ?? false)
         case .stoppedChanging(let seconds):
-            // A pixel going back to what it was two samples ago isn't movement on its own, so
-            // a cursor doesn't restart the clock before it has flipped enough to be masked.
-            let ignored = zip(flicker.mask, flipped ?? flicker.mask).map { $0 || $1 }
-            if flickersTooMuch || (previous.map { sample.frame.isChanged(from: $0, ignoring: ignored) } ?? false) {
+            if moved {
                 lastChange = sample.time
             } else if let lastChange, sample.time.timeIntervalSince(lastChange) >= seconds {
                 fired = true

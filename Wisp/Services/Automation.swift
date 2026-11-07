@@ -1,5 +1,6 @@
 import AppKit
 import OSLog
+import Observation
 import WispCore
 
 /// Runs what `wisp://` links, `wisp activity` and Shortcuts ask for, through the services the
@@ -7,14 +8,18 @@ import WispCore
 /// agent's request; only Shortcuts (`frontRequest`, `answer`) can, since the user builds those,
 /// and they confirm first unless the user turns that off.
 @MainActor
+@Observable
 final class Automation {
     /// For App Intents, which the system creates on its own. Set once services start.
     private(set) static weak var shared: Automation?
 
-    private let services: AppServices
-    private var board = ExternalActivities()
-    private var expiryTask: Task<Void, Never>?
-    private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "automation")
+    /// The outside activity on show, for the details its pill opens.
+    private(set) var current: ExternalActivity?
+
+    @ObservationIgnored private let services: AppServices
+    @ObservationIgnored private var board = ExternalActivities()
+    @ObservationIgnored private var expiryTask: Task<Void, Never>?
+    @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "automation")
 
     init(services: AppServices) {
         self.services = services
@@ -22,7 +27,7 @@ final class Automation {
 
     /// Links that arrived before launch finished: AppKit can deliver the one that launched
     /// Wisp before `applicationDidFinishLaunching`.
-    private var early: [URL]? = []
+    @ObservationIgnored private var early: [URL]? = []
 
     func start() {
         Self.shared = self
@@ -47,14 +52,15 @@ final class Automation {
             return
         }
         do {
-            try perform(ExternalCommand.parse(url: url).get())
+            try perform(ExternalCommand.parse(url: url).get(), from: .link)
         } catch {
             // The link came from outside, so what it said stays private.
             log.notice("ignored a link: \(error.message, privacy: .private)")
         }
     }
 
-    func perform(_ command: ExternalCommand) throws(ExternalCommandError) {
+    /// `source` is a link or a Shortcut; the socket comes in through `problem(applying:)`.
+    func perform(_ command: ExternalCommand, from source: ExternalActivitySource) throws(ExternalCommandError) {
         switch command {
         case .openPage(let page):
             services.openShelf(ShelfPage(name: page.rawValue))
@@ -67,7 +73,7 @@ final class Automation {
         case .startTimer(let minutes):
             services.timers.startTimer(minutes: minutes)
         case .activity(let action):
-            try apply(action)
+            try apply(action, from: source)
         }
     }
 
@@ -104,15 +110,17 @@ final class Automation {
     /// For the socket: nil when done, otherwise what goes back to the sender.
     private func problem(applying action: ExternalActivityAction) -> String? {
         do {
-            try apply(action)
+            try apply(action, from: .command)
             return nil
         } catch {
             return error.message
         }
     }
 
-    private func apply(_ action: ExternalActivityAction) throws(ExternalCommandError) {
-        let applied = board.apply(action, now: .now)
+    private func apply(_ action: ExternalActivityAction, from source: ExternalActivitySource)
+        throws(ExternalCommandError)
+    {
+        let applied = board.apply(action, from: source, now: .now)
         refresh()
         guard applied else { throw ExternalCommandError(ExternalActivities.notShowing(action.id)) }
     }
@@ -121,8 +129,10 @@ final class Automation {
     private func refresh() {
         let now = Date.now
         board.prune(now: now)
-        if let current = board.current(now: now) {
-            services.activities.post(.custom(current), slot: .external, duration: nil)
+        let shown = board.current(now: now)
+        if shown != current { current = shown }
+        if let shown {
+            services.activities.post(.custom(shown), slot: .external, duration: nil)
         } else {
             services.activities.remove(.external)
         }

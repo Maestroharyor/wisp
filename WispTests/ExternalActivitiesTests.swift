@@ -91,4 +91,27 @@ final class ExternalActivitiesTests: XCTestCase {
         // job0 was dropped, so nothing is left once the others end.
         XCTAssertNil(board.current(now: last))
     }
+
+    func testRemembersWhoPostedIt() {
+        var board = ExternalActivities()
+        board.apply(start("a", "Build"), from: .command, now: now)
+        XCTAssertEqual(board.current(now: now)?.source, .command)
+        // An update from somewhere else takes over: that's who last spoke for it.
+        board.apply(
+            .update(ExternalActivityUpdate(id: "a", title: nil, symbol: nil, progress: 0.5)), from: .shortcut, now: now)
+        XCTAssertEqual(board.current(now: now)?.source, .shortcut)
+        XCTAssertEqual(board.current(now: now)?.progress, 0.5)
+    }
+
+    func testSourceIsUnknownWhenNotGiven() {
+        var board = ExternalActivities()
+        board.apply(start("a"), now: now)
+        XCTAssertNil(board.current(now: now)?.source)
+    }
+
+    func testSourceLabels() {
+        XCTAssertEqual(ExternalActivitySource.link.label, "From a wisp:// link")
+        XCTAssertEqual(ExternalActivitySource.command.label, "From the wisp command")
+        XCTAssertEqual(ExternalActivitySource.shortcut.label, "From Shortcuts")
+    }
 }

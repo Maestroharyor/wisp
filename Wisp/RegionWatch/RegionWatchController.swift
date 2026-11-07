@@ -36,6 +36,13 @@ final class RegionWatchController {
 
     var isWatching: Bool { watcher.isWatching }
 
+    // What the watch view shows. Reads go through to the observable watcher, so views follow it.
+    var appName: String? { watcher.target?.appName }
+    var rule: RegionWatchRule? { watcher.rule }
+    var started: Date? { watcher.started }
+    var lastChange: Date? { watcher.lastChange }
+    var isPaused: Bool { watcher.paused }
+
     /// The ring action: starts picking, or stops the watch already running.
     func toggle() {
         if isWatching { stop() } else { begin() }

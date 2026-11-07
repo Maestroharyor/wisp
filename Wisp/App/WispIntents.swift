@@ -22,7 +22,7 @@ private func automation() throws(IntentFailure) -> Automation {
 private func run(_ command: ExternalCommand) throws(IntentFailure) {
     let target = try automation()
     do {
-        try target.perform(command)
+        try target.perform(command, from: .shortcut)
     } catch {
         throw IntentFailure(message: error.message)
     }
