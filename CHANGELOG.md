@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Maestroharyor/wisp/compare/v0.1.9...v0.1.10) (2026-11-07)
+
+
+### Bug fixes
+
+* release build crashes the Swift compiler ([#40](https://github.com/Maestroharyor/wisp/issues/40)) ([fa3b315](https://github.com/Maestroharyor/wisp/commit/fa3b315c57ee56bd15c96db57c896a129165936a))
+
 ## [0.1.9](https://github.com/Maestroharyor/wisp/compare/v0.1.8...v0.1.9) (2026-11-07)
 
 
