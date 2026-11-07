@@ -43,7 +43,8 @@ actor RegionCaptureSession {
     func sample() async throws -> RegionWatchSample {
         let window = try await currentWindow()
         // The cached frame can be up to 20 checks old. A resize in between is tolerated: the
-        // region is anchored to the top-left corner, so it only clips a little late.
+        // region is anchored to the top-left corner, so it only clips a little late, and a failed
+        // capture refreshes it at once.
         guard let source = RegionGeometry.sourceRect(target.region, windowSize: window.frame.size) else {
             throw RegionCaptureError.regionGone
         }

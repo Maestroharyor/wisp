@@ -75,7 +75,7 @@ enum Permission: String, CaseIterable, Identifiable {
     /// The last Allow clicked, so the grant that answers it can bring Wisp forward.
     @MainActor static var lastRequest: PermissionRequest?
 
-    private static let askedScreenRecordingKey = "regionWatchAskedScreenRecording"
+    private static let askedScreenRecordingKey = "askedScreenRecording"
 
     /// Whether Wisp has shown the Screen Recording prompt, which macOS shows only once.
     static var askedScreenRecording: Bool { UserDefaults.standard.bool(forKey: askedScreenRecordingKey) }
@@ -84,12 +84,13 @@ enum Permission: String, CaseIterable, Identifiable {
         Self.lastRequest = PermissionRequest(id: rawValue, at: .now)
         switch self {
         case .accessibility: AccessibilityPermission.requestAccess()
-        // macOS asks only the first time; after that the switch is in System Settings, so open
-        // it only once the prompt has already been used up.
+        // macOS asks only the first time; after that the switch is in System Settings. Wisp
+        // can't tell whether the prompt is showing or was used up by an older version (before
+        // the flag existed), so it opens Settings whenever access is still off, and a press
+        // never does nothing.
         case .screenRecording:
-            let askedBefore = Self.askedScreenRecording
             UserDefaults.standard.set(true, forKey: Self.askedScreenRecordingKey)
-            if !CGRequestScreenCaptureAccess(), askedBefore { openSettings() }
+            if !CGRequestScreenCaptureAccess(), !CGPreflightScreenCaptureAccess() { openSettings() }
         // macOS asks only once. After that, and for a denial, the switch is in System Settings,
         // which lists an app only once it has asked.
         case .contacts:
