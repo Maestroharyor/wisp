@@ -7,6 +7,10 @@ public enum AgentCLI {
         case watch
         case spend(json: Bool)
         case help
+        /// `wisp activity start|update|end ...`.
+        case activity(ExternalActivityAction)
+        /// `wisp activity` alone or with `--help`.
+        case activityHelp
         /// A usage error, with the message to print.
         case invalid(String)
     }
@@ -20,6 +24,7 @@ public enum AgentCLI {
         let rest = Array(arguments.dropFirst())
         guard let name = rest.first else { return asWisp ? .help : nil }
         let options = Array(rest.dropFirst())
+        if name == "activity" { return activity(options) }
         let command: Command
         switch name {
         case "status": command = .status(json: options.contains("--json"))
@@ -35,17 +40,61 @@ public enum AgentCLI {
 
     public static let linkName = "wisp"
 
+    private static let helpFlags: Set<String> = ["help", "--help", "-h"]
+
+    /// `activity` is a command under both names: no hook passes it.
+    private static func activity(_ options: [String]) -> Command {
+        // `wisp activity --help` or `wisp activity start --help`; a title can't be `--help` this way.
+        if options.isEmpty || helpFlags.contains(options[0]) || (options.count == 2 && helpFlags.contains(options[1])) {
+            return .activityHelp
+        }
+        switch ExternalCommand.parse(activityArguments: options) {
+        case .success(.activity(let action)): return .activity(action)
+        case .success: return .activityHelp
+        case .failure(let error): return .invalid(error.message + "\n\n" + activityUsage)
+        }
+    }
+
     public static let usage = """
         Usage: wisp <command>
 
           status [--json]  Live coding agent sessions
           watch            The same, updated every second (Ctrl-C to stop)
           spend [--json]   Spend today and over the last 7 days, by project
+          activity         Show your own live activity in the notch (see wisp activity --help)
           help             This help
 
         Reads from Wisp, which must be running.
 
         """
+
+    public static var activityUsage: String {
+        let all = ExternalActivity.symbols
+        let rows = stride(from: 0, to: all.count, by: 4).map { start in
+            "  " + all[start..<min(start + 4, all.count)].joined(separator: ", ")
+        }
+        let minutes = Int(ExternalActivities.lifetime / 60)
+        return """
+            Usage: wisp activity <action> --id <id> [options]
+
+              start   --id <id> --title <text> [--symbol <name>] [--progress <0-1>]
+              update  --id <id> [--title <text>] [--symbol <name>] [--progress <0-1>]
+              end     --id <id>
+
+            An activity stays until it ends, or \(minutes) minutes after its last start or update.
+            Ids use letters, digits, dots, dashes and underscores (up to \(ExternalActivity.idLimit)).
+            Titles are up to \(ExternalActivity.titleLimit) characters.
+
+            Symbols (default \(ExternalActivity.defaultSymbol)):
+            \(rows.joined(separator: "\n"))
+
+            Example:
+              wisp activity start --id build --title "Building" --symbol hammer.fill
+              wisp activity update --id build --progress 0.5
+              wisp activity end --id build
+
+            """
+    }
     public static let notRunning = "Wisp isn't running."
     public static let tooOld = "This Wisp is too old for this command; update Wisp."
 
