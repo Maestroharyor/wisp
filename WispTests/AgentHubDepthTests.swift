@@ -129,7 +129,7 @@ final class TranscriptUsageTests: XCTestCase {
         XCTAssertEqual(ModelPricing.price(for: "claude-opus-5-5[1m]")?.input, 4)
         XCTAssertEqual(ModelPricing.price(for: "claude-opus-5")?.input, 5)
         XCTAssertEqual(ModelPricing.price(for: "claude-sonnet-4-6")?.output, 15)
-        XCTAssertNil(ModelPricing.price(for: "gpt-5"))
+        XCTAssertNil(ModelPricing.price(for: "gpt-5.7"))
     }
 
     func testSummaryText() {
@@ -170,6 +170,6 @@ final class HookInstallerCodexTests: XCTestCase {
         XCTAssertEqual(
             out["hooks"]?["Stop"]?[0]?["hooks"]?[0]?["command"], .string("'/x/wisp-agent' --source codex"))
         XCTAssertEqual(AgentSource.codex.hookEvents.count, 7)
-        XCTAssertNil(out["hooks"]?["PreCompact"]?[0]?["hooks"]?[0]?["async"], "Codex documents no async hooks")
+        XCTAssertNil(out["hooks"]?["PreCompact"]?[0]?["hooks"]?[0]?["async"], "Codex compaction hooks stay synchronous")
     }
 }

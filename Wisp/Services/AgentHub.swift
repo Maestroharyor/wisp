@@ -399,24 +399,28 @@ final class AgentHub {
                     total: cost, session: id, transcript: item.snapshot.transcriptPath, at: .now)
                 saveSpend(adding: increase, project: sessions.session(id)?.project)
             }
-            // Tracked even while the alert is off, so turning it on doesn't fire for a session
-            // that was already past the level.
-            let threshold = contextThreshold ?? ContextUsage.defaultThreshold
-            if let percent = sessions.contextAlert(session: id, threshold: threshold), contextThreshold != nil,
-                let project = sessions.session(id)?.project
-            {
-                onContextAlert(ContextUsage.notice(percent: percent, project: project))
-            }
-            checkLimits(item.snapshot)
+            checkContext(session: id)
+            checkLimits(UsageLimits.readings(item.snapshot.extras))
             if pillChanged { publishStatus() }
         }
     }
 
-    /// Tracked even while the alerts are off, so turning them on stays quiet until the next level.
-    private func checkLimits(_ snapshot: StatusLineSnapshot) {
-        let readings = UsageLimits.readings(snapshot.extras)
+    /// Tracked even while the alert is off, so turning it on doesn't fire for a session that
+    /// was already past the level.
+    private func checkContext(session id: String) {
+        let threshold = contextThreshold ?? ContextUsage.defaultThreshold
+        if let percent = sessions.contextAlert(session: id, threshold: threshold), contextThreshold != nil,
+            let project = sessions.session(id)?.project
+        {
+            onContextAlert(ContextUsage.notice(percent: percent, project: project))
+        }
+    }
+
+    /// One agent's latest windows. Tracked even while the alerts are off, so turning them on
+    /// stays quiet until the next level.
+    private func checkLimits(_ readings: [UsageReading]) {
         guard !readings.isEmpty else { return }
-        limitReadings = readings
+        limitReadings = UsageLimits.merge(limitReadings, with: readings)
         let due = limitWatch.record(readings, at: .now)
         guard limitAlerts else { return }
         for alert in due { onAlert("gauge.with.dots.needle.67percent", alert.text) }
@@ -428,7 +432,8 @@ final class AgentHub {
         limitReadings.filter { $0.resets.map { $0 > now } ?? true }.map { reading in
             AgentReport.Limit(
                 window: reading.window.rawValue, percent: reading.percent, resets: reading.resets,
-                full: limitWatch.forecast(reading.window))
+                full: limitWatch.forecast(reading.window, source: reading.source),
+                agent: reading.source.displayName)
         }
     }
 
@@ -671,6 +676,14 @@ final class AgentHub {
             }
             sessions.setUsage(next.usage.total, cost: cost, session: id)
             sessions.setModelID(next.usage.lastModel, session: id)
+            // Codex has no status line; its rollout carries the context and plan limits instead.
+            if let percent = next.usage.contextPercent,
+                sessions.session(id)?.source.adapter.hookFile.statusLine == false
+            {
+                if sessions.setContextPercent(percent, session: id) { publishStatus() }
+                checkContext(session: id)
+            }
+            checkLimits(next.usage.limits)
         }
     }
 
