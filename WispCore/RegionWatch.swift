@@ -99,11 +99,14 @@ public struct LuminanceFrame: Equatable, Sendable {
         return count
     }
 
-    /// Judged on the region's own size, so one digit in a status line counts while a speck
-    /// in a large panel doesn't. A different size (the window shrank) always counts.
+    /// Judged on the region's own size (less any masked pixels), so one digit in a status line
+    /// counts while a speck in a large panel doesn't. A different size (the window shrank)
+    /// always counts.
     public func isChanged(from other: LuminanceFrame, ignoring mask: [Bool] = []) -> Bool {
         guard width == other.width, height == other.height else { return true }
-        let needed = max(Self.minimumChangedPixels, Int((Double(pixels.count) * Self.changedShare).rounded(.up)))
+        let masked = mask.count == pixels.count ? mask.filter { $0 }.count : 0
+        let watched = pixels.count - masked
+        let needed = max(Self.minimumChangedPixels, Int((Double(watched) * Self.changedShare).rounded(.up)))
         return changedPixels(from: other, ignoring: mask) >= needed
     }
 
@@ -129,6 +132,52 @@ public struct LuminanceFrame: Equatable, Sendable {
     }
 }
 
+/// Pixels that keep flipping back, such as a blinking cursor, to leave out of comparisons.
+/// Kept small and short-lived so content that is really moving (a scrolling log) can't hide
+/// in it: a pixel is masked only after two flips, forgotten after `memory` samples without
+/// one, and if more than 2% of the region would be masked the mask is cleared and the
+/// flicker counts as a real change.
+public struct FlickerMask: Equatable, Sendable {
+    public static let flipsNeeded = 2
+    public static let memory = 10
+    public static let maximumShare = 0.02
+
+    public private(set) var mask: [Bool] = []
+    private var flips: [Int] = []
+    private var lastFlip: [Int] = []
+    private var sample = 0
+
+    public init() {}
+
+    /// Records one sample's flipped pixels (nil when there's nothing to compare yet).
+    /// Returns true when too much of the region flickers to be a cursor.
+    public mutating func record(_ flipped: [Bool]?, pixelCount: Int) -> Bool {
+        if mask.count != pixelCount { clear(pixelCount) }
+        sample += 1
+        if let flipped, flipped.count == pixelCount {
+            for index in flipped.indices where flipped[index] {
+                flips[index] += 1
+                lastFlip[index] = sample
+            }
+        }
+        var masked = 0
+        for index in 0..<pixelCount {
+            if sample - lastFlip[index] > Self.memory { flips[index] = 0 }
+            mask[index] = flips[index] >= Self.flipsNeeded
+            if mask[index] { masked += 1 }
+        }
+        guard Double(masked) > Double(pixelCount) * Self.maximumShare else { return false }
+        clear(pixelCount)
+        return true
+    }
+
+    private mutating func clear(_ pixelCount: Int) {
+        mask = [Bool](repeating: false, count: pixelCount)
+        flips = [Int](repeating: 0, count: pixelCount)
+        lastFlip = [Int](repeating: sample, count: pixelCount)
+    }
+}
+
 /// One look at the region: its pixels, its text when the rule reads text, and when.
 public struct RegionWatchSample: Sendable {
     public let frame: LuminanceFrame
@@ -148,9 +197,9 @@ public enum RegionWatchOutcome: Equatable, Sendable {
 }
 
 /// Decides when a rule fires from a run of samples. Changed and text rules need two matching
-/// samples in a row, so a tooltip or a misread for one frame doesn't fire them. Pixels seen
-/// to flip back (a blinking cursor) are left out of every comparison from then on, so they
-/// neither fire "changed" nor keep "stopped changing" from ever firing.
+/// samples in a row, so a tooltip or a misread for one frame doesn't fire them. A blinking
+/// cursor is kept out through `FlickerMask`, so it neither fires "changed" nor keeps "stopped
+/// changing" from firing.
 public struct RegionWatchMonitor: Sendable {
     public static let confirmations = 2
 
@@ -158,7 +207,7 @@ public struct RegionWatchMonitor: Sendable {
     private var baseline: LuminanceFrame?
     private var older: LuminanceFrame?
     private var previous: LuminanceFrame?
-    private var flicker: [Bool] = []
+    private var flicker = FlickerMask()
     private var streak = 0
     /// The last time the region moved; nil until it has moved once.
     private var lastChange: Date?
@@ -170,7 +219,10 @@ public struct RegionWatchMonitor: Sendable {
 
     public mutating func observe(_ sample: RegionWatchSample) -> RegionWatchOutcome {
         guard !fired else { return .fired }
-        updateFlicker(with: sample.frame)
+        let flipped = older.flatMap { older in
+            previous.flatMap { LuminanceFrame.flickering(older: older, previous: $0, current: sample.frame) }
+        }
+        let flickersTooMuch = flicker.record(flipped, pixelCount: sample.frame.pixels.count)
         defer {
             older = previous
             previous = sample.frame
@@ -181,11 +233,14 @@ public struct RegionWatchMonitor: Sendable {
                 baseline = sample.frame
                 return .watching
             }
-            confirm(sample.frame.isChanged(from: baseline, ignoring: flicker))
+            confirm(flickersTooMuch || sample.frame.isChanged(from: baseline, ignoring: flicker.mask))
         case .containsText:
             confirm(sample.text.map(rule.matches(text:)) ?? false)
         case .stoppedChanging(let seconds):
-            if let previous, sample.frame.isChanged(from: previous, ignoring: flicker) {
+            // A pixel going back to what it was two samples ago isn't movement on its own, so
+            // a cursor doesn't restart the clock before it has flipped enough to be masked.
+            let ignored = zip(flicker.mask, flipped ?? flicker.mask).map { $0 || $1 }
+            if flickersTooMuch || (previous.map { sample.frame.isChanged(from: $0, ignoring: ignored) } ?? false) {
                 lastChange = sample.time
             } else if let lastChange, sample.time.timeIntervalSince(lastChange) >= seconds {
                 fired = true
@@ -201,16 +256,6 @@ public struct RegionWatchMonitor: Sendable {
         previous = nil
         streak = 0
         if lastChange != nil { lastChange = time }
-    }
-
-    /// Adds pixels that just flipped back. A frame of a new size (the window shrank) starts
-    /// the mask over.
-    private mutating func updateFlicker(with frame: LuminanceFrame) {
-        if flicker.count != frame.pixels.count { flicker = [Bool](repeating: false, count: frame.pixels.count) }
-        guard let older, let previous,
-            let flipped = LuminanceFrame.flickering(older: older, previous: previous, current: frame)
-        else { return }
-        for index in flipped.indices where flipped[index] { flicker[index] = true }
     }
 
     private mutating func confirm(_ matched: Bool) {

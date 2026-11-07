@@ -242,6 +242,93 @@ final class RegionWatchTests: XCTestCase {
         XCTAssertEqual(monitor.observe(sample(after, at: 6)), .fired)
     }
 
+    // MARK: Flicker mask bounds
+
+    private func flips(_ indices: [Int], of count: Int) -> [Bool] {
+        var flipped = [Bool](repeating: false, count: count)
+        for index in indices { flipped[index] = true }
+        return flipped
+    }
+
+    func testMaskNeedsTwoFlips() {
+        var mask = FlickerMask()
+        XCTAssertFalse(mask.record(flips([3], of: 800), pixelCount: 800))
+        XCTAssertFalse(mask.mask[3])
+        XCTAssertFalse(mask.record(flips([3], of: 800), pixelCount: 800))
+        XCTAssertTrue(mask.mask[3])
+    }
+
+    func testMaskForgetsAPixelThatStopsFlipping() {
+        var mask = FlickerMask()
+        _ = mask.record(flips([3], of: 800), pixelCount: 800)
+        _ = mask.record(flips([3], of: 800), pixelCount: 800)
+        for _ in 0..<FlickerMask.memory { _ = mask.record(nil, pixelCount: 800) }
+        XCTAssertTrue(mask.mask[3])
+        _ = mask.record(nil, pixelCount: 800)
+        XCTAssertFalse(mask.mask[3])
+        _ = mask.record(flips([3], of: 800), pixelCount: 800)
+        XCTAssertFalse(mask.mask[3], "needs two fresh flips")
+    }
+
+    func testTooMuchFlickerIsARealChangeAndClearsTheMask() {
+        var mask = FlickerMask()
+        let small = Array(0..<16)
+        _ = mask.record(flips(small, of: 800), pixelCount: 800)
+        XCTAssertFalse(mask.record(flips(small, of: 800), pixelCount: 800), "2% is allowed")
+        let big = Array(0..<17)
+        _ = mask.record(flips(big, of: 800), pixelCount: 800)
+        XCTAssertTrue(mask.record(flips(big, of: 800), pixelCount: 800))
+        XCTAssertFalse(mask.mask.contains(true))
+    }
+
+    func testNeededPixelsCountOnlyUnmaskedOnes() {
+        let count = 100 * 100
+        guard let before = LuminanceFrame(width: 100, height: 100, pixels: [UInt8](repeating: 30, count: count))
+        else { return XCTFail("bad frame") }
+        var pixels = before.pixels
+        for index in 9_000..<9_007 { pixels[index] = 220 }
+        guard let after = LuminanceFrame(width: 100, height: 100, pixels: pixels) else { return XCTFail("bad frame") }
+        XCTAssertFalse(after.isChanged(from: before), "7 of 10,000 is a speck")
+        let mask = (0..<count).map { $0 < 9_000 }
+        XCTAssertTrue(after.isChanged(from: before, ignoring: mask), "7 of the 1,000 left is a change")
+    }
+
+    /// A 40 x 20 log of random dark and light pixels that scrolls up one row a frame.
+    private struct ScrollingLog {
+        var seed: UInt64 = 0x2545_F491_4F6C_DD1D
+        var rows: [[UInt8]] = []
+
+        mutating func nextRow() -> [UInt8] {
+            (0..<40).map { _ in
+                seed = seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+                return (seed >> 33) % 3 == 0 ? 220 : 30
+            }
+        }
+
+        mutating func scroll() -> LuminanceFrame {
+            if rows.isEmpty { rows = (0..<20).map { _ in nextRow() } }
+            rows.removeFirst()
+            rows.append(nextRow())
+            guard let frame = LuminanceFrame(width: 40, height: 20, pixels: rows.flatMap { $0 }) else {
+                preconditionFailure("bad test frame")
+            }
+            return frame
+        }
+    }
+
+    func testStoppedChangingWaitsForAScrollingLogToStop() {
+        var log = ScrollingLog()
+        var monitor = RegionWatchMonitor(rule: .stoppedChanging(seconds: 6))
+        var last = log.scroll()
+        for step in 0..<40 {
+            last = log.scroll()
+            XCTAssertEqual(monitor.observe(sample(last, at: Double(step) * 2)), .watching, "step \(step)")
+        }
+        XCTAssertEqual(monitor.observe(sample(last, at: 80)), .watching)
+        XCTAssertEqual(monitor.observe(sample(last, at: 82)), .watching)
+        XCTAssertEqual(monitor.observe(sample(last, at: 84)), .fired)
+    }
+
     func testFlickerMarksOnlyPixelsThatFlipBack() {
         let mask = LuminanceFrame.flickering(
             older: screen(cursor: false), previous: screen(contentChanged: true, cursor: true),
