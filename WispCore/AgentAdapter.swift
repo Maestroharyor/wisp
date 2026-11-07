@@ -1,7 +1,7 @@
 import Foundation
 
-/// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`, `"gemini"`, `"cursor"`). Only ids
-/// in `AgentAdapters` can be made, so every source has an adapter.
+/// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`, `"gemini"`, `"cursor"`,
+/// `"copilot"`). Only ids in `AgentAdapters` can be made, so every source has an adapter.
 public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public let rawValue: String
 
@@ -18,6 +18,7 @@ public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public static let codex = AgentSource(registered: "codex")
     public static let gemini = AgentSource(registered: "gemini")
     public static let cursor = AgentSource(registered: "cursor")
+    public static let copilot = AgentSource(registered: "copilot")
 
     public init(from decoder: Decoder) throws {
         let id = try decoder.singleValueContainer().decode(String.self)
@@ -77,9 +78,25 @@ public struct HookFile: Equatable, Sendable {
         /// Cursor's hooks.json: a `version` and, under `hooks`, a flat list of handlers for each
         /// event (no matcher groups).
         case cursorHooks
+        /// A file of Wisp's own in Copilot CLI's hooks folder, as GitHub documents it: `"version": 1`
+        /// and handlers listed straight under each event (no matcher groups), with `timeoutSec`.
+        case copilotHooks
 
         /// What a timeout in seconds is multiplied by in this file.
         public var timeoutScale: Int { self == .geminiSettings ? 1000 : 1 }
+        /// The handler's timeout field.
+        public var timeoutKey: String { self == .copilotHooks ? "timeoutSec" : "timeout" }
+        /// The `version` the file must carry, if any; the user's own stays.
+        public var version: Int? { self == .copilotHooks || self == .cursorHooks ? 1 : nil }
+        /// Handlers sit directly in each event's list instead of inside `{"matcher", "hooks"}`
+        /// groups. No matcher means every call.
+        public var flatHandlers: Bool { self == .copilotHooks || self == .cursorHooks }
+        /// The file is Wisp's alone, so it goes once Wisp's hooks are taken out.
+        public var ownedByWisp: Bool { self == .copilotHooks }
+        /// The agent blocks the tool call when a hook command fails (Copilot CLI's preToolUse), so
+        /// the command ends in `|| true`: a helper that's gone (Wisp moved or deleted) can't stop
+        /// the agent's work. Cursor fails open on a failed command unless a hook sets `failClosed`.
+        public var failsClosed: Bool { self == .copilotHooks }
 
         /// What the helper prints for `event` when Wisp has nothing to say: nothing, or for
         /// Cursor, which reads a hook's stdout as JSON, its "carry on" answer.
@@ -161,7 +178,7 @@ public struct AgentAdapter: Sendable {
 
 /// Every agent Wisp knows, in the order Settings and onboarding list them.
 public enum AgentAdapters {
-    public static let all: [AgentAdapter] = [claude, codex, gemini, cursor]
+    public static let all: [AgentAdapter] = [claude, codex, gemini, copilot, cursor]
 
     public static func adapter(id: String) -> AgentAdapter? { all.first { $0.source.rawValue == id } }
 
@@ -271,6 +288,34 @@ public enum AgentAdapters {
         promptFor: { _ in .tool },
         write: { _ in nil })
 
+    /// Monitor only. Copilot CLI's PermissionRequest hook can allow or deny, but it runs before
+    /// Copilot's own rules, session approvals and auto-allow, for every request but reads, so a
+    /// card would pop for each shell command and edit Copilot would have let through, and a tool
+    /// approved for the session would ask again. preToolUse is the same. Wisp shows the session;
+    /// a `permission_prompt` notification (sent only when Copilot really shows a prompt) is Needs
+    /// you, and the terminal answers. Hooks go in a file of Wisp's own under PascalCase names, so
+    /// Copilot sends Claude Code's field names and tool names (Bash, Read, Edit, Write).
+    static let copilot = AgentAdapter(
+        source: .copilot, displayName: "Copilot CLI", symbol: "airplane", fallbackProject: "Copilot",
+        hookFile: HookFile(
+            path: ".copilot/hooks/wisp.json", format: .copilotHooks,
+            // PostToolUse runs only after a tool succeeds and PostToolUseFailure after one fails;
+            // both are always on, so a prompt answered in the terminal leaves Needs you once the
+            // tool has run. There's no event after PreCompact.
+            events: [
+                "SessionStart", "UserPromptSubmit", "Notification", "PostToolUse", "PostToolUseFailure", "Stop",
+                "SessionEnd", "PreCompact",
+            ],
+            backgroundEvents: [], toolEvents: ["PreToolUse"], statusLine: false,
+            helperArguments: " --source copilot"),
+        capabilities: [.toolActivity],
+        setupNote: nil,
+        readEvent: { json, terminal in
+            AgentEvent(json: CopilotHooks.normalized(json), source: .copilot, terminal: terminal)
+        },
+        promptFor: { _ in .tool },
+        write: { _ in nil })
+
     private static let toolEvents = AgentEvent.Kind.toolActivity.map(\.rawValue)
 }
 
@@ -313,6 +358,62 @@ public enum CursorHooks {
         if case .array(let roots) = fields["workspace_roots"], let root = roots.first?.stringValue, !root.isEmpty {
             fields["cwd"] = .string(root)
         }
+        return .object(fields)
+    }
+}
+
+/// Copilot CLI sends Claude Code's snake_case fields to hooks configured under PascalCase event
+/// names, and camelCase ones (`sessionId`, `toolName`, `toolArgs`) under camelCase names. Its
+/// reference also shows the Notification payload with `sessionId`. Both read the same here.
+public enum CopilotHooks {
+    /// The notification type Copilot CLI sends when it shows a permission prompt.
+    public static let permissionPrompt = "permission_prompt"
+
+    /// Copilot's event names, PascalCase and camelCase, in Wisp's terms. Anything else reads as
+    /// `.other`.
+    static let kinds: [String: AgentEvent.Kind] = [
+        "SessionStart": .sessionStart, "sessionStart": .sessionStart,
+        "UserPromptSubmit": .userPromptSubmit, "userPromptSubmitted": .userPromptSubmit,
+        "Notification": .notification, "notification": .notification,
+        "PreToolUse": .preToolUse, "preToolUse": .preToolUse,
+        "PostToolUse": .postToolUse, "postToolUse": .postToolUse,
+        "PostToolUseFailure": .postToolUse, "postToolUseFailure": .postToolUse,
+        "Stop": .stop, "agentStop": .stop,
+        "SessionEnd": .sessionEnd, "sessionEnd": .sessionEnd,
+        "PreCompact": .preCompact, "preCompact": .preCompact,
+    ]
+
+    /// camelCase fields Wisp reads, by the snake_case name they fill in when it's missing.
+    private static let camelCase = [
+        "hook_event_name": "hookEventName", "session_id": "sessionId", "transcript_path": "transcriptPath",
+        "tool_name": "toolName", "notification_type": "notificationType",
+    ]
+
+    /// The payload with Claude Code's field names and Wisp's event name, so the common reader
+    /// takes it.
+    static func normalized(_ json: JSONValue) -> JSONValue {
+        guard case .object(var fields) = json else { return json }
+        for (snake, camel) in camelCase where fields[snake] == nil { fields[snake] = fields[camel] }
+        let kind = fields["hook_event_name"]?.stringValue.flatMap { kinds[$0] }
+        fields["hook_event_name"] = kind.map { .string($0.rawValue) }
+        if let input = (fields["tool_input"] ?? fields["toolArgs"]).flatMap(decodedArguments) {
+            fields["tool_input"] = withFilePath(input)
+        }
+        return .object(fields)
+    }
+
+    /// The tool's arguments may come as a JSON string (camelCase `toolArgs` does).
+    private static func decodedArguments(_ value: JSONValue) -> JSONValue? {
+        guard let text = value.stringValue else { return value }
+        return try? JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))
+    }
+
+    /// Copilot's file tools (view, edit, create) name the file `path`.
+    private static func withFilePath(_ input: JSONValue) -> JSONValue {
+        guard case .object(var fields) = input, fields["file_path"] == nil, let path = fields["path"] else {
+            return input
+        }
+        fields["file_path"] = path
         return .object(fields)
     }
 }

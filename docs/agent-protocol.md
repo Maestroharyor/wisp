@@ -30,7 +30,7 @@ Every message is a JSON object:
 |---|---|
 | `v` | Protocol version. Wisp ignores messages with a newer version and logs it once. |
 | `kind` | What the payload is (below). Unknown kinds are ignored and logged once. |
-| `source` | `claude`, `codex`, `gemini` or `cursor` (an agent in `AgentAdapters`). Defaults to `claude` when missing. Any other value is ignored and logged once, and a hook from it gets an empty reply. |
+| `source` | `claude`, `codex`, `gemini`, `copilot` or `cursor` (an agent in `AgentAdapters`). Defaults to `claude` when missing. Any other value is ignored and logged once, and a hook from it gets an empty reply. |
 | `terminal` | Optional bundle id of the app the agent runs in, so Wisp can bring it forward. |
 | `terminalContext` | Optional object saying where in the terminal the agent runs, so Wisp can bring forward the exact pane or tab (below). Sent with `hook`, `tool` and `statusline`. |
 | `payload` | The agent's own JSON, unchanged. |
@@ -56,7 +56,7 @@ Inside tmux, the tty and the host terminal's ids belong to tmux's pane or are le
 
 | kind | Payload | Reply |
 |---|---|---|
-| `hook` | The hook's stdin JSON from Claude Code, Codex, Gemini CLI or Cursor. | Only for `PermissionRequest`: the hook's stdout (an allow or deny decision), or empty to let the agent ask in the terminal. Wisp holds the connection open until the user answers, up to 110 s. For Cursor, which reads every hook's stdout as JSON, the helper prints a "carry on" reply whenever the reply is empty or Wisp can't be reached: `{"continue":true}` for beforeSubmitPrompt, `{}` for the rest. |
+| `hook` | The hook's stdin JSON from Claude Code, Codex, Gemini CLI, Copilot CLI or Cursor. | Only for `PermissionRequest`: the hook's stdout (an allow or deny decision), or empty to let the agent ask in the terminal. Wisp holds the connection open until the user answers, up to 110 s. For Cursor, which reads every hook's stdout as JSON, the helper prints a "carry on" reply whenever the reply is empty or Wisp can't be reached: `{"continue":true}` for beforeSubmitPrompt, `{}` for the rest. |
 | `statusline` | Claude Code's statusLine stdin JSON (`session_id`, `model`, `cost`, `context_window`, `workspace`, ...). | None. |
 | `tool` | Tool activity: the stdin JSON of PreToolUse, PostToolUse or SubagentStop. The helper sends it without waiting (50 ms, like `statusline`), so a tool call never waits on Wisp. | None. |
 | `query` | `{"query": "status"}` or `{"query": "spend"}`, from `wisp status`, `wisp watch` and `wisp spend`. | A report as JSON (below). An unknown query gets an empty reply. |
@@ -111,6 +111,8 @@ Cursor (`~/.cursor/hooks.json`, command `wisp-agent --source cursor`): sessionSt
 
 **Claude Code hooks run by Cursor.** Cursor also runs the hooks in `~/.claude/settings.json` and a project's `.claude/settings.json` and `.claude/settings.local.json` (Settings › Agents › Third-Party Imports, on by default), mapping SessionStart, UserPromptSubmit, Stop, SessionEnd, PreCompact, PreToolUse, PostToolUse and SubagentStop to its own events. With Claude Code connected, Wisp's Claude Code hooks would then report every Cursor session a second time, as Claude Code. Their payload is Cursor's and carries `cursor_version`, which Claude Code never sends, so the helper drops any Claude Code hook call with that field without contacting Wisp, and answers it with Cursor's "carry on" reply (`{"continue":true}` for the prompt hook, `{}` otherwise, including PreToolUse, where an empty object carries no verdict). Cursor sessions show only through Cursor's own hooks, once.
 
+Copilot CLI (`~/.copilot/hooks/wisp.json`, a file of Wisp's own, command `wisp-agent --source copilot || true`): SessionStart, UserPromptSubmit, Notification, PostToolUse, PostToolUseFailure, Stop, SessionEnd and PreCompact, with tool activity adding PreToolUse. The file is `{"version": 1, "hooks": {"Stop": [{"type": "command", "command": "...", "timeoutSec": 5}], ...}}`, as GitHub documents hook files: handlers listed directly under PascalCase event names (no Claude-style matcher groups), so Copilot sends Claude Code's snake_case fields (`session_id`, `hook_event_name`, `tool_name`, `tool_input`, `transcript_path`) and Claude tool names (Bash, Read, Edit, Write). Handlers have no `matcher` (none matches every call) and no `async`. Wisp recognises its handlers in either shape by the helper's name, and Disconnect deletes the file once only `version` is left. The command ends in `|| true` because Copilot denies a tool call when a preToolUse hook exits non-zero, so a helper that's missing (Wisp moved or deleted) would otherwise block every tool. PostToolUse runs only after a tool succeeds and PostToolUseFailure after one fails; both are always installed and read as tool activity, so a prompt answered in the terminal leaves Needs you once the tool has run. A Notification of type `permission_prompt` is Needs you (Copilot sends it only when it really shows a prompt; the same type from Claude Code changes nothing). Notification hooks are fire and forget, so one can arrive after the PostToolUse of the tool it asked about; the session then shows Needs you until the next tool, prompt or Stop. Wisp doesn't drop late ones, since a new prompt can follow a finished tool just as quickly. Monitor only: Copilot's PermissionRequest hook can allow or deny, but it runs before Copilot's rules engine, session approvals and auto-allow for every request except reads, so Wisp would ask about calls Copilot already allows. Wisp reads camelCase payloads too (`sessionId`, `toolName`, `toolArgs` as an object or a JSON string, `userPromptSubmitted`, `agentStop`) and a file tool's `path` as its file. Copilot reads `$COPILOT_HOME/hooks` instead when `COPILOT_HOME` is set; Wisp writes only `~/.copilot/hooks`.
+
 **Approval wait.** By default the PermissionRequest hook has a 120 s timeout and the command takes no extra argument. While phone push is on (Settings › Phone) the wait is the "Wait for an answer" setting (10 minutes by default, 2 to 60): the hook's `timeout` becomes that many seconds and the command ends in `--timeout <seconds>` (for example `wisp-agent --source codex --timeout 600`). The helper exits on its own 5 s after its timeout (120 s without the flag), and Wisp hands an unanswered request back to the terminal 10 s before the timeout the hook was installed with. Hooks whose wait differs from the current setting read as outdated, so Settings offers "Update hooks"; Codex then asks you to trust them again in `/hooks`.
 
 The statusLine command keeps any bar you had before inside it (`--saved '<command>'` or `--chain '<command>'`), so Wisp can put it back exactly.
@@ -139,7 +141,7 @@ Checked on 2026-11-07 against Codex's hooks documentation (developers.openai.com
 | Always-allow rules | `permissions.allow` (roadmap phase 2) | Not yet | No |
 | Not used by Wisp | | `Interrupt`, `SubagentStart`, `PreModelRequest`, `PostModelRequest` | `BeforeModel`, `AfterModel`, `BeforeToolSelection` |
 
-## Cursor
+### Cursor
 
 Checked on 2026-11-07 against Cursor's hooks reference (cursor.com/docs/agent/hooks) and Cursor staff replies on the Cursor forum (March 2026) about which hook verdicts are enforced. The CLI changelog lists sessionStart, sessionEnd, prompt, stop, preToolUse and postToolUse hooks in `cursor-agent` (now `agent`). The cursor-agent installed here (2025.09.12) predates hooks, so the fixtures in `CursorAdapterTests` follow the documented payloads, not a live run.
 
@@ -150,3 +152,21 @@ Checked on 2026-11-07 against Cursor's hooks reference (cursor.com/docs/agent/ho
 - **Transcripts:** `transcript_path` (null unless Cursor's transcripts are on) is kept, so Reveal transcript works. The token reader looks for Claude Code and Codex lines and isn't expected to find any in Cursor's transcript, so no cost is shown.
 - **Exit codes:** 0 uses the JSON output, 2 denies, anything else fails open unless the hook has `failClosed`. For permission hooks, invalid JSON blocks the action.
 - **Not read:** context, model, cost and usage limits (none in a documented file; preCompact's `context_usage_percent` is only sent at compaction). Not used: afterShellExecution, afterMCPExecution, afterFileEdit, afterAgentResponse, afterAgentThought, postToolUseFailure, subagentStart, subagentStop, workspaceOpen and the Tab hooks.
+
+### Copilot CLI
+
+Checked on 2026-11-07 against GitHub's CLI hooks reference (docs.github.com/en/copilot/reference/copilot-cli-reference/cli-hooks-reference) and the Copilot CLI 1.0.107 npm package (its changelog and the field names in its runtime). Copilot CLI wasn't installed, so the fixtures in `CopilotAdapterTests` follow the documented shapes, not a live run.
+
+| | Copilot CLI |
+|---|---|
+| Hook file | `~/.copilot/hooks/*.json` (`$COPILOT_HOME/hooks`), also inline `hooks` in `~/.copilot/settings.json`, repository `.github/hooks/*.json`, `.github/copilot/settings*.json`, `.claude/settings*.json`, plugins and admin policy. Wisp writes only `~/.copilot/hooks/wisp.json`. `version: 1`; timeouts in seconds, 30 by default; timeouts fail open |
+| Hook input fields | Under PascalCase names: `session_id`, `timestamp` (ISO 8601), `cwd`, `hook_event_name`, `tool_name` (Claude names), `tool_input`, `transcript_path`, `notification_type`. Under camelCase names: `sessionId`, `timestamp` (epoch ms), `toolName`, `toolArgs`, `transcriptPath`. No `tool_use_id` documented |
+| SessionStart, UserPromptSubmit, Stop, SessionEnd | Yes (`agentStop` is Stop, `userPromptSubmitted` is UserPromptSubmit; SessionStart `source` is `startup`, `resume` or `new`) |
+| Notification | Fire and forget; types include `shell_completed` (and one for detached shells), `agent_completed`, `agent_idle`, `permission_prompt` and `elicitation_dialog`. Wisp reads `permission_prompt` and `elicitation_dialog` as Needs you |
+| PermissionRequest | Exists (`behavior` allow or deny, `message`, `interrupt`), but runs before the rules engine, session approvals and auto-allow for every request except reads, so Wisp doesn't install it: monitor only |
+| PreToolUse | Can allow, deny, ask or rewrite (`modifiedArgs`); a non-zero exit other than a timeout denies the call. Tool activity only, never answered |
+| PostToolUse, PostToolUseFailure | After a tool succeeds or fails; both always installed |
+| PreCompact | Yes (`trigger` `manual` or `auto`); no event after |
+| `async` handlers | Not documented |
+| Status line, context, model, cost, limits | None read |
+| Not used by Wisp | `PermissionRequest`, `ErrorOccurred`, `SubagentStart`, `SubagentStop`, `UserPromptTransformed` |

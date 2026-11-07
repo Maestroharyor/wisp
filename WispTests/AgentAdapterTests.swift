@@ -4,9 +4,10 @@ import XCTest
 
 final class AgentAdapterTests: XCTestCase {
     func testRegistryListsEachAgentOnceByItsWireID() {
-        XCTAssertEqual(AgentAdapters.all.map(\.source), [.claude, .codex, .gemini, .cursor])
+        XCTAssertEqual(AgentAdapters.all.map(\.source), [.claude, .codex, .gemini, .copilot, .cursor])
         XCTAssertEqual(AgentAdapters.adapter(id: "codex")?.displayName, "Codex")
         XCTAssertEqual(AgentAdapters.adapter(id: "gemini")?.displayName, "Gemini CLI")
+        XCTAssertEqual(AgentAdapters.adapter(id: "copilot")?.displayName, "Copilot CLI")
         XCTAssertNil(AgentAdapters.adapter(id: "aider"))
         XCTAssertEqual(Set(AgentAdapters.all.map(\.source.rawValue)).count, AgentAdapters.all.count)
     }
@@ -15,6 +16,7 @@ final class AgentAdapterTests: XCTestCase {
         XCTAssertEqual(AgentSource(rawValue: "claude"), .claude)
         XCTAssertEqual(AgentSource(rawValue: "codex"), .codex)
         XCTAssertEqual(AgentSource(rawValue: "gemini"), .gemini)
+        XCTAssertEqual(AgentSource(rawValue: "copilot"), .copilot)
         XCTAssertNil(AgentSource(rawValue: "aider"))
         let encoded = try JSONEncoder().encode([AgentSource.codex])
         XCTAssertEqual(String(decoding: encoded, as: UTF8.self), #"["codex"]"#)
