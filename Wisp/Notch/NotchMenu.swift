@@ -1,7 +1,8 @@
 import AppKit
 import WispCore
 
-/// Right-click menu on the notch or shelf: Open, Tools, Profile and Form, then Settings and Quit.
+/// Right-click menu on the notch or shelf: Open, Tools, Profile and Form, then Settings, Check for Updates
+/// and Quit.
 @MainActor
 enum NotchMenu {
     static func show(
@@ -19,6 +20,10 @@ enum NotchMenu {
             formItem(current: form, forms: forms, setForm: setForm, openAsWindow: openAsWindow, moveBack: moveBack))
         menu.addItem(.separator())
         menu.addItem(item("Settings…", symbol: "gearshape", action: services.openSettings))
+        let updates = item("Check for Updates…", symbol: "arrow.down.circle", action: services.updater.checkForUpdates)
+        // Off while a check is already running, as Sparkle reports.
+        updates.isEnabled = services.updater.canCheckForUpdates
+        menu.addItem(updates)
         menu.addItem(item("Quit Wisp", symbol: "power") { NSApp.terminate(nil) })
         menu.popUp(positioning: nil, at: location, in: nil)
     }
