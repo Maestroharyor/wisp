@@ -40,6 +40,13 @@ public enum MicState {
         return inputProcesses.contains { !backgroundListeners.contains($0) }
     }
 
+    /// Leaves out Wisp itself while it dictates (it shows its own pill then). Any other time
+    /// Wisp holding the microphone is worth showing, so `dictating` false keeps it.
+    public static func inputProcesses(_ processes: [String]?, ownBundleID: String?, dictating: Bool) -> [String]? {
+        guard dictating, let ownBundleID else { return processes }
+        return processes?.filter { $0 != ownBundleID }
+    }
+
     /// The apps worth naming: background listeners and unnamed processes left out.
     public static func apps(_ inputProcesses: [String]) -> [String] {
         inputProcesses.filter { !$0.isEmpty && !backgroundListeners.contains($0) }.sorted()
