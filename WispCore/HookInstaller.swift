@@ -10,9 +10,9 @@ public enum HookLink: Equatable, Sendable {
 }
 
 /// Adds and removes Wisp's hooks in an agent's hook file (`HookFile`): Claude Code's
-/// settings.json, Codex's hooks.json, Gemini CLI's settings.json or Copilot CLI's hooks folder, which share the
-/// `hooks` shape. The user's own
-/// settings and hooks are left alone. Wisp's entries are recognised by the helper's name.
+/// settings.json, Codex's hooks.json, Gemini CLI's settings.json, Copilot CLI's hooks folder or Cursor's
+/// hooks.json, which share the `hooks` shape (the last two list handlers without matcher groups). The user's
+/// own settings and hooks are left alone. Wisp's entries are recognised by the helper's name.
 public enum HookInstaller {
     public enum Failure: Error { case notAnObject }
 

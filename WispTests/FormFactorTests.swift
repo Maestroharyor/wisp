@@ -12,8 +12,11 @@ final class FormFactorTests: XCTestCase {
         XCTAssertEqual(FormFactor(placement: .right), .side)
         XCTAssertEqual(FormFactor(placement: .floating), .orb)
         for form in FormFactor.allCases {
-            XCTAssertEqual(FormFactor(placement: form.placement), form)
+            guard let placement = form.placement else { continue }
+            XCTAssertEqual(FormFactor(placement: placement), form)
         }
+        // The window isn't a place on a display.
+        XCTAssertNil(FormFactor.window.placement)
     }
 
     func testIslandMacsHaveNoNotchForm() {
@@ -22,9 +25,22 @@ final class FormFactorTests: XCTestCase {
     }
 
     func testCyclingWrapsAndSkipsTheNotchOnIslandMacs() {
-        XCTAssertEqual(FormFactor.orb.next(systemIsland: false), .notch)
-        XCTAssertEqual(FormFactor.orb.next(systemIsland: true), .corner)
+        XCTAssertEqual(FormFactor.orb.next(systemIsland: false), .window)
+        XCTAssertEqual(FormFactor.window.next(systemIsland: false), .notch)
+        XCTAssertEqual(FormFactor.window.next(systemIsland: true), .corner)
         XCTAssertEqual(FormFactor.notch.next(systemIsland: true), .corner)
+    }
+
+    func testTheWindowIsOfferedEverywhere() {
+        XCTAssertEqual(FormFactor.available(systemIsland: true).last, .window)
+        XCTAssertEqual(FormFactor.available(systemIsland: false).last, .window)
+    }
+
+    func testPickingTheWindowLeavesTheShellsPlacementAlone() {
+        var state = OrbPlacements(overrides: ["a": "left"], returns: ["a": ""], standard: .top)
+        state.set(.window, for: "a")
+        XCTAssertEqual(state.overrides, ["a": "left"])
+        XCTAssertEqual(state.returns, ["a": ""])
     }
 
     func testSwitchingToTheOrbRemembersTheWayBack() {

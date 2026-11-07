@@ -49,7 +49,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .profiles: "Saved setups, and switching them automatically"
         case .clipboard: "Clipboard history"
         case .notifications: "Notifications in the notch, and quick replies"
-        case .agents: "Claude Code, Codex, Gemini CLI and Copilot CLI sessions, approvals and status bar"
+        case .agents: "Claude Code, Codex, Gemini CLI, Copilot CLI and Cursor sessions, approvals and status bar"
         case .phone: "Agent alerts and approvals on your phone and watch"
         case .ai: "On-device AI with Apple Intelligence or Ollama"
         case .permissions: "What Wisp can access, and why"
@@ -72,7 +72,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "hidden", "drop actions", "command", "script", "island", "external", "display", "pocket", "drag",
                 "shake", "position", "placement", "bottom", "left", "right", "corner", "edge", "side", "dock",
                 "dynamic island", "camera", "hole punch", "display info", "orb", "float", "detach", "move", "form",
-                "shape", "move back", "reset position",
+                "shape", "move back", "reset position", "window", "open as window", "windowed", "minimise", "minimize",
+                "tear off", "normal app",
             ]
         case .appearance:
             [
@@ -116,7 +117,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .agents:
             [
                 "claude", "claude code", "codex", "gemini", "gemini cli", "copilot", "copilot cli", "github copilot",
-                "ai", "hooks", "approve", "allow", "deny", "sessions", "sound",
+                "cursor", "cursor-agent", "ai", "hooks", "approve", "allow", "deny", "sessions", "sound",
                 "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
@@ -146,7 +147,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .about:
             [
                 "version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release", "keyboard",
-                "approve with keyboard", "hyper y",
+                "approve with keyboard", "hyper y", "check for updates", "check now",
             ]
         }
     }

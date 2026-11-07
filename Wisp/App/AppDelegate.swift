@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         services.cycleForm = { [weak self] in self?.coordinator.cycleForm() }
         services.start()
         coordinator.start()
+        // The Window form opens with Wisp, as any app's window would.
+        if preferences.windowForm { services.shelfWindow.activateShell() }
         services.automation.acceptLinks()
         hotkeys.onToggle = { [weak self] in self?.toggleShelf() }
         hotkeys.onClipboard = { [weak self] in self?.toggleClipboard() }

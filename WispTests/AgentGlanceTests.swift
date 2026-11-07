@@ -76,6 +76,11 @@ final class SessionGlanceTests: XCTestCase {
                 #"{"wisp_source":"copilot","sessionId":"c","hook_event_name":"userPromptSubmitted","prompt":"yo"}"#.utf8
             ))
         XCTAssertEqual(copilot.promptText, "yo")
+        let cursor = try AgentEvent.decode(
+            Data(
+                #"{"wisp_source":"cursor","conversation_id":"k","hook_event_name":"beforeSubmitPrompt","prompt":"go"}"#
+                    .utf8))
+        XCTAssertEqual(cursor.promptText, "go")
     }
 
     func testRunningToolIsTheActivity() throws {
