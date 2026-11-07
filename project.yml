@@ -103,6 +103,12 @@ targets:
         SUPublicEDKey: uWF1jHIoXFoGaVJMhVj3Y6lG9o6EXOzkfqqJED1WbIc=
         SUScheduledCheckInterval: 86400
         NSCameraUsageDescription: Wisp shows your camera in the Mirror widget so you can check yourself before a call.
+        # wisp:// links (wisp-dev:// for Wisp Dev): open a page, switch profile, start a timer or show an
+        # activity. ExternalCommand parses them; a link can never approve or deny an agent's request.
+        CFBundleURLTypes:
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
+            CFBundleTypeRole: Viewer
+            CFBundleURLSchemes: [$(WISP_URL_SCHEME)]
     entitlements:
       path: Wisp/Resources/Wisp.entitlements
       properties:
@@ -119,6 +125,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp
         PRODUCT_NAME: Wisp
         WISP_DISPLAY_NAME: Wisp
+        WISP_URL_SCHEME: wisp
         # Only notarisation needs the hardened runtime. Self-signed builds ("Wisp Dev"
         # has no Team ID) leave it off, or library validation refuses Sparkle.framework.
         # scripts/release.sh turns it on for Developer ID builds.
@@ -135,6 +142,7 @@ targets:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.ayomideodewale.wisp.dev
           WISP_DISPLAY_NAME: Wisp Dev
+          WISP_URL_SCHEME: wisp-dev
 
   WispTests:
     type: bundle.unit-test

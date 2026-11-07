@@ -67,6 +67,7 @@ final class AppServices {
     private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
     private(set) lazy var push = PushService(preferences: preferences, hub: agents)
+    private(set) lazy var automation = Automation(services: self)
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -336,6 +337,7 @@ final class AppServices {
             self?.activities.post(
                 .notice(symbol: "gauge.with.dots.needle.67percent", text: text), slot: .notice, duration: 3)
         }
+        automation.start()
         agents.start()
 
         context.onSwitch = { [weak self] profile, swapsHome in self?.applyProfile(profile, swapsHome: swapsHome) }
@@ -455,6 +457,7 @@ final class AppServices {
         headphones.stop()
         lockScreenPlayer.stop()
         push.stop()
+        automation.stop()
         microphone.stop()
         meetingTask?.cancel()
         nowPlaying.stop()
