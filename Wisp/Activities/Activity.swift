@@ -64,6 +64,8 @@ enum Activity: Sendable, Equatable {
     case meetingSoon(MeetingInvite)
     /// Headphones just connected, with their battery when they report it.
     case device(BluetoothDevice)
+    /// Part of a window being watched for a change.
+    case regionWatch(RegionWatchStatus)
     /// Wisp is listening for dictation while the key is held.
     case dictation(since: Date)
 
@@ -78,7 +80,7 @@ enum Activity: Sendable, Equatable {
     /// Level bars need room for the bar and the number, and a notice for a few words.
     var usesWideWings: Bool {
         switch self {
-        case .level, .sent, .focus, .agent, .meeting, .device, .notice, .dictation: true
+        case .level, .sent, .focus, .agent, .meeting, .device, .notice, .regionWatch, .dictation: true
         default: false
         }
     }
@@ -106,6 +108,7 @@ enum Activity: Sendable, Equatable {
         case .meeting: "meeting"
         case .meetingSoon(let invite): "meetingSoon-\(invite.id)"
         case .device: "device"
+        case .regionWatch: "regionWatch"
         case .dictation: "dictation"
         }
     }
@@ -125,4 +128,12 @@ struct MeetingInvite: Sendable, Equatable {
     let title: String
     let link: URL
     let start: Date
+}
+
+/// The running region watch: whose window, what it waits for, and whether low battery
+/// has paused it.
+struct RegionWatchStatus: Sendable, Equatable {
+    let appName: String
+    let rule: RegionWatchRule
+    let paused: Bool
 }

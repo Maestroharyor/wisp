@@ -87,6 +87,11 @@ struct CompactActivityView: View {
                 .frame(width: 16)
                 Text(status.title).lineLimit(1)
             }
+        case .regionWatch(let status):
+            HStack(spacing: ActivityMetrics.contentSpacing) {
+                RegionWatchGlyph(paused: status.paused).frame(width: 16)
+                Text(status.appName).lineLimit(1)
+            }
         case .dictation:
             HStack(spacing: ActivityMetrics.contentSpacing) {
                 Image(systemName: "mic.fill").foregroundStyle(.red).frame(width: 16)
@@ -162,6 +167,14 @@ struct CompactActivityView: View {
                 }
             } else {
                 Text("Connected").lineLimit(1).foregroundStyle(Color.secondaryText)
+            }
+        case .regionWatch(let status):
+            HStack(spacing: 6) {
+                Text(status.paused ? "Paused" : status.rule.summary).lineLimit(1)
+                    .foregroundStyle(status.paused ? Color.secondaryText : .white)
+                Image(systemName: "stop.circle")
+                    .foregroundStyle(.white.opacity(0.8))
+                    .help("Stop watching")
             }
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()
@@ -245,6 +258,8 @@ struct SideActivityView: View {
             caption(text)
         case .sent:
             caption("Sent").foregroundStyle(Color.accentColor)
+        case .regionWatch(let status):
+            caption(status.paused ? "Paused" : "Watching")
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()
         }
@@ -302,11 +317,23 @@ struct ActivityGlyph: View {
         case .meeting:
             Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
                 .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
+        case .regionWatch(let status):
+            RegionWatchGlyph(paused: status.paused)
         case .dictation:
             Image(systemName: "mic.fill").foregroundStyle(.red)
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()
         }
+    }
+}
+
+/// The eye for a region watch, dimmed while low battery pauses it.
+struct RegionWatchGlyph: View {
+    let paused: Bool
+
+    var body: some View {
+        Image(systemName: paused ? "eye.slash.fill" : "eye.fill")
+            .foregroundStyle(paused ? Color.secondaryText : Color.wispViolet)
     }
 }
 

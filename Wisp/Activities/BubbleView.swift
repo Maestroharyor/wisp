@@ -206,6 +206,8 @@ private struct BubbleGlyph: View {
                 Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
                     .font(.system(size: glyph * 0.6, weight: .semibold))
                     .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
+            case .regionWatch(let status):
+                RegionWatchGlyph(paused: status.paused).font(.system(size: glyph * 0.6, weight: .semibold))
             default:
                 EmptyView()
             }
