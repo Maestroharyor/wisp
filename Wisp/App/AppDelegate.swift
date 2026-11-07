@@ -41,6 +41,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onProfileDigit = { [weak self] digit in self?.services.context.choose(digit: digit) }
         hotkeys.onRing = { [weak self] in self?.services.ring.toggle(at: NSEvent.mouseLocation) }
         hotkeys.onCycleForm = { [weak self] in self?.services.cycleForm() }
+        hotkeys.onApprovalKey = { [weak self] keyCode in
+            guard let services = self?.services else { return false }
+            // Out of sight (a HUD over the card): swallowed and ignored, so it neither answers
+            // nor types into the front app.
+            guard services.approvalOnScreen else { return services.agents.keyHasAction(keyCode) }
+            return services.agents.answerKey(keyCode)
+        }
+        hotkeys.onApprovalKeyUp = { [weak self] keyCode in self?.services.agents.releaseKey(keyCode) }
+        services.approvalCardChanged = { [weak self] prompt in self?.hotkeys.setApprovalCard(prompt) }
+        services.isShelfOpen = { [weak self] in self?.coordinator.hasOpenShelf ?? false }
         hotkeys.onDictation = { [weak self] event in self?.services.dictation.handle(event) }
         services.dictation.onTap = { [weak self] in self?.toggleShelf() }
         services.dictation.resolveTarget = { [weak self] in self?.coordinator.dictationTarget() ?? .focusedApp }
