@@ -30,7 +30,7 @@ Every message is a JSON object:
 |---|---|
 | `v` | Protocol version. Wisp ignores messages with a newer version and logs it once. |
 | `kind` | What the payload is (below). Unknown kinds are ignored and logged once. |
-| `source` | `claude`, `codex` or `gemini` (an agent in `AgentAdapters`). Defaults to `claude` when missing. Any other value is ignored and logged once, and a hook from it gets an empty reply. |
+| `source` | `claude`, `codex`, `gemini` or `opencode` (an agent in `AgentAdapters`). Defaults to `claude` when missing. Any other value is ignored and logged once, and a hook from it gets an empty reply. |
 | `terminal` | Optional bundle id of the app the agent runs in, so Wisp can bring it forward. |
 | `terminalContext` | Optional object saying where in the terminal the agent runs, so Wisp can bring forward the exact pane or tab (below). Sent with `hook`, `tool` and `statusline`. |
 | `payload` | The agent's own JSON, unchanged. |
@@ -56,7 +56,7 @@ Inside tmux, the tty and the host terminal's ids belong to tmux's pane or are le
 
 | kind | Payload | Reply |
 |---|---|---|
-| `hook` | The hook's stdin JSON from Claude Code, Codex or Gemini CLI. | Only for `PermissionRequest`: the hook's stdout (an allow or deny decision), or empty to let the agent ask in the terminal. Wisp holds the connection open until the user answers, up to 110 s. |
+| `hook` | The hook's stdin JSON from Claude Code, Codex or Gemini CLI, or the OpenCode plugin's event JSON (below). | Only for `PermissionRequest`: the hook's stdout (an allow or deny decision), or empty to let the agent ask in the terminal. Wisp holds the connection open until the user answers, up to 110 s. |
 | `statusline` | Claude Code's statusLine stdin JSON (`session_id`, `model`, `cost`, `context_window`, `workspace`, ...). | None. |
 | `tool` | Tool activity: the stdin JSON of PreToolUse, PostToolUse or SubagentStop. The helper sends it without waiting (50 ms, like `statusline`), so a tool call never waits on Wisp. | None. |
 | `query` | `{"query": "status"}` or `{"query": "spend"}`, from `wisp status`, `wisp watch` and `wisp spend`. | A report as JSON (below). An unknown query gets an empty reply. |
@@ -107,6 +107,24 @@ Codex (`~/.codex/hooks.json`, command `wisp-agent --source codex`): the same hoo
 
 Gemini CLI (`~/.gemini/settings.json`, command `wisp-agent --source gemini`): SessionStart, BeforeAgent, Notification, AfterTool, AfterAgent, SessionEnd and PreCompress, with tool activity adding BeforeTool. AfterTool is always installed: it's the first event after a tool confirmation answered in the terminal, so the session leaves Needs you. Timeouts are in milliseconds there (5000), and Gemini CLI has no `async`, so tool hooks are synchronous: each tool call waits for one helper launch (two with tool activity on), which sends the event as `tool` and exits without waiting for Wisp. The helper decides `tool` from the event as the adapter reads it, not from the tool activity list. Monitor only: no PermissionRequest hook, no `--timeout`, and push never makes these hooks outdated. Wisp reads Gemini's event names as its own: BeforeAgent is a prompt, AfterAgent is Stop, PreCompress is PreCompact, BeforeTool and AfterTool are tool activity, and a Notification of type `ToolPermission` is Needs you. Hooks run only while `hooksConfig.enabled` is on, the default.
 
+OpenCode (`~/.config/opencode/plugins/wisp.js`, command `wisp-agent --source opencode`): OpenCode has no command hooks, so Wisp writes a plugin of its own there (OpenCode loads every `.js` and `.ts` file in that folder) and deletes it to disconnect. The command is on one line as `const COMMAND = "<JSON string>"` and tool activity as `const TOOLS = true|false`, which is how Wisp reads back which helper it calls, its approval wait and whether tool activity is on; any other change to the file reads as outdated. The plugin uses OpenCode's v1 plugin API and Node's `child_process`, with no package to install, and runs `/bin/sh -c "exec <command>"` with one JSON object on stdin per event:
+
+| Plugin sends (`hook_event_name`) | From OpenCode | Wisp reads it as |
+|---|---|---|
+| `session.created` | `session.created` without a `parentID` | SessionStart |
+| `session.status` with `status` `busy` | `session.status`, first busy of a turn (retries left out) | UserPromptSubmit |
+| `session.status` with `status` `idle` | `session.status` | Stop |
+| `session.deleted` | `session.deleted` | SessionEnd |
+| `session.compacting` | the `experimental.session.compacting` hook | PreCompact |
+| `session.compacted` | `session.compacted` | PostCompact |
+| `permission.asked` with `request_id`, `permission`, the first of `patterns` and `metadata` cut to `command`, `filepath`, `url`, `description` and `subagent_type` | `permission.asked` | PermissionRequest; `tool_name` is the permission (`bash`, `edit`, `read`, `webfetch`, `external_directory`, `task`, ...) |
+| `permission.replied`, `question.replied`, `question.rejected` with `request_id` | the same events | PostToolUse with the request id as `tool_use_id`, so Needs you clears and no running tool is ended |
+| `question.asked` with `request_id` | `question.asked` | Notification of type `opencode_question` (Needs you) |
+| `permission.reply_failed` with `request_id` | the plugin, when no route took the notch's answer | Notification of type `opencode_reply_failed` (Needs you: OpenCode's own prompt still waits) |
+| `tool.execute.before`, `tool.execute.after` with `tool`, `call_id` and `args` cut to `command`, `filePath`, `pattern`, `url`, `query`, `description` and `subagent_type` | the hooks of the same names, only with tool activity on | PreToolUse, PostToolUse |
+
+Every message also carries `session_id` and `cwd` (the plugin's `directory`). Events from a subagent's session are left out, except requests and questions, which go under the session that started it. For `permission.asked` the plugin keeps the helper's stdout, OpenCode's own reply body: `{"reply":"once"}` for Allow, `{"reply":"reject"}` for Deny, with `"message"` added when a reason was typed. It tries, in order, until one answers `true`: the client's public `permission.reply` method (v2 SDK clients), the same `POST /permission/{requestID}/reply` route through the client's request function (the v1 client the plugin gets in 1.19 has no method for it), and the older `POST /session/{id}/permissions/{permissionID}` (`{"response": ...}`, no reason). When none does, and OpenCode hasn't reported the request answered meanwhile, it sends `permission.reply_failed`, so the session shows Needs you. Every hook catches its own errors, so the plugin can't break OpenCode. OpenCode keeps its own prompt up meanwhile; when it's answered there (`permission.replied`), the plugin stops the helper, so the socket closes and the card goes away. OpenCode 1.19 never calls the plugin `permission.ask` hook, which is why requests are answered through the server instead. Empty stdout (handed back, or the card timed out) sends nothing.
+
 **Approval wait.** By default the PermissionRequest hook has a 120 s timeout and the command takes no extra argument. While phone push is on (Settings › Phone) the wait is the "Wait for an answer" setting (10 minutes by default, 2 to 60): the hook's `timeout` becomes that many seconds and the command ends in `--timeout <seconds>` (for example `wisp-agent --source codex --timeout 600`). The helper exits on its own 5 s after its timeout (120 s without the flag), and Wisp hands an unanswered request back to the terminal 10 s before the timeout the hook was installed with. Hooks whose wait differs from the current setting read as outdated, so Settings offers "Update hooks"; Codex then asks you to trust them again in `/hooks`.
 
 The statusLine command keeps any bar you had before inside it (`--saved '<command>'` or `--chain '<command>'`), so Wisp can put it back exactly.
@@ -134,3 +152,5 @@ Checked on 2026-11-07 against Codex's hooks documentation (developers.openai.com
 | Plan limits | Status line `rate_limits.five_hour` / `seven_day` | Rollout `token_count.rate_limits.primary` / `secondary` with `used_percent`, `window_minutes` (300 and 10080 are shown) and `resets_at` (epoch seconds), or `resets_in_seconds` in older rollouts | Not read (quotas aren't in the hook payloads or a documented file) |
 | Always-allow rules | `permissions.allow` (roadmap phase 2) | Not yet | No |
 | Not used by Wisp | | `Interrupt`, `SubagentStart`, `PreModelRequest`, `PostModelRequest` | `BeforeModel`, `AfterModel`, `BeforeToolSelection` |
+
+OpenCode was checked on 2026-11-07 against its source at tag v1.19.5 (the latest release, 2026-10-28): the plugin `Hooks` type in `@opencode-ai/plugin` 1.19.5, the plugin loader (`packages/opencode/src/plugin`, `config/plugin.ts`), the event schemas in `packages/schema/src/v1` and `session-status-event.ts`, `permission/index.ts` and the server's permission routes. OpenCode wasn't installed, and a live run wasn't possible here, so `OpenCodeAdapterTests` uses payloads built from those schemas and `OpenCodePluginScriptTests` runs the plugin under Node with a stand-in client and helper. What it gives Wisp: sessions, turns, compaction, approvals from the notch (shown alongside OpenCode's own prompt), Needs you for questions, and tool activity. Not read: cost, tokens, model and context (the assistant message info on `message.updated` has them, but that event fires many times a reply and the session title rides on `session.updated`, so they were left for later); questions aren't answered from the notch (OpenCode's `question.reply` route could, later). OpenCode 2's plugin API (`@opencode/plugin`, in beta) is different and wasn't targeted.
