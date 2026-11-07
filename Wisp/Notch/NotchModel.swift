@@ -99,7 +99,13 @@ final class NotchModel {
     /// The forms this display can switch to, and the switch itself (the nav pill's form menu).
     var forms: [FormFactor] = FormFactor.allCases
     var onSetForm: (FormFactor) -> Void = { _ in }
-    var form: FormFactor { FormFactor(placement: layout.placement) }
+    /// The shelf window's pages have no shell of their own; they show the form of the shell
+    /// they stand in for.
+    var standInForm: FormFactor?
+    /// Window while the Window form is on, otherwise the shell's own form.
+    var form: FormFactor {
+        services.shelfWindow.form(shell: standInForm ?? FormFactor(placement: layout.placement))
+    }
     var isOrb: Bool { layout.placement == .floating }
     /// How far a pull on the notch has gone toward tearing it off, 0 to 1 (a rubber band).
     var pull: CGFloat = 0

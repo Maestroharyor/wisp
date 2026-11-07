@@ -154,7 +154,8 @@ struct SettingsView: View {
             }
         case .notch:
             NotchSettings(
-                preferences: preferences, accent: services.accent, glow: services.glow, shortcuts: services.shortcuts)
+                preferences: preferences, accent: services.accent, glow: services.glow, shortcuts: services.shortcuts,
+                shelfWindow: services.shelfWindow)
         case .ring: RingSettings(preferences: preferences, trigger: services.ringTrigger, hotkeys: hotkeys)
         case .appearance: AppearanceSettings(preferences: preferences, services: services)
         case .activities: ActivitySettings(preferences: preferences)

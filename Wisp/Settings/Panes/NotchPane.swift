@@ -7,6 +7,7 @@ struct NotchSettings: View {
     let accent: Color
     let glow: Color
     let shortcuts: ShortcutsRunner
+    let shelfWindow: ShelfWindowController
 
     /// Re-read when displays are plugged in or removed while Settings is open.
     @State private var screens = NSScreen.screens
@@ -28,6 +29,13 @@ struct NotchSettings: View {
                     Text("Apple's Dynamic Island sits at the top of this Mac, so Top moves to the top right.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+            }
+            Section("Window") {
+                Toggle("Open the shelf in a window", isOn: windowForm)
+                Text(
+                    "The Window form: Wisp's pages open in a normal window you can move and resize. Minimise or close it and Wisp goes back to the notch, island or orb it was; click that, or press the shortcut, to bring the window back. Pick another form to leave it. For a one-off window, choose Form › Open as Window from the right-click menu, or pull the open shelf away by its edge."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
             Section("Dynamic Island") {
                 Picker("This Mac has a Dynamic Island", selection: $preferences.islandSetting) {
@@ -144,6 +152,11 @@ struct NotchSettings: View {
         let text = screens.map(\.islandReport).joined(separator: "\n\n")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    /// Goes through the window's rules, so turning it on opens the window and off puts it away.
+    private var windowForm: Binding<Bool> {
+        Binding(get: { preferences.windowForm }, set: { shelfWindow.setWindowForm($0) })
     }
 
     private func placementOverride(_ uuid: String) -> Binding<Placement?> {

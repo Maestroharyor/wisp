@@ -66,6 +66,7 @@ final class AppServices {
     private(set) lazy var transform = TransformPanelController(services: self)
     private(set) lazy var pocket = QuickPocket(services: self)
     private(set) lazy var miniPlayer = MiniPlayerController(services: self)
+    private(set) lazy var shelfWindow = ShelfWindowController(services: self)
     private(set) lazy var ring = RingController(services: self)
     private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)

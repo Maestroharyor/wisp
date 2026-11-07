@@ -72,7 +72,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "hidden", "drop actions", "command", "script", "island", "external", "display", "pocket", "drag",
                 "shake", "position", "placement", "bottom", "left", "right", "corner", "edge", "side", "dock",
                 "dynamic island", "camera", "hole punch", "display info", "orb", "float", "detach", "move", "form",
-                "shape", "move back", "reset position",
+                "shape", "move back", "reset position", "window", "open as window", "windowed", "minimise", "minimize",
+                "tear off", "normal app",
             ]
         case .appearance:
             [
@@ -142,7 +143,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .about:
             [
                 "version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release", "keyboard",
-                "approve with keyboard", "hyper y",
+                "approve with keyboard", "hyper y", "check for updates", "check now",
             ]
         }
     }

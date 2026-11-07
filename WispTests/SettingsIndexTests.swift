@@ -30,6 +30,9 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "dynamic island"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "radial"), [.ring])
         XCTAssertEqual(SettingsIndex.panes(matching: "form"), [.notch])
+        XCTAssertEqual(SettingsIndex.panes(matching: "open as window"), [.notch])
+        XCTAssertEqual(SettingsIndex.panes(matching: "minimise"), [.notch])
+        XCTAssertEqual(SettingsIndex.panes(matching: "check for updates"), [.about])
         XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.ring])
     }
 

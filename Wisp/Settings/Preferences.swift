@@ -276,6 +276,8 @@ final class Preferences {
         static let islandSpots = "islandSpots"
         static let displayPlacements = "displayPlacements"
         static let miniPlayerOrigin = "miniPlayerOrigin"
+        static let windowForm = "windowForm"
+        static let shelfWindowFrame = "shelfWindowFrame"
         static let activityDisplay = "activityDisplay"
         static let clipboardEnabled = "clipboardEnabled"
         static let clipboardLimit = "clipboardLimit"
@@ -813,6 +815,8 @@ final class Preferences {
     }
 
     func setForm(_ form: FormFactor, for uuid: String) {
+        // The window form lives in `windowForm` and leaves every display's shell as it was.
+        guard form != .window else { return }
         // The orb keeps a moved island's spot, so docking goes back there; other forms start fresh.
         if form != .orb { moveIslandBack(uuid) }
         updateOrbPlacements { $0.set(form, for: uuid) }
@@ -872,6 +876,10 @@ final class Preferences {
     }
     /// Where the mini player was last left, as "x,y" (its top-left corner).
     var miniPlayerOrigin: String? { didSet { defaults.set(miniPlayerOrigin, forKey: Key.miniPlayerOrigin) } }
+    /// The Window form: the shelf opens in its own window instead of under the shell.
+    var windowForm: Bool { didSet { defaults.set(windowForm, forKey: Key.windowForm) } }
+    /// Where the shelf window was last left, as "x,y,width,height" (see `ShelfWindowFrame`).
+    var shelfWindowFrame: String? { didSet { defaults.set(shelfWindowFrame, forKey: Key.shelfWindowFrame) } }
 
     /// Where live activities (Now Playing, HUDs, timers) appear.
     var activityDisplay: ActivityDisplayTarget {
@@ -1101,6 +1109,8 @@ final class Preferences {
         batteryLowThreshold = defaults.integer(forKey: Key.batteryLowThreshold)
         defaultTimerSeconds = defaults.double(forKey: Key.defaultTimerSeconds)
         miniPlayerOrigin = defaults.string(forKey: Key.miniPlayerOrigin)
+        windowForm = defaults.bool(forKey: Key.windowForm)
+        shelfWindowFrame = defaults.string(forKey: Key.shelfWindowFrame)
         activityDisplay =
             defaults.string(forKey: Key.activityDisplay).flatMap(ActivityDisplayTarget.init(rawValue:)) ?? .pointer
         clipboardEnabled = defaults.bool(forKey: Key.clipboardEnabled)

@@ -51,9 +51,13 @@ final class NotchController {
         model.onWantsKey = { [weak self] in self?.panel.makeKey() }
         model.onSetForm = { [weak self] form in
             guard let self else { return }
-            // Fold the shelf away first; the new form comes in once the setting rebuilds.
-            self.dismiss()
-            self.services.preferences.setForm(form, for: self.screenUUID)
+            self.services.shelfWindow.pick(form) { [weak self] shellForm in
+                // Already that form: applying it again would forget a moved island's spot.
+                guard let self, shellForm != FormFactor(placement: self.layout.placement) else { return }
+                // Fold the shelf away first; the new form comes in once the setting rebuilds.
+                self.dismiss()
+                self.services.preferences.setForm(shellForm, for: self.screenUUID)
+            }
         }
         model.onKeyDone = { [weak self] in
             // An open shelf keeps its key status for its own fields.
@@ -367,11 +371,25 @@ final class NotchController {
             services.ring.show(at: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY))
             return
         }
+        if machine.phase != .open, !services.shelfWindow.opensUnderShell {
+            activateWindow()
+            return
+        }
         if machine.phase != .open {
             showActivityView()
             send(.clicked)
         }
         if machine.phase == .open { panel.makeKey() }
+    }
+
+    /// The window has the shelf: a click on the shell brings it forward, on the agent pill's
+    /// session when that's what was clicked.
+    private func activateWindow() {
+        if case .agent(let status) = model.activity {
+            services.shelfWindow.activateShell(widget: .agents, session: status.sessionID)
+        } else {
+            services.shelfWindow.activateShell()
+        }
     }
 
     /// The press became a drag of the shell; hovering must not open the shelf mid-drag.
@@ -380,6 +398,18 @@ final class NotchController {
         dwellTask?.cancel()
         dwellTask = nil
     }
+
+    /// A press on the open shelf outside its pages, so pulling it may tear it off into the window.
+    func ownsShelfGrab(at location: CGPoint) -> Bool {
+        guard machine.phase == .open, !model.dragging, !model.editingHome else { return false }
+        let insets = ShellMetrics.shelfInsets(notchStyle: model.isNotchStyle, notchHeight: model.notchHeight)
+        return ShelfTearOff.mayStart(at: location, surface: model.surfaceRect, insets: insets)
+    }
+
+    /// The page the open shelf shows, for the window it's torn off into.
+    var page: ShelfPage { model.page }
+    /// The widget the open shelf shows on its own, if any.
+    var soloWidget: WidgetKind? { model.soloWidget }
 
     /// A press on the closed island that only Wisp received, so dragging it may move it.
     func ownsIslandPress(at location: CGPoint) -> Bool {
@@ -407,7 +437,7 @@ final class NotchController {
             let direction = swipe.add(dx: scroll.dx, dy: scroll.dy)
         else { return }
         if direction == layout.edge.openingSwipe {
-            send(.clicked)
+            if services.shelfWindow.opensUnderShell { send(.clicked) } else { services.shelfWindow.activateShell() }
             return
         }
         if direction == layout.edge.closingSwipe, dismissActivity() { return }
@@ -429,6 +459,10 @@ final class NotchController {
             form: model.form,
             forms: model.forms,
             setForm: { [weak self] form in self?.model.onSetForm(form) },
+            openAsWindow: { [weak self] in
+                guard let self else { return }
+                self.services.shelfWindow.openAsWindow(page: self.model.page)
+            },
             moveBack: layout.moved
                 ? NotchMenu.MoveBack(spot: layout.placement.title) { [weak self] in self?.moveIslandBack() } : nil,
             services: services
@@ -537,11 +571,19 @@ final class NotchController {
     }
 
     func open(page: ShelfPage) {
+        guard services.shelfWindow.opensUnderShell else {
+            services.shelfWindow.activateShell(page: page)
+            return
+        }
         model.page = page
         if machine.phase != .open { send(.hotkey) }
     }
 
     func open(widget: WidgetKind) {
+        guard services.shelfWindow.opensUnderShell else {
+            services.shelfWindow.activateShell(widget: widget)
+            return
+        }
         returnPage = model.page
         model.page = .widgets
         model.soloWidget = widget
@@ -559,7 +601,7 @@ final class NotchController {
         panel.close()
     }
 
-    /// Puts a dragged island back on its spot (the right-click menu's "Move back").
+    /// Puts a dragged island back on its spot (the right-click menu's Form › "Move back").
     private func moveIslandBack() {
         let from = CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY)
         dismiss()
@@ -568,6 +610,10 @@ final class NotchController {
     }
 
     private func customiseHome() {
+        guard services.shelfWindow.opensUnderShell else {
+            services.shelfWindow.customiseHome()
+            return
+        }
         model.page = .home
         model.homeSnapshot = (
             services.preferences.homeLayout, services.preferences.enabledWidgets, services.preferences.homeProfile
@@ -578,7 +624,8 @@ final class NotchController {
 
     private func syncSettings() {
         let preferences = services.preferences
-        machine.opensOnHover = preferences.openTrigger == .hover
+        // While the window has the shelf, hovering the shell mustn't open a second one.
+        machine.opensOnHover = preferences.openTrigger == .hover && services.shelfWindow.opensUnderShell
         machine.closing = preferences.shelfClosing
         model.speed = preferences.animationSpeed
         model.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
