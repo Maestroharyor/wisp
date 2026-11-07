@@ -174,6 +174,14 @@ public enum SurfaceSizing {
         return CGRect(x: pill.maxX - width, y: pill.minY, width: width, height: pill.height)
     }
 
+    /// The trailing button of a horizontal pill (the watch pill's stop), only where it's
+    /// drawn: not in the upright side pill or the minimal pill, which show a glyph and a dot.
+    public static func pillButtonZone(in pill: CGRect, placement: Placement, minimal: Bool) -> CGRect? {
+        guard !placement.edge.isSide, !minimal else { return nil }
+        let width = min(meetingMuteWidth, pill.width)
+        return CGRect(x: pill.maxX - width, y: pill.minY, width: width, height: pill.height)
+    }
+
     public static let cardCloseZoneSize = CGSize(width: 52, height: 40)
 
     /// Where a click closes a card: its top trailing corner, under the notch (`topInset`),

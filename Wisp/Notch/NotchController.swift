@@ -97,7 +97,7 @@ final class NotchController {
     private func updateClickThrough() {
         // The orb floats over windows; a press on it must not reach the window underneath.
         let overControls =
-            pointerInside && (isReplying || showsApproval || showsMeetingPill || showsCard || isOrb)
+            pointerInside && (isReplying || showsApproval || showsPillButton || showsCard || isOrb)
         panel.ignoresMouseEvents = machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble
     }
 
@@ -163,9 +163,21 @@ final class NotchController {
 
     private var isOrb: Bool { model.isOrb }
 
-    /// The meeting pill's microphone end mutes on click.
-    private var showsMeetingPill: Bool {
-        if case .meeting = model.activity { true } else { false }
+    /// Pills with a button at their trailing end: the meeting pill's mute, the watch pill's stop.
+    private var showsPillButton: Bool {
+        switch model.activity {
+        case .meeting: true
+        case .regionWatch: watchStopZone != nil
+        default: false
+        }
+    }
+
+    /// Where the watch pill draws its stop button, when it draws one. Only the main pill has
+    /// it: as a bubble during a call the watch is just a glyph, and the mute zone stays the call's.
+    private var watchStopZone: CGRect? {
+        guard case .regionWatch = model.activity else { return nil }
+        return SurfaceSizing.pillButtonZone(
+            in: model.surfaceRect, placement: layout.anchor, minimal: services.preferences.appearance.minimalPill)
     }
 
     var isReplying: Bool { model.replyingTo != nil }
@@ -306,6 +318,11 @@ final class NotchController {
             SurfaceSizing.meetingMuteZone(in: model.surfaceRect, placement: layout.anchor).contains(location)
         {
             services.microphone.toggleMute()
+            return
+        }
+        // The watch pill's stop button, where it's drawn.
+        if machine.phase != .open, let zone = watchStopZone, zone.contains(location) {
+            services.regionWatch.stopAndConfirm()
             return
         }
         // The rest of the meeting pill opens the call app's controls, when it has any. Only the
