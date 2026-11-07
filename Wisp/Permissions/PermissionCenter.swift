@@ -34,7 +34,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .accessibility: "Caps Lock shortcut, volume and brightness keys, pasting, hiding system banners"
         case .fullDiskAccess:
             "Reading notifications, Messages chats and Focus status. Click + or drag Wisp into the list, then switch it on"
-        case .screenRecording: "Recording the screen from the notch"
+        case .screenRecording: "Watching a window region"
         case .contacts: "Photos and names on notifications"
         case .automation: "Replying in Messages, meeting controls, Music fallback"
         case .calendars: "Calendar and Day Progress widgets"
@@ -75,12 +75,21 @@ enum Permission: String, CaseIterable, Identifiable {
     /// The last Allow clicked, so the grant that answers it can bring Wisp forward.
     @MainActor static var lastRequest: PermissionRequest?
 
+    private static let askedScreenRecordingKey = "regionWatchAskedScreenRecording"
+
+    /// Whether Wisp has shown the Screen Recording prompt, which macOS shows only once.
+    static var askedScreenRecording: Bool { UserDefaults.standard.bool(forKey: askedScreenRecordingKey) }
+
     @MainActor func request() {
         Self.lastRequest = PermissionRequest(id: rawValue, at: .now)
         switch self {
         case .accessibility: AccessibilityPermission.requestAccess()
-        // macOS asks only the first time; after that the switch is in System Settings.
-        case .screenRecording: if !CGRequestScreenCaptureAccess() { openSettings() }
+        // macOS asks only the first time; after that the switch is in System Settings, so open
+        // it only once the prompt has already been used up.
+        case .screenRecording:
+            let askedBefore = Self.askedScreenRecording
+            UserDefaults.standard.set(true, forKey: Self.askedScreenRecordingKey)
+            if !CGRequestScreenCaptureAccess(), askedBefore { openSettings() }
         // macOS asks only once. After that, and for a denial, the switch is in System Settings,
         // which lists an app only once it has asked.
         case .contacts:

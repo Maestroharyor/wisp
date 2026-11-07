@@ -67,6 +67,7 @@ final class AppServices {
     private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
     private(set) lazy var push = PushService(preferences: preferences, hub: agents)
+    private(set) lazy var regionWatch = RegionWatchController(services: self)
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -455,6 +456,7 @@ final class AppServices {
         headphones.stop()
         lockScreenPlayer.stop()
         push.stop()
+        regionWatch.stop()
         microphone.stop()
         meetingTask?.cancel()
         nowPlaying.stop()
