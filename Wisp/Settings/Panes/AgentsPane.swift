@@ -33,8 +33,14 @@ struct AgentSettings: View {
                     LabeledContent {
                         Button("Update Hooks") { hub.installHooks(source) }
                     } label: {
-                        Text("Agents has new features")
-                        Text("Update \(source.displayName)'s hooks so the notch gets everything this version shows.")
+                        if hub.waitMismatched.contains(source) {
+                            Text("Approval wait changed")
+                            Text("Update \(source.displayName)'s hooks so permission prompts wait the new time.")
+                        } else {
+                            Text("Agents has new features")
+                            Text(
+                                "Update \(source.displayName)'s hooks so the notch gets everything this version shows.")
+                        }
                     }
                 }
             }

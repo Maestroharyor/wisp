@@ -16,6 +16,7 @@ extension SettingsPaneID {
         case .clipboard: "doc.on.clipboard.fill"
         case .notifications: "bell.badge.fill"
         case .agents: "sparkle"
+        case .phone: "iphone.radiowaves.left.and.right"
         case .permissions: "lock.shield.fill"
         case .about: "info.circle.fill"
         }
@@ -26,7 +27,7 @@ extension SettingsPaneID {
         switch self {
         case .general, .about, .permissions: Color(red: 0.32, green: 0.27, blue: 0.62)
         case .notch, .ring, .appearance, .activities, .widgets, .profiles, .clipboard: .wispViolet
-        case .notifications, .agents: Color(red: 0.6, green: 0.53, blue: 1)
+        case .notifications, .agents, .phone: Color(red: 0.6, green: 0.53, blue: 1)
         }
     }
 }
