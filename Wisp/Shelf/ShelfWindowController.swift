@@ -155,6 +155,7 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         window.alphaValue = 0
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
+        syncFrameRate()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -270,6 +271,14 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     func windowDidMove(_ notification: Notification) { saveFrame() }
 
     func windowDidEndLiveResize(_ notification: Notification) { saveFrame() }
+
+    func windowDidChangeScreen(_ notification: Notification) { syncFrameRate() }
+
+    /// Tunes the page springs to the display the window is on, as the notch does for its screen.
+    private func syncFrameRate() {
+        guard let model, let screen = window?.screen ?? NSScreen.main else { return }
+        model.framesPerSecond = screen.maximumFramesPerSecond
+    }
 }
 
 /// A window whose minimise button goes back to the shell instead of the Dock.
