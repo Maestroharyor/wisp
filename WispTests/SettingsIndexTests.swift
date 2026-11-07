@@ -86,4 +86,10 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "menu bar").first, .general)
         XCTAssertTrue(SettingsIndex.panes(matching: "timer length").contains(.widgets))
     }
+
+    func testPhonePaneIsFound() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "ntfy"), [.phone])
+        XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.phone])
+        XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.phone))
+    }
 }

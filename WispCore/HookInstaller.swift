@@ -17,8 +17,26 @@ public enum HookInstaller {
 
     public static let helperName = "wisp-agent"
     public static let events = AgentSource.claude.hookEvents
-    /// Seconds a permission prompt waits for the notch before the agent shows its own.
+    /// Seconds a permission prompt waits for the notch before the agent shows its own, unless
+    /// phone push asks for longer (`approvalTimeout(push:minutes:)`).
     public static let approvalTimeout = 120
+    /// The helper's flag for a longer wait. Left out at the default, so hooks installed before
+    /// it existed still read as current.
+    public static let timeoutFlag = "--timeout"
+    /// The helper outlives the hook's own timeout by this much, so the agent gives up first.
+    public static let helperGrace = 5
+    /// The notch hands a request back this long before the hook times out, so the agent can
+    /// still show its own prompt.
+    public static let handBackMargin = 10
+    /// Bounds for the approval wait while push is on, in minutes.
+    public static let pushTimeoutMinutes = 2...60
+    public static let defaultPushTimeoutMinutes = 10
+
+    /// The PermissionRequest hook's timeout in seconds: the default, or `minutes` while push is on.
+    public static func approvalTimeout(push: Bool, minutes: Int) -> Int {
+        guard push else { return approvalTimeout }
+        return min(max(minutes, pushTimeoutMinutes.lowerBound), pushTimeoutMinutes.upperBound) * 60
+    }
 
     /// `tools` adds the tool activity hooks too; without it they're taken out.
     public static func install(
@@ -27,13 +45,14 @@ public enum HookInstaller {
         try install(into: settings, command: command, file: source.adapter.hookFile, tools: tools)
     }
 
-    public static func install(into settings: Data, command: String, file: HookFile, tools: Bool = false) throws
-        -> Data
-    {
+    /// `timeout` is the PermissionRequest hook's, in seconds; pass the same one to `command`.
+    public static func install(
+        into settings: Data, command: String, file: HookFile, tools: Bool = false, timeout: Int = approvalTimeout
+    ) throws -> Data {
         var root = try object(settings)
         var hooks = stripped(root["hooks"])
         for event in file.events + (tools ? file.toolEvents : []) {
-            let timeout = event == "PermissionRequest" ? approvalTimeout : 5
+            let timeout = event == "PermissionRequest" ? timeout : 5
             var handler: [String: JSONValue] = [
                 "type": .string("command"), "command": .string(command), "timeout": .number(Double(timeout)),
             ]
@@ -60,8 +79,30 @@ public enum HookInstaller {
         command(helper: helper, file: source.adapter.hookFile)
     }
 
-    public static func command(helper: String, file: HookFile) -> String {
-        quote(helper) + file.helperArguments
+    /// A `timeout` other than the default is passed on, so the helper waits as long as the hook.
+    public static func command(helper: String, file: HookFile, timeout: Int = approvalTimeout) -> String {
+        let wait = timeout == approvalTimeout ? "" : " \(timeoutFlag) \(timeout)"
+        return quote(helper) + file.helperArguments + wait
+    }
+
+    /// The helper's `--timeout` from its arguments; nil when absent or not a positive number.
+    public static func timeout(arguments: [String]) -> Int? {
+        guard let index = arguments.firstIndex(of: timeoutFlag), arguments.indices.contains(index + 1),
+            let seconds = Int(arguments[index + 1]), seconds > 0
+        else { return nil }
+        return seconds
+    }
+
+    /// The PermissionRequest timeout Wisp's hook in `settings` was installed with; nil when
+    /// there's no such hook.
+    public static func installedApprovalTimeout(in settings: Data) throws -> Int? {
+        let root = try object(settings)
+        guard case .array(let groups) = hooksObject(root["hooks"])["PermissionRequest"] else { return nil }
+        for group in groups {
+            guard case .array(let handlers) = group["hooks"] else { continue }
+            if let seconds = handlers.first(where: isWisp)?["timeout"]?.intValue { return seconds }
+        }
+        return nil
     }
 
     /// `text` as one POSIX shell word in single quotes.
@@ -91,18 +132,34 @@ public enum HookInstaller {
 
     /// Whether the hooks call this copy's helper, another copy's (a dev build, a moved app),
     /// or no Wisp at all. Another copy's helper talks to that copy, so this one hears nothing.
-    public static func link(in settings: Data, helper: String, source: AgentSource) throws -> HookLink {
-        try link(in: settings, helper: helper, file: source.adapter.hookFile)
+    public static func link(
+        in settings: Data, helper: String, source: AgentSource, timeout: Int = approvalTimeout
+    ) throws -> HookLink {
+        try link(in: settings, helper: helper, file: source.adapter.hookFile, timeout: timeout)
     }
 
-    public static func link(in settings: Data, helper: String, file: HookFile) throws -> HookLink {
+    /// `timeout` is the approval wait Wisp wants now. This copy's hooks with another one (push
+    /// was turned on or off since) read as outdated, not as another copy's.
+    public static func link(
+        in settings: Data, helper: String, file: HookFile, timeout: Int = approvalTimeout
+    ) throws -> HookLink {
         let commands = try wispCommands(in: settings)
         if commands.isEmpty { return .none }
-        let mine = command(helper: helper, file: file)
-        guard commands.allSatisfy({ $0.command == mine }) else { return .other }
+        let base = command(helper: helper, file: file)
+        guard commands.allSatisfy({ withoutTimeout($0.command) == base }) else { return .other }
+        let mine = command(helper: helper, file: file, timeout: timeout)
         let installed = Set(commands.map(\.event))
-        let base = Set(file.events)
-        return installed == base || installed == base.union(file.toolEvents) ? .this : .outdated
+        let events = Set(file.events)
+        let current = installed == events || installed == events.union(file.toolEvents)
+        return current && commands.allSatisfy({ $0.command == mine }) ? .this : .outdated
+    }
+
+    /// A hook command without a trailing ` --timeout <seconds>`.
+    private static func withoutTimeout(_ command: String) -> String {
+        guard let range = command.range(of: " \(timeoutFlag) ", options: .backwards) else { return command }
+        let seconds = command[range.upperBound...]
+        guard !seconds.isEmpty, seconds.allSatisfy(\.isASCII), seconds.allSatisfy(\.isNumber) else { return command }
+        return String(command[..<range.lowerBound])
     }
 
     /// Whether Wisp's tool activity hooks are in the file.

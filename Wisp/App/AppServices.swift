@@ -66,6 +66,7 @@ final class AppServices {
     private(set) lazy var ring = RingController(services: self)
     private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
+    private(set) lazy var push = PushService(preferences: preferences, hub: agents)
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -315,7 +316,10 @@ final class AppServices {
             } else {
                 self?.activities.remove(.agentApproval)
             }
+            self?.push.approvalsChanged()
         }
+        agents.onMoment = { [weak self] moment in self?.push.moment(moment) }
+        push.start()
         agents.onNewRequest = { [weak self] in
             guard self?.preferences.approvalSound == true else { return }
             self?.needsYouFeedback()
@@ -381,7 +385,12 @@ final class AppServices {
                         toolMinutes: preferences.toolAlertMinutes, tools: preferences.toolAlert,
                         nudgeMinutes: preferences.nudgeMinutes, nudges: preferences.nudgeAlert),
                     budget: preferences.budgetAlert ? preferences.dailyBudget : nil,
-                    limits: preferences.limitAlert, awake: preferences.agentKeepAwake
+                    limits: preferences.limitAlert, awake: preferences.agentKeepAwake,
+                    approvalTimeout: preferences.approvalTimeout,
+                    push: (
+                        enabled: preferences.pushEnabled, kinds: preferences.pushKinds, mode: preferences.pushMode,
+                        idle: preferences.pushIdleMinutes
+                    )
                 )
             )
         } onChange: { [weak self] in
@@ -394,6 +403,10 @@ final class AppServices {
         agents.alertRules = agentPrefs.rules
         agents.dailyBudget = agentPrefs.budget
         agents.limitAlerts = agentPrefs.limits
+        agents.approvalTimeout = agentPrefs.approvalTimeout
+        push.apply(
+            kinds: agentPrefs.push.kinds, mode: agentPrefs.push.mode, idleMinutes: agentPrefs.push.idle,
+            enabled: agentPrefs.push.enabled)
         updateAgentAwake()
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
         if needsClock { startClock() } else { stopClock() }
@@ -441,6 +454,7 @@ final class AppServices {
         wallpaper.stop()
         headphones.stop()
         lockScreenPlayer.stop()
+        push.stop()
         microphone.stop()
         meetingTask?.cancel()
         nowPlaying.stop()

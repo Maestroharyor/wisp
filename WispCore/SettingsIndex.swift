@@ -12,6 +12,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     case clipboard
     case notifications
     case agents
+    case phone
     case permissions
     case about
 
@@ -29,6 +30,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .clipboard: "Clipboard"
         case .notifications: "Notifications"
         case .agents: "Agents"
+        case .phone: "Phone"
         case .permissions: "Permissions"
         case .about: "About"
         }
@@ -46,6 +48,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .clipboard: "Clipboard history"
         case .notifications: "Notifications in the notch, and quick replies"
         case .agents: "Claude Code and Codex sessions, approvals and status bar"
+        case .phone: "Agent alerts and approvals on your phone and watch"
         case .permissions: "What Wisp can access, and why"
         case .about: "Version, updates, shortcuts and reset"
         }
@@ -112,6 +115,12 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "usage limit", "rate limit", "weekly limit", "question", "answer", "preview", "diff", "plan",
                 "keep awake", "sleep", "power", "rules", "always allow", "permission rule", "settings.local.json",
             ]
+        case .phone:
+            [
+                "ntfy", "push", "iphone", "android", "apple watch", "watch", "mobile", "remote", "away", "idle",
+                "locked", "topic", "qr", "server", "self-hosted", "access token", "approval timeout", "test",
+                "include details",
+            ]
         case .permissions:
             ["accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera"]
         case .about: ["version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release"]
@@ -140,7 +149,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .wisp: [.general, .notch, .ring, .appearance, .activities]
         case .shelf: [.widgets, .profiles, .clipboard]
-        case .connections: [.notifications, .agents]
+        case .connections: [.notifications, .agents, .phone]
         case .system: [.permissions, .about]
         }
     }

@@ -84,6 +84,9 @@ final class AgentHub {
     private(set) var connectedElsewhere: Set<AgentSource> = []
     /// Sources connected to this copy by an older version, missing hooks Wisp now uses.
     private(set) var outdated: Set<AgentSource> = []
+    /// Connected sources whose approval wait isn't `approvalTimeout` (push was turned on or off
+    /// since they were installed). They're in `outdated` too.
+    private(set) var waitMismatched: Set<AgentSource> = []
     /// Who owns Claude Code's status bar.
     private(set) var statusLine: StatusLineState = .none
     /// What Claude Code's status bar becomes when hooks are added. Set from Preferences.
@@ -151,6 +154,9 @@ final class AgentHub {
     var onAlert: (_ symbol: String, _ text: String) -> Void = { _, _ in }
     /// A session has waited for the user past the reminder limit.
     var onReminder: () -> Void = {}
+    /// Needs you, Done, a usage limit or the budget, for phone push. Fired whatever the notch
+    /// shows; the receiver decides what goes out.
+    var onMoment: (AgentMoment) -> Void = { _ in }
 
     @ObservationIgnored private var listener: NWListener?
     @ObservationIgnored private var lastListenerRestart = Date.distantPast
@@ -199,8 +205,25 @@ final class AgentHub {
             ?? SpendBudget.State()
     }
 
-    /// Answer before Claude Code's hook timeout so it can still show its own prompt.
-    private let approvalWait: Duration = .seconds(HookInstaller.approvalTimeout - 10)
+    /// Seconds the PermissionRequest hook should wait: longer while phone push is on. Hooks
+    /// installed with another wait read as outdated. Set from Preferences.
+    var approvalTimeout = HookInstaller.approvalTimeout {
+        didSet { if approvalTimeout != oldValue { refreshInstalled() } }
+    }
+    /// The wait each connected agent's hooks were actually installed with, which can lag behind
+    /// `approvalTimeout` until the user updates them.
+    @ObservationIgnored private var installedTimeouts: [AgentSource: Int] = [:]
+
+    /// Answer before the agent's hook timeout so it can still show its own prompt.
+    private func approvalWait(_ source: AgentSource) -> Duration {
+        let timeout = installedTimeouts[source] ?? HookInstaller.approvalTimeout
+        return .seconds(max(timeout - HookInstaller.handBackMargin, 1))
+    }
+
+    /// The approval wait in words for the confirm dialogs ("120 s", "10 minutes").
+    private var approvalWaitText: String {
+        approvalTimeout % 60 == 0 && approvalTimeout > 120 ? "\(approvalTimeout / 60) minutes" : "\(approvalTimeout) s"
+    }
 
     static var socketURL: URL {
         AppSupport.socketURL(
@@ -328,7 +351,9 @@ final class AgentHub {
         // A new prompt or the end of a turn means a pending request was answered in the
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
+        let before = sessions.session(event.sessionID)?.state
         sessions.apply(event, at: .now)
+        reportMoment(session: event.sessionID, before: before, stopped: event.kind == .stop)
         // Tool activity comes several times a second; the branch and pruning can wait for the
         // next prompt, stop or status bar snapshot.
         if !event.kind.isToolActivity {
@@ -369,8 +394,9 @@ final class AgentHub {
             pending[approval.id] = approval
             queue.enqueue(approval.id)
             waiting[approval.id] = connection
-            timeouts[approval.id] = Task { [weak self, approvalWait] in
-                try? await Task.sleep(for: approvalWait)
+            let wait = approvalWait(event.source)
+            timeouts[approval.id] = Task { [weak self] in
+                try? await Task.sleep(for: wait)
                 guard !Task.isCancelled else { return }
                 self?.handBack(approval.id)
             }
@@ -431,7 +457,10 @@ final class AgentHub {
         limitReadings = UsageLimits.merge(limitReadings, with: readings)
         let due = limitWatch.record(readings, at: .now)
         guard limitAlerts else { return }
-        for alert in due { onAlert("gauge.with.dots.needle.67percent", alert.text) }
+        for alert in due {
+            onAlert("gauge.with.dots.needle.67percent", alert.text)
+            onMoment(.limit(alert.text))
+        }
     }
 
     /// The usage windows for `wisp status`, with when each runs out at today's pace. A window
@@ -469,7 +498,19 @@ final class AgentHub {
         guard let level = SpendBudget.alert(spent: spent, budget: dailyBudget, fired: fired) else { return }
         budgetState.record(level, on: now, budget: dailyBudget)
         defaults.set(try? JSONEncoder().encode(budgetState), forKey: Self.budgetKey)
-        onAlert("dollarsign.circle", SpendBudget.text(level: level, budget: dailyBudget))
+        let text = SpendBudget.text(level: level, budget: dailyBudget)
+        onAlert("dollarsign.circle", text)
+        onMoment(.budget(text))
+    }
+
+    /// A session that just started waiting on the user, or finished a turn.
+    private func reportMoment(session id: String, before: AgentSession.State?, stopped: Bool) {
+        guard let session = sessions.session(id) else { return }
+        if stopped {
+            onMoment(.done(session: id, project: session.project, source: session.source))
+        } else if session.state == .waiting, before != .waiting {
+            onMoment(.needsYou(session: id, project: session.project, source: session.source))
+        }
     }
 
     // MARK: Approvals
@@ -501,7 +542,9 @@ final class AgentHub {
     private func handBack(_ id: UUID) {
         guard let taken = take(id) else { return }
         if let connection = taken.connection { reply(connection, nil) }
+        let before = sessions.session(taken.approval.sessionID)?.state
         sessions.handedBack(session: taken.approval.sessionID, at: .now)
+        reportMoment(session: taken.approval.sessionID, before: before, stopped: false)
         onApproval(approvals.first)
         publishStatus()
     }
@@ -780,12 +823,15 @@ final class AgentHub {
         var elsewhere: Set<AgentSource> = []
         var old: Set<AgentSource> = []
         var withTools: Set<AgentSource> = []
+        var waits: [AgentSource: Int] = [:]
         let helper = Self.helperURL?.path ?? ""
         for adapter in AgentAdapters.all {
             let source = adapter.source
             let file = adapter.hookFile
             let data = (try? Data(contentsOf: Self.settingsURL(source))) ?? Data()
-            switch (try? HookInstaller.link(in: data, helper: helper, file: file)) ?? HookLink.none {
+            waits[source] = try? HookInstaller.installedApprovalTimeout(in: data)
+            let link = (try? HookInstaller.link(in: data, helper: helper, file: file, timeout: approvalTimeout))
+            switch link ?? HookLink.none {
             case .this: here.insert(source)
             case .outdated:
                 here.insert(source)
@@ -799,6 +845,9 @@ final class AgentHub {
             }
             if (try? HookInstaller.toolsInstalled(in: data, file: file)) == true { withTools.insert(source) }
         }
+        installedTimeouts = waits
+        let mismatched = here.filter { waits[$0] != approvalTimeout }
+        if mismatched != waitMismatched { waitMismatched = mismatched }
         let tools = withTools.intersection(here)
         if tools != toolHooks { toolHooks = tools }
         if here != connected { connected = here }
@@ -817,11 +866,12 @@ final class AgentHub {
         let url = Self.settingsURL(source)
         let path = file.displayPath
         let original = (try? Data(contentsOf: url)) ?? Data()
-        let command = HookInstaller.command(helper: helper.path, file: file)
+        let command = HookInstaller.command(helper: helper.path, file: file, timeout: approvalTimeout)
         let withTools = toolActivity && !file.toolEvents.isEmpty
         guard
             let updated = try? withStatusLine(
-                HookInstaller.install(into: original, command: command, file: file, tools: withTools),
+                HookInstaller.install(
+                    into: original, command: command, file: file, tools: withTools, timeout: approvalTimeout),
                 file: file, helper: helper.path)
         else {
             alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
@@ -831,7 +881,9 @@ final class AgentHub {
         let tools = withTools ? Self.toolSentence : ""
         let bar = file.statusLine ? barSentence(terminalBarMode, original: original) : ""
         let trust = adapter.setupNote.map { " " + $0 } ?? ""
-        let link = (try? HookInstaller.link(in: original, helper: helper.path, file: file)) ?? HookLink.none
+        let link =
+            (try? HookInstaller.link(in: original, helper: helper.path, file: file, timeout: approvalTimeout))
+            ?? HookLink.none
         let confirmed: Bool
         switch link {
         case .none:
@@ -840,7 +892,7 @@ final class AgentHub {
                 detail: """
                     Wisp adds a command hook for \(events) to \(path).\(tools)\(bar) Your other settings and hooks stay as \
                     they are, though the file is rewritten with sorted keys. A backup is saved next to it with \
-                    .wisp-backup on the end. Permission prompts wait up to \(HookInstaller.approvalTimeout) s for \
+                    .wisp-backup on the end. Permission prompts wait up to \(approvalWaitText) for \
                     the notch, then fall back to the terminal.\(trust)
                     """,
                 action: "Add Hooks")
@@ -848,8 +900,9 @@ final class AgentHub {
             confirmed = confirm(
                 "Update Wisp's hooks for \(source.displayName)?",
                 detail: """
-                    Wisp brings its hooks in \(path) up to date for this version.\(tools)\(bar) The current file \
-                    is saved next to it with .wisp-previous on the end.\(trust)
+                    Wisp brings its hooks in \(path) up to date for this version.\(tools)\(bar) Permission \
+                    prompts wait up to \(approvalWaitText) for Wisp. The current file is saved next to it with \
+                    .wisp-previous on the end.\(trust)
                     """,
                 action: "Update Hooks")
         case .other:
@@ -936,6 +989,48 @@ final class AgentHub {
         return true
     }
 
+    /// Rewrites every connected agent's hooks for a new approval wait (phone push turned on or
+    /// off, or its wait changed), after the user confirms. Cancelling leaves the hooks as they
+    /// are; they read as outdated, so Settings offers "Update hooks" later.
+    func applyApprovalTimeout() {
+        guard let helper = Self.helperURL else { return }
+        var changes: [(url: URL, data: Data, adapter: AgentAdapter)] = []
+        for adapter in AgentAdapters.all where waitMismatched.contains(adapter.source) {
+            let file = adapter.hookFile
+            let url = Self.settingsURL(adapter.source)
+            let original = (try? Data(contentsOf: url)) ?? Data()
+            let command = HookInstaller.command(helper: helper.path, file: file, timeout: approvalTimeout)
+            let tools = toolActivity && !file.toolEvents.isEmpty
+            guard
+                let updated = try? withStatusLine(
+                    HookInstaller.install(
+                        into: original, command: command, file: file, tools: tools, timeout: approvalTimeout),
+                    file: file, helper: helper.path)
+            else {
+                alert("Couldn't read \(file.displayPath)", detail: "Fix the file's JSON, then try again.")
+                return
+            }
+            if updated != original { changes.append((url, updated, adapter)) }
+        }
+        guard !changes.isEmpty else { return }
+        let paths = ListFormatter.localizedString(byJoining: changes.map { $0.adapter.hookFile.displayPath })
+        let names = ListFormatter.localizedString(byJoining: changes.map { $0.adapter.displayName })
+        let notes = changes.compactMap(\.adapter.setupNote).map { " " + $0 }.joined()
+        let longer = approvalTimeout > HookInstaller.approvalTimeout
+        let why =
+            longer
+            ? "Permission prompts wait up to \(approvalWaitText) so you can answer from your phone."
+            : "Permission prompts go back to waiting \(approvalWaitText) for the notch."
+        guard
+            confirm(
+                "Update \(names)'s hooks?",
+                detail:
+                    "\(why) Wisp edits \(paths); the current file is saved next to it with .wisp-previous on the end.\(notes)",
+                action: "Update Hooks")
+        else { return }
+        for change in changes { write(change.data, to: change.url) }
+    }
+
     private static let toolSentence =
         " Background hooks for tool calls show what the agent is doing in the notch; they never make a tool call wait."
 
@@ -952,8 +1047,10 @@ final class AgentHub {
             let file = adapter.hookFile
             let url = Self.settingsURL(adapter.source)
             let original = (try? Data(contentsOf: url)) ?? Data()
-            let command = HookInstaller.command(helper: helper.path, file: file)
-            guard let updated = try? HookInstaller.install(into: original, command: command, file: file, tools: on)
+            let command = HookInstaller.command(helper: helper.path, file: file, timeout: approvalTimeout)
+            guard
+                let updated = try? HookInstaller.install(
+                    into: original, command: command, file: file, tools: on, timeout: approvalTimeout)
             else {
                 alert("Couldn't read \(file.displayPath)", detail: "Fix the file's JSON, then try again.")
                 return false
