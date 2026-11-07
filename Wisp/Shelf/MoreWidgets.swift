@@ -56,9 +56,9 @@ private struct ToggleTile: View {
             VStack(spacing: 3) {
                 Image(systemName: symbol)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(on ? .black : .white.opacity(0.9))
+                    .foregroundStyle(on ? .black : .ink.opacity(0.9))
                     .frame(width: 30, height: 30)
-                    .background(Circle().fill(on ? tint : .white.opacity(hovering ? 0.2 : 0.12)))
+                    .background(Circle().fill(on ? tint : .ink.opacity(hovering ? 0.2 : 0.12)))
                 Text(title)
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Color.secondaryText)
@@ -127,7 +127,7 @@ private struct ShortcutChip: View {
             .padding(.horizontal, 8)
             .frame(height: 28)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(hovering ? 0.16 : 0.09)))
+                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.ink.opacity(hovering ? 0.16 : 0.09)))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -189,7 +189,7 @@ private struct ClipRow: View {
             .padding(.horizontal, 7)
             .frame(height: 24)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.white.opacity(hovering ? 0.14 : 0.07)))
+                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.ink.opacity(hovering ? 0.14 : 0.07)))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -284,7 +284,7 @@ struct DayProgressWidget: View {
                     Spacer(minLength: 0)
                     Text(left > 0 ? "\(left / 60)h \(left % 60)m left" : "Done for today")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(left > 0 ? .white.opacity(0.85) : Color.wispGreen)
+                        .foregroundStyle(left > 0 ? .ink.opacity(0.85) : Color.wispGreen)
                 }
                 DayBar(fraction: fraction, marks: day.marks(for: calendar.dayEvents, on: context.date))
                     .frame(height: 14)
@@ -315,10 +315,10 @@ private struct DayBar: View {
         GeometryReader { proxy in
             let width = proxy.size.width
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.1))
+                Capsule().fill(.ink.opacity(0.1))
                 ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(.white.opacity(0.22))
+                        .fill(.ink.opacity(0.22))
                         .frame(width: max(3, (mark.upperBound - mark.lowerBound) * width), height: 8)
                         .offset(x: mark.lowerBound * width)
                 }
@@ -413,7 +413,7 @@ struct ScriptWidget: View {
                                 size: index == 0 ? 15 : 12, weight: index == 0 ? .semibold : .regular,
                                 design: .monospaced)
                         )
-                        .foregroundStyle(index == 0 ? Color.white : Color.secondaryText)
+                        .foregroundStyle(index == 0 ? Color.ink : Color.secondaryText)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)

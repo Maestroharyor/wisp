@@ -38,7 +38,7 @@ struct ShelfContent: View {
             }
         }
         .animation(model.surfaceAnimation, value: model.services.agents.approvals.first?.id)
-        .foregroundStyle(.white)
+        .foregroundStyle(.ink)
     }
 }
 
@@ -103,7 +103,7 @@ struct CardBackground: ViewModifier {
     func body(content: Content) -> some View {
         content.background(
             RoundedRectangle(cornerRadius: ShellMetrics.widgetCornerRadius, style: .continuous)
-                .fill(.white.opacity(highlighted ? 0.14 : 0.06))
+                .fill(.ink.opacity(highlighted ? 0.14 : 0.06))
         )
     }
 }

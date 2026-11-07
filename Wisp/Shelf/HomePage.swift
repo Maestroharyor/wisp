@@ -54,7 +54,7 @@ struct HomePage: View {
 
     private func editOverlay(_ kind: WidgetKind) -> some View {
         RoundedRectangle(cornerRadius: ShellMetrics.widgetCornerRadius, style: .continuous)
-            .strokeBorder(.white.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+            .strokeBorder(.ink.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
             .padding(.horizontal, 4)
             .overlay(alignment: .topTrailing) {
                 Button {
@@ -77,7 +77,7 @@ struct HomePage: View {
                         .font(.system(size: 10, weight: .semibold))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(.white.opacity(0.18)))
+                        .background(Capsule().fill(.ink.opacity(0.18)))
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 10)
@@ -115,7 +115,7 @@ struct HomePage: View {
                 endEditing()
             } label: {
                 Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
-                    .frame(width: 28, height: 28).background(Circle().fill(.white.opacity(0.14)))
+                    .frame(width: 28, height: 28).background(Circle().fill(.ink.opacity(0.14)))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Cancel")
@@ -123,6 +123,7 @@ struct HomePage: View {
             Button(action: endEditing) {
                 Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
                     .frame(width: 28, height: 28).background(Circle().fill(Color.accentColor))
+                    .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Done")
@@ -185,7 +186,7 @@ struct WidgetDivider: View {
 
     var body: some View {
         Rectangle()
-            .fill(.white.opacity(0.12))
+            .fill(.ink.opacity(0.12))
             .frame(width: 1, height: max(height - 18, 0))
             .frame(width: HomeLayout.dividerSpacing, height: height)
     }
@@ -280,7 +281,7 @@ private struct WidgetIconCell: View {
                     .scaleEffect(hovering ? 1.05 : 1)
                 Text(kind.title)
                     .font(.system(size: metrics.captionSize, weight: .semibold))
-                    .foregroundStyle(.white.opacity(hovering ? 0.9 : 0.7))
+                    .foregroundStyle(.ink.opacity(hovering ? 0.9 : 0.7))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
@@ -375,7 +376,7 @@ private struct SoloBackButton: View {
             Image(systemName: "chevron.left")
                 .font(.system(size: 10, weight: .bold))
                 .frame(width: 20, height: 20)
-                .background(Circle().fill(.white.opacity(0.12)))
+                .background(Circle().fill(.ink.opacity(0.12)))
         }
         .buttonStyle(.plain)
         .offset(x: -26, y: 2)
@@ -438,7 +439,7 @@ struct MediaPage: View {
                 if model.preferences.lyrics {
                     ShelfButton(
                         symbol: showsLyrics ? "quote.bubble.fill" : "quote.bubble", size: 12,
-                        tint: showsLyrics ? .accentColor : .white
+                        tint: showsLyrics ? .accentColor : .ink
                     ) { withAnimation(.easeOut(duration: 0.2)) { model.showsLyrics.toggle() } }
                     .help("Lyrics (from LRCLIB)")
                 }
