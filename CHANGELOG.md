@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.9](https://github.com/Maestroharyor/wisp/compare/v0.1.8...v0.1.9) (2026-11-07)
+
+
+### Features
+
+* Gemini CLI sessions in the notch (monitor only) ([#30](https://github.com/Maestroharyor/wisp/issues/30)) ([8a3da11](https://github.com/Maestroharyor/wisp/commit/8a3da11ccfc6b0c28916452f7e0108c9c0cdcbc7))
+* on-device AI engine with Apple Intelligence or local Ollama ([#34](https://github.com/Maestroharyor/wisp/issues/34)) ([bf9d802](https://github.com/Maestroharyor/wisp/commit/bf9d8029fe87e46d726ca3944fc5b469e6674cc3))
+* on-device dictation by holding Caps Lock + Space ([#37](https://github.com/Maestroharyor/wisp/issues/37)) ([7249718](https://github.com/Maestroharyor/wisp/commit/7249718a1a73f90f308e7006774b0ca0b0d2aa1f))
+* watch a window region for changes ([#39](https://github.com/Maestroharyor/wisp/issues/39)) ([ca10f35](https://github.com/Maestroharyor/wisp/commit/ca10f35729ed545388d3d762e7a37c8a36e5d90f))
+
 ## [0.1.8](https://github.com/Maestroharyor/wisp/compare/v0.1.7...v0.1.8) (2026-11-07)
 
 
