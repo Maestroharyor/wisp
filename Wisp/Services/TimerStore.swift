@@ -14,6 +14,9 @@ enum PomodoroPhase: String, Codable {
 @MainActor
 @Observable
 final class TimerStore {
+    /// The plain timer's pill and card label; anything else on them is the Pomodoro.
+    static let timerLabel = "Timer"
+
     private(set) var timer: Countdown
     private(set) var pomodoro: Countdown
     private(set) var phase: PomodoroPhase = .focus
@@ -92,7 +95,7 @@ final class TimerStore {
 
     private func update() {
         let now = Date.now
-        let running = [("Timer", timer), (phase.title, pomodoro)]
+        let running = [(Self.timerLabel, timer), (phase.title, pomodoro)]
             .filter { $0.1.isRunning }
             .min { $0.1.remaining(now: now) < $1.1.remaining(now: now) }
         onActivity(running.map { Activity.timer(label: $0.0, countdown: $0.1) })
@@ -110,7 +113,7 @@ final class TimerStore {
         let now = Date.now
         if timer.isRunning, timer.isFinished(now: now) {
             timer.reset()
-            onFinished("Timer", false)
+            onFinished(Self.timerLabel, false)
         }
         if pomodoro.isRunning, pomodoro.isFinished(now: now) {
             let finished = phase

@@ -309,6 +309,12 @@ public enum DownloadText {
         if let rate = progress.bytesPerSecond, rate > 0 { return "\(bytes(Int64(rate)))/s" }
         return bytes(progress.received)
     }
+
+    /// How much has arrived, out of how much when the total is known.
+    public static func amount(_ progress: DownloadProgress) -> String {
+        guard let total = progress.total, total > 0 else { return bytes(progress.received) }
+        return "\(bytes(progress.received)) of \(bytes(total))"
+    }
 }
 
 /// The folders to watch: always Downloads, then the chosen ones, without repeats.

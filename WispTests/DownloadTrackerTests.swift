@@ -281,6 +281,17 @@ final class DownloadTrackerTests: XCTestCase {
         XCTAssertEqual(DownloadText.detail(progress(received: 12_000_000)), "12 MB")
     }
 
+    func testAmountShowsTheTotalOnlyWhenKnown() {
+        func progress(received: Int64, total: Int64?) -> DownloadProgress {
+            DownloadProgress(
+                id: "x", name: "x", received: received, total: total, bytesPerSecond: nil, isStalled: false)
+        }
+        XCTAssertEqual(DownloadText.amount(progress(received: 12_000_000, total: 50_000_000)), "12 MB of 50 MB")
+        XCTAssertEqual(DownloadText.amount(progress(received: 12_000_000, total: nil)), "12 MB")
+        // A zero total is a placeholder, not a size.
+        XCTAssertEqual(DownloadText.amount(progress(received: 1_500, total: 0)), "1.5 KB")
+    }
+
     // MARK: Safari bundle info
 
     func testReadsTheTotalFromASafariBundleInfoPlist() throws {
