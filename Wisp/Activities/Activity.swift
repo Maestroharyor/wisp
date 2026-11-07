@@ -66,6 +66,8 @@ enum Activity: Sendable, Equatable {
     case device(BluetoothDevice)
     /// Part of a window being watched for a change.
     case regionWatch(RegionWatchStatus)
+    /// Wisp is listening for dictation while the key is held.
+    case dictation(since: Date)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -78,7 +80,7 @@ enum Activity: Sendable, Equatable {
     /// Level bars need room for the bar and the number, and a notice for a few words.
     var usesWideWings: Bool {
         switch self {
-        case .level, .sent, .focus, .agent, .meeting, .device, .notice, .regionWatch: true
+        case .level, .sent, .focus, .agent, .meeting, .device, .notice, .regionWatch, .dictation: true
         default: false
         }
     }
@@ -107,6 +109,7 @@ enum Activity: Sendable, Equatable {
         case .meetingSoon(let invite): "meetingSoon-\(invite.id)"
         case .device: "device"
         case .regionWatch: "regionWatch"
+        case .dictation: "dictation"
         }
     }
 }

@@ -92,6 +92,11 @@ struct CompactActivityView: View {
                 RegionWatchGlyph(paused: status.paused).frame(width: 16)
                 Text(status.appName).lineLimit(1)
             }
+        case .dictation:
+            HStack(spacing: ActivityMetrics.contentSpacing) {
+                Image(systemName: "mic.fill").foregroundStyle(.red).frame(width: 16)
+                Text("Listening").lineLimit(1)
+            }
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()
         }
@@ -146,6 +151,10 @@ struct CompactActivityView: View {
                 Image(systemName: model.services.microphone.muted ? "mic.slash.circle.fill" : "mic.circle")
                     .foregroundStyle(.white.opacity(0.8))
                     .help(model.services.microphone.muted ? "Unmute the microphone" : "Mute the microphone")
+            }
+        case .dictation(let since):
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                ValueText(text: Countdown.format(max(0, context.date.timeIntervalSince(since))), tint: .red)
             }
         case .device(let device):
             if let level = device.headline {
@@ -237,6 +246,10 @@ struct SideActivityView: View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 ValueText(text: Countdown.format(max(0, context.date.timeIntervalSince(status.started))), tint: .red)
             }
+        case .dictation(let since):
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                ValueText(text: Countdown.format(max(0, context.date.timeIntervalSince(since))), tint: .red)
+            }
         case .device(let device):
             if let level = device.headline {
                 ValueText(text: "\(level)%", tint: level <= 20 ? .red : .wispGreen)
@@ -306,6 +319,8 @@ struct ActivityGlyph: View {
                 .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
         case .regionWatch(let status):
             RegionWatchGlyph(paused: status.paused)
+        case .dictation:
+            Image(systemName: "mic.fill").foregroundStyle(.red)
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon:
             EmptyView()
         }

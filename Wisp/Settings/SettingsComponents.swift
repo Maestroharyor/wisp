@@ -17,6 +17,7 @@ extension SettingsPaneID {
         case .notifications: "bell.badge.fill"
         case .agents: "sparkle"
         case .phone: "iphone.radiowaves.left.and.right"
+        case .ai: "wand.and.sparkles"
         case .permissions: "lock.shield.fill"
         case .about: "info.circle.fill"
         }
@@ -27,7 +28,7 @@ extension SettingsPaneID {
         switch self {
         case .general, .about, .permissions: Color(red: 0.32, green: 0.27, blue: 0.62)
         case .notch, .ring, .appearance, .activities, .widgets, .profiles, .clipboard: .wispViolet
-        case .notifications, .agents, .phone: Color(red: 0.6, green: 0.53, blue: 1)
+        case .notifications, .agents, .phone, .ai: Color(red: 0.6, green: 0.53, blue: 1)
         }
     }
 }
@@ -75,7 +76,7 @@ final class SettingsModel {
         let needed = SetupHealth.needed(
             notifications: preferences.notificationsEnabled,
             calendarWidgets: widgets.contains(.calendar) || widgets.contains(.dayProgress),
-            mirror: widgets.contains(.mirror))
+            mirror: widgets.contains(.mirror), dictation: preferences.dictationEnabled)
         let ids = SetupHealth.missing(granted: now, needed: needed)
         let next = ids.compactMap(Permission.init(rawValue:))
         if next != missing { missing = next }

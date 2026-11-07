@@ -157,6 +157,29 @@ final class NotchController {
 
     var isReplying: Bool { model.replyingTo != nil }
 
+    /// The draft box dictation would type into: the open Agents view's selected session.
+    var dictationDraftSession: String? { machine.phase == .open ? model.draftSession : nil }
+
+    /// The question card showing under the closed notch, for a dictated answer.
+    var dictationQuestion: UUID? {
+        guard machine.phase != .open, case .agentApproval(let approval) = model.activity,
+            approval.prompt == .question
+        else { return nil }
+        return approval.id
+    }
+
+    /// Puts dictated text into the draft box or the question card on this display.
+    func receiveDictation(_ text: String, target: DictationTarget) {
+        switch target {
+        case .agentDraft(let session):
+            model.agentDrafts[session] = DictationText.appending(text, to: model.agentDrafts[session] ?? "")
+        case .questionAnswer(let approval):
+            model.dictatedAnswer = DictatedAnswer(approval: approval, text: text)
+        case .focusedApp:
+            break
+        }
+    }
+
     var phase: NotchPhase { machine.phase }
     var layout: NotchLayout { model.layout }
 
