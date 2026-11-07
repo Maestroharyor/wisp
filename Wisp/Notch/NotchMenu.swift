@@ -1,35 +1,23 @@
 import AppKit
 import WispCore
 
-/// Right-click menu on the notch or shelf.
+/// Right-click menu on the notch or shelf: Open, Tools, Profile and Form, then Settings and Quit.
 @MainActor
 enum NotchMenu {
     static func show(
         at location: CGPoint, customiseHome: @escaping @MainActor () -> Void,
         openPage: @escaping @MainActor (ShelfPage) -> Void, form: FormFactor, forms: [FormFactor],
-        setForm: @escaping @MainActor (FormFactor) -> Void, moveBack: MoveBack?, services: AppServices
+        setForm: @escaping @MainActor (FormFactor) -> Void, openAsWindow: @escaping @MainActor () -> Void,
+        moveBack: MoveBack?, services: AppServices
     ) {
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.addItem(pagesItem(openPage))
-        menu.addItem(item("Customise Home", symbol: "square.grid.2x2", action: customiseHome))
-        menu.addItem(item("Clipboard History", symbol: "doc.on.clipboard", action: services.openClipboard))
-        menu.addItem(item("Transform Files…", symbol: "wand.and.stars") { services.openTransform([]) })
-        menu.addItem(item("Mini Player", symbol: "pip") { services.miniPlayer.toggle() })
-        if services.regionWatch.isWatching {
-            menu.addItem(item("Stop Watching Region", symbol: "eye.slash") { services.regionWatch.stop() })
-        } else {
-            menu.addItem(item("Watch a Window Region…", symbol: "eye") { services.regionWatch.begin() })
-        }
+        menu.addItem(toolsItem(customiseHome: customiseHome, services: services))
         menu.addItem(profilesItem(services: services))
-        menu.addItem(formItem(current: form, forms: forms, setForm: setForm))
-        if let moveBack {
-            menu.addItem(item(moveBack.title, symbol: "arrow.uturn.backward", action: moveBack.action))
-        }
+        menu.addItem(
+            formItem(current: form, forms: forms, setForm: setForm, openAsWindow: openAsWindow, moveBack: moveBack))
         menu.addItem(.separator())
-        let update = item("Check for Updates…", symbol: "arrow.down.circle") { services.updater.checkForUpdates() }
-        update.isEnabled = services.updater.canCheckForUpdates
-        menu.addItem(update)
         menu.addItem(item("Settings…", symbol: "gearshape", action: services.openSettings))
         menu.addItem(item("Quit Wisp", symbol: "power") { NSApp.terminate(nil) })
         menu.popUp(positioning: nil, at: location, in: nil)
@@ -63,17 +51,44 @@ enum NotchMenu {
         return parent
     }
 
-    /// Notch, corner, bottom, side or orb, the current one ticked.
+    /// The panels and windows Wisp opens, and Customise Home.
+    private static func toolsItem(customiseHome: @escaping @MainActor () -> Void, services: AppServices) -> NSMenuItem {
+        let parent = NSMenuItem(title: "Tools", action: nil, keyEquivalent: "")
+        parent.image = NSImage(systemSymbolName: "wrench.and.screwdriver", accessibilityDescription: nil)
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        submenu.addItem(item("Clipboard History", symbol: "doc.on.clipboard", action: services.openClipboard))
+        submenu.addItem(item("Transform Files…", symbol: "wand.and.stars") { services.openTransform([]) })
+        submenu.addItem(item("Mini Player", symbol: "pip") { services.miniPlayer.toggle() })
+        if services.regionWatch.isWatching {
+            submenu.addItem(item("Stop Watching Region", symbol: "eye.slash") { services.regionWatch.stop() })
+        } else {
+            submenu.addItem(item("Watch a Window Region…", symbol: "eye") { services.regionWatch.begin() })
+        }
+        submenu.addItem(item("Customise Home", symbol: "square.grid.2x2", action: customiseHome))
+        parent.submenu = submenu
+        return parent
+    }
+
+    /// Every form, the current one ticked, then the one-off window and, for a moved island,
+    /// the way back to its spot.
     private static func formItem(
-        current: FormFactor, forms: [FormFactor], setForm: @escaping @MainActor (FormFactor) -> Void
+        current: FormFactor, forms: [FormFactor], setForm: @escaping @MainActor (FormFactor) -> Void,
+        openAsWindow: @escaping @MainActor () -> Void, moveBack: MoveBack?
     ) -> NSMenuItem {
         let parent = NSMenuItem(title: "Form", action: nil, keyEquivalent: "")
         parent.image = NSImage(systemSymbolName: current.symbol, accessibilityDescription: nil)
         let submenu = NSMenu()
+        submenu.autoenablesItems = false
         for form in forms {
             let entry = item(form.title, symbol: form.symbol) { setForm(form) }
             entry.state = form == current ? .on : .off
             submenu.addItem(entry)
+        }
+        submenu.addItem(.separator())
+        submenu.addItem(item("Open as Window", symbol: "macwindow.on.rectangle", action: openAsWindow))
+        if let moveBack {
+            submenu.addItem(item(moveBack.title, symbol: "arrow.uturn.backward", action: moveBack.action))
         }
         parent.submenu = submenu
         return parent
