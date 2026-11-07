@@ -112,7 +112,7 @@ struct NowPlayingWidget: View {
                     Spacer()
                     OutputDevicePicker()
                         .frame(width: 26, height: 26)
-                        .help("Output device")
+                        .hoverHint("Output device", help: "Output device")
                 }
             }
         } else {
@@ -148,6 +148,7 @@ struct PlainIconButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressDimStyle())
+        .hoverHint(label ?? SymbolLabel.label(for: symbol))
         .accessibilityLabel(label ?? SymbolLabel.label(for: symbol))
     }
 }
@@ -333,6 +334,7 @@ struct CircleButton: View {
                 .background(Circle().fill(filled ? tint.opacity(0.28) : .white.opacity(0.14)))
         }
         .buttonStyle(.plain)
+        .hoverHint(label ?? SymbolLabel.label(for: symbol))
         .accessibilityLabel(label ?? SymbolLabel.label(for: symbol))
     }
 }
@@ -488,7 +490,7 @@ struct BatteryWidget: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(level <= AccessoryBatteryAlerts.lowLevel ? Color.red : Color.secondaryText)
                 .fixedSize()
-                .help("\(device.name): \(level)%")
+                .hoverHint("\(device.name): \(level)%")
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(device.name), \(level)%")
             }

@@ -13,7 +13,7 @@ struct TerminalIcon: View {
                 .resizable()
                 .interpolation(.high)
                 .frame(width: size, height: size)
-                .help(app.name)
+                .hoverHint(app.name)
                 .accessibilityLabel(app.name)
         }
     }

@@ -432,6 +432,7 @@ struct ScriptWidget: View {
                         Image(systemName: "arrow.clockwise")
                     }
                     .buttonStyle(.plain)
+                    .hoverHint("Run again")
                     .accessibilityLabel("Run again")
                     .disabled(store.running)
                 }

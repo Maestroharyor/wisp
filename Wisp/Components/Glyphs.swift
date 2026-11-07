@@ -117,6 +117,8 @@ struct ShelfButton: View {
     var tint: Color = .white
     /// What VoiceOver says; defaults to a name for the symbol.
     var label: String?
+    /// The hover label and tooltip, when they should say more than `label`.
+    var hint: String?
     let action: () -> Void
 
     @State private var hovering = false
@@ -132,6 +134,7 @@ struct ShelfButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .hoverHint(hint ?? label ?? SymbolLabel.label(for: symbol), help: hint)
         .accessibilityLabel(label ?? SymbolLabel.label(for: symbol))
     }
 }
