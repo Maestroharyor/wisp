@@ -30,12 +30,12 @@ public enum ToolLabel {
         // `verb` is empty when the subject says it all.
         let verb: String
         let subject: String
-        // Claude Code's tool names, then Codex's and Gemini CLI's for the same jobs.
+        // Claude Code's tool names, then Codex's, Gemini CLI's and Cursor's for the same jobs.
         switch name {
-        case "Bash", "run_shell_command":
+        case "Bash", "run_shell_command", "Shell":
             (symbol, verb) = ("terminal", "Running")
             subject = hidden ? "a command" : firstLine(mask(input.command ?? ""))
-        case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch", "replace", "write_file":
+        case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch", "replace", "write_file", "Delete":
             (symbol, verb) = ("pencil", "Editing")
             subject = hidden ? "a file" : fileName(input.filePath ?? input.notebookPath)
         case "Read", "read_file":
@@ -58,12 +58,17 @@ public enum ToolLabel {
                 (verb, subject) = ("Running", "a subagent")
             }
         default:
-            // MCP tools are named mcp__<server>__<tool>; neither part is the user's data.
+            // MCP tools are named mcp__<server>__<tool> (Cursor: MCP:<tool>); neither part is the
+            // user's data.
             let parts = name.components(separatedBy: "__")
             let mcp = parts.count >= 3 && parts[0] == "mcp"
-            symbol = mcp ? "puzzlepiece.extension" : "wrench.and.screwdriver"
+            let cursorMCP = name.hasPrefix("MCP:")
+            symbol = mcp || cursorMCP ? "puzzlepiece.extension" : "wrench.and.screwdriver"
             verb = ""
-            subject = mcp ? "\(parts[1]): \(parts[2...].joined(separator: "__"))" : name
+            subject =
+                mcp
+                ? "\(parts[1]): \(parts[2...].joined(separator: "__"))"
+                : cursorMCP ? "MCP: \(name.dropFirst(4))" : name
         }
         let trimmed = subject.trimmingCharacters(in: .whitespaces)
         let label = verb.isEmpty ? trimmed : trimmed.isEmpty ? verb : "\(verb) \(trimmed)"

@@ -4,9 +4,10 @@ import WispCore
 
 // Coding agents' hook command: forwards the hook's JSON (stdin) to Wisp over a
 // Unix socket and prints Wisp's reply (a permission decision, or nothing). It wraps the
-// JSON in Wisp's envelope with the agent (`--source codex`, `--source gemini`, otherwise Claude Code) and the
-// terminal app it runs in. Any failure exits 0 with no output, so the agent carries on as
-// if no hook ran. Tool activity hooks are sent without waiting for a reply.
+// JSON in Wisp's envelope with the agent (`--source codex`, `--source gemini`, `--source cursor`,
+// otherwise Claude Code) and the terminal app it runs in. Any failure exits 0 with no output
+// (for Cursor, which reads stdout as JSON, its "carry on" reply), so the agent carries on as if no hook ran.
+// Tool activity hooks are sent without waiting for a reply.
 // `wisp-agent statusline` is Claude Code's status bar (StatusLineCommand), and `status`,
 // `watch`, `spend` and `activity` are the `wisp` command line (CLICommand), also run through a
 // `wisp` link.
@@ -32,12 +33,22 @@ if arguments.dropFirst().first == StatusLineChain.subcommand {
 if let command = AgentCLI.parse(arguments: arguments) {
     CLICommand.run(command, socketPath: socketPath, environment: environment)
 }
-guard FileManager.default.fileExists(atPath: socketPath) else { exit(0) }
-
 let source: AgentSource =
     zip(arguments, arguments.dropFirst()).first { $0.0 == "--source" }.flatMap { AgentSource(rawValue: $0.1) }
     ?? .claude
 let hookJSON = FileHandle.standardInput.readDataToEndOfFile()
+let silentReply = Data((AgentProtocol.silentReply(forHook: hookJSON, source: source) ?? "").utf8)
+
+/// Prints Wisp's reply, or the agent's "nothing to say" when there's none, and exits.
+@Sendable func finish(_ reply: Data) -> Never {
+    FileHandle.standardOutput.write(reply.isEmpty ? silentReply : reply)
+    exit(0)
+}
+
+// A Claude Code hook Cursor ran: Cursor's own hooks report that session, if connected.
+if CursorHooks.isImported(hookJSON, source: source) { finish(Data()) }
+guard FileManager.default.fileExists(atPath: socketPath) else { finish(Data()) }
+
 // The agent that ran this hook, so Wisp can end its session if it quits without saying so.
 let agentProcess = AgentProcess.ownerOfThisProcess()
 // The pane or tab it runs in, from a fixed list of variables and the agent's tty (the hook's
@@ -54,7 +65,7 @@ if AgentProtocol.kind(forHook: hookJSON, source: source) == .tool {
     {
         SocketSend.send(message, to: socketPath, timeout: 0.05)
     }
-    exit(0)
+    finish(Data())
 }
 let input =
     AgentProtocol.envelope(
@@ -62,11 +73,6 @@ let input =
         payload: hookJSON)
     ?? AgentTerminal.tag(hookJSON, source: source, terminal: terminal)
 let connection = NWConnection(to: .unix(path: socketPath), using: .tcp)
-
-@Sendable func finish(_ reply: Data) -> Never {
-    FileHandle.standardOutput.write(reply)
-    exit(0)
-}
 
 @Sendable func receive(_ received: Data) {
     connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { data, _, isComplete, error in
@@ -89,7 +95,7 @@ connection.stateUpdateHandler = { state in
             content: input, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in })
         receive(Data())
     case .failed, .waiting, .cancelled:
-        if !connected { exit(0) }
+        if !connected { finish(Data()) }
     default:
         break
     }
@@ -98,5 +104,5 @@ connection.start(queue: .main)
 // Wisp answers approvals within the hook timeout (`--timeout`, longer while phone push is on);
 // never outlive it.
 let hookTimeout = HookInstaller.timeout(arguments: arguments) ?? HookInstaller.approvalTimeout
-DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(hookTimeout + HookInstaller.helperGrace)) { exit(0) }
+DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(hookTimeout + HookInstaller.helperGrace)) { finish(Data()) }
 dispatchMain()

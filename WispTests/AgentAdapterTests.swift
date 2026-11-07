@@ -4,7 +4,7 @@ import XCTest
 
 final class AgentAdapterTests: XCTestCase {
     func testRegistryListsEachAgentOnceByItsWireID() {
-        XCTAssertEqual(AgentAdapters.all.map(\.source), [.claude, .codex, .gemini])
+        XCTAssertEqual(AgentAdapters.all.map(\.source), [.claude, .codex, .gemini, .cursor])
         XCTAssertEqual(AgentAdapters.adapter(id: "codex")?.displayName, "Codex")
         XCTAssertEqual(AgentAdapters.adapter(id: "gemini")?.displayName, "Gemini CLI")
         XCTAssertNil(AgentAdapters.adapter(id: "aider"))

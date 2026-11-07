@@ -49,7 +49,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .profiles: "Saved setups, and switching them automatically"
         case .clipboard: "Clipboard history"
         case .notifications: "Notifications in the notch, and quick replies"
-        case .agents: "Claude Code, Codex and Gemini CLI sessions, approvals and status bar"
+        case .agents: "Claude Code, Codex, Gemini CLI and Cursor sessions, approvals and status bar"
         case .phone: "Agent alerts and approvals on your phone and watch"
         case .ai: "On-device AI with Apple Intelligence or Ollama"
         case .permissions: "What Wisp can access, and why"
@@ -113,7 +113,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .agents:
             [
-                "claude", "claude code", "codex", "gemini", "gemini cli", "ai", "hooks", "approve", "allow", "deny",
+                "claude", "claude code", "codex", "gemini", "gemini cli", "cursor", "cursor-agent", "ai", "hooks",
+                "approve", "allow", "deny",
                 "sessions", "sound",
                 "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",

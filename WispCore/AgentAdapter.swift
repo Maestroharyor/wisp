@@ -1,6 +1,6 @@
 import Foundation
 
-/// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`, `"gemini"`). Only ids
+/// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`, `"gemini"`, `"cursor"`). Only ids
 /// in `AgentAdapters` can be made, so every source has an adapter.
 public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public let rawValue: String
@@ -17,6 +17,7 @@ public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public static let claude = AgentSource(registered: "claude")
     public static let codex = AgentSource(registered: "codex")
     public static let gemini = AgentSource(registered: "gemini")
+    public static let cursor = AgentSource(registered: "cursor")
 
     public init(from decoder: Decoder) throws {
         let id = try decoder.singleValueContainer().decode(String.self)
@@ -73,9 +74,22 @@ public struct HookFile: Equatable, Sendable {
         /// Gemini CLI's settings.json: the same `hooks` groups next to its other settings, with
         /// timeouts in milliseconds and no `async`.
         case geminiSettings
+        /// Cursor's hooks.json: a `version` and, under `hooks`, a flat list of handlers for each
+        /// event (no matcher groups).
+        case cursorHooks
 
         /// What a timeout in seconds is multiplied by in this file.
         public var timeoutScale: Int { self == .geminiSettings ? 1000 : 1 }
+
+        /// What the helper prints for `event` when Wisp has nothing to say: nothing, or for
+        /// Cursor, which reads a hook's stdout as JSON, its "carry on" answer.
+        public func silentReply(event: String?) -> String? {
+            self == .cursorHooks ? CursorHooks.silentReply(event: event) : nil
+        }
+
+        /// Tool activity arrives only after each call (Cursor's postToolUse; its preToolUse is a
+        /// permission hook Wisp leaves alone), so a finished call is shown without a start.
+        public var reportsToolsWhenDone: Bool { self == .cursorHooks }
     }
 
     /// Relative to the home folder.
@@ -93,6 +107,8 @@ public struct HookFile: Equatable, Sendable {
 
     /// Wisp holds a hook open for the user's answer, so the command carries the approval wait.
     public var waitsForApproval: Bool { events.contains(AgentEvent.Kind.permissionRequest.rawValue) }
+    /// The agent says when it waits on the user (a Notification hook), so a session can show Needs you.
+    public var reportsWaiting: Bool { events.contains(AgentEvent.Kind.notification.rawValue) }
 
     public var displayPath: String { "~/" + path }
     public func url(home: URL) -> URL { home.appendingPathComponent(path) }
@@ -145,7 +161,7 @@ public struct AgentAdapter: Sendable {
 
 /// Every agent Wisp knows, in the order Settings and onboarding list them.
 public enum AgentAdapters {
-    public static let all: [AgentAdapter] = [claude, codex, gemini]
+    public static let all: [AgentAdapter] = [claude, codex, gemini, cursor]
 
     public static func adapter(id: String) -> AgentAdapter? { all.first { $0.source.rawValue == id } }
 
@@ -232,7 +248,73 @@ public enum AgentAdapters {
         promptFor: { _ in .tool },
         write: { _ in nil })
 
+    /// Monitor only. Cursor documents allow, deny and ask for beforeShellExecution and
+    /// beforeMCPExecution, but Cursor staff said (forum, March 2026) that only deny is enforced
+    /// there: allow never skips Cursor's own approval and ask is ignored. preToolUse enforces
+    /// allow and deny but has no ask, so it can't hand a call back to Cursor's prompt, and it
+    /// would hold every tool call. All of these are permission hooks, which block the action when
+    /// their output can't be read, so Wisp installs none of them. Tool activity comes from
+    /// postToolUse, once a tool has finished. Cursor has no event for "waiting on you", so
+    /// there's no Needs you either.
+    static let cursor = AgentAdapter(
+        source: .cursor, displayName: "Cursor", symbol: "cursorarrow", fallbackProject: "Cursor",
+        hookFile: HookFile(
+            path: ".cursor/hooks.json", format: .cursorHooks,
+            events: ["sessionStart", "beforeSubmitPrompt", "stop", "sessionEnd", "preCompact"],
+            backgroundEvents: [], toolEvents: ["postToolUse"], statusLine: false,
+            helperArguments: " --source cursor"),
+        capabilities: [.toolActivity],
+        setupNote: nil,
+        readEvent: { json, terminal in
+            AgentEvent(json: CursorHooks.renamed(json), source: .cursor, terminal: terminal)
+        },
+        promptFor: { _ in .tool },
+        write: { _ in nil })
+
     private static let toolEvents = AgentEvent.Kind.toolActivity.map(\.rawValue)
+}
+
+/// Cursor's hook input: camelCase event names, `conversation_id` on every event (sessionStart's
+/// `session_id` is the same value), `workspace_roots` for the project and `cwd` only on tool
+/// events. Tool calls use Claude Code's `tool_name`, `tool_input` and `tool_use_id`.
+public enum CursorHooks {
+    /// Cursor's event names in Wisp's terms. Anything else, Claude Code's names included,
+    /// reads as `.other`.
+    static let kinds: [String: AgentEvent.Kind] = [
+        "sessionStart": .sessionStart, "sessionEnd": .sessionEnd, "beforeSubmitPrompt": .userPromptSubmit,
+        "stop": .stop, "preCompact": .preCompact, "postToolUse": .postToolUse,
+    ]
+
+    /// Cursor's "carry on" answer for `event`. beforeSubmitPrompt's documented output is
+    /// `continue`, so it says so; every other hook gets an empty object. Claude Code's name for
+    /// the prompt hook counts too, for Claude Code hooks Cursor runs (`isImported`).
+    public static func silentReply(event: String?) -> String {
+        event == "beforeSubmitPrompt" || event == "UserPromptSubmit" ? #"{"continue":true}"# : "{}"
+    }
+
+    /// Cursor also runs the hooks in Claude Code's settings files (Settings › Agents ›
+    /// Third-Party Imports, on by default), so Wisp's Claude Code hooks fire for Cursor's
+    /// sessions too. Their payload carries `cursor_version`, which Claude Code never sends.
+    /// Those calls are dropped: connecting Cursor shows its sessions, once.
+    public static func isImported(_ payload: Data, source: AgentSource) -> Bool {
+        guard source != .cursor, let json = try? JSONDecoder().decode(JSONValue.self, from: payload) else {
+            return false
+        }
+        return json["cursor_version"] != nil
+    }
+
+    /// The payload in the common reader's field names. The first workspace root names the
+    /// session, so a tool run in a subfolder doesn't rename it.
+    static func renamed(_ json: JSONValue) -> JSONValue {
+        guard case .object(var fields) = json else { return json }
+        let kind = fields["hook_event_name"]?.stringValue.flatMap { kinds[$0] }
+        fields["hook_event_name"] = kind.map { .string($0.rawValue) }
+        if let id = fields["conversation_id"] ?? fields["session_id"] { fields["session_id"] = id }
+        if case .array(let roots) = fields["workspace_roots"], let root = roots.first?.stringValue, !root.isEmpty {
+            fields["cwd"] = .string(root)
+        }
+        return .object(fields)
+    }
 }
 
 /// Gemini CLI's hook input uses Claude Code's field names (session_id, cwd, transcript_path,

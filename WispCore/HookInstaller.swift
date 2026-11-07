@@ -10,8 +10,9 @@ public enum HookLink: Equatable, Sendable {
 }
 
 /// Adds and removes Wisp's hooks in an agent's hook file (`HookFile`): Claude Code's
-/// settings.json, Codex's hooks.json or Gemini CLI's settings.json, which share the `hooks` shape. The user's own
-/// settings and hooks are left alone. Wisp's entries are recognised by the helper's name.
+/// settings.json, Codex's hooks.json or Gemini CLI's settings.json, which share the `hooks` shape, or
+/// Cursor's hooks.json, which lists handlers without matcher groups. The user's own settings and
+/// hooks are left alone. Wisp's entries are recognised by the helper's name.
 public enum HookInstaller {
     public enum Failure: Error { case notAnObject }
 
@@ -58,12 +59,16 @@ public enum HookInstaller {
                 "type": .string("command"), "command": .string(command), "timeout": .number(Double(scaled)),
             ]
             if file.backgroundEvents.contains(event) { handler["async"] = .bool(true) }
-            let group: JSONValue = .object(["matcher": .string(""), "hooks": .array([.object(handler)])])
-            var groups: [JSONValue] = []
-            if case .array(let existing) = hooks[event] { groups = existing }
-            hooks[event] = .array(groups + [group])
+            let entry: JSONValue =
+                file.format == .cursorHooks
+                ? .object(handler) : .object(["matcher": .string(""), "hooks": .array([.object(handler)])])
+            var entries: [JSONValue] = []
+            if case .array(let existing) = hooks[event] { entries = existing }
+            hooks[event] = .array(entries + [entry])
         }
         root["hooks"] = .object(hooks)
+        // Cursor's hooks.json requires a version; the user's own stays.
+        if file.format == .cursorHooks, root["version"] == nil { root["version"] = .number(1) }
         return try encode(.object(root))
     }
 
@@ -179,14 +184,17 @@ public enum HookInstaller {
     private static func wispCommands(in settings: Data) throws -> [(event: String, command: String)] {
         let root = try object(settings)
         return hooksObject(root["hooks"]).flatMap { event, value -> [(event: String, command: String)] in
-            guard case .array(let groups) = value else { return [] }
-            return groups.flatMap { group -> [(event: String, command: String)] in
-                guard case .array(let handlers) = group["hooks"] else { return [] }
-                return handlers.filter(isWisp).compactMap { handler in
-                    handler["command"]?.stringValue.map { (event, $0) }
-                }
+            guard case .array(let entries) = value else { return [] }
+            return entries.flatMap(handlers).filter(isWisp).compactMap { handler in
+                handler["command"]?.stringValue.map { (event, $0) }
             }
         }
+    }
+
+    /// A matcher group's handlers, or a Cursor entry, which is a handler itself.
+    private static func handlers(_ entry: JSONValue) -> [JSONValue] {
+        if case .array(let handlers) = entry["hooks"] { return handlers }
+        return [entry]
     }
 
     private static func isWisp(_ handler: JSONValue) -> Bool {
@@ -208,7 +216,9 @@ public enum HookInstaller {
         return result
     }
 
+    /// Nil for Wisp's own Cursor entry or a group that held only Wisp's handlers.
     private static func strippedGroup(_ group: JSONValue) -> JSONValue? {
+        if isWisp(group) { return nil }
         guard case .object(var fields) = group, case .array(let handlers) = fields["hooks"] else { return group }
         let kept = handlers.filter { !isWisp($0) }
         if kept.isEmpty, !handlers.isEmpty { return nil }
