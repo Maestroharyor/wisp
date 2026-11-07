@@ -21,8 +21,11 @@ public struct ExternalActivities: Equatable, Sendable {
     public var isEmpty: Bool { entries.isEmpty }
 
     /// False when an update named an activity that isn't showing and gave no title to start it.
+    /// `source` is who sent it, kept for the activity's details.
     @discardableResult
-    public mutating func apply(_ action: ExternalActivityAction, now: Date) -> Bool {
+    public mutating func apply(
+        _ action: ExternalActivityAction, from source: ExternalActivitySource? = nil, now: Date
+    ) -> Bool {
         prune(now: now)
         defer {
             while entries.count > Self.limit, let oldest = entries.values.min(by: { $0.touched < $1.touched }) {
@@ -30,20 +33,23 @@ public struct ExternalActivities: Equatable, Sendable {
             }
         }
         switch action {
-        case .start(let activity):
+        case .start(var activity):
+            activity.source = source
             entries[activity.id] = Entry(activity: activity, touched: now)
         case .update(let update):
             if var entry = entries[update.id] {
                 if let title = update.title { entry.activity.title = title }
                 if let symbol = update.symbol { entry.activity.symbol = symbol }
                 if let progress = update.progress { entry.activity.progress = progress }
+                entry.activity.source = source ?? entry.activity.source
                 entry.touched = now
                 entries[update.id] = entry
             } else if let title = update.title {
                 // An update for one Wisp never saw (it restarted, or the start was lost).
-                let activity = ExternalActivity(
+                var activity = ExternalActivity(
                     id: update.id, title: title, symbol: update.symbol ?? ExternalActivity.defaultSymbol,
                     progress: update.progress)
+                activity.source = source
                 entries[update.id] = Entry(activity: activity, touched: now)
             } else {
                 return false

@@ -7,6 +7,8 @@ public struct ExternalActivity: Equatable, Sendable {
     public var symbol: String
     /// 0 to 1, or nil for an activity without a measurable end.
     public var progress: Double?
+    /// Who last started or updated it. Set by `ExternalActivities`, not by the caller.
+    public var source: ExternalActivitySource?
 
     public init(id: String, title: String, symbol: String, progress: Double? = nil) {
         self.id = id
@@ -30,6 +32,24 @@ public struct ExternalActivity: Equatable, Sendable {
 
     static let titleLimit = 60
     static let idLimit = 64
+}
+
+/// The way an outside activity reached Wisp, shown in its details.
+public enum ExternalActivitySource: Equatable, Sendable {
+    /// A `wisp://activity` link.
+    case link
+    /// `wisp activity` in a terminal or script, over the helper's socket.
+    case command
+    case shortcut
+
+    /// The details view's line about where it came from.
+    public var label: String {
+        switch self {
+        case .link: "From a wisp:// link"
+        case .command: "From the wisp command"
+        case .shortcut: "From Shortcuts"
+        }
+    }
 }
 
 /// Changes to an activity; nil leaves a field as it was.
