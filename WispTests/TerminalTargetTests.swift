@@ -243,6 +243,82 @@ final class TerminalScriptTests: XCTestCase {
     }
 }
 
+final class ApprovalKeysTests: XCTestCase {
+    func testKeysMapToActionsByPrompt() {
+        XCTAssertEqual(ApprovalKeys.action(keyCode: 16, prompt: .tool), .allow)
+        XCTAssertEqual(ApprovalKeys.action(keyCode: 45, prompt: .tool), .deny)
+        XCTAssertEqual(ApprovalKeys.action(keyCode: 16, prompt: .plan), .allow)
+        XCTAssertEqual(ApprovalKeys.action(keyCode: 45, prompt: .plan), .deny)
+        // Digits answer questions only; on other cards they keep picking profiles.
+        XCTAssertNil(ApprovalKeys.action(keyCode: 18, prompt: .tool))
+        XCTAssertEqual(ApprovalKeys.action(keyCode: 18, prompt: .question), .pick(0))
+        XCTAssertEqual(ApprovalKeys.action(keyCode: 25, prompt: .question), .pick(8))
+        // Y sends a multiple choice answer; N has no meaning for a question.
+        XCTAssertEqual(ApprovalKeys.action(keyCode: 16, prompt: .question), .send)
+        XCTAssertNil(ApprovalKeys.action(keyCode: 45, prompt: .question))
+        XCTAssertNil(ApprovalKeys.action(keyCode: 0, prompt: .tool))
+    }
+
+    func testACardMustBeOnScreenAMomentFirst() {
+        let shown = Date(timeIntervalSince1970: 100)
+        XCTAssertFalse(ApprovalKeys.isSettled(shownAt: shown, now: shown.addingTimeInterval(0.2)))
+        XCTAssertTrue(ApprovalKeys.isSettled(shownAt: shown, now: shown.addingTimeInterval(0.5)))
+    }
+
+    func testFallbackShortcutsAreOnlyTheKeysTheCardUses() {
+        let tool = ApprovalKeys.fallbackHotkeys(for: .tool)
+        XCTAssertEqual(tool.map(\.keyCode), [ApprovalKeys.yes, ApprovalKeys.no])
+        XCTAssertEqual(ApprovalKeys.fallbackHotkeys(for: .plan), tool)
+        let question = ApprovalKeys.fallbackHotkeys(for: .question)
+        XCTAssertEqual(question.map(\.keyCode), [ApprovalKeys.yes] + ApprovalKeys.digits)
+        XCTAssertTrue(
+            (tool + question).allSatisfy { $0.modifiers == [.control, .option, .command] && $0.isUsable })
+        // Every fallback key has a fixed slot, so a Carbon id always means the same key.
+        XCTAssertEqual(ApprovalKeys.allFallbackKeys.count, 11)
+        XCTAssertTrue(question.allSatisfy { ApprovalKeys.allFallbackKeys.contains($0.keyCode) })
+    }
+
+    func testARepeatNeverAnswers() {
+        var gate = ApprovalKeys.Gate()
+        let shown = Date(timeIntervalSince1970: 100)
+        gate.cardChanged(at: shown)
+        XCTAssertTrue(gate.press(ApprovalKeys.yes, isRepeat: false, at: shown.addingTimeInterval(1)))
+        // Held down: the next card swaps in and the key repeats.
+        gate.cardChanged(at: shown.addingTimeInterval(1))
+        XCTAssertFalse(gate.press(ApprovalKeys.yes, isRepeat: true, at: shown.addingTimeInterval(2)))
+    }
+
+    func testAFreshPressIsNeededBetweenAnswers() {
+        var gate = ApprovalKeys.Gate()
+        let shown = Date(timeIntervalSince1970: 100)
+        gate.cardChanged(at: shown)
+        XCTAssertTrue(gate.press(ApprovalKeys.yes, isRepeat: false, at: shown.addingTimeInterval(1)))
+        gate.cardChanged(at: shown.addingTimeInterval(1))
+        // A source that repeats without saying so (or a lost key-up) still needs the key let go.
+        XCTAssertFalse(gate.press(ApprovalKeys.yes, isRepeat: false, at: shown.addingTimeInterval(2)))
+        gate.release(ApprovalKeys.yes)
+        XCTAssertTrue(gate.press(ApprovalKeys.yes, isRepeat: false, at: shown.addingTimeInterval(3)))
+    }
+
+    func testEachCardOrQuestionStepSettlesFirst() {
+        var gate = ApprovalKeys.Gate()
+        let shown = Date(timeIntervalSince1970: 100)
+        gate.cardChanged(at: shown)
+        XCTAssertFalse(gate.press(18, isRepeat: false, at: shown.addingTimeInterval(0.1)))
+        gate.release(18)
+        XCTAssertTrue(gate.press(18, isRepeat: false, at: shown.addingTimeInterval(0.5)))
+        gate.release(18)
+        // The next question in the same request.
+        gate.cardChanged(at: shown.addingTimeInterval(0.5))
+        XCTAssertFalse(gate.press(19, isRepeat: false, at: shown.addingTimeInterval(0.6)))
+        gate.releaseAll()
+        XCTAssertTrue(gate.press(19, isRepeat: false, at: shown.addingTimeInterval(1)))
+        // Nothing on screen yet: nothing answers.
+        var fresh = ApprovalKeys.Gate()
+        XCTAssertFalse(fresh.press(16, isRepeat: false, at: shown))
+    }
+}
+
 extension JSONValue {
     fileprivate var objectKeys: [String] {
         guard case .object(let fields) = self else { return [] }

@@ -65,6 +65,13 @@ struct AgentStatus: Sendable, Equatable {
     var terminal: String? = nil
 }
 
+/// A shortcut pressed for the question card on screen.
+struct KeyAnswer: Equatable {
+    let approval: UUID
+    let action: ApprovalKeys.Action
+    let serial: Int
+}
+
 /// Receives Claude Code and Codex hook events and Claude Code status bar snapshots from the
 /// `wisp-agent` helper over a Unix socket, tracks sessions (with live cost and context from
 /// the snapshots, token use from their transcripts), answers permission requests from the
@@ -77,6 +84,11 @@ final class AgentHub {
     private(set) var queue = ApprovalQueue<UUID>()
     private var pending: [UUID: AgentApproval] = [:]
     @ObservationIgnored private let focuser = TerminalFocuser()
+    @ObservationIgnored private var frontID: UUID?
+    /// Keeps one key press to one answer (see `ApprovalKeys.Gate`).
+    @ObservationIgnored private var keyGate = ApprovalKeys.Gate()
+    /// The latest key answer for a question card; `serial` makes a repeat count as a change.
+    private(set) var keyAnswer: KeyAnswer?
     var approvals: [AgentApproval] { queue.items.compactMap { pending[$0] } }
     /// Sources whose hooks call this copy's helper.
     private(set) var connected: Set<AgentSource> = []
@@ -403,7 +415,7 @@ final class AgentHub {
                 guard !Task.isCancelled else { return }
                 self?.handBack(approval.id)
             }
-            onApproval(approvals.first)
+            approvalsChanged()
             onNewRequest()
         } else {
             reply(connection, nil)
@@ -537,7 +549,7 @@ final class AgentHub {
         // Handed back to the terminal (timed out, or answered there) counts as resolved too,
         // so the session doesn't keep saying it waits on the notch.
         sessions.resolveApproval(session: approval.sessionID, at: .now)
-        onApproval(approvals.first)
+        approvalsChanged()
         publishStatus()
     }
 
@@ -549,7 +561,7 @@ final class AgentHub {
         let before = sessions.session(taken.approval.sessionID)?.state
         sessions.handedBack(session: taken.approval.sessionID, at: .now)
         reportMoment(session: taken.approval.sessionID, before: before, stopped: false)
-        onApproval(approvals.first)
+        approvalsChanged()
         publishStatus()
     }
 
@@ -562,7 +574,7 @@ final class AgentHub {
         }
         sessions.record(.denied, "Denied", session: approval.sessionID, at: .now)
         sessions.resolveApproval(session: approval.sessionID, at: .now)
-        onApproval(approvals.first)
+        approvalsChanged()
         publishStatus()
     }
 
@@ -579,8 +591,58 @@ final class AgentHub {
                 approval.input.flatMap { approval.source.adapter.reply(.answer(input: $0, answers: answers)) })
         }
         sessions.answeredQuestion(session: approval.sessionID, at: .now)
-        onApproval(approvals.first)
+        approvalsChanged()
         publishStatus()
+    }
+
+    /// Tells the activity layer which card is on screen, and notes when a new one took the front.
+    private func approvalsChanged() {
+        let front = approvals.first?.id
+        if front != frontID {
+            frontID = front
+            keyGate.cardChanged(at: .now)
+        }
+        // Nothing left to answer: forget keys whose key-up may never arrive.
+        if front == nil { keyGate.releaseAll() }
+        onApproval(approvals.first)
+    }
+
+    // MARK: Keyboard answers
+
+    /// Answers the card on screen from a fresh key press (Hyper+Y, N or a digit, or the ⌃⌥⌘
+    /// fallback; repeats never get here). False when no card shows or the key means nothing
+    /// for it, so the key goes elsewhere.
+    func answerKey(_ keyCode: UInt16) -> Bool {
+        guard let approval = approvals.first,
+            let action = ApprovalKeys.action(keyCode: keyCode, prompt: approval.prompt)
+        else { return false }
+        // Swallowed but ignored: the key wasn't let go since it last answered, or the card or
+        // question only just swapped in.
+        guard keyGate.press(keyCode, isRepeat: false, at: .now) else { return true }
+        switch action {
+        case .allow: answer(approval.id, allow: true)
+        case .deny: answer(approval.id, allow: false)
+        case .pick, .send:
+            // The question card keeps which question is showing and what's picked, so it acts on this.
+            keyAnswer = KeyAnswer(approval: approval.id, action: action, serial: (keyAnswer?.serial ?? 0) + 1)
+        }
+        return true
+    }
+
+    /// Whether `keyCode` means something on the card in front, so it's swallowed even while
+    /// the card is out of sight (a HUD over it) instead of typing into the front app.
+    func keyHasAction(_ keyCode: UInt16) -> Bool {
+        guard let approval = approvals.first else { return false }
+        return ApprovalKeys.action(keyCode: keyCode, prompt: approval.prompt) != nil
+    }
+
+    func releaseKey(_ keyCode: UInt16) {
+        keyGate.release(keyCode)
+    }
+
+    /// The question card moved on to the next question in the same request.
+    func questionStepChanged() {
+        keyGate.cardChanged(at: .now)
     }
 
     /// Takes a request off the queue, with the hook call still waiting for its reply.

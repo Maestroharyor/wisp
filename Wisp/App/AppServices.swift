@@ -84,6 +84,14 @@ final class AppServices {
     var formUnderPointer: @MainActor () -> (form: FormFactor, systemIsland: Bool) = { (.notch, false) }
     var setForm: @MainActor (FormFactor) -> Void = { _ in }
     var cycleForm: @MainActor () -> Void = {}
+    /// The kind of approval or question card now in front, or nil when the last one went.
+    var approvalCardChanged: @MainActor (PermissionPrompt?) -> Void = { _ in }
+    /// Whether any display's shelf is open, where the approval shows as a bar.
+    var isShelfOpen: @MainActor () -> Bool = { false }
+
+    /// The approval card or bar is what's on screen, not hidden behind a HUD or another card,
+    /// so a shortcut answers what the user can see.
+    var approvalOnScreen: Bool { activities.currentSlot == .agentApproval || isShelfOpen() }
 
     init(preferences: Preferences) {
         self.preferences = preferences
@@ -317,6 +325,7 @@ final class AppServices {
                 self?.activities.remove(.agentApproval)
             }
             self?.push.approvalsChanged()
+            self?.approvalCardChanged(approval?.prompt)
         }
         agents.onMoment = { [weak self] moment in self?.push.moment(moment) }
         push.start()
