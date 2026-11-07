@@ -30,6 +30,7 @@ final class AppServices {
     let dropActions = DropActionRunner()
     let script = ScriptStore()
     let headphones = HeadphoneMonitor()
+    let accessories = AccessoryBatteryStore()
     let sounds: SoundPlayer
     let updater = Updater()
     /// Bumped for each confetti burst; the notch watches it.
@@ -347,6 +348,11 @@ final class AppServices {
             self.activities.post(.device(device), slot: .device, duration: 4)
         }
         headphones.start()
+        accessories.onLow = { [weak self] device in
+            guard let level = device.battery[.main] else { return }
+            let text = "\(device.name) battery at \(level)%"
+            self?.activities.post(.notice(symbol: device.symbol, text: text), slot: .notice, duration: 4)
+        }
         dropActions.onNotice = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 2)
         }
@@ -371,7 +377,7 @@ final class AppServices {
     /// wallpaper glow is on, and an idle timer takes a newly chosen default length. Only the
     /// settings are tracked; reading the timer here would undo every +/- in the widget.
     private func syncPreferenceEffects() {
-        let (wallpaperOn, timerLength, needsClock, switches, agentPrefs) = withObservationTracking {
+        let (wallpaperOn, timerLength, needsClock, switches, agentPrefs, accessoriesOn) = withObservationTracking {
             let look = preferences.appearance
             let timeEars = [look.leftEar, look.rightEar].contains { [.time, .date, .meeting, .weather].contains($0) }
             return (
@@ -391,7 +397,8 @@ final class AppServices {
                         enabled: preferences.pushEnabled, kinds: preferences.pushKinds, mode: preferences.pushMode,
                         idle: preferences.pushIdleMinutes
                     )
-                )
+                ),
+                preferences.accessoryBatteries
             )
         } onChange: { [weak self] in
             Task { @MainActor in self?.syncPreferenceEffects() }
@@ -409,6 +416,7 @@ final class AppServices {
             enabled: agentPrefs.push.enabled)
         updateAgentAwake()
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
+        if accessoriesOn { accessories.start() } else { accessories.stop() }
         if needsClock { startClock() } else { stopClock() }
         if timerLength != appliedTimerLength {
             appliedTimerLength = timerLength
@@ -453,6 +461,7 @@ final class AppServices {
         if let themeObserver { DistributedNotificationCenter.default().removeObserver(themeObserver) }
         wallpaper.stop()
         headphones.stop()
+        accessories.stop()
         lockScreenPlayer.stop()
         push.stop()
         microphone.stop()

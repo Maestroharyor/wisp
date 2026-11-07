@@ -292,6 +292,7 @@ final class Preferences {
         static let ringHotkey = "ringHotkey"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
+        static let accessoryBatteries = "accessoryBatteries"
         static let scriptInterval = "scriptInterval"
         static let doNotDisturbShortcut = "doNotDisturbShortcut"
         static let workdayStart = "workdayStart"
@@ -655,6 +656,8 @@ final class Preferences {
     var batteryHUD: Bool { didSet { defaults.set(batteryHUD, forKey: Key.batteryHUD) } }
     /// A pill when Bluetooth headphones connect, with their battery.
     var deviceActivity: Bool { didSet { defaults.set(deviceActivity, forKey: Key.deviceActivity) } }
+    /// Mouse, keyboard and trackpad batteries in the Battery widget, with a warning at 20%.
+    var accessoryBatteries: Bool { didSet { defaults.set(accessoryBatteries, forKey: Key.accessoryBatteries) } }
     var capsLockHUD: Bool { didSet { defaults.set(capsLockHUD, forKey: Key.capsLockHUD) } }
     var mediaActivity: Bool { didSet { defaults.set(mediaActivity, forKey: Key.mediaActivity) } }
     /// A short sound when an agent asks for permission.
@@ -916,6 +919,7 @@ final class Preferences {
             Key.defaultTimerSeconds: 300.0,
             Key.scriptInterval: 60.0,
             Key.deviceActivity: true,
+            Key.accessoryBatteries: true,
             Key.activityDisplay: ActivityDisplayTarget.pointer.rawValue,
             Key.clipboardEnabled: true,
             Key.clipboardLimit: 200,
@@ -1056,6 +1060,7 @@ final class Preferences {
         favouriteShortcuts = defaults.stringArray(forKey: Key.favouriteShortcuts) ?? []
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
+        accessoryBatteries = defaults.bool(forKey: Key.accessoryBatteries)
         scriptInterval = ScriptOutput.clampedInterval(defaults.double(forKey: Key.scriptInterval))
         ringConfig =
             defaults.data(forKey: Key.ringConfig).flatMap { try? JSONDecoder().decode(RingConfig.self, from: $0) }
