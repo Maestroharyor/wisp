@@ -13,6 +13,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     case notifications
     case agents
     case phone
+    case ai
     case permissions
     case about
 
@@ -31,6 +32,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .notifications: "Notifications"
         case .agents: "Agents"
         case .phone: "Phone"
+        case .ai: "AI"
         case .permissions: "Permissions"
         case .about: "About"
         }
@@ -49,6 +51,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .notifications: "Notifications in the notch, and quick replies"
         case .agents: "Claude Code and Codex sessions, approvals and status bar"
         case .phone: "Agent alerts and approvals on your phone and watch"
+        case .ai: "On-device AI with Apple Intelligence or Ollama"
         case .permissions: "What Wisp can access, and why"
         case .about: "Version, updates, shortcuts and reset"
         }
@@ -121,6 +124,12 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "locked", "topic", "qr", "server", "self-hosted", "access token", "approval timeout", "test",
                 "include details",
             ]
+        case .ai:
+            [
+                "apple intelligence", "foundation models", "ollama", "llm", "language model", "on-device", "local",
+                "localhost", "summarise", "summarize", "translate", "grammar", "rewrite", "action items", "explain",
+                "try it",
+            ]
         case .permissions:
             ["accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera"]
         case .about: ["version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release"]
@@ -149,7 +158,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .wisp: [.general, .notch, .ring, .appearance, .activities]
         case .shelf: [.widgets, .profiles, .clipboard]
-        case .connections: [.notifications, .agents, .phone]
+        case .connections: [.notifications, .agents, .phone, .ai]
         case .system: [.permissions, .about]
         }
     }

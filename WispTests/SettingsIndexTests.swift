@@ -92,4 +92,11 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.phone])
         XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.phone))
     }
+
+    func testAIPaneIsFound() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "ollama"), [.ai])
+        XCTAssertEqual(SettingsIndex.panes(matching: "apple intelligence"), [.ai])
+        XCTAssertEqual(SettingsIndex.panes(matching: "AI").first, .ai)
+        XCTAssertTrue(SettingsIndex.panes(matching: "summarize").contains(.ai))
+    }
 }
