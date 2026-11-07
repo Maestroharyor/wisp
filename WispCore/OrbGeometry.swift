@@ -26,14 +26,22 @@ public enum OrbGeometry {
     public static func fitted(_ centre: CGPoint, in visible: CGRect, size: CGFloat, avoidsTopCentre: Bool = false)
         -> CGPoint
     {
-        let half = size / 2 + margin
+        fitted(centre, in: visible, size: CGSize(width: size, height: size), avoidsTopCentre: avoidsTopCentre)
+    }
+
+    /// The same for a shape of any size, such as a moved island.
+    public static func fitted(_ centre: CGPoint, in visible: CGRect, size: CGSize, avoidsTopCentre: Bool = false)
+        -> CGPoint
+    {
+        let halfWidth = size.width / 2 + margin
+        let halfHeight = size.height / 2 + margin
         var point = CGPoint(
-            x: min(max(centre.x, visible.minX + half), visible.maxX - half),
-            y: min(max(centre.y, visible.minY + half), visible.maxY - half))
+            x: min(max(centre.x, visible.minX + halfWidth), visible.maxX - halfWidth),
+            y: min(max(centre.y, visible.minY + halfHeight), visible.maxY - halfHeight))
         if avoidsTopCentre {
             let zone = islandZone(in: visible)
-            if zone.insetBy(dx: -size / 2, dy: -size / 2).contains(point) {
-                point.y = zone.minY - half
+            if zone.insetBy(dx: -size.width / 2, dy: -size.height / 2).contains(point) {
+                point.y = zone.minY - halfHeight
             }
         }
         return point
@@ -41,12 +49,17 @@ public enum OrbGeometry {
 
     /// A released orb near an edge or corner settles flush against it.
     public static func snapped(_ centre: CGPoint, in visible: CGRect, size: CGFloat) -> CGPoint {
-        let half = size / 2 + margin
+        snapped(centre, in: visible, size: CGSize(width: size, height: size))
+    }
+
+    public static func snapped(_ centre: CGPoint, in visible: CGRect, size: CGSize) -> CGPoint {
+        let halfWidth = size.width / 2 + margin
+        let halfHeight = size.height / 2 + margin
         var point = centre
-        if centre.x - half - visible.minX < snapDistance { point.x = visible.minX + half }
-        if visible.maxX - (centre.x + half) < snapDistance { point.x = visible.maxX - half }
-        if centre.y - half - visible.minY < snapDistance { point.y = visible.minY + half }
-        if visible.maxY - (centre.y + half) < snapDistance { point.y = visible.maxY - half }
+        if centre.x - halfWidth - visible.minX < snapDistance { point.x = visible.minX + halfWidth }
+        if visible.maxX - (centre.x + halfWidth) < snapDistance { point.x = visible.maxX - halfWidth }
+        if centre.y - halfHeight - visible.minY < snapDistance { point.y = visible.minY + halfHeight }
+        if visible.maxY - (centre.y + halfHeight) < snapDistance { point.y = visible.maxY - halfHeight }
         return point
     }
 
