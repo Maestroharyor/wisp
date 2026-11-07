@@ -17,6 +17,8 @@ final class DownloadMonitor {
 
     /// Watched folders macOS wouldn't let Wisp list, for Settings to explain.
     private(set) var deniedFolders: [String] = []
+    /// Every download in progress, newest first, for the list the pill opens.
+    private(set) var downloads: [DownloadProgress] = []
 
     @ObservationIgnored private var stream: FSEventStreamRef?
     @ObservationIgnored private var folders: [String] = []
@@ -53,6 +55,7 @@ final class DownloadMonitor {
         stream = nil
         folders = []
         if !deniedFolders.isEmpty { deniedFolders = [] }
+        if !downloads.isEmpty { downloads = [] }
         if lastSummary != nil {
             lastSummary = nil
             onChange(nil)
@@ -114,7 +117,9 @@ final class DownloadMonitor {
     }
 
     private func publish(now: Date) {
-        let summary = tracker.summary(now: now)
+        let all = tracker.downloads(now: now)
+        if all != downloads { downloads = all }
+        let summary = all.first.map { DownloadSummary(primary: $0, count: all.count) }
         guard summary != lastSummary else { return }
         lastSummary = summary
         onChange(summary)
