@@ -47,7 +47,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .profiles: "Saved setups, and switching them automatically"
         case .clipboard: "Clipboard history"
         case .notifications: "Notifications in the notch, and quick replies"
-        case .agents: "Claude Code and Codex sessions, approvals and status bar"
+        case .agents: "Claude Code, Codex and Gemini CLI sessions, approvals and status bar"
         case .phone: "Agent alerts and approvals on your phone and watch"
         case .permissions: "What Wisp can access, and why"
         case .about: "Version, updates, shortcuts and reset"
@@ -108,7 +108,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .agents:
             [
-                "claude", "claude code", "codex", "ai", "hooks", "approve", "allow", "deny", "sessions", "sound",
+                "claude", "claude code", "codex", "gemini", "gemini cli", "ai", "hooks", "approve", "allow", "deny",
+                "sessions", "sound",
                 "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
