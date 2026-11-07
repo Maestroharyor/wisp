@@ -11,6 +11,11 @@ import WispCore
 final class RegionWatcher {
     private(set) var target: RegionTarget?
     private(set) var rule: RegionWatchRule?
+    /// When this watch began, when the region last moved (only the time is kept, never the
+    /// frame), and whether low battery has paused it. For the watch view.
+    private(set) var started: Date?
+    private(set) var lastChange: Date?
+    private(set) var paused = false
 
     var isWatching: Bool { target != nil }
 
@@ -29,6 +34,7 @@ final class RegionWatcher {
         stop()
         self.target = target
         self.rule = rule
+        started = .now
         publish(paused: false)
         loop = Task { [weak self] in await self?.run(target, rule: rule) }
     }
@@ -36,9 +42,16 @@ final class RegionWatcher {
     func stop() {
         loop?.cancel()
         loop = nil
+        clear()
+        onActivity(nil)
+    }
+
+    private func clear() {
         target = nil
         rule = nil
-        onActivity(nil)
+        started = nil
+        lastChange = nil
+        paused = false
     }
 
     private func run(_ target: RegionTarget, rule: RegionWatchRule) async {
@@ -63,7 +76,9 @@ final class RegionWatcher {
                     let sample = try await capture.sample()
                     guard !Task.isCancelled else { return }
                     failures = 0
-                    if monitor.observe(sample) == .fired {
+                    let outcome = monitor.observe(sample)
+                    if monitor.lastMovement != lastChange { lastChange = monitor.lastMovement }
+                    if outcome == .fired {
                         finish { $0.onFired(target.appName, rule.firedText) }
                         return
                     }
@@ -96,14 +111,14 @@ final class RegionWatcher {
 
     private func finish(_ report: (RegionWatcher) -> Void) {
         loop = nil
-        target = nil
-        rule = nil
+        clear()
         onActivity(nil)
         report(self)
     }
 
     private func publish(paused: Bool) {
         guard let target, let rule else { return }
+        self.paused = paused
         onActivity(.regionWatch(RegionWatchStatus(appName: target.appName, rule: rule, paused: paused)))
     }
 }
