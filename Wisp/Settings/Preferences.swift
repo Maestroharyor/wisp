@@ -244,6 +244,9 @@ final class Preferences {
         static let pushIdleMinutes = "pushIdleMinutes"
         static let pushTimeoutMinutes = "pushTimeoutMinutes"
         static let pushDetails = "pushDetails"
+        static let cloudEnabled = "cloudEnabled"
+        static let cloudSources = "cloudSources"
+        static let cloudChecks = "cloudChecks"
         static let aiEnabled = "aiEnabled"
         static let aiEngine = "aiEngine"
         static let ollamaAddress = "ollamaAddress"
@@ -303,6 +306,9 @@ final class Preferences {
         static let ringHotkey = "ringHotkey"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
+        static let accessoryBatteries = "accessoryBatteries"
+        static let downloadActivity = "downloadActivity"
+        static let downloadFolders = "downloadFolders"
         static let scriptInterval = "scriptInterval"
         static let doNotDisturbShortcut = "doNotDisturbShortcut"
         static let workdayStart = "workdayStart"
@@ -670,6 +676,13 @@ final class Preferences {
     var batteryHUD: Bool { didSet { defaults.set(batteryHUD, forKey: Key.batteryHUD) } }
     /// A pill when Bluetooth headphones connect, with their battery.
     var deviceActivity: Bool { didSet { defaults.set(deviceActivity, forKey: Key.deviceActivity) } }
+    /// Mouse, keyboard and trackpad batteries in the Battery widget, with a warning at 20%.
+    var accessoryBatteries: Bool { didSet { defaults.set(accessoryBatteries, forKey: Key.accessoryBatteries) } }
+    /// A progress pill while a browser downloads into Downloads or a chosen folder. Off by
+    /// default: turning it on can make macOS ask for access to the Downloads folder.
+    var downloadActivity: Bool { didSet { defaults.set(downloadActivity, forKey: Key.downloadActivity) } }
+    /// Folders watched besides Downloads, as plain paths (Wisp isn't sandboxed).
+    var downloadFolders: [String] { didSet { defaults.set(downloadFolders, forKey: Key.downloadFolders) } }
     var capsLockHUD: Bool { didSet { defaults.set(capsLockHUD, forKey: Key.capsLockHUD) } }
     var mediaActivity: Bool { didSet { defaults.set(mediaActivity, forKey: Key.mediaActivity) } }
     /// A short sound when an agent asks for permission.
@@ -727,6 +740,14 @@ final class Preferences {
     var ollamaModel: String { didSet { defaults.set(ollamaModel, forKey: Key.ollamaModel) } }
     /// The PermissionRequest hook timeout these settings ask for.
     var approvalTimeout: Int { HookInstaller.approvalTimeout(push: pushEnabled, minutes: pushTimeoutMinutes) }
+    /// Cloud agent tasks in the Agents widget. Off by default: it asks Codex, GitHub and Cursor.
+    var cloudEnabled: Bool { didSet { defaults.set(cloudEnabled, forKey: Key.cloudEnabled) } }
+    /// Which cloud sources to ask; one whose CLI or key is missing is skipped anyway.
+    var cloudSources: Set<CloudSource> {
+        didSet { defaults.set(cloudSources.map(\.rawValue).sorted(), forKey: Key.cloudSources) }
+    }
+    /// Reads each recent pull request's CI with `gh pr checks`.
+    var cloudChecks: Bool { didSet { defaults.set(cloudChecks, forKey: Key.cloudChecks) } }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
     /// Look up album art on iTunes when the player gives none (sends title and artist).
@@ -954,6 +975,9 @@ final class Preferences {
             Key.pushIdleMinutes: PushPolicy.defaultIdleMinutes,
             Key.pushTimeoutMinutes: HookInstaller.defaultPushTimeoutMinutes,
             Key.pushDetails: false,
+            Key.cloudEnabled: false,
+            Key.cloudSources: CloudSource.allCases.map(\.rawValue),
+            Key.cloudChecks: true,
             Key.aiEnabled: false,
             Key.aiEngine: AIEngineKind.default.rawValue,
             Key.ollamaAddress: OllamaEndpoint.defaultAddress,
@@ -979,6 +1003,7 @@ final class Preferences {
             Key.defaultTimerSeconds: 300.0,
             Key.scriptInterval: 60.0,
             Key.deviceActivity: true,
+            Key.accessoryBatteries: true,
             Key.activityDisplay: ActivityDisplayTarget.pointer.rawValue,
             Key.clipboardEnabled: true,
             Key.clipboardLimit: 200,
@@ -1080,6 +1105,10 @@ final class Preferences {
             max(defaults.integer(forKey: Key.pushTimeoutMinutes), HookInstaller.pushTimeoutMinutes.lowerBound),
             HookInstaller.pushTimeoutMinutes.upperBound)
         pushDetails = defaults.bool(forKey: Key.pushDetails)
+        cloudEnabled = defaults.bool(forKey: Key.cloudEnabled)
+        cloudSources = Set(
+            (defaults.stringArray(forKey: Key.cloudSources) ?? []).compactMap(CloudSource.init(rawValue:)))
+        cloudChecks = defaults.bool(forKey: Key.cloudChecks)
         aiEnabled = defaults.bool(forKey: Key.aiEnabled)
         aiEngine = defaults.string(forKey: Key.aiEngine).flatMap(AIEngineKind.init(rawValue:)) ?? .default
         ollamaAddress = defaults.string(forKey: Key.ollamaAddress) ?? OllamaEndpoint.defaultAddress
@@ -1130,6 +1159,9 @@ final class Preferences {
         favouriteShortcuts = defaults.stringArray(forKey: Key.favouriteShortcuts) ?? []
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
+        accessoryBatteries = defaults.bool(forKey: Key.accessoryBatteries)
+        downloadActivity = defaults.bool(forKey: Key.downloadActivity)
+        downloadFolders = defaults.stringArray(forKey: Key.downloadFolders) ?? []
         scriptInterval = ScriptOutput.clampedInterval(defaults.double(forKey: Key.scriptInterval))
         ringConfig =
             defaults.data(forKey: Key.ringConfig).flatMap { try? JSONDecoder().decode(RingConfig.self, from: $0) }

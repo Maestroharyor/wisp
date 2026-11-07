@@ -19,6 +19,7 @@ final class AppServices {
     let shortcuts = ShortcutsRunner()
     let camera = CameraMirror()
     let agents = AgentHub()
+    let cloud = CloudAgentStore()
     let context: ContextEngine
     let quickActions: QuickActions
     let clipboard: ClipboardStore
@@ -32,6 +33,8 @@ final class AppServices {
     let dropActions = DropActionRunner()
     let script = ScriptStore()
     let headphones = HeadphoneMonitor()
+    let accessories = AccessoryBatteryStore()
+    let downloads = DownloadMonitor()
     let sounds: SoundPlayer
     let updater = Updater()
     /// Bumped for each confetti burst; the notch watches it.
@@ -361,6 +364,16 @@ final class AppServices {
         automation.start()
         agents.start()
 
+        cloud.onEvent = { [weak self] event in
+            guard let self else { return }
+            self.activities.post(
+                .notice(symbol: event.symbol, text: event.notice(hidden: self.agents.detailsHidden)), slot: .notice,
+                duration: 3)
+            self.push.moment(.cloud(event))
+        }
+        cloud.onNotice = notice
+        cloud.start()
+
         context.onSwitch = { [weak self] profile, swapsHome in self?.applyProfile(profile, swapsHome: swapsHome) }
         context.start()
 
@@ -370,6 +383,23 @@ final class AppServices {
             self.activities.post(.device(device), slot: .device, duration: 4)
         }
         headphones.start()
+        accessories.onLow = { [weak self] device in
+            guard let level = device.battery[.main] else { return }
+            let text = "\(device.name) battery at \(level)%"
+            self?.activities.post(.notice(symbol: device.symbol, text: text), slot: .notice, duration: 4)
+        }
+        downloads.onChange = { [weak self] summary in
+            guard let self else { return }
+            if let summary {
+                self.activities.post(.download(summary), slot: .download, duration: nil)
+            } else {
+                self.activities.remove(.download)
+            }
+        }
+        downloads.onFinish = { [weak self] download in
+            self?.activities.post(.downloadDone(download), slot: .downloadDone, duration: 8)
+        }
+        syncDownloads()
         dropActions.onNotice = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 2)
         }
@@ -394,7 +424,7 @@ final class AppServices {
     /// wallpaper glow is on, and an idle timer takes a newly chosen default length. Only the
     /// settings are tracked; reading the timer here would undo every +/- in the widget.
     private func syncPreferenceEffects() {
-        let (wallpaperOn, timerLength, needsClock, switches, agentPrefs) = withObservationTracking {
+        let (wallpaperOn, timerLength, needsClock, switches, agentPrefs, accessoriesOn) = withObservationTracking {
             let look = preferences.appearance
             let timeEars = [look.leftEar, look.rightEar].contains { [.time, .date, .meeting, .weather].contains($0) }
             return (
@@ -416,8 +446,13 @@ final class AppServices {
                     push: (
                         enabled: preferences.pushEnabled, kinds: preferences.pushKinds, mode: preferences.pushMode,
                         idle: preferences.pushIdleMinutes
+                    ),
+                    cloud: (
+                        enabled: preferences.cloudEnabled, sources: preferences.cloudSources,
+                        checks: preferences.cloudChecks
                     )
-                )
+                ),
+                preferences.accessoryBatteries
             )
         } onChange: { [weak self] in
             Task { @MainActor in self?.syncPreferenceEffects() }
@@ -433,8 +468,11 @@ final class AppServices {
         push.apply(
             kinds: agentPrefs.push.kinds, mode: agentPrefs.push.mode, idleMinutes: agentPrefs.push.idle,
             enabled: agentPrefs.push.enabled)
+        cloud.apply(
+            enabled: agentPrefs.cloud.enabled, sources: agentPrefs.cloud.sources, checks: agentPrefs.cloud.checks)
         updateAgentAwake()
         if wallpaperOn { wallpaper.start() } else { wallpaper.stop() }
+        if accessoriesOn { accessories.start() } else { accessories.stop() }
         if needsClock { startClock() } else { stopClock() }
         if timerLength != appliedTimerLength {
             appliedTimerLength = timerLength
@@ -450,6 +488,20 @@ final class AppServices {
             }
         }
         appliedActivitySwitches = switches
+    }
+
+    /// Watches the download folders only while the switch is on, and follows folder changes.
+    private func syncDownloads() {
+        let (enabled, extra) = withObservationTracking {
+            (preferences.downloadActivity, preferences.downloadFolders)
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.syncDownloads() }
+        }
+        if enabled {
+            downloads.start(folders: DownloadFolders.resolve(extra: extra, home: NSHomeDirectory()))
+        } else {
+            downloads.stop()
+        }
     }
 
     /// Ticks on each minute boundary.
@@ -484,8 +536,11 @@ final class AppServices {
         if let themeObserver { DistributedNotificationCenter.default().removeObserver(themeObserver) }
         wallpaper.stop()
         headphones.stop()
+        accessories.stop()
+        downloads.stop()
         lockScreenPlayer.stop()
         push.stop()
+        cloud.stop()
         automation.stop()
         regionWatch.stop()
         ai.stop()

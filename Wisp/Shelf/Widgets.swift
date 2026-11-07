@@ -18,7 +18,10 @@ struct WidgetCard: View {
             case .calendar: CalendarWidget(store: services.calendar)
             case .timer: TimerWidget(store: services.timers)
             case .pomodoro: PomodoroWidget(store: services.timers, preferences: services.preferences)
-            case .battery: BatteryWidget(monitor: services.battery)
+            case .battery:
+                BatteryWidget(
+                    monitor: services.battery,
+                    accessories: services.preferences.accessoryBatteries ? services.accessories.devices : [])
             case .systemStats: SystemStatsWidget(store: services.stats)
             case .weather: WeatherWidget(store: services.weather)
             case .notes: NotesWidget(store: services.notes)
@@ -31,9 +34,9 @@ struct WidgetCard: View {
             case .agents:
                 // Wide fills the shelf: room for the sessions and the selected one's details side by side.
                 if services.preferences.size(of: .agents) == .wide {
-                    AgentsDetail(hub: services.agents, model: model)
+                    AgentsDetail(hub: services.agents, cloud: services.cloud, model: model)
                 } else {
-                    AgentsWidget(hub: services.agents)
+                    AgentsWidget(hub: services.agents, cloud: services.cloud)
                 }
             case .script: ScriptWidget(store: services.script, preferences: services.preferences)
             }
@@ -455,8 +458,49 @@ struct RulerScrubber: View {
 
 struct BatteryWidget: View {
     let monitor: BatteryMonitor
+    /// Connected mice, keyboards and trackpads with a level, empty when the setting is off.
+    let accessories: [BluetoothDevice]
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if monitor.state != nil || accessories.isEmpty { macBattery }
+            if !accessories.isEmpty {
+                // Three fit a small widget; Customise mode's inset leaves room for fewer.
+                ViewThatFits(in: .horizontal) {
+                    accessoryRow(limit: 3)
+                    accessoryRow(limit: 2)
+                    accessoryRow(limit: 1)
+                }
+            }
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    /// The lowest are the ones worth seeing.
+    private func accessoryRow(limit: Int) -> some View {
+        HStack(spacing: 8) {
+            ForEach(BluetoothReport.lowest(accessories, limit: limit), id: \.address) { device in
+                let level = device.battery[.main] ?? 0
+                HStack(spacing: 3) {
+                    Image(systemName: device.symbol)
+                    Text("\(level)%").monospacedDigit()
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(level <= AccessoryBatteryAlerts.lowLevel ? Color.red : Color.secondaryText)
+                .fixedSize()
+                .help("\(device.name): \(level)%")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(device.name), \(level)%")
+            }
+        }
+        .fixedSize()
+    }
+
+    /// The ring shrinks a little when the accessory row shares the height, so both fit
+    /// inside Customise mode's inset.
+    private var ringSize: CGFloat { accessories.isEmpty ? 56 : 48 }
+
+    private var macBattery: some View {
         HStack(spacing: 14) {
             if let state = monitor.state {
                 let fraction = Double(state.percent) / 100
@@ -465,7 +509,7 @@ struct BatteryWidget: View {
                     ProgressRing(progress: fraction, tint: tint, lineWidth: 5)
                     ValueText(text: "\(state.percent)", size: 15)
                 }
-                .frame(width: 56, height: 56)
+                .frame(width: ringSize, height: ringSize)
                 VStack(alignment: .leading, spacing: 3) {
                     Label(
                         state.isCharging ? "Charging" : state.isPluggedIn ? "On power" : "On battery",
@@ -482,7 +526,6 @@ struct BatteryWidget: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(maxHeight: .infinity)
     }
 }
 

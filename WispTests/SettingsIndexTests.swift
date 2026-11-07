@@ -10,6 +10,7 @@ final class SettingsIndexTests: XCTestCase {
 
     func testKeywordsFindTheirPane() {
         XCTAssertEqual(SettingsIndex.panes(matching: "glass"), [.appearance])
+        XCTAssertEqual(SettingsIndex.panes(matching: "download progress"), [.activities])
         XCTAssertEqual(SettingsIndex.panes(matching: "claude"), [.agents])
         XCTAssertEqual(SettingsIndex.panes(matching: "pocket"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "dnd"), [.widgets])
@@ -91,10 +92,22 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "timer length").contains(.widgets))
     }
 
+    func testAccessoryBatteriesAreFound() {
+        XCTAssertTrue(SettingsIndex.panes(matching: "magic mouse").contains(.activities))
+        XCTAssertTrue(SettingsIndex.panes(matching: "trackpad battery").contains(.activities))
+        XCTAssertTrue(SettingsIndex.panes(matching: "keyboard").contains(.activities))
+    }
+
     func testPhonePaneIsFound() {
         XCTAssertEqual(SettingsIndex.panes(matching: "ntfy"), [.phone])
         XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.phone])
         XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.phone))
+    }
+
+    func testCloudAgentsAreFound() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "codex cloud"), [.agents])
+        XCTAssertEqual(SettingsIndex.panes(matching: "background agent"), [.agents])
+        XCTAssertTrue(SettingsIndex.panes(matching: "copilot").contains(.agents))
     }
 
     func testAIPaneIsFound() {

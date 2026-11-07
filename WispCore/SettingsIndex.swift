@@ -49,7 +49,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .profiles: "Saved setups, and switching them automatically"
         case .clipboard: "Clipboard history"
         case .notifications: "Notifications in the notch, and quick replies"
-        case .agents: "Claude Code, Codex and Gemini CLI sessions, approvals and status bar"
+        case .agents: "Claude Code, Codex, Gemini CLI and Copilot CLI sessions, approvals and status bar"
         case .phone: "Agent alerts and approvals on your phone and watch"
         case .ai: "On-device AI with Apple Intelligence or Ollama"
         case .permissions: "What Wisp can access, and why"
@@ -92,7 +92,9 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "recording",
                 "zoom", "meet", "teams", "mute", "camera", "leave", "call controls", "bubbles", "split", "volume steps",
                 "duration", "low battery", "threshold",
-                "left", "right", "airpods", "headphones", "bluetooth",
+                "left", "right", "airpods", "headphones", "bluetooth", "downloads", "download progress", "safari",
+                "chrome", "firefox", "folder", "finder", "mouse", "keyboard", "trackpad", "magic mouse", "accessory",
+                "accessories", "low battery warning",
             ]
         case .widgets:
             [
@@ -114,13 +116,15 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .agents:
             [
-                "claude", "claude code", "codex", "gemini", "gemini cli", "ai", "hooks", "approve", "allow", "deny",
-                "sessions", "sound",
+                "claude", "claude code", "codex", "gemini", "gemini cli", "copilot", "copilot cli", "github copilot",
+                "ai", "hooks", "approve", "allow", "deny", "sessions", "sound",
                 "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
                 "usage limit", "rate limit", "weekly limit", "question", "answer", "preview", "diff", "plan",
                 "keep awake", "sleep", "power", "rules", "always allow", "permission rule", "settings.local.json",
+                "cloud", "cloud agents", "codex cloud", "copilot", "coding agent", "agent task", "github", "gh",
+                "cursor", "background agent", "api key", "pull request", "pr", "ci", "checks", "codex apply",
                 "tmux", "iterm", "ghostty", "wezterm", "jump to terminal", "tab", "pane", "keyboard",
             ]
         case .phone:
