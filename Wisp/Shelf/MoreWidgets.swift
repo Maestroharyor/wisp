@@ -103,7 +103,7 @@ struct ShortcutsWidget: View {
                 }
             }
         }
-        .onAppear { runner.refresh() }
+        .onAppear { runner.refreshIfStale() }
     }
 }
 
