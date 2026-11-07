@@ -987,6 +987,9 @@ private struct PrivacyButton: View {
 
     var body: some View {
         let locked = hub.hiddenByRule
+        let tip =
+            hub.hiddenReason.map { "Commands and file names are hidden \($0)" + (locked ? "" : "; click to show") }
+            ?? "Hide commands and file names"
         Button {
             hub.hideNow.toggle()
         } label: {
@@ -996,10 +999,7 @@ private struct PrivacyButton: View {
         }
         .buttonStyle(.plain)
         .disabled(locked)
-        .help(
-            hub.hiddenReason.map { "Commands and file names are hidden \($0)" + (locked ? "" : "; click to show") }
-                ?? "Hide commands and file names"
-        )
+        .hoverHint(tip, edge: .bottom, help: tip)
         .accessibilityLabel(
             locked
                 ? "Agent details hidden \(hub.hiddenReason ?? "")"
@@ -1131,11 +1131,14 @@ private struct SessionDetail: View {
 
     private var actions: some View {
         HStack(spacing: 10) {
-            action(TerminalApps.name(for: session.terminal) ?? "Terminal", symbol: "arrow.up.forward.app") {
+            let terminal = TerminalApps.name(for: session.terminal) ?? "Terminal"
+            action(terminal, symbol: "arrow.up.forward.app", help: "Show in \(terminal)") {
                 hub.focus(session: session.id)
             }
             if !session.cwd.isEmpty {
-                action("Folder", symbol: "folder") { hub.openFolder(session: session.id) }
+                action("Folder", symbol: "folder", help: "Open the folder in Finder") {
+                    hub.openFolder(session: session.id)
+                }
             }
             if session.transcriptPath != nil {
                 action("Transcript", symbol: "doc.text", help: "Show the transcript in Finder") {
@@ -1144,7 +1147,7 @@ private struct SessionDetail: View {
             }
             // Wisp's clipboard history would show the ID, so it isn't offered while private.
             if !hidden {
-                action("Copy ID", symbol: "doc.on.doc") {
+                action("Copy ID", symbol: "doc.on.doc", help: "Copy the session ID") {
                     hub.copyID(session: session.id)
                     note = "Session ID copied"
                 }
@@ -1153,7 +1156,7 @@ private struct SessionDetail: View {
     }
 
     private func action(
-        _ title: String, symbol: String, help: String? = nil, perform: @escaping () -> Void
+        _ title: String, symbol: String, help: String, perform: @escaping () -> Void
     ) -> some View {
         Button(action: perform) {
             Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold))
@@ -1161,7 +1164,8 @@ private struct SessionDetail: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(Color.project(session.project))
-        .help(help ?? title)
+        // The header sits at the top of the shelf, so its labels drop below.
+        .hoverHint(help, edge: .bottom, help: help)
     }
 
     private func send() {

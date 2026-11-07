@@ -9,6 +9,12 @@ struct NavPill: View {
         if model.preferences.appearance.navPill == .dots { dots } else { tabs }
     }
 
+    /// Labels go into the free space beside the pill, away from the shelf: below it, or above
+    /// it on the bottom edge where the pill sits over the shelf.
+    private var hintEdge: HoverHint.Edge {
+        model.layout.edge == .bottom ? .top : .bottom
+    }
+
     private var pages: [(ShelfPage, String)] {
         [(.home, "Home"), (.tray, "Tray"), (.media, "Media"), (.widgets, "Widgets")]
     }
@@ -27,6 +33,7 @@ struct NavPill: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .hoverHint(name, edge: hintEdge)
                 .accessibilityLabel(name)
             }
             formMenu.scaleEffect(0.7).frame(width: 22, height: 18)
@@ -75,7 +82,7 @@ struct NavPill: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Change form")
+        .hoverHint("Change form", edge: hintEdge, help: "Change form")
         .accessibilityLabel("Form: \(model.form.title)")
     }
 
@@ -104,6 +111,7 @@ struct NavPill: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hoverHint(name, edge: hintEdge)
         .accessibilityLabel(badge > 0 ? "\(name), \(badge) file\(badge == 1 ? "" : "s")" : name)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }

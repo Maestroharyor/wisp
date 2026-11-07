@@ -51,6 +51,8 @@ struct NotchView: View {
                     .transition(.navDrop(model.motion, ride: navRide(pill), drift: navDrift))
             }
         }
+        // The nav pill's labels, drawn over the shell.
+        .hoverHintHost()
         .overlay {
             ConfettiLayer(model: model)
                 .allowsHitTesting(false)
@@ -145,6 +147,9 @@ private struct SurfaceView: View {
             }
             .opacity(see)
             content
+                // Hover labels stay inside the shell, clear of the flares, since the clip below would cut them.
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .hoverHintHost(topInset: hintTopInset)
                 .padding(.horizontal, side ? 0 : flare)
                 .padding(.vertical, side ? flare : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -182,6 +187,11 @@ private struct SurfaceView: View {
         // into the notch in both directions instead of snapping shut.
         .animation(model.surfaceAnimation, value: model.spec)
         .contentShape(shape)
+    }
+
+    /// Content runs behind the camera housing on the top edge; labels stay below it.
+    private var hintTopInset: CGFloat {
+        model.isNotchStyle && model.layout.edge == .top ? model.notchHeight : 0
     }
 
     /// A notch at rest casts no shadow; the orb floats over windows, so it keeps a soft one.

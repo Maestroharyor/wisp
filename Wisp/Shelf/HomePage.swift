@@ -67,6 +67,7 @@ struct HomePage: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove \(kind.title) from Home")
+                .hoverHint("Remove from Home")
                 .offset(x: -2, y: -4)
             }
             .overlay(alignment: .bottomTrailing) {
@@ -119,14 +120,14 @@ struct HomePage: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Cancel")
-            .help("Cancel")
+            .hoverHint("Cancel")
             Button(action: endEditing) {
                 Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
                     .frame(width: 28, height: 28).background(Circle().fill(Color.accentColor))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Done")
-            .help("Done")
+            .hoverHint("Done")
         }
         .frame(height: SurfaceSizing.pickerRowHeight - 12)
     }
@@ -378,9 +379,9 @@ private struct SoloBackButton: View {
                 .background(Circle().fill(.white.opacity(0.12)))
         }
         .buttonStyle(.plain)
+        .hoverHint(label)
         .offset(x: -26, y: 2)
         .accessibilityLabel(label)
-        .help(label)
     }
 }
 
@@ -438,12 +439,10 @@ struct MediaPage: View {
                 if model.preferences.lyrics {
                     ShelfButton(
                         symbol: showsLyrics ? "quote.bubble.fill" : "quote.bubble", size: 12,
-                        tint: showsLyrics ? .accentColor : .white
+                        tint: showsLyrics ? .accentColor : .white, hint: "Lyrics (from LRCLIB)"
                     ) { withAnimation(.easeOut(duration: 0.2)) { model.showsLyrics.toggle() } }
-                    .help("Lyrics (from LRCLIB)")
                 }
                 ShelfButton(symbol: "pip", size: 12) { services.miniPlayer.toggle() }
-                    .help("Mini player")
             }
         }
         .frame(width: SurfaceSizing.mediaPageWidth, height: SurfaceSizing.shelfContentHeight)
