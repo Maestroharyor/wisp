@@ -29,6 +29,13 @@ enum ShelfPage: Hashable {
     }
 }
 
+/// A live activity's own view, opened by clicking its pill, for activities that have no widget.
+enum ActivityDetail: Hashable {
+    case regionWatch
+    case downloads
+    case external
+}
+
 /// What the SwiftUI notch view renders for one display.
 @MainActor
 @Observable
@@ -46,6 +53,8 @@ final class NotchModel {
     var page: ShelfPage = .home {
         didSet {
             soloWidget = nil
+            activityDetail = nil
+            soloFromPill = false
             pageMovedForward = page.order >= oldValue.order
         }
     }
@@ -53,6 +62,24 @@ final class NotchModel {
     private(set) var pageMovedForward = true
     /// The widget opened on its own from the Widgets page grid.
     var soloWidget: WidgetKind?
+    /// A pill's own view, shown on the Widgets page the way a solo widget is.
+    var activityDetail: ActivityDetail?
+    /// The page to go back to once the shelf closes, after a pill (or a widget opened from
+    /// outside the grid) took the shelf to its own view.
+    var returnPage: ShelfPage?
+    /// The solo view on screen was opened by a pill, so its way back is `returnPage`, not the grid.
+    var soloFromPill = false
+
+    /// The back chevron and Esc on a solo view: to the page a pill's view came from, or to the grid.
+    func leaveSolo() {
+        if soloFromPill, let returnPage {
+            self.returnPage = nil
+            page = returnPage
+        } else {
+            soloWidget = nil
+            activityDetail = nil
+        }
+    }
     var editingHome = false
     /// Widget order when customising began, restored on cancel.
     var homeSnapshot: (layout: HomeLayout, enabled: [WidgetKind], profile: String)?
@@ -137,6 +164,7 @@ final class NotchModel {
                 return .home(contentWidth: preferences.homeLayout.contentWidth, editing: editingHome)
             case .media: return .media
             case .widgets:
+                if activityDetail != nil { return .widgetSolo(wide: false) }
                 if let soloWidget { return .widgetSolo(wide: soloWidget.hasDetailPage) }
                 let count = preferences.gridWidgets.count
                 return .widgetGrid(

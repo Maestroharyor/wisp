@@ -21,8 +21,6 @@ final class NotchController {
     private var swipe = SwipeDetector()
     /// The card whose countdown is paused because the pointer is on it.
     private var heldSlot: ActivitySlot?
-    /// The page to go back to after a click on a live activity opened its own view.
-    private var returnPage: ShelfPage?
     /// A press on the closed shell. It acts on mouse-up, so dragging the shell moves it instead.
     private(set) var pendingPress = false
     /// Apple's island sits at the top of this display; the notch form isn't offered.
@@ -370,14 +368,49 @@ final class NotchController {
         pendingPress = false
     }
 
-    /// A click on the agent pill opens the Agents widget on its own, on the session the pill
-    /// showed, whatever the profile's Home holds. Other pills open the usual page.
+    /// A click on a live pill opens that activity's own view, whatever the profile's Home
+    /// holds: the agent pill opens the Agents widget on the session it showed. Pills with
+    /// nothing more to show open the usual page. Closing goes back to where the shelf was.
     private func showActivityView() {
-        guard case .agent(let status) = model.activity else { return }
-        model.focusedSession = status.sessionID
-        returnPage = model.page
+        guard let activity = model.activity else { return }
+        switch PillDestination(slot: services.activities.currentSlot) {
+        case .home: return
+        case .agents:
+            if case .agent(let status) = activity { model.focusedSession = status.sessionID }
+            showSolo(.agents)
+        case .timer: showSolo(Self.timerWidget(for: activity))
+        case .nowPlaying: showSolo(.nowPlaying)
+        case .battery: showSolo(.battery)
+        case .tray:
+            model.returnPage = model.page
+            model.page = .tray
+        case .downloads: showDetail(.downloads)
+        case .regionWatch: showDetail(.regionWatch)
+        case .externalDetails: showDetail(.external)
+        }
+    }
+
+    /// The timer slot carries the plain timer or the Pomodoro; each has its own widget.
+    private static func timerWidget(for activity: Activity) -> WidgetKind {
+        switch activity {
+        case .timer(let label, _), .timerDone(let label):
+            label == TimerStore.timerLabel ? .timer : .pomodoro
+        default: .timer
+        }
+    }
+
+    private func showSolo(_ widget: WidgetKind) {
+        model.returnPage = model.page
         model.page = .widgets
-        model.soloWidget = .agents
+        model.soloWidget = widget
+        model.soloFromPill = true
+    }
+
+    private func showDetail(_ detail: ActivityDetail) {
+        model.returnPage = model.page
+        model.page = .widgets
+        model.activityDetail = detail
+        model.soloFromPill = true
     }
 
     /// Two fingers on the closed notch: down opens the shelf, up puts away a card or alert,
@@ -503,10 +536,11 @@ final class NotchController {
         updateClickThrough()
     }
 
-    /// Esc on a solo widget goes back to the grid rather than closing the shelf.
+    /// Esc on a solo view steps back (to the grid, or to the page a pill's view came from)
+    /// rather than closing the shelf.
     func leaveSoloWidget() -> Bool {
-        guard machine.phase == .open, model.soloWidget != nil else { return false }
-        model.soloWidget = nil
+        guard machine.phase == .open, model.soloWidget != nil || model.activityDetail != nil else { return false }
+        model.leaveSolo()
         return true
     }
 
@@ -522,7 +556,7 @@ final class NotchController {
     }
 
     func open(widget: WidgetKind) {
-        returnPage = model.page
+        model.returnPage = model.page
         model.page = .widgets
         model.soloWidget = widget
         if machine.phase != .open { send(.hotkey) }
@@ -616,10 +650,11 @@ final class NotchController {
             panel.resignKey()
             model.editingHome = false
             model.soloWidget = nil
-            // The next plain click opens where it used to, not on the agent view.
-            if let returnPage {
+            model.activityDetail = nil
+            // The next plain click opens where it used to, not on the activity's view.
+            if let returnPage = model.returnPage {
                 model.page = returnPage
-                self.returnPage = nil
+                model.returnPage = nil
             }
             model.dragging = false
             // Re-sync with the smaller closed region so the next hover is detected cleanly, and
