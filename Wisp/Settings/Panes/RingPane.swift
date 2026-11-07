@@ -6,6 +6,7 @@ import WispCore
 struct RingSettings: View {
     @Bindable var preferences: Preferences
     let trigger: RingTrigger
+    let hotkeys: HotkeyCenter
 
     /// The ring being edited: nil for the default ring, else an app's ring.
     @State private var editing: UUID?
@@ -19,6 +20,10 @@ struct RingSettings: View {
                 Toggle("Keyboard shortcut", isOn: hasRingHotkey)
                 if preferences.ringHotkey != nil {
                     LabeledContent("Shortcut") { HotkeyRecorder(hotkey: ringHotkey) }
+                    if hotkeys.ringHotkeyTaken {
+                        Text("Wisp couldn't register this shortcut. Choose another.")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
                 }
                 Picker("Mouse button", selection: $preferences.ringButton) {
                     ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -28,7 +33,7 @@ struct RingSettings: View {
                 }
                 Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
                 Text(
-                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. The centre of the ring opens the shelf; files dragged onto the orb open the ring to drop them on an action."
+                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. The centre of the ring opens the shelf. Files dragged onto the orb always open the ring, to drop them on an action or on the centre for the tray."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }

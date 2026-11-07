@@ -29,6 +29,8 @@ final class HotkeyCenter {
     @ObservationIgnored var onClipboard: @MainActor () -> Void = {}
     @ObservationIgnored var onRing: @MainActor () -> Void = {}
     @ObservationIgnored var onCycleForm: @MainActor () -> Void = {}
+    /// The ring's shortcut couldn't be registered, for example because Wisp already uses it.
+    private(set) var ringHotkeyTaken = false
     /// Hyper+1…9 picks a profile.
     @ObservationIgnored var onProfileDigit: @MainActor (Int) -> Void = { _ in }
 
@@ -80,7 +82,9 @@ final class HotkeyCenter {
         clipboardCarbon.unregister()
         ringCarbon.unregister()
         if let ringHotkey = preferences.ringHotkey {
-            _ = ringCarbon.register(ringHotkey) { [weak self] in self?.onRing() }
+            ringHotkeyTaken = !ringCarbon.register(ringHotkey) { [weak self] in self?.onRing() }
+        } else {
+            ringHotkeyTaken = false
         }
 
         let hotkey = preferences.hotkey

@@ -470,16 +470,18 @@ public enum RingInteraction {
     }
 
     /// What picking `hit` does. Agents has nothing to run itself, so a first pick opens its
-    /// sessions; files dropped on the centre go to the tray.
+    /// sessions; files dropped on the centre go to the tray. `subItemCount` is the open
+    /// sub-ring's size; `hasChoices` says whether a segment has choices to open.
     public static func outcome(
-        of hit: RingHit, slots: [RingSlot], expanded: Int?, subItemCount: Int, hasFiles: Bool
+        of hit: RingHit, slots: [RingSlot], expanded: Int?, subItemCount: Int, hasFiles: Bool,
+        hasChoices: (Int) -> Bool
     ) -> Outcome {
         switch hit {
         case .centre:
             return hasFiles ? .keepFiles : .openShelf
         case .slot(let index):
             guard slots.indices.contains(index) else { return .close }
-            if slots[index].action.opensChoices, !hasFiles, expanded != index, subItemCount > 0 {
+            if slots[index].action.opensChoices, !hasFiles, expanded != index, hasChoices(index) {
                 return .expand(index)
             }
             return .run(slot: index)

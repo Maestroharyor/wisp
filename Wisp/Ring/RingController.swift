@@ -155,7 +155,8 @@ final class RingController {
     func pick(_ hit: RingHit, files: [URL]) {
         let outcome = RingInteraction.outcome(
             of: hit, slots: model.set.slots, expanded: model.expanded, subItemCount: model.expandedItems.count,
-            hasFiles: !files.isEmpty)
+            hasFiles: !files.isEmpty,
+            hasChoices: { [model] in !model.subItems(of: $0).isEmpty })
         if case .expand(let index) = outcome {
             model.expanded = index
             return

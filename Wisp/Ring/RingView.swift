@@ -19,7 +19,7 @@ struct RingView: View {
                 .opacity(shown ? 1 : 0)
                 .animation(
                     shown ? .spring(response: 0.32, dampingFraction: 0.74) : .easeIn(duration: 0.14), value: shown)
-            ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
+            ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
                 let wedge = RingGeometry.sector(index, count: slots.count)
                 RingWedge(
                     start: wedge.start, end: wedge.end, inner: RingGeometry.ringInner, outer: RingGeometry.ringOuter,

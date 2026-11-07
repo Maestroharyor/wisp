@@ -261,32 +261,50 @@ final class RingInteractionTests: XCTestCase {
 
     func testPicks() {
         XCTAssertEqual(
-            RingInteraction.outcome(of: .centre, slots: slots, expanded: nil, subItemCount: 0, hasFiles: false),
+            RingInteraction.outcome(
+                of: .centre, slots: slots, expanded: nil, subItemCount: 0, hasFiles: false, hasChoices: { _ in false }),
             .openShelf)
         XCTAssertEqual(
-            RingInteraction.outcome(of: .centre, slots: slots, expanded: nil, subItemCount: 0, hasFiles: true),
+            RingInteraction.outcome(
+                of: .centre, slots: slots, expanded: nil, subItemCount: 0, hasFiles: true, hasChoices: { _ in false }),
             .keepFiles)
         XCTAssertEqual(
-            RingInteraction.outcome(of: .slot(1), slots: slots, expanded: nil, subItemCount: 2, hasFiles: false),
+            RingInteraction.outcome(
+                of: .slot(1), slots: slots, expanded: nil, subItemCount: 2, hasFiles: false, hasChoices: { _ in true }),
             .expand(1))
         XCTAssertEqual(
-            RingInteraction.outcome(of: .slot(1), slots: slots, expanded: 1, subItemCount: 2, hasFiles: false),
+            RingInteraction.outcome(
+                of: .slot(1), slots: slots, expanded: 1, subItemCount: 2, hasFiles: false, hasChoices: { _ in true }),
             .run(slot: 1))
         XCTAssertEqual(
-            RingInteraction.outcome(of: .slot(1), slots: slots, expanded: nil, subItemCount: 0, hasFiles: false),
+            RingInteraction.outcome(
+                of: .slot(1), slots: slots, expanded: nil, subItemCount: 0, hasFiles: false, hasChoices: { _ in false }),
             .run(slot: 1))
         XCTAssertEqual(
-            RingInteraction.outcome(of: .sub(2), slots: slots, expanded: 2, subItemCount: 3, hasFiles: false),
+            RingInteraction.outcome(
+                of: .sub(2), slots: slots, expanded: 2, subItemCount: 3, hasFiles: false, hasChoices: { _ in false }),
             .runSub(slot: 2, item: 2))
         XCTAssertEqual(
-            RingInteraction.outcome(of: .sub(5), slots: slots, expanded: 2, subItemCount: 3, hasFiles: false),
+            RingInteraction.outcome(
+                of: .sub(5), slots: slots, expanded: 2, subItemCount: 3, hasFiles: false, hasChoices: { _ in false }),
             .close)
         XCTAssertEqual(
-            RingInteraction.outcome(of: .slot(12), slots: slots, expanded: nil, subItemCount: 0, hasFiles: false),
+            RingInteraction.outcome(
+                of: .slot(12), slots: slots, expanded: nil, subItemCount: 0, hasFiles: false, hasChoices: { _ in false }
+            ),
             .close)
         XCTAssertEqual(
-            RingInteraction.outcome(of: .none, slots: slots, expanded: nil, subItemCount: 0, hasFiles: false),
+            RingInteraction.outcome(
+                of: .none, slots: slots, expanded: nil, subItemCount: 0, hasFiles: false, hasChoices: { _ in false }),
             .close)
+    }
+
+    func testClickingAnotherSlotWithNoChoicesRunsIt() {
+        // Agents' sub-ring is open, with three items; the clicked slot has none of its own.
+        XCTAssertEqual(
+            RingInteraction.outcome(
+                of: .slot(1), slots: slots, expanded: 2, subItemCount: 3, hasFiles: false, hasChoices: { _ in false }),
+            .run(slot: 1))
     }
 }
 
@@ -302,7 +320,8 @@ final class RingFormTests: XCTestCase {
     func testPickingFormOpensItsChoices() {
         let slots = [RingSlot(RingAction(.form))]
         XCTAssertEqual(
-            RingInteraction.outcome(of: .slot(0), slots: slots, expanded: nil, subItemCount: 5, hasFiles: false),
+            RingInteraction.outcome(
+                of: .slot(0), slots: slots, expanded: nil, subItemCount: 5, hasFiles: false, hasChoices: { _ in true }),
             .expand(0))
         XCTAssertTrue(RingAction(.form).opensChoices)
         XCTAssertFalse(RingAction(.home).opensChoices)
