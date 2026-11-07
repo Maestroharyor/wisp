@@ -329,6 +329,50 @@ final class RegionWatchTests: XCTestCase {
         XCTAssertEqual(monitor.observe(sample(last, at: 84)), .fired)
     }
 
+    // MARK: Small regions
+
+    /// A 200 x 20 pt prompt line drawn at 160 x 16 (1.25 pt a pixel), with an 8 x 17 pt
+    /// cursor (6 x 14 px, about 3% of the frame) and optionally some real content changed.
+    private func promptLine(contentChanged: Bool = false, cursor: Bool, at seconds: TimeInterval)
+        -> RegionWatchSample
+    {
+        let width = 160
+        var pixels = [UInt8](repeating: 30, count: width * 16)
+        if contentChanged {
+            for row in 0..<10 { for column in 0..<10 { pixels[row * width + column] = 200 } }
+        }
+        if cursor {
+            for row in 1..<15 { for column in 100..<106 { pixels[row * width + column] = 220 } }
+        }
+        guard let frame = LuminanceFrame(width: width, height: 16, pixels: pixels) else {
+            preconditionFailure("bad test frame")
+        }
+        return RegionWatchSample(
+            frame: frame, text: nil, time: start.addingTimeInterval(seconds), pointsPerPixel: 1.25)
+    }
+
+    func testCursorFloorIsOneCursorAtTheGridScale() {
+        XCTAssertEqual(FlickerMask.cursorFloor(pointsPerPixel: 1.25), 128)
+        XCTAssertEqual(FlickerMask.cursorFloor(pointsPerPixel: 1), 200)
+    }
+
+    func testACursorInASmallRegionDoesNotFireChanged() {
+        var monitor = RegionWatchMonitor(rule: .changed)
+        for step in 0..<10 {
+            let outcome = monitor.observe(promptLine(cursor: step % 2 == 1, at: Double(step) * 3))
+            XCTAssertEqual(outcome, .watching, "step \(step)")
+        }
+    }
+
+    func testACursorInASmallRegionDoesNotBlockStoppedChanging() {
+        var monitor = RegionWatchMonitor(rule: .stoppedChanging(seconds: 6))
+        _ = monitor.observe(promptLine(cursor: false, at: 0))
+        XCTAssertEqual(monitor.observe(promptLine(contentChanged: true, cursor: true, at: 2)), .watching)
+        XCTAssertEqual(monitor.observe(promptLine(contentChanged: true, cursor: false, at: 4)), .watching)
+        XCTAssertEqual(monitor.observe(promptLine(contentChanged: true, cursor: true, at: 6)), .watching)
+        XCTAssertEqual(monitor.observe(promptLine(contentChanged: true, cursor: false, at: 8)), .fired)
+    }
+
     func testFlickerMarksOnlyPixelsThatFlipBack() {
         let mask = LuminanceFrame.flickering(
             older: screen(cursor: false), previous: screen(contentChanged: true, cursor: true),

@@ -135,12 +135,14 @@ public struct LuminanceFrame: Equatable, Sendable {
 /// Pixels that keep flipping back, such as a blinking cursor, to leave out of comparisons.
 /// Kept small and short-lived so content that is really moving (a scrolling log) can't hide
 /// in it: a pixel is masked only after two flips, forgotten after `memory` samples without
-/// one, and if more than 2% of the region would be masked the mask is cleared and the
-/// flicker counts as a real change.
+/// one, and if more than 2% of the region (or one cursor, in a small region) would be masked
+/// the mask is cleared and the flicker counts as a real change.
 public struct FlickerMask: Equatable, Sendable {
     public static let flipsNeeded = 2
     public static let memory = 10
     public static let maximumShare = 0.02
+    /// A text cursor with room to spare, in points.
+    public static let cursorArea = CGSize(width: 10, height: 20)
 
     public private(set) var mask: [Bool] = []
     private var flips: [Int] = []
@@ -149,9 +151,16 @@ public struct FlickerMask: Equatable, Sendable {
 
     public init() {}
 
+    /// The pixels one cursor covers at a grid scale of `pointsPerPixel`, so a cursor in a
+    /// small region (a 200 x 20 pt prompt line) is still masked rather than counted as change.
+    public static func cursorFloor(pointsPerPixel: CGFloat) -> Int {
+        guard pointsPerPixel > 0 else { return 0 }
+        return Int((cursorArea.width * cursorArea.height / (pointsPerPixel * pointsPerPixel)).rounded(.up))
+    }
+
     /// Records one sample's flipped pixels (nil when there's nothing to compare yet).
-    /// Returns true when too much of the region flickers to be a cursor.
-    public mutating func record(_ flipped: [Bool]?, pixelCount: Int) -> Bool {
+    /// Returns true when more flickers than `max(2% of the region, floor)` pixels.
+    public mutating func record(_ flipped: [Bool]?, pixelCount: Int, floor: Int = 0) -> Bool {
         if mask.count != pixelCount { clear(pixelCount) }
         sample += 1
         if let flipped, flipped.count == pixelCount {
@@ -166,7 +175,7 @@ public struct FlickerMask: Equatable, Sendable {
             mask[index] = flips[index] >= Self.flipsNeeded
             if mask[index] { masked += 1 }
         }
-        guard Double(masked) > Double(pixelCount) * Self.maximumShare else { return false }
+        guard Double(masked) > max(Double(pixelCount) * Self.maximumShare, Double(floor)) else { return false }
         clear(pixelCount)
         return true
     }
@@ -183,11 +192,14 @@ public struct RegionWatchSample: Sendable {
     public let frame: LuminanceFrame
     public let text: String?
     public let time: Date
+    /// Region points per frame pixel, for sizing things in points (a cursor) on the frame.
+    public let pointsPerPixel: CGFloat
 
-    public init(frame: LuminanceFrame, text: String?, time: Date) {
+    public init(frame: LuminanceFrame, text: String?, time: Date, pointsPerPixel: CGFloat = 1) {
         self.frame = frame
         self.text = text
         self.time = time
+        self.pointsPerPixel = pointsPerPixel
     }
 }
 
@@ -222,7 +234,9 @@ public struct RegionWatchMonitor: Sendable {
         let flipped = older.flatMap { older in
             previous.flatMap { LuminanceFrame.flickering(older: older, previous: $0, current: sample.frame) }
         }
-        let flickersTooMuch = flicker.record(flipped, pixelCount: sample.frame.pixels.count)
+        let flickersTooMuch = flicker.record(
+            flipped, pixelCount: sample.frame.pixels.count,
+            floor: FlickerMask.cursorFloor(pointsPerPixel: sample.pointsPerPixel))
         defer {
             older = previous
             previous = sample.frame

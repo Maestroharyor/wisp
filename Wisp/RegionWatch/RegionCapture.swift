@@ -77,7 +77,9 @@ actor RegionCaptureSession {
             throw error
         }
         guard let frame = Self.luminance(of: image, size: grid) else { throw RegionCaptureError.noImage }
-        return RegionWatchSample(frame: frame, text: readsText ? Self.recognizedText(in: image) : nil, time: .now)
+        return RegionWatchSample(
+            frame: frame, text: readsText ? Self.recognizedText(in: image) : nil, time: .now,
+            pointsPerPixel: source.width / grid.width)
     }
 
     private func currentWindow() async throws -> SCWindow {
