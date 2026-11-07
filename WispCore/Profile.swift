@@ -98,4 +98,10 @@ public struct Profile: Codable, Equatable, Identifiable, Sendable {
     public static func index(forDigit digit: Int, count: Int) -> Int? {
         (1...max(count, 1)).contains(digit) && digit <= count ? digit - 1 : nil
     }
+
+    /// A name typed into a Shortcut or link: the exact name first, then ignoring case.
+    public static func index(named name: String, in profiles: [Profile]) -> Int? {
+        profiles.firstIndex { $0.name == name }
+            ?? profiles.firstIndex { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    }
 }

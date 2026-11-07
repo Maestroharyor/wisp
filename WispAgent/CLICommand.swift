@@ -3,7 +3,8 @@ import Foundation
 import WispCore
 
 /// `wisp status`, `wisp watch` and `wisp spend`: asks Wisp over its socket and prints the
-/// answer. What gets printed is built by `AgentCLI`; this is only the I/O.
+/// answer. `wisp activity` posts a live activity. What gets printed and sent is built by
+/// `AgentCLI` and `ExternalCommand`; this is only the I/O.
 enum CLICommand {
     private static let timeout: TimeInterval = 2
     /// Under the redraw interval, so Ctrl-C (handled on the same queue) never waits long.
@@ -26,6 +27,30 @@ enum CLICommand {
             exit(0)
         case .watch:
             watch(socketPath: socketPath, environment: environment)
+        case .activityHelp:
+            print(AgentCLI.activityUsage, terminator: "")
+            exit(0)
+        case .activity(let action):
+            post(action, socketPath: socketPath)
+        }
+    }
+
+    /// Sends a live activity and waits for Wisp to say it took it, so a typo'd setup or a
+    /// stopped Wisp shows up in the script instead of failing silently.
+    private static func post(_ action: ExternalActivityAction, socketPath: String) -> Never {
+        guard
+            let message = AgentProtocol.envelope(
+                kind: .activity, source: .claude, terminal: nil, payload: action.payload)
+        else { fail(AgentCLI.tooOld, code: 1) }
+        switch SocketSend.request(message, to: socketPath, timeout: timeout) {
+        case .notRunning: fail(AgentCLI.notRunning, code: 1)
+        case .timedOut: fail("Wisp didn't answer.", code: 1)
+        case .data(let data):
+            switch AgentProtocol.ActivityReply(data) {
+            case .accepted: exit(0)
+            case .rejected(let problem): fail(problem, code: 1)
+            case nil: fail(AgentCLI.tooOld, code: 1)
+            }
         }
     }
 

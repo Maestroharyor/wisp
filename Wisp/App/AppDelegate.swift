@@ -36,11 +36,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         services.cycleForm = { [weak self] in self?.coordinator.cycleForm() }
         services.start()
         coordinator.start()
+        services.automation.acceptLinks()
         hotkeys.onToggle = { [weak self] in self?.toggleShelf() }
         hotkeys.onClipboard = { [weak self] in self?.toggleClipboard() }
         hotkeys.onProfileDigit = { [weak self] digit in self?.services.context.choose(digit: digit) }
         hotkeys.onRing = { [weak self] in self?.services.ring.toggle(at: NSEvent.mouseLocation) }
         hotkeys.onCycleForm = { [weak self] in self?.services.cycleForm() }
+        hotkeys.onApprovalKey = { [weak self] keyCode in
+            guard let services = self?.services else { return false }
+            // Out of sight (a HUD over the card): swallowed and ignored, so it neither answers
+            // nor types into the front app.
+            guard services.approvalOnScreen else { return services.agents.keyHasAction(keyCode) }
+            return services.agents.answerKey(keyCode)
+        }
+        hotkeys.onApprovalKeyUp = { [weak self] keyCode in self?.services.agents.releaseKey(keyCode) }
+        services.approvalCardChanged = { [weak self] prompt in self?.hotkeys.setApprovalCard(prompt) }
+        services.isShelfOpen = { [weak self] in self?.coordinator.hasOpenShelf ?? false }
         hotkeys.onDictation = { [weak self] event in self?.services.dictation.handle(event) }
         services.dictation.onTap = { [weak self] in self?.toggleShelf() }
         services.dictation.resolveTarget = { [weak self] in self?.coordinator.dictationTarget() ?? .focusedApp }
@@ -89,6 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showSettings()
         return false
+    }
+
+    /// `wisp://` links. Opening one launches Wisp first if needed, after which this runs.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { services.automation.open(url) }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

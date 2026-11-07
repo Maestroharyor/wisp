@@ -84,6 +84,8 @@ final class NotchCoordinator {
         preferences.setForm(form, for: controller.screenUUID)
     }
 
+    var hasOpenShelf: Bool { controllers.values.contains { $0.phase == .open } }
+
     /// Hyper+F: the next form on the display under the pointer.
     func cycleForm() {
         let (form, systemIsland) = formUnderPointer()

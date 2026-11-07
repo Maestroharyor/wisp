@@ -8,6 +8,8 @@ import WispCore
 final class HyperKeyTap {
     /// Called for each key pressed while Hyper is held. Return true to swallow it.
     var onHyperChord: (UInt16) -> Bool = { _ in false }
+    /// Called when a key whose chord was swallowed comes back up (or its key-up was lost).
+    var onChordReleased: (UInt16) -> Void = { _ in }
     var quickPressTogglesCapsLock = true
     /// A key whose press and release with Hyper go to `onHold` instead of `onHyperChord`.
     var holdKey: UInt16?
@@ -89,12 +91,16 @@ final class HyperKeyTap {
         // of the shelf key into a toggle, and a stale swallowed key-up would eat a real one.
         hyperDown = false
         chordUsed = true
+        swallowedKeyUps.forEach(onChordReleased)
         swallowedKeyUps.removeAll()
         endHold()
     }
 
     /// Decides whether a key event is swallowed (true) or passed on (false).
-    fileprivate func shouldSwallow(keyCode: UInt16, isKeyDown: Bool) -> Bool {
+    /// `isRepeat` is a key-down sent because the key is held. Order matters: the hold key
+    /// (and Esc during a hold) comes first, since it owns its own repeats and release; then
+    /// Hyper itself; then key-ups of swallowed chords; then repeats, which never act; then chords.
+    fileprivate func shouldSwallow(keyCode: UInt16, isKeyDown: Bool, isRepeat: Bool) -> Bool {
         switch hold.key(keyCode, down: isKeyDown, hyperDown: hyperDown, holdKey: holdKey) {
         case .notMine: break
         case .swallow(let event):
@@ -118,7 +124,15 @@ final class HyperKeyTap {
         }
 
         if !isKeyDown, swallowedKeyUps.remove(keyCode) != nil {
+            onChordReleased(keyCode)
             return true
+        }
+
+        // A held key repeats; acting on each repeat would answer card after card or toggle the
+        // shelf over and over. One press, one action. Only a swallowed chord's repeats are
+        // swallowed; others (a key held before Caps Lock) pass on untouched.
+        if isKeyDown, isRepeat {
+            return swallowedKeyUps.contains(keyCode)
         }
 
         if isKeyDown, hyperDown {
@@ -151,6 +165,9 @@ private func hyperTapCallback(
 
     let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
     let isKeyDown = type == .keyDown
-    let swallow = MainActor.assumeIsolated { tap.shouldSwallow(keyCode: keyCode, isKeyDown: isKeyDown) }
+    let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+    let swallow = MainActor.assumeIsolated {
+        tap.shouldSwallow(keyCode: keyCode, isKeyDown: isKeyDown, isRepeat: isRepeat)
+    }
     return swallow ? nil : Unmanaged.passUnretained(event)
 }
