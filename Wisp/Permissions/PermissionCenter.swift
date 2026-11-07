@@ -3,6 +3,7 @@ import AppKit
 import Contacts
 import CoreGraphics
 import EventKit
+import Speech
 import WispCore
 
 /// Every macOS permission Wisp can use, with a status check and a deep link.
@@ -14,6 +15,8 @@ enum Permission: String, CaseIterable, Identifiable {
     case automation
     case calendars
     case camera
+    case microphone
+    case speechRecognition
 
     var id: Self { self }
 
@@ -26,6 +29,8 @@ enum Permission: String, CaseIterable, Identifiable {
         case .automation: "Automation"
         case .calendars: "Calendars"
         case .camera: "Camera"
+        case .microphone: "Microphone"
+        case .speechRecognition: "Speech Recognition"
         }
     }
 
@@ -39,6 +44,8 @@ enum Permission: String, CaseIterable, Identifiable {
         case .automation: "Replying in Messages, meeting controls, Music fallback"
         case .calendars: "Calendar and Day Progress widgets"
         case .camera: "Mirror widget"
+        case .microphone: "Dictation, only while you hold the key"
+        case .speechRecognition: "Dictation, transcribed on this Mac"
         }
     }
 
@@ -52,6 +59,8 @@ enum Permission: String, CaseIterable, Identifiable {
         case .automation: AutomationPermission.status
         case .calendars: EKEventStore.authorizationStatus(for: .event) == .fullAccess
         case .camera: AVCaptureDevice.authorizationStatus(for: .video) == .authorized
+        case .microphone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        case .speechRecognition: SFSpeechRecognizer.authorizationStatus() == .authorized
         }
     }
 
@@ -69,6 +78,8 @@ enum Permission: String, CaseIterable, Identifiable {
         case .automation: "Privacy_Automation"
         case .calendars: "Privacy_Calendars"
         case .camera: "Privacy_Camera"
+        case .microphone: "Privacy_Microphone"
+        case .speechRecognition: "Privacy_SpeechRecognition"
         }
     }
 
@@ -89,6 +100,12 @@ enum Permission: String, CaseIterable, Identifiable {
         case .camera:
             guard AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined else { return openSettings() }
             Task { _ = await AVCaptureDevice.requestAccess(for: .video) }
+        case .microphone:
+            guard AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined else { return openSettings() }
+            Task { _ = await AVCaptureDevice.requestAccess(for: .audio) }
+        case .speechRecognition:
+            guard SFSpeechRecognizer.authorizationStatus() == .notDetermined else { return openSettings() }
+            Task { _ = await DictationEngine.requestSpeechAccess() }
         case .calendars:
             guard EKEventStore.authorizationStatus(for: .event) == .notDetermined else { return openSettings() }
             Task { _ = try? await EKEventStore().requestFullAccessToEvents() }

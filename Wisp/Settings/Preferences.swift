@@ -192,6 +192,8 @@ final class Preferences {
     private enum Key {
         static let hotkey = "hotkey"
         static let quickPressTogglesCapsLock = "quickPressTogglesCapsLock"
+        static let dictationEnabled = "dictationEnabled"
+        static let dictationKey = "dictationKey"
         static let showOnExternalDisplays = "showOnExternalDisplays"
         static let hoverDelay = "hoverDelay"
         static let openTrigger = "openTrigger"
@@ -311,6 +313,10 @@ final class Preferences {
     var quickPressTogglesCapsLock: Bool {
         didSet { defaults.set(quickPressTogglesCapsLock, forKey: Key.quickPressTogglesCapsLock) }
     }
+
+    /// Hold a Hyper key to dictate. Off by default: it asks for Speech Recognition and the microphone.
+    var dictationEnabled: Bool { didSet { defaults.set(dictationEnabled, forKey: Key.dictationEnabled) } }
+    var dictationKey: DictationKey { didSet { defaults.set(dictationKey.rawValue, forKey: Key.dictationKey) } }
 
     /// Show the shelf on displays without a notch.
     var showOnExternalDisplays: Bool {
@@ -933,6 +939,8 @@ final class Preferences {
         ])
         hotkey = defaults.string(forKey: Key.hotkey).flatMap(Hotkey.init(string:)) ?? .hyperSpace
         quickPressTogglesCapsLock = defaults.bool(forKey: Key.quickPressTogglesCapsLock)
+        dictationEnabled = defaults.bool(forKey: Key.dictationEnabled)
+        dictationKey = defaults.string(forKey: Key.dictationKey).flatMap(DictationKey.init(rawValue:)) ?? .space
         showOnExternalDisplays = defaults.bool(forKey: Key.showOnExternalDisplays)
         hoverDelay = defaults.double(forKey: Key.hoverDelay)
         openTrigger = defaults.string(forKey: Key.openTrigger).flatMap(OpenTrigger.init(rawValue:)) ?? .click

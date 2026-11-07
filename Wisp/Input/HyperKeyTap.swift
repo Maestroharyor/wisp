@@ -9,12 +9,23 @@ final class HyperKeyTap {
     /// Called for each key pressed while Hyper is held. Return true to swallow it.
     var onHyperChord: (UInt16) -> Bool = { _ in false }
     var quickPressTogglesCapsLock = true
+    /// A key whose press and release with Hyper go to `onHold` instead of `onHyperChord`.
+    var holdKey: UInt16?
+    /// Hold events, in order. Read from a task, never inside the tap callback: macOS disables a
+    /// tap that takes too long, and starting audio can.
+    let holdEvents: AsyncStream<HoldKey.Event>
+    private let holdContinuation: AsyncStream<HoldKey.Event>.Continuation
 
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var hyperDown = false
     private var chordUsed = false
     private var swallowedKeyUps: Set<UInt16> = []
+    private var hold = HoldKey()
+
+    init() {
+        (holdEvents, holdContinuation) = AsyncStream.makeStream(of: HoldKey.Event.self)
+    }
 
     var isRunning: Bool { tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false }
 
@@ -53,6 +64,16 @@ final class HyperKeyTap {
         source = nil
         hyperDown = false
         swallowedKeyUps.removeAll()
+        endHold()
+    }
+
+    /// The key-up will never come (the tap stopped or missed it): a hold can't finish.
+    private func endHold() {
+        if let event = hold.reset() { report(event) }
+    }
+
+    private func report(_ event: HoldKey.Event) {
+        holdContinuation.yield(event)
     }
 
     fileprivate func reenable() {
@@ -63,10 +84,20 @@ final class HyperKeyTap {
         hyperDown = false
         chordUsed = true
         swallowedKeyUps.removeAll()
+        endHold()
     }
 
     /// Decides whether a key event is swallowed (true) or passed on (false).
     fileprivate func shouldSwallow(keyCode: UInt16, isKeyDown: Bool) -> Bool {
+        switch hold.key(keyCode, down: isKeyDown, hyperDown: hyperDown, holdKey: holdKey) {
+        case .notMine: break
+        case .swallow(let event):
+            if let event {
+                if event == .down { chordUsed = true }
+                report(event)
+            }
+            return true
+        }
         if keyCode == KeyCodes.f18 {
             if isKeyDown, !hyperDown {
                 hyperDown = true

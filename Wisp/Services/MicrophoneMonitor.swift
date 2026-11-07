@@ -6,7 +6,7 @@ import WispCore
 
 /// Whether any app is using the default microphone (a call, a recording) and which apps,
 /// checked every two seconds through CoreAudio and whenever the default input changes, plus
-/// a mute toggle for it. Wisp never records.
+/// a mute toggle for it. Wisp itself records only while dictating, which this leaves out.
 @MainActor
 @Observable
 final class MicrophoneMonitor {
@@ -17,6 +17,8 @@ final class MicrophoneMonitor {
     private(set) var inputApps: [String] = []
 
     @ObservationIgnored var onChange: (Bool) -> Void = { _ in }
+    /// Wisp is dictating: its own input stream is left out, since dictation has its own pill.
+    @ObservationIgnored var dictating = false
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var inputListener: AudioObjectPropertyListenerBlock?
     @ObservationIgnored private var lastDevice: AudioObjectID?
@@ -79,7 +81,8 @@ final class MicrophoneMonitor {
             SystemVolume.read(device, Self.runningAddress) ?? SystemVolume.read(device, Self.runningAnywhereAddress)
         if let volume: Float32 = SystemVolume.read(device, Self.volumeAddress), volume > 0 { restoreVolume = volume }
         if let mute: UInt32 = SystemVolume.read(device, Self.muteAddress) { muted = mute != 0 }
-        let input = Self.processesUsingInput()
+        let input = MicState.inputProcesses(
+            Self.processesUsingInput(), ownBundleID: Bundle.main.bundleIdentifier, dictating: dictating)
         let now = MicState.inUse(hasInputDevice: true, deviceRunning: (running ?? 0) != 0, inputProcesses: input)
         update(inUse: now, apps: now ? MicState.apps(input ?? []) : [])
     }
