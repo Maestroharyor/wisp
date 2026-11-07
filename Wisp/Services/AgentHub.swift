@@ -943,7 +943,9 @@ final class AgentHub {
         let fallBack =
             waits
             ? " Permission prompts wait up to \(approvalWaitText) for the notch, then fall back to the terminal."
-            : " Permission prompts stay in the terminal; the session shows Needs you."
+            : file.reportsWaiting
+                ? " Permission prompts stay in the terminal; the session shows Needs you."
+                : " Permission prompts stay in \(source.displayName), and Wisp can't tell when one is waiting."
         let wait = waits ? " Permission prompts wait up to \(approvalWaitText) for Wisp." : ""
         let link =
             (try? HookInstaller.link(in: original, helper: helper.path, file: file, timeout: approvalTimeout))
