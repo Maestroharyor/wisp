@@ -43,6 +43,8 @@ public struct AgentEvent: Equatable, Sendable {
     public let transcriptPath: String?
     /// The agent's process, when the helper could find it.
     public var process: AgentProcess?
+    /// Where in the terminal the agent runs, when the helper sent it.
+    public var terminalContext: TerminalContext?
     /// For SessionStart: how the session began ("startup", "resume", "clear", "compact", ...).
     public let startSource: String?
 

@@ -94,7 +94,7 @@ targets:
         # Menu bar app: no Dock icon or app menu.
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 Ayomide Odewale"
-        NSAppleEventsUsageDescription: Wisp reads what is playing in Music and Spotify and controls playback from the notch.
+        NSAppleEventsUsageDescription: Wisp reads what is playing in Music and Spotify, controls playback from the notch, and brings a coding agent's terminal tab forward.
         NSCalendarsFullAccessUsageDescription: Wisp shows your next events in the Calendar widget.
         NSLocationUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSLocationWhenInUseUsageDescription: Wisp uses your approximate location for the Weather widget.
