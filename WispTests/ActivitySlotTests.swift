@@ -15,7 +15,7 @@ final class ActivitySlotTests: XCTestCase {
 
     func testOnlyStickyGlyphSourcesBecomeBubbles() {
         XCTAssertEqual(
-            Set(ActivitySlot.allCases.filter(\.canBeBubble)), [.media, .timer, .agent, .meeting])
+            Set(ActivitySlot.allCases.filter(\.canBeBubble)), [.media, .timer, .agent, .meeting, .external])
     }
 
     func testCardsAndAlertsCanBeDismissedButOngoingActivitiesCant() {
@@ -33,7 +33,8 @@ final class ActivitySlotTests: XCTestCase {
 
     func testOngoingActivitiesKeepTheirOrder() {
         XCTAssertGreaterThan(ActivitySlot.meeting.priority, ActivitySlot.timer.priority)
-        XCTAssertGreaterThan(ActivitySlot.timer.priority, ActivitySlot.agent.priority)
+        XCTAssertGreaterThan(ActivitySlot.timer.priority, ActivitySlot.external.priority)
+        XCTAssertGreaterThan(ActivitySlot.external.priority, ActivitySlot.agent.priority)
         XCTAssertGreaterThan(ActivitySlot.agent.priority, ActivitySlot.media.priority)
     }
 }
