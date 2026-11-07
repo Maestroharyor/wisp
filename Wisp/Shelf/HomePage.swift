@@ -46,7 +46,7 @@ struct HomePage: View {
     private var emptyHint: some View {
         VStack(spacing: 6) {
             Image(systemName: "square.grid.2x2").font(.system(size: 18))
-            Text("Right-click the notch and choose Customise Home")
+            Text("Right-click the notch and choose Tools › Customise Home")
                 .font(.system(size: 11)).foregroundStyle(Color.secondaryText).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

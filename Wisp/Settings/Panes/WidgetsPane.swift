@@ -17,7 +17,7 @@ struct WidgetSettings: View {
                     }
                 }
                 Text(
-                    "Switched-on widgets appear as icons on the Widgets page: click one to open it, drag one to reorder. Up to four also sit on Home: right-click the notch and choose Customise Home to add, resize or reorder them."
+                    "Switched-on widgets appear as icons on the Widgets page: click one to open it, drag one to reorder. Up to four also sit on Home: right-click the notch and choose Tools › Customise Home to add, resize or reorder them."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
