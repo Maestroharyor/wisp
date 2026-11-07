@@ -212,6 +212,9 @@ public struct AgentSessions: Sendable {
     /// How long an ended session ignores late events. A resume (SessionStart) or a new
     /// prompt brings it back at once.
     public static let endedGrace: TimeInterval = 60
+    /// Notifications that mean the agent waits on the user: Claude Code idle or asking an MCP
+    /// question, or Gemini CLI asking to confirm a tool call in the terminal.
+    static let waitingNotifications: Set<String> = ["idle_prompt", "elicitation_dialog", GeminiHooks.toolPermission]
 
     public init() {}
 
@@ -291,7 +294,7 @@ public struct AgentSessions: Sendable {
             let tool = event.prompt == .plan ? "Plan" : event.toolName ?? "Tool"
             Self.append(.request, tool, detail: event.summary, to: &session, at: date)
         case .notification:
-            if event.notificationType == "idle_prompt" || event.notificationType == "elicitation_dialog" {
+            if let type = event.notificationType, Self.waitingNotifications.contains(type) {
                 session.state = .waiting
                 session.clearTools()
                 Self.append(.waiting, "Needs you", to: &session, at: date)
@@ -313,6 +316,9 @@ public struct AgentSessions: Sendable {
             Self.startTool(event, in: &session, at: date)
         case .postToolUse:
             Self.endTool(id: event.toolUseID, in: &session, at: date)
+            // A tool that ran was answered in the terminal (Gemini's tool confirmation, a request
+            // handed back): the agent is working again.
+            if session.state == .waiting { session.state = .running }
         case .subagentStop:
             session.subagents = max(0, session.subagents - 1)
         case .sessionEnd, .other: break

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`). Only ids
+/// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`, `"gemini"`). Only ids
 /// in `AgentAdapters` can be made, so every source has an adapter.
 public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public let rawValue: String
@@ -16,6 +16,7 @@ public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
 
     public static let claude = AgentSource(registered: "claude")
     public static let codex = AgentSource(registered: "codex")
+    public static let gemini = AgentSource(registered: "gemini")
 
     public init(from decoder: Decoder) throws {
         let id = try decoder.singleValueContainer().decode(String.self)
@@ -69,6 +70,12 @@ public struct HookFile: Equatable, Sendable {
         case claudeSettings
         /// Codex's hooks.json: the same `hooks` groups, in a file of their own.
         case codexHooks
+        /// Gemini CLI's settings.json: the same `hooks` groups next to its other settings, with
+        /// timeouts in milliseconds and no `async`.
+        case geminiSettings
+
+        /// What a timeout in seconds is multiplied by in this file.
+        public var timeoutScale: Int { self == .geminiSettings ? 1000 : 1 }
     }
 
     /// Relative to the home folder.
@@ -83,6 +90,9 @@ public struct HookFile: Equatable, Sendable {
     public let statusLine: Bool
     /// What follows the helper's path in the hook command, so Wisp knows the agent.
     public let helperArguments: String
+
+    /// Wisp holds a hook open for the user's answer, so the command carries the approval wait.
+    public var waitsForApproval: Bool { events.contains(AgentEvent.Kind.permissionRequest.rawValue) }
 
     public var displayPath: String { "~/" + path }
     public func url(home: URL) -> URL { home.appendingPathComponent(path) }
@@ -135,7 +145,7 @@ public struct AgentAdapter: Sendable {
 
 /// Every agent Wisp knows, in the order Settings and onboarding list them.
 public enum AgentAdapters {
-    public static let all: [AgentAdapter] = [claude, codex]
+    public static let all: [AgentAdapter] = [claude, codex, gemini]
 
     public static func adapter(id: String) -> AgentAdapter? { all.first { $0.source.rawValue == id } }
 
@@ -197,7 +207,55 @@ public enum AgentAdapters {
             }
         })
 
+    /// Monitor only. Gemini CLI's BeforeTool hook runs (and blocks) before its policy check, for
+    /// every tool call. It can deny a call, rewrite its input or add a confirmation (`ask`), but
+    /// its allow never skips Gemini's own confirmation, so Allow in the notch would still prompt
+    /// in the terminal. Wisp shows the session and its prompts; the terminal answers them.
+    static let gemini = AgentAdapter(
+        source: .gemini, displayName: "Gemini CLI", symbol: "diamond", fallbackProject: "Gemini",
+        hookFile: HookFile(
+            path: ".gemini/settings.json", format: .geminiSettings,
+            // AfterTool is always on: it's the first event after a tool confirmation answered in
+            // the terminal, so Needs you clears. BeforeModel would fire as often and carry the
+            // whole conversation in every call. Gemini hooks are synchronous, so it costs each tool
+            // call a helper launch, which hands the event off without waiting for Wisp.
+            events: [
+                "SessionStart", "BeforeAgent", "Notification", "AfterTool", "AfterAgent", "SessionEnd", "PreCompress",
+            ],
+            backgroundEvents: [], toolEvents: ["BeforeTool"], statusLine: false,
+            helperArguments: " --source gemini"),
+        capabilities: [.toolActivity],
+        setupNote: nil,
+        readEvent: { json, terminal in
+            AgentEvent(json: GeminiHooks.renamed(json), source: .gemini, terminal: terminal)
+        },
+        promptFor: { _ in .tool },
+        write: { _ in nil })
+
     private static let toolEvents = AgentEvent.Kind.toolActivity.map(\.rawValue)
+}
+
+/// Gemini CLI's hook input uses Claude Code's field names (session_id, cwd, transcript_path,
+/// tool_name, tool_input) under its own event names.
+public enum GeminiHooks {
+    /// The Notification type Gemini CLI sends when it asks the user to confirm a tool call.
+    public static let toolPermission = "ToolPermission"
+
+    /// Gemini CLI's event names in Wisp's terms. Anything else, Claude Code's names included,
+    /// reads as `.other`.
+    static let kinds: [String: AgentEvent.Kind] = [
+        "SessionStart": .sessionStart, "SessionEnd": .sessionEnd, "BeforeAgent": .userPromptSubmit,
+        "AfterAgent": .stop, "Notification": .notification, "PreCompress": .preCompact, "BeforeTool": .preToolUse,
+        "AfterTool": .postToolUse,
+    ]
+
+    /// The payload with `hook_event_name` renamed, so the common reader takes it.
+    static func renamed(_ json: JSONValue) -> JSONValue {
+        guard case .object(var fields) = json else { return json }
+        let kind = fields["hook_event_name"]?.stringValue.flatMap { kinds[$0] }
+        fields["hook_event_name"] = kind.map { .string($0.rawValue) }
+        return .object(fields)
+    }
 }
 
 /// Codex edits files with `apply_patch`, whose `tool_input.command` is the whole patch.

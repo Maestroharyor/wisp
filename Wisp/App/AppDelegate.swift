@@ -51,6 +51,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onApprovalKeyUp = { [weak self] keyCode in self?.services.agents.releaseKey(keyCode) }
         services.approvalCardChanged = { [weak self] prompt in self?.hotkeys.setApprovalCard(prompt) }
         services.isShelfOpen = { [weak self] in self?.coordinator.hasOpenShelf ?? false }
+        hotkeys.onDictation = { [weak self] event in self?.services.dictation.handle(event) }
+        services.dictation.onTap = { [weak self] in self?.toggleShelf() }
+        services.dictation.resolveTarget = { [weak self] in self?.coordinator.dictationTarget() ?? .focusedApp }
+        services.dictation.deliverInWisp = { [weak self] text, target in
+            self?.coordinator.deliverDictation(text, to: target) ?? false
+        }
         hotkeys.start()
         services.ringTrigger.start()
         handleTerminationSignal()

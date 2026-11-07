@@ -12,7 +12,7 @@ public enum AgentCLI {
     }
 
     /// The command `arguments` (argv, program name first) ask for, or nil for a hook call.
-    /// Hooks run `wisp-agent` with no command (or `--source codex`), so anything this
+    /// Hooks run `wisp-agent` with no command (or `--source <agent>`), so anything this
     /// doesn't know under that name stays a hook call; under the `wisp` link it's an error.
     public static func parse(arguments: [String]) -> Command? {
         let program = URL(fileURLWithPath: arguments.first ?? "").lastPathComponent

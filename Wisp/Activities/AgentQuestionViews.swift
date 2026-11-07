@@ -80,6 +80,10 @@ struct QuestionAnswers<Header: View>: View {
 
     private var questions: [AgentQuestion] { approval.questions }
     private var hidden: Bool { hub.detailsHidden && !revealed }
+    private var listening: Bool {
+        let dictation = model.services.dictation
+        return dictation.phase.isActive && dictation.target == .questionAnswer(approval.id)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -104,6 +108,14 @@ struct QuestionAnswers<Header: View>: View {
             guard let key, key.approval == approval.id else { return }
             answer(key.action)
         }
+        .onChange(of: model.dictatedAnswer) { _, dictated in
+            guard let dictated, dictated.approval == approval.id else { return }
+            model.dictatedAnswer = nil
+            // The user spoke the answer, so show it, ready to check and send.
+            revealed = true
+            other = DictationText.appending(dictated.text, to: other)
+            typing = true
+        }
         .onChange(of: typing) { _, now in
             if now {
                 model.onWantsKey()
@@ -124,7 +136,11 @@ struct QuestionAnswers<Header: View>: View {
 
     @ViewBuilder private func answerRow(for question: AgentQuestion) -> some View {
         HStack(spacing: 6) {
-            if hidden {
+            if listening {
+                Label("Listening…", systemImage: "mic.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+            } else if hidden {
                 Button("Show") { revealed = true }
                     .buttonStyle(QuestionChipStyle(selected: false))
                     .help("Show the question and its answers")

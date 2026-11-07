@@ -46,10 +46,14 @@ public enum AgentProtocol {
     }
 
     /// How the helper sends a hook's JSON: tool activity is `tool`, sent without waiting for
-    /// a reply, so a tool call never waits on Wisp. Everything else is `hook`.
+    /// a reply, so a tool call never waits on Wisp. Everything else is `hook`. Read through the
+    /// adapter, so a tool hook installed outside the tool activity switch (Gemini's AfterTool)
+    /// is still tool activity.
     public static func kind(forHook payload: Data, source: AgentSource = .claude) -> Kind {
-        let name = (try? JSONDecoder().decode(JSONValue.self, from: payload))?["hook_event_name"]?.stringValue
-        return name.map { source.toolHookEvents.contains($0) } == true ? .tool : .hook
+        guard let json = try? JSONDecoder().decode(JSONValue.self, from: payload),
+            let event = source.adapter.parse(json, terminal: nil)
+        else { return .hook }
+        return event.kind.isToolActivity ? .tool : .hook
     }
 
     /// A missing source reads as Claude Code, as protocol v1 always did. One no adapter knows

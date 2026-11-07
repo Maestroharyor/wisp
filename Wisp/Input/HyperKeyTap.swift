@@ -11,12 +11,24 @@ final class HyperKeyTap {
     /// Called when a key whose chord was swallowed comes back up (or its key-up was lost).
     var onChordReleased: (UInt16) -> Void = { _ in }
     var quickPressTogglesCapsLock = true
+    /// A key whose press and release with Hyper go to `onHold` instead of `onHyperChord`.
+    var holdKey: UInt16?
+    /// Hold events, in order. Read from a task, never inside the tap callback: macOS disables a
+    /// tap that takes too long, and starting audio can.
+    let holdEvents: AsyncStream<HoldKey.Event>
+    private let holdContinuation: AsyncStream<HoldKey.Event>.Continuation
 
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var hyperDown = false
     private var chordUsed = false
     private var swallowedKeyUps: Set<UInt16> = []
+    private var hold = HoldKey()
+
+    init() {
+        (holdEvents, holdContinuation) = AsyncStream.makeStream(
+            of: HoldKey.Event.self, bufferingPolicy: .bufferingNewest(16))
+    }
 
     var isRunning: Bool { tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false }
 
@@ -55,6 +67,21 @@ final class HyperKeyTap {
         source = nil
         hyperDown = false
         swallowedKeyUps.removeAll()
+        endHold()
+    }
+
+    /// The key-up will never come (the tap stopped or missed it): a hold can't finish.
+    private func endHold() {
+        if let event = hold.reset() { report(event) }
+    }
+
+    /// Ends the hold-event stream, so its reader finishes. Call on quit.
+    func finishHoldEvents() {
+        holdContinuation.finish()
+    }
+
+    private func report(_ event: HoldKey.Event) {
+        holdContinuation.yield(event)
     }
 
     fileprivate func reenable() {
@@ -66,11 +93,23 @@ final class HyperKeyTap {
         chordUsed = true
         swallowedKeyUps.forEach(onChordReleased)
         swallowedKeyUps.removeAll()
+        endHold()
     }
 
     /// Decides whether a key event is swallowed (true) or passed on (false).
-    /// `isRepeat` is a key-down sent because the key is held.
+    /// `isRepeat` is a key-down sent because the key is held. Order matters: the hold key
+    /// (and Esc during a hold) comes first, since it owns its own repeats and release; then
+    /// Hyper itself; then key-ups of swallowed chords; then repeats, which never act; then chords.
     fileprivate func shouldSwallow(keyCode: UInt16, isKeyDown: Bool, isRepeat: Bool) -> Bool {
+        switch hold.key(keyCode, down: isKeyDown, hyperDown: hyperDown, holdKey: holdKey) {
+        case .notMine: break
+        case .swallow(let event):
+            if let event {
+                if event == .down { chordUsed = true }
+                report(event)
+            }
+            return true
+        }
         if keyCode == KeyCodes.f18 {
             if isKeyDown, !hyperDown {
                 hyperDown = true

@@ -38,6 +38,8 @@ final class HotkeyCenter {
     @ObservationIgnored var onApprovalKey: @MainActor (UInt16) -> Bool = { _ in false }
     /// The key of a swallowed chord or fallback shortcut came back up.
     @ObservationIgnored var onApprovalKeyUp: @MainActor (UInt16) -> Void = { _ in }
+    /// The dictation key held with Hyper: pressed, let go or cancelled.
+    @ObservationIgnored var onDictation: @MainActor (HoldKey.Event) -> Void = { _ in }
 
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let remapper = CapsLockRemapper()
@@ -55,6 +57,7 @@ final class HotkeyCenter {
     /// The fallback keys registered now.
     @ObservationIgnored private var fallbackKeys: [UInt16] = []
     @ObservationIgnored private var keyboardWatcher: KeyboardWatcher?
+    @ObservationIgnored private var holdDrain: Task<Void, Never>?
     @ObservationIgnored private var accessWaiter: Task<Void, Never>?
     /// Notices Accessibility being switched off while Hyper is active.
     @ObservationIgnored private var trustWatcher: Task<Void, Never>?
@@ -67,13 +70,24 @@ final class HotkeyCenter {
         self.preferences = preferences
     }
 
+    /// One task reads the tap's hold events in order and hands them to dictation.
+    private func drainHoldEvents() {
+        guard holdDrain == nil else { return }
+        let events = tap.holdEvents
+        holdDrain = Task { [weak self] in
+            for await event in events { self?.onDictation(event) }
+        }
+    }
+
     func start() {
+        drainHoldEvents()
         configure()
         observePreferences()
     }
 
     /// Restores Caps Lock. Call on quit.
     func shutdown() {
+        tap.finishHoldEvents()
         accessWaiter?.cancel()
         trustWatcher?.cancel()
         tap.stop()
@@ -144,6 +158,7 @@ final class HotkeyCenter {
 
         tap.quickPressTogglesCapsLock = preferences.quickPressTogglesCapsLock
         tap.onChordReleased = { [weak self] keyCode in self?.onApprovalKeyUp(keyCode) }
+        tap.holdKey = preferences.dictationEnabled ? preferences.dictationKey.keyCode : nil
         tap.onHyperChord = { [weak self] keyCode in
             switch keyCode {
             case hotkey.keyCode: self?.onToggle()
@@ -240,6 +255,8 @@ final class HotkeyCenter {
             _ = preferences.hotkey
             _ = preferences.quickPressTogglesCapsLock
             _ = preferences.ringHotkey
+            _ = preferences.dictationEnabled
+            _ = preferences.dictationKey
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.configure()
