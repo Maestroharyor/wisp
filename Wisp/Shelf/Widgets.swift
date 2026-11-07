@@ -251,7 +251,7 @@ struct CalendarWidget: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .onAppear { store.refresh() }
+        .onAppear { store.refreshIfStale() }
     }
 }
 
