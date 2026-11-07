@@ -27,13 +27,14 @@ enum ProcessRunner {
     /// still going after `timeout` is stopped.
     static func run(
         _ path: String, _ arguments: [String], timeout: Duration? = nil, maxOutput: Int = 4 << 20,
-        environment: [String: String]? = nil, includeErrors: Bool = false
+        environment: [String: String]? = nil, includeErrors: Bool = false, directory: URL? = nil
     ) async throws -> String {
         let process = Process()
         let output = Pipe()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
         if let environment { process.environment = environment }
+        if let directory { process.currentDirectoryURL = directory }
         process.standardOutput = output
         process.standardError = includeErrors ? output : FileHandle.nullDevice
         let collected = OutputBuffer(limit: maxOutput)

@@ -4,9 +4,9 @@ import WispCore
 
 // Coding agents' hook command: forwards the hook's JSON (stdin) to Wisp over a
 // Unix socket and prints Wisp's reply (a permission decision, or nothing). It wraps the
-// JSON in Wisp's envelope with the agent (`--source codex`, `gemini` or `opencode`, otherwise
-// Claude Code) and the terminal app it runs in; OpenCode runs it from Wisp's plugin. Any
-// failure exits 0 with no output, so the agent carries on as if no hook ran. Tool activity
+// JSON in Wisp's envelope with the agent (`--source codex`, `gemini`, `copilot` or `opencode`,
+// otherwise Claude Code) and the terminal app it runs in; OpenCode runs it from Wisp's plugin.
+// Any failure exits 0 with no output, so the agent carries on as if no hook ran. Tool activity
 // hooks are sent without waiting for a reply.
 // `wisp-agent statusline` is Claude Code's status bar (StatusLineCommand), and `status`,
 // `watch`, `spend` and `activity` are the `wisp` command line (CLICommand), also run through a

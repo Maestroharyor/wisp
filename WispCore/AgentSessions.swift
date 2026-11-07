@@ -220,6 +220,13 @@ public struct AgentSessions: Sendable {
         OpenCodeHooks.replyFailed,
     ]
 
+    /// Copilot CLI's permission prompt is Needs you too. Claude Code sends the same type, but its
+    /// prompts come to the notch as a PermissionRequest first, so its session keeps that state.
+    static func waits(on notification: String, source: AgentSource) -> Bool {
+        waitingNotifications.contains(notification)
+            || (source == .copilot && notification == CopilotHooks.permissionPrompt)
+    }
+
     public init() {}
 
     /// Newest activity first.
@@ -298,7 +305,7 @@ public struct AgentSessions: Sendable {
             let tool = event.prompt == .plan ? "Plan" : event.toolName ?? "Tool"
             Self.append(.request, tool, detail: event.summary, to: &session, at: date)
         case .notification:
-            if let type = event.notificationType, Self.waitingNotifications.contains(type) {
+            if let type = event.notificationType, Self.waits(on: type, source: event.source) {
                 session.state = .waiting
                 session.clearTools()
                 Self.append(.waiting, "Needs you", to: &session, at: date)

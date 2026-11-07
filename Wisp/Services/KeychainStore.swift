@@ -12,6 +12,8 @@ enum KeychainStore {
         /// A token that can only post to the reply topic. The Allow and Deny buttons carry it,
         /// so it's stored in each notification; the access token never is.
         case ntfyReplyToken = "ntfy-reply-token"
+        /// A Cursor API key, for listing its Cloud Agents.
+        case cursorAPIKey = "cursor-api-key"
     }
 
     static func read(_ account: Account) -> String? {

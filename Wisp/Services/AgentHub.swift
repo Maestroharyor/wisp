@@ -1035,6 +1035,16 @@ final class AgentHub {
         guard confirm("Remove Wisp's hooks from \(source.displayName)?", detail: detail, action: "Remove") else {
             return
         }
+        // A hook file of Wisp's own (Copilot CLI's) goes rather than staying behind empty.
+        if (try? HookInstaller.isLeftEmpty(updated, file: source.adapter.hookFile)) == true {
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                alert("Couldn't remove \(url.path)", detail: error.localizedDescription)
+            }
+            refreshInstalled()
+            return
+        }
         write(updated, to: url)
     }
 

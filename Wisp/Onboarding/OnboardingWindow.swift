@@ -128,7 +128,8 @@ private struct OnboardingView: View {
         case .accessibility: "Your notch, for people who build. Three quick steps and you're set."
         case .opening: "You can change this any time in Settings."
         case .agents:
-            "Watch Claude Code, Codex, Gemini CLI and OpenCode work. Approve Claude Code, Codex and OpenCode requests from the notch."
+            "Watch Claude Code, Codex, Gemini CLI, Copilot CLI and OpenCode work. Approve Claude Code, Codex and "
+                + "OpenCode requests from the notch."
         }
     }
 
@@ -236,9 +237,22 @@ private struct AgentsStep: View {
 
     var body: some View {
         VStack(spacing: 10) {
+            // The window has a fixed size; once the agents outgrow it, the list scrolls.
+            ViewThatFits(in: .vertical) {
+                rows
+                ScrollView { rows }
+            }
+            Text("Skip this if you don't use them. Settings › Agents has it too.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .onAppear { hub.refreshInstalled() }
+    }
+
+    private var rows: some View {
+        VStack(spacing: 8) {
             ForEach(AgentAdapters.all.map(\.source), id: \.self) { source in
                 HStack(spacing: 12) {
-                    IconTile(symbol: source.symbol, tint: .wispViolet, size: 32)
+                    IconTile(symbol: source.symbol, tint: .wispViolet, size: 28)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(source.displayName).font(.headline)
                         Text(hub.isConnected(source) ? "Connected" : "Optional").font(.caption)
@@ -249,12 +263,10 @@ private struct AgentsStep: View {
                         Button("Connect") { hub.installHooks(source) }
                     }
                 }
-                .padding(12)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.secondary.opacity(0.08)))
             }
-            Text("Skip this if you don't use them. Settings › Agents has it too.")
-                .font(.caption).foregroundStyle(.secondary)
         }
-        .onAppear { hub.refreshInstalled() }
     }
 }

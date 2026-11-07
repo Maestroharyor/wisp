@@ -10,7 +10,8 @@ public enum HookLink: Equatable, Sendable {
 }
 
 /// Adds and removes Wisp's hooks in an agent's hook file (`HookFile`): Claude Code's
-/// settings.json, Codex's hooks.json or Gemini CLI's settings.json, which share the `hooks` shape. The user's own
+/// settings.json, Codex's hooks.json, Gemini CLI's settings.json or Copilot CLI's hooks folder, which share the
+/// `hooks` shape. The user's own
 /// settings and hooks are left alone. Wisp's entries are recognised by the helper's name. OpenCode's
 /// plugin is a file of Wisp's own (`OpenCodePlugin`), written whole.
 public enum HookInstaller {
@@ -58,15 +59,19 @@ public enum HookInstaller {
             let seconds = event == "PermissionRequest" ? timeout : 5
             let scaled = seconds * file.format.timeoutScale
             var handler: [String: JSONValue] = [
-                "type": .string("command"), "command": .string(command), "timeout": .number(Double(scaled)),
+                "type": .string("command"), "command": .string(command),
+                file.format.timeoutKey: .number(Double(scaled)),
             ]
             if file.backgroundEvents.contains(event) { handler["async"] = .bool(true) }
-            let group: JSONValue = .object(["matcher": .string(""), "hooks": .array([.object(handler)])])
-            var groups: [JSONValue] = []
-            if case .array(let existing) = hooks[event] { groups = existing }
-            hooks[event] = .array(groups + [group])
+            let entry: JSONValue =
+                file.format.flatHandlers
+                ? .object(handler) : .object(["matcher": .string(""), "hooks": .array([.object(handler)])])
+            var entries: [JSONValue] = []
+            if case .array(let existing) = hooks[event] { entries = existing }
+            hooks[event] = .array(entries + [entry])
         }
         root["hooks"] = .object(hooks)
+        if let version = file.format.version, root["version"] == nil { root["version"] = .number(Double(version)) }
         return try encode(.object(root))
     }
 
@@ -77,6 +82,13 @@ public enum HookInstaller {
         return try encode(.object(root))
     }
 
+    /// Whether a file Wisp owns holds nothing but its `version` after `remove`, so it can be
+    /// deleted rather than left behind.
+    public static func isLeftEmpty(_ settings: Data, file: HookFile) throws -> Bool {
+        guard file.format.ownedByWisp else { return false }
+        return try object(settings).keys.allSatisfy { $0 == "version" }
+    }
+
     /// The hook command for `helper`: the path in POSIX single quotes, tagged with the agent
     /// unless it's the default.
     public static func command(helper: String, source: AgentSource) -> String {
@@ -85,10 +97,14 @@ public enum HookInstaller {
 
     /// A `timeout` other than the default is passed on, so the helper waits as long as the hook.
     /// An agent Wisp never answers (monitor only) gets no wait, so push never makes it outdated.
+    /// An agent that blocks on a failed hook gets `|| true` (`HookFile.Format.failsClosed`).
     public static func command(helper: String, file: HookFile, timeout: Int = approvalTimeout) -> String {
         let wait = timeout == approvalTimeout || !file.waitsForApproval ? "" : " \(timeoutFlag) \(timeout)"
-        return quote(helper) + file.helperArguments + wait
+        return quote(helper) + file.helperArguments + wait + (file.format.failsClosed ? failOpenSuffix : "")
     }
+
+    /// Keeps the hook's exit status at 0 when the helper can't run.
+    static let failOpenSuffix = " || true"
 
     /// The helper's `--timeout` from its arguments; nil when absent or not a positive number.
     public static func timeout(arguments: [String]) -> Int? {
@@ -108,12 +124,9 @@ public enum HookInstaller {
     /// there's no such hook.
     public static func installedApprovalTimeout(in settings: Data) throws -> Int? {
         let root = try object(settings)
-        guard case .array(let groups) = hooksObject(root["hooks"])["PermissionRequest"] else { return nil }
-        for group in groups {
-            guard case .array(let handlers) = group["hooks"] else { continue }
-            if let seconds = handlers.first(where: isWisp)?["timeout"]?.intValue { return seconds }
-        }
-        return nil
+        guard case .array(let entries) = hooksObject(root["hooks"])["PermissionRequest"] else { return nil }
+        let wisp = entries.flatMap(handlers).first(where: isWisp)
+        return (wisp?["timeout"] ?? wisp?["timeoutSec"])?.intValue
     }
 
     /// `text` as one POSIX shell word in single quotes.
@@ -168,12 +181,14 @@ public enum HookInstaller {
         return current && commands.allSatisfy({ $0.command == mine }) ? .this : .outdated
     }
 
-    /// A hook command without a trailing ` --timeout <seconds>`.
+    /// A hook command without a trailing ` --timeout <seconds>` (before any ` || true`).
     static func withoutTimeout(_ command: String) -> String {
-        guard let range = command.range(of: " \(timeoutFlag) ", options: .backwards) else { return command }
-        let seconds = command[range.upperBound...]
+        let suffix = command.hasSuffix(failOpenSuffix) ? failOpenSuffix : ""
+        let body = command.dropLast(suffix.count)
+        guard let range = body.range(of: " \(timeoutFlag) ", options: .backwards) else { return command }
+        let seconds = body[range.upperBound...]
         guard !seconds.isEmpty, seconds.allSatisfy(\.isASCII), seconds.allSatisfy(\.isNumber) else { return command }
-        return String(command[..<range.lowerBound])
+        return String(body[..<range.lowerBound]) + suffix
     }
 
     /// Whether Wisp's tool activity hooks are in the file.
@@ -192,14 +207,18 @@ public enum HookInstaller {
     private static func wispCommands(in settings: Data) throws -> [(event: String, command: String)] {
         let root = try object(settings)
         return hooksObject(root["hooks"]).flatMap { event, value -> [(event: String, command: String)] in
-            guard case .array(let groups) = value else { return [] }
-            return groups.flatMap { group -> [(event: String, command: String)] in
-                guard case .array(let handlers) = group["hooks"] else { return [] }
-                return handlers.filter(isWisp).compactMap { handler in
-                    handler["command"]?.stringValue.map { (event, $0) }
-                }
+            guard case .array(let entries) = value else { return [] }
+            return entries.flatMap(handlers).filter(isWisp).compactMap { handler in
+                handler["command"]?.stringValue.map { (event, $0) }
             }
         }
+    }
+
+    /// The handlers in one entry of an event's list: a matcher group's `hooks`, or the entry
+    /// itself when it's a handler listed directly (Copilot CLI's files).
+    private static func handlers(_ entry: JSONValue) -> [JSONValue] {
+        if case .array(let handlers) = entry["hooks"] { return handlers }
+        return entry["hooks"] == nil ? [entry] : []
     }
 
     private static func isWisp(_ handler: JSONValue) -> Bool {
@@ -221,7 +240,10 @@ public enum HookInstaller {
         return result
     }
 
+    /// A matcher group without Wisp's handlers (nil when only Wisp's were in it), or nil for a
+    /// handler of Wisp's listed directly.
     private static func strippedGroup(_ group: JSONValue) -> JSONValue? {
+        if group["hooks"] == nil { return isWisp(group) ? nil : group }
         guard case .object(var fields) = group, case .array(let handlers) = fields["hooks"] else { return group }
         let kept = handlers.filter { !isWisp($0) }
         if kept.isEmpty, !handlers.isEmpty { return nil }

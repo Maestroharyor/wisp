@@ -30,15 +30,16 @@ public enum ToolLabel {
         // `verb` is empty when the subject says it all.
         let verb: String
         let subject: String
-        // Claude Code's tool names, then Codex's, Gemini CLI's and OpenCode's for the same jobs.
+        // Claude Code's tool names, then Codex's, Gemini CLI's, Copilot CLI's and OpenCode's for the same jobs.
         switch name {
         case "Bash", "run_shell_command", "bash":
             (symbol, verb) = ("terminal", "Running")
             subject = hidden ? "a command" : firstLine(mask(input.command ?? ""))
-        case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch", "replace", "write_file", "edit", "write":
+        case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch", "replace", "write_file", "edit", "create",
+            "write":
             (symbol, verb) = ("pencil", "Editing")
             subject = hidden ? "a file" : fileName(input.filePath ?? input.notebookPath)
-        case "Read", "read_file", "read":
+        case "Read", "read_file", "view", "read":
             (symbol, verb) = ("doc.text", "Reading")
             subject = hidden ? "a file" : fileName(input.filePath)
         case "Grep", "Glob", "grep_search", "glob", "grep":

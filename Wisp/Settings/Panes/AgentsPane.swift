@@ -4,6 +4,7 @@ import WispCore
 
 struct AgentSettings: View {
     let hub: AgentHub
+    let cloud: CloudAgentStore
     @Bindable var preferences: Preferences
 
     /// The week by project; empty when it would only repeat the total as "Other projects".
@@ -147,6 +148,7 @@ struct AgentSettings: View {
                 )
             }
             AgentRulesSection(hub: hub)
+            CloudAgentsSection(cloud: cloud, preferences: preferences)
             let sessions = hub.sessions.list
             if !sessions.isEmpty {
                 Section("Sessions") {
