@@ -1,0 +1,227 @@
+import Foundation
+
+/// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`). Only ids
+/// in `AgentAdapters` can be made, so every source has an adapter.
+public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
+    public let rawValue: String
+
+    /// Nil for an id no adapter claims, so an unknown agent is never mistaken for a known one.
+    public init?(rawValue: String) {
+        guard AgentAdapters.adapter(id: rawValue) != nil else { return nil }
+        self.rawValue = rawValue
+    }
+
+    /// For the adapters' own ids, which can't check the registry they're part of.
+    private init(registered id: String) { rawValue = id }
+
+    public static let claude = AgentSource(registered: "claude")
+    public static let codex = AgentSource(registered: "codex")
+
+    public init(from decoder: Decoder) throws {
+        let id = try decoder.singleValueContainer().decode(String.self)
+        guard let source = AgentSource(rawValue: id) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "unknown agent"))
+        }
+        self = source
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    public var adapter: AgentAdapter { AgentAdapters.adapter(for: self) }
+    public var displayName: String { adapter.displayName }
+    /// Hook events Wisp listens to.
+    public var hookEvents: [String] { adapter.hookFile.events }
+    /// Events whose hooks only report and never answer, so they run in the background.
+    public var backgroundHookEvents: Set<String> { adapter.hookFile.backgroundEvents }
+    /// Tool activity hooks, added only when the user turns tool activity on.
+    public var toolHookEvents: [String] { adapter.hookFile.toolEvents }
+}
+
+/// What Wisp can do with an agent beyond showing its sessions.
+public struct AgentCapabilities: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+
+    /// Allow or Deny from the notch. Without it the agent is monitor only.
+    public static let approve = AgentCapabilities(rawValue: 1 << 0)
+    /// Answer the agent's multiple-choice questions from the notch.
+    public static let answerQuestions = AgentCapabilities(rawValue: 1 << 1)
+    /// An external status line command that sends live cost and context.
+    public static let statusLine = AgentCapabilities(rawValue: 1 << 2)
+    /// Plan usage windows, from the status line or the transcript.
+    public static let limits = AgentCapabilities(rawValue: 1 << 3)
+    /// PreCompact and PostCompact hooks.
+    public static let compaction = AgentCapabilities(rawValue: 1 << 4)
+    /// Always-allow rules written to the agent's own permission settings.
+    public static let rules = AgentCapabilities(rawValue: 1 << 5)
+    /// PreToolUse, PostToolUse and SubagentStop hooks.
+    public static let toolActivity = AgentCapabilities(rawValue: 1 << 6)
+}
+
+/// Where an agent keeps its hooks and which ones Wisp adds there.
+public struct HookFile: Equatable, Sendable {
+    public enum Format: Equatable, Sendable {
+        /// A `hooks` object of matcher groups inside Claude Code's settings.json, next to the
+        /// user's other settings (and the status line).
+        case claudeSettings
+        /// Codex's hooks.json: the same `hooks` groups, in a file of their own.
+        case codexHooks
+    }
+
+    /// Relative to the home folder.
+    public let path: String
+    public let format: Format
+    public let events: [String]
+    /// Report-only events, installed with `"async": true`.
+    public let backgroundEvents: Set<String>
+    /// Added only while tool activity is on.
+    public let toolEvents: [String]
+    /// The file also holds the agent's status line command.
+    public let statusLine: Bool
+    /// What follows the helper's path in the hook command, so Wisp knows the agent.
+    public let helperArguments: String
+
+    public var displayPath: String { "~/" + path }
+    public func url(home: URL) -> URL { home.appendingPathComponent(path) }
+}
+
+/// What the user decided on a permission request, for the adapter to put in the agent's terms.
+public enum AgentDecision: Equatable, Sendable {
+    /// `input` is the tool's input, which a plan's approval echoes back.
+    case allow(PermissionPrompt, input: JSONValue?)
+    case deny(PermissionPrompt, reason: String)
+    /// Answers to a question, keyed by each question's text.
+    case answer(input: JSONValue, answers: [String: String])
+
+    /// An Allow or Deny button, with no reason typed.
+    public static func decide(_ prompt: PermissionPrompt, allow: Bool, input: JSONValue?) -> AgentDecision {
+        allow ? .allow(prompt, input: input) : .deny(prompt, reason: "")
+    }
+}
+
+/// Everything that differs between coding agents: names, hook files, how their hook JSON
+/// reads and how a decision is written back. A value type with closures, so adapters are
+/// plain `Sendable` data in a static registry.
+public struct AgentAdapter: Sendable {
+    public let source: AgentSource
+    public let displayName: String
+    /// SF Symbol for the agent's mark.
+    public let symbol: String
+    /// The session's name when it has no usable working folder.
+    public let fallbackProject: String
+    public let hookFile: HookFile
+    public let capabilities: AgentCapabilities
+    /// A setup step the user takes after connecting, for the connect dialog and Settings.
+    public let setupNote: String?
+    let readEvent: @Sendable (JSONValue, String?) -> AgentEvent
+    let promptFor: @Sendable (String?) -> PermissionPrompt
+    let write: @Sendable (AgentDecision) -> String?
+
+    /// The hook's stdin JSON as an event; nil when it isn't a JSON object.
+    public func parse(_ json: JSONValue, terminal: String?) -> AgentEvent? {
+        guard case .object = json else { return nil }
+        return readEvent(json, terminal)
+    }
+
+    /// What a permission request for `tool` asks the user for.
+    public func prompt(tool: String?) -> PermissionPrompt { promptFor(tool) }
+
+    /// The hook's stdout for a decision; nil to let the agent ask in the terminal.
+    public func reply(_ decision: AgentDecision) -> String? { write(decision) }
+}
+
+/// Every agent Wisp knows, in the order Settings and onboarding list them.
+public enum AgentAdapters {
+    public static let all: [AgentAdapter] = [claude, codex]
+
+    public static func adapter(id: String) -> AgentAdapter? { all.first { $0.source.rawValue == id } }
+
+    /// `AgentSource` can only hold registered ids, so the fallback is never reached.
+    public static func adapter(for source: AgentSource) -> AgentAdapter { adapter(id: source.rawValue) ?? claude }
+
+    static let claude = AgentAdapter(
+        source: .claude, displayName: "Claude Code", symbol: "sparkle", fallbackProject: "Claude",
+        hookFile: HookFile(
+            path: ".claude/settings.json", format: .claudeSettings,
+            events: [
+                "SessionStart", "UserPromptSubmit", "PermissionRequest", "Notification", "Stop", "SessionEnd",
+                "PreCompact", "PostCompact",
+            ],
+            backgroundEvents: Set(["PreCompact", "PostCompact"] + toolEvents), toolEvents: toolEvents,
+            statusLine: true, helperArguments: ""),
+        capabilities: [.approve, .answerQuestions, .statusLine, .limits, .compaction, .rules, .toolActivity],
+        setupNote: nil,
+        readEvent: { json, terminal in AgentEvent(json: json, source: .claude, terminal: terminal) },
+        promptFor: { PermissionPrompt(tool: $0) },
+        write: { decision in
+            switch decision {
+            case .allow(let prompt, let input): PermissionReply.answer(prompt, allow: true, input: input)
+            case .deny(let prompt, let reason):
+                PermissionReply.json(allow: false, denial: PermissionReply.denial(for: prompt, reason: reason))
+            case .answer(let input, let answers): QuestionReply.json(input: input, answers: answers)
+            }
+        })
+
+    /// Codex follows Claude Code's hook field names (session_id, tool_input, ...) with a few
+    /// extensions (turn_id, model), so the common reader serves both.
+    static let codex = AgentAdapter(
+        source: .codex, displayName: "Codex", symbol: "chevron.left.forwardslash.chevron.right",
+        fallbackProject: "Codex",
+        hookFile: HookFile(
+            path: ".codex/hooks.json", format: .codexHooks,
+            // No Notification event in Codex.
+            events: [
+                "SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "SessionEnd", "PreCompact",
+                "PostCompact",
+            ],
+            // Compaction hooks stay synchronous, as before Codex documented `async`, so hooks
+            // users already trusted in /hooks keep their hash.
+            backgroundEvents: Set(toolEvents), toolEvents: toolEvents, statusLine: false,
+            helperArguments: " --source codex"),
+        capabilities: [.approve, .limits, .compaction, .toolActivity],
+        setupNote: "Codex asks you to trust new hooks once: run /hooks in Codex.",
+        readEvent: { json, terminal in CodexPatch.labelled(AgentEvent(json: json, source: .codex, terminal: terminal))
+        },
+        // Codex has no plan or question prompts: every request is a tool.
+        promptFor: { _ in .tool },
+        write: { decision in
+            switch decision {
+            // `updatedInput` is reserved in Codex and fails closed, so an allow never carries it.
+            case .allow: PermissionReply.json(allow: true)
+            case .deny(let prompt, let reason):
+                PermissionReply.json(allow: false, denial: PermissionReply.denial(for: prompt, reason: reason))
+            case .answer: nil
+            }
+        })
+
+    private static let toolEvents = AgentEvent.Kind.toolActivity.map(\.rawValue)
+}
+
+/// Codex edits files with `apply_patch`, whose `tool_input.command` is the whole patch.
+public enum CodexPatch {
+    private static let markers = ["*** Update File:", "*** Add File:", "*** Delete File:"]
+
+    /// The first file a patch touches.
+    public static func firstPath(_ patch: String) -> String? {
+        for line in patch.split(whereSeparator: \.isNewline) {
+            guard let marker = markers.first(where: { line.hasPrefix($0) }) else { continue }
+            let path = line.dropFirst(marker.count).trimmingCharacters(in: .whitespaces)
+            if !path.isEmpty { return path }
+        }
+        return nil
+    }
+
+    /// A patch reads as an edit of its first file; its body never becomes a label or summary.
+    static func labelled(_ event: AgentEvent) -> AgentEvent {
+        guard event.toolName == "apply_patch" else { return event }
+        var event = event
+        let path = event.toolInput.command.flatMap(firstPath)
+        event.toolInput.command = nil
+        event.toolInput.filePath = path
+        event.summary = path ?? ""
+        return event
+    }
+}

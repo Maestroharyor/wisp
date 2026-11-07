@@ -40,7 +40,7 @@ let hookJSON = FileHandle.standardInput.readDataToEndOfFile()
 // The agent that ran this hook, so Wisp can end its session if it quits without saying so.
 let agentProcess = AgentProcess.ownerOfThisProcess()
 // Tool activity fires on every tool call and needs no answer, so it never waits on Wisp.
-if AgentProtocol.kind(forHook: hookJSON) == .tool {
+if AgentProtocol.kind(forHook: hookJSON, source: source) == .tool {
     if let message = AgentProtocol.envelope(
         kind: .tool, source: source, terminal: terminal, process: agentProcess, payload: hookJSON)
     {

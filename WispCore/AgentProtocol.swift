@@ -44,24 +44,34 @@ public enum AgentProtocol {
 
     /// How the helper sends a hook's JSON: tool activity is `tool`, sent without waiting for
     /// a reply, so a tool call never waits on Wisp. Everything else is `hook`.
-    public static func kind(forHook payload: Data) -> Kind {
+    public static func kind(forHook payload: Data, source: AgentSource = .claude) -> Kind {
         let name = (try? JSONDecoder().decode(JSONValue.self, from: payload))?["hook_event_name"]?.stringValue
-        return name.map { AgentSource.claude.toolHookEvents.contains($0) } == true ? .tool : .hook
+        return name.map { source.toolHookEvents.contains($0) } == true ? .tool : .hook
     }
 
+    /// A missing source reads as Claude Code, as protocol v1 always did. One no adapter knows
+    /// is unsupported, so a request from it gets an empty reply.
     public static func decode(_ data: Data) throws -> AgentMessage {
         let json = try JSONDecoder().decode(JSONValue.self, from: data)
-        guard let version = json["v"]?.intValue else { return .hook(try AgentEvent.decode(data)) }
+        guard let version = json["v"]?.intValue else {
+            if let id = json["wisp_source"]?.stringValue, AgentSource(rawValue: id) == nil {
+                return .unsupported("source \(id)")
+            }
+            return .hook(try AgentEvent.decode(data))
+        }
         let kindName = json["kind"]?.stringValue ?? "?"
         guard version <= Self.version, let kind = Kind(rawValue: kindName), let payload = json["payload"] else {
             return .unsupported("\(kindName) v\(version)")
         }
-        let source = json["source"]?.stringValue.flatMap(AgentSource.init(rawValue:)) ?? .claude
+        let id = json["source"]?.stringValue ?? AgentSource.claude.rawValue
+        guard let source = AgentSource(rawValue: id) else { return .unsupported("source \(id)") }
         let terminal = json["terminal"]?.stringValue
         let process = AgentProcess(json: json["process"])
         switch kind {
         case .hook, .tool:
-            var event = AgentEvent(json: payload, source: source, terminal: terminal)
+            guard var event = source.adapter.parse(payload, terminal: terminal) else {
+                return .unsupported("hook payload")
+            }
             event.process = process
             return .hook(event)
         case .statusline:

@@ -21,7 +21,7 @@ public struct AgentReport: Codable, Equatable, Sendable {
     public var hidden: String?
     public var sessions: [Row]
     public var spend: Spend?
-    /// Claude subscription usage windows; nil from a Wisp older than them.
+    /// Subscription usage windows (Claude Code's, Codex's); nil from a Wisp older than them.
     public var limits: [Limit]?
 
     public struct Limit: Codable, Equatable, Sendable {
@@ -31,12 +31,15 @@ public struct AgentReport: Codable, Equatable, Sendable {
         public var resets: Date?
         /// When it runs out at the current pace, if before it resets.
         public var full: Date?
+        /// Whose plan it is ("Claude Code", "Codex"); nil from a Wisp older than the key.
+        public var agent: String?
 
-        public init(window: String, percent: Double, resets: Date?, full: Date?) {
+        public init(window: String, percent: Double, resets: Date?, full: Date?, agent: String? = nil) {
             self.window = window
             self.percent = percent
             self.resets = resets
             self.full = full
+            self.agent = agent
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -45,6 +48,7 @@ public struct AgentReport: Codable, Equatable, Sendable {
             try container.encode(percent, forKey: .percent)
             try container.encode(resets, forKey: .resets)
             try container.encode(full, forKey: .full)
+            try container.encode(agent, forKey: .agent)
         }
     }
 

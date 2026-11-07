@@ -96,8 +96,16 @@ final class AgentHub {
     /// The usage windows the status bar reported last; they're the account's, not a session's.
     private(set) var limitReadings: [UsageReading] = []
     @ObservationIgnored private var limitWatch = LimitWatch()
-    /// Wisp's tool hooks are in Claude Code's settings.
-    private(set) var toolsInstalled = false
+    /// Connected agents whose hook file has Wisp's tool hooks.
+    private(set) var toolHooks: Set<AgentSource> = []
+
+    /// Connected agents whose tool hooks don't match the tool activity choice, so Settings can
+    /// name them.
+    func toolHooksMismatched(wanted on: Bool) -> [AgentSource] {
+        AgentAdapters.all.map(\.source).filter { source in
+            connected.contains(source) && !source.toolHookEvents.isEmpty && toolHooks.contains(source) != on
+        }
+    }
     // A change republishes the pill so a tool label hides the moment a call starts.
     /// When agent details are hidden. Set from Preferences.
     var privacyMode: AgentPrivacy.Mode = .default {
@@ -192,13 +200,9 @@ final class AgentHub {
             home: FileManager.default.homeDirectoryForCurrentUser, bundleID: Bundle.main.bundleIdentifier)
     }
 
-    /// Where each agent keeps its hooks: Claude Code in its settings, Codex in hooks.json.
+    /// Where each agent keeps its hooks (its adapter's `HookFile`).
     static func settingsURL(_ source: AgentSource) -> URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        switch source {
-        case .claude: return home.appendingPathComponent(".claude/settings.json")
-        case .codex: return home.appendingPathComponent(".codex/hooks.json")
-        }
+        source.adapter.hookFile.url(home: FileManager.default.homeDirectoryForCurrentUser)
     }
 
     static var helperURL: URL? {
@@ -332,13 +336,17 @@ final class AgentHub {
         if event.kind == .stop { refreshUsage(for: event.sessionID) }
         if event.kind == .sessionEnd { transcripts[event.sessionID] = nil }
 
-        if event.kind == .permissionRequest, event.prompt == .question,
-            AgentQuestion.parse(event.rawToolInput).isEmpty
+        let capabilities = event.source.adapter.capabilities
+        if event.kind == .permissionRequest, !capabilities.contains(.approve) {
+            // A monitor-only agent: the request shows in the session, the terminal answers it.
+            reply(connection, nil)
+        } else if event.kind == .permissionRequest, event.prompt == .question,
+            !capabilities.contains(.answerQuestions) || AgentQuestion.parse(event.rawToolInput).isEmpty
         {
             // Nothing Wisp can show, so the terminal asks (Needs you).
             reply(connection, nil)
         } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event) {
-            reply(connection, PermissionReply.json(allow: true))
+            reply(connection, event.source.adapter.reply(.allow(.tool, input: nil)))
             sessions.record(.allowed, "Allowed (Allow All)", session: event.sessionID, at: .now)
             sessions.resolveApproval(session: event.sessionID, at: .now)
             onNotice(AgentPrivacy.allowedNotice(tool: event.toolName, summary: event.summary, hidden: detailsHidden))
@@ -391,24 +399,28 @@ final class AgentHub {
                     total: cost, session: id, transcript: item.snapshot.transcriptPath, at: .now)
                 saveSpend(adding: increase, project: sessions.session(id)?.project)
             }
-            // Tracked even while the alert is off, so turning it on doesn't fire for a session
-            // that was already past the level.
-            let threshold = contextThreshold ?? ContextUsage.defaultThreshold
-            if let percent = sessions.contextAlert(session: id, threshold: threshold), contextThreshold != nil,
-                let project = sessions.session(id)?.project
-            {
-                onContextAlert(ContextUsage.notice(percent: percent, project: project))
-            }
-            checkLimits(item.snapshot)
+            checkContext(session: id)
+            checkLimits(UsageLimits.readings(item.snapshot.extras))
             if pillChanged { publishStatus() }
         }
     }
 
-    /// Tracked even while the alerts are off, so turning them on stays quiet until the next level.
-    private func checkLimits(_ snapshot: StatusLineSnapshot) {
-        let readings = UsageLimits.readings(snapshot.extras)
+    /// Tracked even while the alert is off, so turning it on doesn't fire for a session that
+    /// was already past the level.
+    private func checkContext(session id: String) {
+        let threshold = contextThreshold ?? ContextUsage.defaultThreshold
+        if let percent = sessions.contextAlert(session: id, threshold: threshold), contextThreshold != nil,
+            let project = sessions.session(id)?.project
+        {
+            onContextAlert(ContextUsage.notice(percent: percent, project: project))
+        }
+    }
+
+    /// One agent's latest windows. Tracked even while the alerts are off, so turning them on
+    /// stays quiet until the next level.
+    private func checkLimits(_ readings: [UsageReading]) {
         guard !readings.isEmpty else { return }
-        limitReadings = readings
+        limitReadings = UsageLimits.merge(limitReadings, with: readings)
         let due = limitWatch.record(readings, at: .now)
         guard limitAlerts else { return }
         for alert in due { onAlert("gauge.with.dots.needle.67percent", alert.text) }
@@ -420,7 +432,8 @@ final class AgentHub {
         limitReadings.filter { $0.resets.map { $0 > now } ?? true }.map { reading in
             AgentReport.Limit(
                 window: reading.window.rawValue, percent: reading.percent, resets: reading.resets,
-                full: limitWatch.forecast(reading.window))
+                full: limitWatch.forecast(reading.window, source: reading.source),
+                agent: reading.source.displayName)
         }
     }
 
@@ -459,7 +472,10 @@ final class AgentHub {
         let approval = taken.approval
         if let connection = taken.connection {
             reply(
-                connection, allow.flatMap { PermissionReply.answer(approval.prompt, allow: $0, input: approval.input) })
+                connection,
+                allow.flatMap {
+                    approval.source.adapter.reply(.decide(approval.prompt, allow: $0, input: approval.input))
+                })
         }
         if let allow {
             sessions.record(
@@ -487,10 +503,7 @@ final class AgentHub {
         guard let taken = take(id) else { return }
         let approval = taken.approval
         if let connection = taken.connection {
-            reply(
-                connection,
-                PermissionReply.json(allow: false, denial: PermissionReply.denial(for: approval.prompt, reason: reason))
-            )
+            reply(connection, approval.source.adapter.reply(.deny(approval.prompt, reason: reason)))
         }
         sessions.record(.denied, "Denied", session: approval.sessionID, at: .now)
         sessions.resolveApproval(session: approval.sessionID, at: .now)
@@ -506,7 +519,9 @@ final class AgentHub {
         guard let taken = take(id) else { return }
         let approval = taken.approval
         if let connection = taken.connection {
-            reply(connection, approval.input.flatMap { QuestionReply.json(input: $0, answers: answers) })
+            reply(
+                connection,
+                approval.input.flatMap { approval.source.adapter.reply(.answer(input: $0, answers: answers)) })
         }
         sessions.answeredQuestion(session: approval.sessionID, at: .now)
         onApproval(approvals.first)
@@ -661,6 +676,14 @@ final class AgentHub {
             }
             sessions.setUsage(next.usage.total, cost: cost, session: id)
             sessions.setModelID(next.usage.lastModel, session: id)
+            // Codex has no status line; its rollout carries the context and plan limits instead.
+            if let percent = next.usage.contextPercent,
+                sessions.session(id)?.source.adapter.hookFile.statusLine == false
+            {
+                if sessions.setContextPercent(percent, session: id) { publishStatus() }
+                checkContext(session: id)
+            }
+            checkLimits(next.usage.limits)
         }
     }
 
@@ -748,10 +771,13 @@ final class AgentHub {
         var here: Set<AgentSource> = []
         var elsewhere: Set<AgentSource> = []
         var old: Set<AgentSource> = []
+        var withTools: Set<AgentSource> = []
         let helper = Self.helperURL?.path ?? ""
-        for source in [AgentSource.claude, .codex] {
+        for adapter in AgentAdapters.all {
+            let source = adapter.source
+            let file = adapter.hookFile
             let data = (try? Data(contentsOf: Self.settingsURL(source))) ?? Data()
-            switch (try? HookInstaller.link(in: data, helper: helper, source: source)) ?? HookLink.none {
+            switch (try? HookInstaller.link(in: data, helper: helper, file: file)) ?? HookLink.none {
             case .this: here.insert(source)
             case .outdated:
                 here.insert(source)
@@ -759,20 +785,17 @@ final class AgentHub {
             case .other: elsewhere.insert(source)
             case .none: break
             }
-            if source == .claude {
+            if file.statusLine {
                 let bar = (try? StatusLineChain.state(in: data)) ?? .none
                 if bar != statusLine { statusLine = bar }
-                let tools = (try? HookInstaller.toolsInstalled(in: data)) ?? false
-                if tools != toolsInstalled { toolsInstalled = tools }
             }
+            if (try? HookInstaller.toolsInstalled(in: data, file: file)) == true { withTools.insert(source) }
         }
+        let tools = withTools.intersection(here)
+        if tools != toolHooks { toolHooks = tools }
         if here != connected { connected = here }
         if elsewhere != connectedElsewhere { connectedElsewhere = elsewhere }
         if old != outdated { outdated = old }
-    }
-
-    private func displayPath(_ source: AgentSource) -> String {
-        source == .claude ? "~/.claude/settings.json" : "~/.codex/hooks.json"
     }
 
     /// Adds Wisp's hooks after the user confirms; keeps a backup of the original file.
@@ -781,24 +804,26 @@ final class AgentHub {
             alert("Wisp's helper is missing", detail: "Rebuild Wisp, then try again.")
             return
         }
+        let adapter = source.adapter
+        let file = adapter.hookFile
         let url = Self.settingsURL(source)
-        let path = displayPath(source)
+        let path = file.displayPath
         let original = (try? Data(contentsOf: url)) ?? Data()
-        let command = HookInstaller.command(helper: helper.path, source: source)
+        let command = HookInstaller.command(helper: helper.path, file: file)
+        let withTools = toolActivity && !file.toolEvents.isEmpty
         guard
             let updated = try? withStatusLine(
-                HookInstaller.install(
-                    into: original, command: command, source: source, tools: source == .claude && toolActivity),
-                source: source, helper: helper.path)
+                HookInstaller.install(into: original, command: command, file: file, tools: withTools),
+                file: file, helper: helper.path)
         else {
             alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
             return
         }
-        let events = source.hookEvents.joined(separator: ", ")
-        let tools = source == .claude && toolActivity ? Self.toolSentence : ""
-        let bar = source == .claude ? barSentence(terminalBarMode, original: original) : ""
-        let trust = source == .codex ? " Codex asks you to trust new hooks once: run /hooks in Codex." : ""
-        let link = (try? HookInstaller.link(in: original, helper: helper.path, source: source)) ?? HookLink.none
+        let events = file.events.joined(separator: ", ")
+        let tools = withTools ? Self.toolSentence : ""
+        let bar = file.statusLine ? barSentence(terminalBarMode, original: original) : ""
+        let trust = adapter.setupNote.map { " " + $0 } ?? ""
+        let link = (try? HookInstaller.link(in: original, helper: helper.path, file: file)) ?? HookLink.none
         let confirmed: Bool
         switch link {
         case .none:
@@ -846,19 +871,21 @@ final class AgentHub {
         write(updated, to: url)
     }
 
-    /// Claude Code's settings also get the status bar Preferences ask for.
-    private func withStatusLine(_ settings: Data, source: AgentSource, helper: String) throws -> Data {
-        source == .claude ? try StatusLineChain.install(terminalBarMode, into: settings, helper: helper) : settings
+    /// A file that holds the agent's status line (Claude Code's settings) also gets the status
+    /// bar Preferences ask for.
+    private func withStatusLine(_ settings: Data, file: HookFile, helper: String) throws -> Data {
+        file.statusLine ? try StatusLineChain.install(terminalBarMode, into: settings, helper: helper) : settings
     }
 
     func removeHooks(_ source: AgentSource) {
         let url = Self.settingsURL(source)
+        let statusLine = source.adapter.hookFile.statusLine
         guard let original = try? Data(contentsOf: url),
             let removed = try? HookInstaller.remove(from: original),
-            let updated = source == .claude ? try? StatusLineChain.restore(from: removed) : removed
+            let updated = statusLine ? try? StatusLineChain.restore(from: removed) : removed
         else { return }
         let detail =
-            source == .claude
+            statusLine
             ? "Only Wisp's entries are removed, and your own status bar, if you had one, comes back."
             : "Only Wisp's entries are removed."
         guard confirm("Remove Wisp's hooks from \(source.displayName)?", detail: detail, action: "Remove") else {
@@ -876,9 +903,10 @@ final class AgentHub {
             return true
         }
         let url = Self.settingsURL(.claude)
+        let path = AgentSource.claude.adapter.hookFile.displayPath
         let original = (try? Data(contentsOf: url)) ?? Data()
         guard let updated = try? StatusLineChain.install(mode, into: original, helper: helper.path) else {
-            alert("Couldn't read ~/.claude/settings.json", detail: "Fix the file's JSON, then try again.")
+            alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
             return false
         }
         guard updated != original else {
@@ -892,7 +920,7 @@ final class AgentHub {
             confirm(
                 "Change Claude Code's status bar?",
                 detail:
-                    "Wisp edits ~/.claude/settings.json.\(change) The current file is saved next to it with .wisp-previous on the end.",
+                    "Wisp edits \(path).\(change) The current file is saved next to it with .wisp-previous on the end.",
                 action: "Change")
         else { return false }
         terminalBarMode = mode
@@ -901,40 +929,54 @@ final class AgentHub {
     }
 
     private static let toolSentence =
-        " Background hooks for tool calls show what Claude is doing in the notch; they never make a tool call wait."
+        " Background hooks for tool calls show what the agent is doing in the notch; they never make a tool call wait."
 
-    /// Adds or removes Claude Code's tool hooks after the user confirms, like `setTerminalBar`.
-    /// False when the user cancelled.
+    /// Adds or removes the tool hooks of every connected agent that has them, after the user
+    /// confirms, like `setTerminalBar`. False when the user cancelled.
     func setToolActivity(_ on: Bool) -> Bool {
-        guard connected.contains(.claude), let helper = Self.helperURL else {
+        guard let helper = Self.helperURL else {
             toolActivity = on
             return true
         }
-        let url = Self.settingsURL(.claude)
-        let original = (try? Data(contentsOf: url)) ?? Data()
-        let command = HookInstaller.command(helper: helper.path, source: .claude)
-        guard let updated = try? HookInstaller.install(into: original, command: command, source: .claude, tools: on)
-        else {
-            alert("Couldn't read ~/.claude/settings.json", detail: "Fix the file's JSON, then try again.")
-            return false
+        var changes: [(url: URL, data: Data, adapter: AgentAdapter)] = []
+        for adapter in AgentAdapters.all
+        where connected.contains(adapter.source) && !adapter.hookFile.toolEvents.isEmpty {
+            let file = adapter.hookFile
+            let url = Self.settingsURL(adapter.source)
+            let original = (try? Data(contentsOf: url)) ?? Data()
+            let command = HookInstaller.command(helper: helper.path, file: file)
+            guard let updated = try? HookInstaller.install(into: original, command: command, file: file, tools: on)
+            else {
+                alert("Couldn't read \(file.displayPath)", detail: "Fix the file's JSON, then try again.")
+                return false
+            }
+            if updated != original { changes.append((url, updated, adapter)) }
         }
-        guard updated != original else {
+        guard !changes.isEmpty else {
             toolActivity = on
             return true
         }
-        let refresh = outdated.contains(.claude) ? " It also brings Wisp's other hooks up to date." : ""
+        let paths = ListFormatter.localizedString(byJoining: changes.map { $0.adapter.hookFile.displayPath })
+        let names = ListFormatter.localizedString(byJoining: changes.map { $0.adapter.displayName })
+        let refresh =
+            changes.contains { outdated.contains($0.adapter.source) }
+            ? " It also brings Wisp's other hooks up to date." : ""
+        // Agents that make the user trust changed hooks (Codex's /hooks) say so up front.
+        let notes = on ? changes.compactMap(\.adapter.setupNote).map { " " + $0 }.joined() : ""
         let change =
             (on
-                ? "Wisp adds three hooks (PreToolUse, PostToolUse and SubagentStop) to ~/.claude/settings.json. They run in the background, so tool calls never wait for them."
-                : "Wisp removes its three tool hooks from ~/.claude/settings.json.") + refresh
+                ? "Wisp adds three hooks (PreToolUse, PostToolUse and SubagentStop) to \(paths). They run in the background, so tool calls never wait for them."
+                : "Wisp removes its three tool hooks from \(paths).") + refresh + notes
         guard
             confirm(
-                on ? "Show Claude Code's tool activity?" : "Stop showing tool activity?",
+                on
+                    ? (changes.count == 1 ? "Show \(names)'s tool activity?" : "Show tool activity?")
+                    : "Stop showing tool activity?",
                 detail: change + " The current file is saved next to it with .wisp-previous on the end.",
                 action: on ? "Add Hooks" : "Remove Hooks")
         else { return false }
         toolActivity = on
-        write(updated, to: url)
+        for change in changes { write(change.data, to: change.url) }
         return true
     }
 

@@ -426,6 +426,17 @@ public struct AgentSessions: Sendable {
         sessions[id]?.modelID = model
     }
 
+    /// Context from the transcript, for agents without a status line (Codex). True when the
+    /// pill's whole-number figure changed.
+    @discardableResult
+    public mutating func setContextPercent(_ percent: Double, session id: String) -> Bool {
+        guard var session = sessions[id] else { return false }
+        let before = session.contextPercent?.rounded()
+        session.contextPercent = percent
+        sessions[id] = session
+        return before != percent.rounded()
+    }
+
     /// The context percentage to alert about, once per climb past `threshold`.
     public mutating func contextAlert(session id: String, threshold: Double) -> Double? {
         guard var session = sessions[id] else { return nil }
