@@ -76,6 +76,12 @@ final class ApprovalPreviewTests: XCTestCase {
             .text("npm test && npm run build", more: 0))
     }
 
+    func testOpenCodesBashRequestShowsItsCommand() {
+        XCTAssertEqual(
+            ApprovalPreview.make(tool: "bash", input: input(["command": "npm test"]), limit: 3),
+            .text("npm test", more: 0))
+    }
+
     func testAPlanIsMarkdown() {
         XCTAssertEqual(
             ApprovalPreview.make(tool: "ExitPlanMode", input: input(["plan": "# Plan\n\n- one"]), limit: 3),

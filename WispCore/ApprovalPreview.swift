@@ -36,7 +36,8 @@ public enum ApprovalPreview: Equatable, Sendable {
             return capped(patchLines(patch), limit: limit)
         case "Write":
             return capped(input?["content"]?.stringValue, limit: limit)
-        case "Bash":
+        // OpenCode names its shell permission "bash".
+        case "Bash", "bash":
             return capped(input?["command"]?.stringValue, limit: .max)
         case "ExitPlanMode":
             guard let plan = input?["plan"]?.stringValue, !plan.trimmingCharacters(in: .whitespaces).isEmpty else {
