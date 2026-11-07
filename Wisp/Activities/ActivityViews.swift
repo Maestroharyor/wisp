@@ -140,7 +140,9 @@ struct CompactActivityView: View {
                 }
                 Image(systemName: model.services.microphone.muted ? "mic.slash.circle.fill" : "mic.circle")
                     .foregroundStyle(.white.opacity(0.8))
-                    .help(model.services.microphone.muted ? "Unmute the microphone" : "Mute the microphone")
+                    .help(
+                        model.services.microphone.muted
+                            ? "Unmute the system microphone (all apps)" : "Mute the system microphone (all apps)")
             }
         case .device(let device):
             if let level = device.headline {
