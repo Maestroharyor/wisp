@@ -70,7 +70,7 @@ struct AgentSettings: View {
                 Text("Tool activity")
             } footer: {
                 Text(
-                    "Shows what Claude Code is doing in the notch, such as the command it's running or the file it's editing, and how many other sessions are going. Adds background hooks for tool calls, so they never wait for Wisp. Secrets in commands are masked, the privacy setting below applies, and nothing leaves your Mac."
+                    "Shows what your agents are doing in the notch, such as the command they're running or the file they're editing, and how many other sessions are going. Adds hooks for tool calls that never wait for Wisp. Secrets in commands are masked, the privacy setting below applies, and nothing leaves your Mac."
                         + (hub.isConnected(.claude) ? "" : " Applies when you connect Claude Code.")
                 )
             }

@@ -2,9 +2,9 @@ import Foundation
 import Network
 import WispCore
 
-// Claude Code and Codex hook command: forwards the hook's JSON (stdin) to Wisp over a
+// Coding agents' hook command: forwards the hook's JSON (stdin) to Wisp over a
 // Unix socket and prints Wisp's reply (a permission decision, or nothing). It wraps the
-// JSON in Wisp's envelope with the agent (`--source codex`, otherwise Claude Code) and the
+// JSON in Wisp's envelope with the agent (`--source codex`, `--source gemini`, otherwise Claude Code) and the
 // terminal app it runs in. Any failure exits 0 with no output, so the agent carries on as
 // if no hook ran. Tool activity hooks are sent without waiting for a reply.
 // `wisp-agent statusline` is Claude Code's status bar (StatusLineCommand), and `status`,

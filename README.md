@@ -1,6 +1,6 @@
 # Wisp
 
-**The notch for people who build.** Wisp watches your coding agents from the Mac notch. Claude Code and Codex runs show beside the camera, permission prompts become an Allow or Deny card, and a click on a session brings its terminal forward. Profiles follow what you're doing, and quick toggles, widgets, a file tray and clipboard history sit one click away. Displays without a notch get a drawn notch (or a floating island).
+**The notch for people who build.** Wisp watches your coding agents from the Mac notch. Claude Code, Codex and Gemini CLI runs show beside the camera, permission prompts become an Allow or Deny card, and a click on a session brings its terminal forward. Profiles follow what you're doing, and quick toggles, widgets, a file tray and clipboard history sit one click away. Displays without a notch get a drawn notch (or a floating island).
 
 Website: [ayomideodewale.com/wisp](https://ayomideodewale.com/wisp) · Made by [Ayomide Odewale](https://ayomideodewale.com).
 
@@ -29,9 +29,10 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
 ## Features
 
 - **Coding agents in the notch**
-  - Claude Code and Codex, connected from setup or Settings › Agents. Wisp edits `~/.claude/settings.json` or `~/.codex/hooks.json` and keeps a backup.
+  - Claude Code, Codex and Gemini CLI, connected from setup or Settings › Agents. Wisp edits `~/.claude/settings.json`, `~/.codex/hooks.json` or `~/.gemini/settings.json` and keeps a backup.
+  - Gemini CLI is monitor only: its sessions, Done and tool activity show in the notch, and when it asks you to confirm a tool call the session shows Needs you until you answer in the terminal and the tool runs. Its hooks can't approve a call on your behalf, so there's no Allow or Deny card, and no cost, context or usage limits.
   - A pill while a session works, Done when it finishes, and Needs you when it waits. With several sessions going, the most urgent one (just finished or waiting on you, then working) takes the pill and a "+N" badge counts the rest. Clicking the pill opens the Agents view on that session, whatever your Home holds.
-  - **Tool activity** (opt-in, Claude Code and Codex): the pill shows what the session is doing, such as a terminal icon with `npm test` or a pencil with the file being edited, and the details list the current tool, tools used and subagents running. Secrets in commands (tokens, passwords, API key headers, `-u user:password`, keys in URLs) are masked. Settings › Agents › Tool activity adds background hooks that never make a tool call wait.
+  - **Tool activity** (opt-in, Claude Code, Codex and Gemini CLI): the pill shows what the session is doing, such as a terminal icon with `npm test` or a pencil with the file being edited, and the details list the current tool, tools used and subagents running. Secrets in commands (tokens, passwords, API key headers, `-u user:password`, keys in URLs) are masked. Settings › Agents › Tool activity adds hooks that hand each call to Wisp and return at once, so a tool call never waits for Wisp.
   - Permission prompts become an Allow, Allow All or Deny card (a bar when the shelf is open), with a soft sound. Several at once queue up ("1 of 2") instead of replacing each other; prompts you leave fall back to the terminal, and the session shows Needs you. A Claude Code plan gets an Approve or Deny card of its own. Preview opens the card to show the edit's changed lines, the start of a new file, the whole command or the plan, and "Deny with a reason…" tells Claude what to do instead (hidden in private mode).
   - **Always allow…** (Claude Code, from the menu beside Allow All) saves a rule such as `Bash(npm test *)` or `Edit(src/**)` in Claude Code's own `permissions.allow`, so it holds even when Wisp isn't running. Wisp suggests a rule no wider than the request, and you can edit it, then choose This project (`.claude/settings.local.json` at the repository root) or Everywhere (`~/.claude/settings.json`, where a file rule names the project's folder so it doesn't apply to every project). Prefix rules stop short of commands that push, reset, publish or delete, which are matched exactly. Your user settings are backed up first; a project's local file gets no copies beside it, so nothing extra lands in the repository. Settings › Agents › Rules lists the allow, ask and deny rules for Everywhere and for each project with a live session, and removes allow rules.
   - **Questions:** when Claude asks you something (AskUserQuestion), the card shows its options. Click one to answer, pick several and Send for multiple choice, type under Other…, or press Terminal to answer there. Several questions in one ask step through ("1 of 2") and go back together.
@@ -242,7 +243,7 @@ Lyrics and artwork are on by default because the Now Playing feature looks broke
 | `Wisp/Input` | Hyper key, hotkeys, pointer monitor |
 | `Wisp/Settings` | Preferences, the Settings window and its panes (`Panes/`) |
 | `Wisp/Onboarding` | First-launch setup |
-| `WispAgent/` | `wisp-agent`, the Claude Code and Codex hook command that tags events with the agent and terminal and forwards them to Wisp over a Unix socket |
+| `WispAgent/` | `wisp-agent`, the coding agents' hook command that tags events with the agent and terminal and forwards them to Wisp over a Unix socket |
 | `scripts/` | Release and appcast scripts, git hook scripts and the cask template |
 | `design/logo/` | Icon and menu bar glyph sources |
 | `WispMediaBridge/` | Objective-C library run inside `/usr/bin/perl` to read system-wide Now Playing; macOS only answers that query for Apple-signed processes |
