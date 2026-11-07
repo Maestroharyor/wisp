@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.10](https://github.com/Maestroharyor/wisp/compare/v0.1.9...v0.1.10) (2026-11-07)
+
+
+### Bug fixes
+
+* release build crashes the Swift compiler ([#40](https://github.com/Maestroharyor/wisp/issues/40)) ([fa3b315](https://github.com/Maestroharyor/wisp/commit/fa3b315c57ee56bd15c96db57c896a129165936a))
+
+## [0.1.9](https://github.com/Maestroharyor/wisp/compare/v0.1.8...v0.1.9) (2026-11-07)
+
+
+### Features
+
+* Gemini CLI sessions in the notch (monitor only) ([#30](https://github.com/Maestroharyor/wisp/issues/30)) ([8a3da11](https://github.com/Maestroharyor/wisp/commit/8a3da11ccfc6b0c28916452f7e0108c9c0cdcbc7))
+* jump to the exact terminal pane and answer cards from the keyboard ([#35](https://github.com/Maestroharyor/wisp/issues/35)) ([1cc3307](https://github.com/Maestroharyor/wisp/commit/1cc33074c791afd5b51609b82f7533b4d1c7f81a))
+* mute, camera, share and leave from the meeting pill ([#36](https://github.com/Maestroharyor/wisp/issues/36)) ([9be37a8](https://github.com/Maestroharyor/wisp/commit/9be37a820e69e1322876c1c76b2c77dc22fef551))
+* on-device AI engine with Apple Intelligence or local Ollama ([#34](https://github.com/Maestroharyor/wisp/issues/34)) ([bf9d802](https://github.com/Maestroharyor/wisp/commit/bf9d8029fe87e46d726ca3944fc5b469e6674cc3))
+* on-device dictation by holding Caps Lock + Space ([#37](https://github.com/Maestroharyor/wisp/issues/37)) ([7249718](https://github.com/Maestroharyor/wisp/commit/7249718a1a73f90f308e7006774b0ca0b0d2aa1f))
+* watch a window region for changes ([#39](https://github.com/Maestroharyor/wisp/issues/39)) ([ca10f35](https://github.com/Maestroharyor/wisp/commit/ca10f35729ed545388d3d762e7a37c8a36e5d90f))
+* wisp activity command, wisp:// links and Shortcuts actions ([#31](https://github.com/Maestroharyor/wisp/issues/31)) ([08cbb7a](https://github.com/Maestroharyor/wisp/commit/08cbb7a3eae5394c47e928ebb32c3b37a484f841))
+
 ## [0.1.8](https://github.com/Maestroharyor/wisp/compare/v0.1.7...v0.1.8) (2026-11-07)
 
 

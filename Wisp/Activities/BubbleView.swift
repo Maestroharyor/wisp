@@ -206,6 +206,16 @@ private struct BubbleGlyph: View {
                 Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
                     .font(.system(size: glyph * 0.6, weight: .semibold))
                     .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)
+            case .custom(let custom):
+                ZStack {
+                    if let progress = custom.progress {
+                        ProgressRing(progress: progress, tint: .wispViolet, lineWidth: 2.5)
+                    }
+                    Image(systemName: custom.symbol)
+                        .font(.system(size: glyph * (custom.progress == nil ? 0.6 : 0.42), weight: .bold))
+                        .foregroundStyle(Color.wispViolet)
+                }
+                .frame(width: glyph, height: glyph)
             case .regionWatch(let status):
                 RegionWatchGlyph(paused: status.paused).font(.system(size: glyph * 0.6, weight: .semibold))
             default:

@@ -53,6 +53,13 @@ final class TimerStore {
         timer = Countdown(duration: minutes(value))
     }
 
+    /// A fresh timer of this length, running now; replaces one already going.
+    func startTimer(minutes value: Int) {
+        timer = Countdown(duration: minutes(value))
+        timer.start(now: .now)
+        update()
+    }
+
     func toggleTimer() {
         if timer.isRunning { timer.pause(now: .now) } else { timer.start(now: .now) }
         update()

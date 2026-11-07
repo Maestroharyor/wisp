@@ -10,6 +10,7 @@ final class CarbonHotkey {
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
     private var action: @MainActor () -> Void = {}
+    private var releaseAction: (@MainActor () -> Void)?
 
     nonisolated static let signature = OSType(0x5749_5350)  // "WISP"
 
@@ -17,16 +18,24 @@ final class CarbonHotkey {
         self.id = id
     }
 
-    /// Returns false if the shortcut is invalid or already taken by another app.
-    func register(_ hotkey: Hotkey, action: @escaping @MainActor () -> Void) -> Bool {
+    /// Returns false if the shortcut is invalid or already taken by another app. `onRelease`
+    /// runs when the key comes back up.
+    func register(
+        _ hotkey: Hotkey, onRelease: (@MainActor () -> Void)? = nil, action: @escaping @MainActor () -> Void
+    ) -> Bool {
         unregister()
         guard !hotkey.usesHyper else { return false }
         self.action = action
+        self.releaseAction = onRelease
 
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        var specs = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased)),
+        ]
         let userData = Unmanaged.passUnretained(self).toOpaque()
         guard
-            InstallEventHandler(GetApplicationEventTarget(), carbonHotkeyHandler, 1, &spec, userData, &handlerRef)
+            InstallEventHandler(
+                GetApplicationEventTarget(), carbonHotkeyHandler, specs.count, &specs, userData, &handlerRef)
                 == noErr
         else { return false }
 
@@ -49,9 +58,13 @@ final class CarbonHotkey {
     }
 
     /// Returns false when the event belongs to another instance's hotkey.
-    fileprivate func fire(id: UInt32) -> Bool {
+    fileprivate func fire(id: UInt32, released: Bool) -> Bool {
         guard id == self.id else { return false }
-        action()
+        if released {
+            releaseAction?()
+        } else {
+            action()
+        }
         return true
     }
 
@@ -79,6 +92,7 @@ private func carbonHotkeyHandler(
 
     let hotkey = Unmanaged<CarbonHotkey>.fromOpaque(userData).takeUnretainedValue()
     // Carbon dispatches application events on the main thread.
-    let handled = MainActor.assumeIsolated { hotkey.fire(id: hotKeyID.id) }
+    let released = GetEventKind(event) == UInt32(kEventHotKeyReleased)
+    let handled = MainActor.assumeIsolated { hotkey.fire(id: hotKeyID.id, released: released) }
     return handled ? noErr : OSStatus(eventNotHandledErr)
 }

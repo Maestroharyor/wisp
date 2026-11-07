@@ -21,6 +21,7 @@ Every message is a JSON object:
   "kind": "statusline",
   "source": "claude",
   "terminal": "com.mitchellh.ghostty",
+  "terminalContext": { "TMUX_PANE": "%3", "tty": "/dev/ttys004" },
   "payload": { }
 }
 ```
@@ -31,7 +32,25 @@ Every message is a JSON object:
 | `kind` | What the payload is (below). Unknown kinds are ignored and logged once. |
 | `source` | `claude`, `codex` or `gemini` (an agent in `AgentAdapters`). Defaults to `claude` when missing. Any other value is ignored and logged once, and a hook from it gets an empty reply. |
 | `terminal` | Optional bundle id of the app the agent runs in, so Wisp can bring it forward. |
+| `terminalContext` | Optional object saying where in the terminal the agent runs, so Wisp can bring forward the exact pane or tab (below). Sent with `hook`, `tool` and `statusline`. |
 | `payload` | The agent's own JSON, unchanged. |
+
+## Terminal context
+
+`wisp-agent` copies these environment variables, when set, and nothing else from the environment. Every value is a string; empty values and values over 512 bytes are left out, and so is the whole object when nothing is set. Keys are only ever added; Wisp ignores keys it doesn't know and values that aren't strings, and older Wisps ignore the whole object.
+
+| Key | From | Used for |
+|---|---|---|
+| `TMUX` | `$TMUX` (socket path, server pid, session index) | The tmux server to talk to (`tmux -S <socket>`). |
+| `TMUX_PANE` | `$TMUX_PANE` (`%3`) | `select-window` and `select-pane` on that pane; `switch-client` when no client shows its session. |
+| `ITERM_SESSION_ID` | `$ITERM_SESSION_ID` (`w0t1p0:<GUID>`) | Selecting the iTerm2 session whose AppleScript `id` is the GUID. |
+| `TERM_SESSION_ID` | `$TERM_SESSION_ID` | Sent for completeness; not used yet. |
+| `KITTY_WINDOW_ID` | `$KITTY_WINDOW_ID` | Sent for completeness; kitty also needs its remote control socket, which isn't sent, so kitty is only brought forward. |
+| `WEZTERM_PANE` | `$WEZTERM_PANE` | `wezterm cli activate-pane --pane-id`. |
+| `TERM_PROGRAM` | `$TERM_PROGRAM` | Naming the terminal when `terminal` is missing. |
+| `tty` | The agent process's controlling terminal (`/dev/ttys004`), from the process table | Selecting the tab in Terminal, iTerm2 (without a session id) and Ghostty, whose AppleScript dictionaries expose each tab's tty. |
+
+Inside tmux, the tty and the host terminal's ids belong to tmux's pane or are left over from when the tmux server started, so Wisp finds the outer tab from the tty of the tmux client showing the pane instead. Wisp skips the tmux step when `terminal` names an editor (editors started from a tmux shell pass `TMUX` on to their own terminals), and when tmux reports a `pane_tty` other than the context's `tty` (a shell started from tmux keeps `TMUX` and `TMUX_PANE`); the agent's own `tty` and ids then name the tab.
 
 ## Kinds
 
@@ -41,6 +60,25 @@ Every message is a JSON object:
 | `statusline` | Claude Code's statusLine stdin JSON (`session_id`, `model`, `cost`, `context_window`, `workspace`, ...). | None. |
 | `tool` | Tool activity: the stdin JSON of PreToolUse, PostToolUse or SubagentStop. The helper sends it without waiting (50 ms, like `statusline`), so a tool call never waits on Wisp. | None. |
 | `query` | `{"query": "status"}` or `{"query": "spend"}`, from `wisp status`, `wisp watch` and `wisp spend`. | A report as JSON (below). An unknown query gets an empty reply. |
+| `activity` | A live activity from `wisp activity` or your own script (below). | `{"ok":true}` once Wisp has taken it, or `{"ok":false,"error":"..."}` when it understood the message but couldn't act on it (an `update` for an id that isn't showing, without a `title`). An invalid payload, or a Wisp too old to know the kind, gets an empty reply. |
+
+## Activity payload
+
+`source` isn't used for `activity`, but like every message it must be a known source or left out.
+
+```json
+{"action": "start", "id": "build", "title": "Building", "symbol": "hammer.fill", "progress": 0.4}
+```
+
+| Key | Meaning |
+|---|---|
+| `action` | `start` (show or replace), `update` (change only the fields given; with a `title` it starts an unknown id) or `end`. |
+| `id` | Letters, digits, `.`, `-` and `_`, up to 64 characters. Required. |
+| `title` | Up to 60 characters (and 240 Unicode scalars) after cleaning: control characters such as newlines and the line and paragraph separators become spaces, format characters such as bidi overrides are removed (the joiner, non-joiner and the tag characters of subdivision flags stay), then it's trimmed. Required for `start`. |
+| `symbol` | One of the SF Symbols listed by `wisp activity --help`. Defaults to `bolt.fill`. |
+| `progress` | A number from 0 to 1. Leave it out for an activity with no measurable end. |
+
+The same rules apply to `wisp activity` and `wisp://activity/...` links (`WispCore/ExternalCommand.swift`). The activity touched last shows in the notch. Each lasts 15 minutes after its last `start` or `update`, then goes away on its own; at most 8 are kept, dropping the oldest.
 
 ## Query reply
 

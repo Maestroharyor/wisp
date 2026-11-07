@@ -103,6 +103,11 @@ struct QuestionAnswers<Header: View>: View {
             try? await Task.sleep(for: .milliseconds(400))
             ready = true
         }
+        .onChange(of: index) { _, _ in hub.questionStepChanged() }
+        .onChange(of: hub.keyAnswer) { _, key in
+            guard let key, key.approval == approval.id else { return }
+            answer(key.action)
+        }
         .onChange(of: model.dictatedAnswer) { _, dictated in
             guard let dictated, dictated.approval == approval.id else { return }
             model.dictatedAnswer = nil
@@ -181,6 +186,20 @@ struct QuestionAnswers<Header: View>: View {
         }
         .disabled(!ready)
         .opacity(ready ? 1 : 0.6)
+    }
+
+    /// A shortcut does what clicking the matching chip would, once the card is ready and shown.
+    private func answer(_ action: ApprovalKeys.Action) {
+        guard ready, !hidden, !typing, questions.indices.contains(index) else { return }
+        let question = questions[index]
+        switch action {
+        case .pick(let option) where question.options.indices.contains(option):
+            pick(question.options[option].label, in: question)
+        case .send where question.multiSelect && !picked.isEmpty:
+            submit(question)
+        default:
+            break
+        }
     }
 
     private func pick(_ label: String, in question: AgentQuestion) {

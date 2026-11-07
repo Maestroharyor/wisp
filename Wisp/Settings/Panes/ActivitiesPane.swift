@@ -36,6 +36,20 @@ struct ActivitySettings: View {
                 Toggle(
                     "Calls and recordings: a pill while the microphone is on, and a Join card before calls",
                     isOn: $preferences.meetingActivity)
+                Toggle(
+                    "Call controls: click the call pill to mute, turn the camera on or off, share or leave in Zoom",
+                    isOn: $preferences.meetingControls
+                )
+                .disabled(!preferences.meetingActivity)
+                Toggle(
+                    "Also Teams and Google Meet in Chromium browsers (types their shortcuts into the call window)",
+                    isOn: $preferences.meetingShortcutControls
+                )
+                .disabled(!preferences.meetingActivity || !preferences.meetingControls)
+                Text(
+                    "Teams and Meet don't say whether you're muted, so their buttons only toggle. Wisp can't always tell Teams' call window from its other windows, so this is off until you turn it on."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 Toggle("Battery and charging", isOn: $preferences.batteryHUD)
                 Picker("Warn when the battery reaches", selection: $preferences.batteryLowThreshold) {
                     ForEach([10, 15, 20, 25, 30], id: \.self) { Text("\($0)%").tag($0) }
