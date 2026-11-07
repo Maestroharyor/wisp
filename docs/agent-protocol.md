@@ -29,7 +29,7 @@ Every message is a JSON object:
 |---|---|
 | `v` | Protocol version. Wisp ignores messages with a newer version and logs it once. |
 | `kind` | What the payload is (below). Unknown kinds are ignored and logged once. |
-| `source` | `claude` or `codex`. Defaults to `claude`. |
+| `source` | `claude` or `codex` (an agent in `AgentAdapters`). Defaults to `claude` when missing. Any other value is ignored and logged once, and a hook from it gets an empty reply. |
 | `terminal` | Optional bundle id of the app the agent runs in, so Wisp can bring it forward. |
 | `payload` | The agent's own JSON, unchanged. |
 
@@ -52,17 +52,43 @@ The reply to `query` is what `wisp status --json` and `wisp spend --json` print.
 | `generated` | ISO 8601 time. |
 | `hidden` | Why details are hidden ("during a call"), or `null`. While hidden, `id` and `folder` are `null` and `tool` is only its verb ("Running a command"). |
 | `sessions` | Newest activity first. Each has `id`, `project`, `branch`, `agent`, `state` (`working`, `needs you`, `needs approval`, `done`, `idle` or `compacting`), `model`, `contextPercent`, `cost`, `costIsReal`, `tool`, `toolSeconds`, `turnSeconds` and `folder`. |
-| `limits` | Claude plan usage windows from the latest status line, five-hour first: `window` (`fiveHour` or `sevenDay`), `percent`, `resets` and `full` (when it runs out at the last hour's pace, if before it resets; otherwise `null`). An empty list when none were reported or Wisp's bar isn't in use; missing from older Wisps. |
+| `limits` | Plan usage windows: Claude Code's from the latest status line, then Codex's from the latest rollout read, five-hour first within each. `window` (`fiveHour` or `sevenDay`), `percent`, `resets`, `full` (when it runs out at the last hour's pace, if before it resets; otherwise `null`) and `agent` (`Claude Code` or `Codex`; missing from older Wisps). An empty list when none were reported; missing from older Wisps. |
 | `spend` | For `spend`: `today`, `week`, `days` (the last 7, oldest first) and `projects` (`project`, `today`, `week`, most first; spend from before projects were kept is "Other projects"; a project is its folder name, so two folders with the same name share a row). `null` for `status`. |
 
 ## Older format
 
-Before the envelope, the helper sent the hook's JSON directly with two keys added: `wisp_source` and `wisp_terminal`. Wisp still accepts that: a message without `v` is read as a hook.
+Before the envelope, the helper sent the hook's JSON directly with two keys added: `wisp_source` and `wisp_terminal`. Wisp still accepts that: a message without `v` is read as a hook, and one whose `wisp_source` names no known agent is ignored.
 
 ## Hooks Wisp installs
 
+Each agent's hook file, events and reply format come from its adapter in `WispCore/AgentAdapter.swift`.
+
 Claude Code (`~/.claude/settings.json`): SessionStart, UserPromptSubmit, PermissionRequest (120 s timeout), Notification, Stop, SessionEnd, PreCompact and PostCompact (both `"async": true`), with tool activity on PreToolUse, PostToolUse and SubagentStop (all `"async": true`), plus `statusLine` running `wisp-agent statusline`.
 
-Codex (`~/.codex/hooks.json`): the same hooks without Notification, and no status bar (Codex has no external status line command).
+Codex (`~/.codex/hooks.json`, command `wisp-agent --source codex`): the same hooks without Notification. Tool activity hooks are `"async": true`; the compaction hooks stay synchronous, as installed before Codex documented `async`, so hooks already trusted in `/hooks` don't change. No status bar (Codex has no external status line command). Codex asks you to trust new or changed hooks once in `/hooks`.
 
 The statusLine command keeps any bar you had before inside it (`--saved '<command>'` or `--chain '<command>'`), so Wisp can put it back exactly.
+
+## Claude Code and Codex compared
+
+Checked on 2026-11-07 against Codex's hooks documentation (developers.openai.com/codex/hooks) and the structure of local Codex rollout files written by Codex 0.45 to 0.77 (keys and event types only). Codex itself wasn't installed, so nothing below was run against a live Codex.
+
+| | Claude Code | Codex |
+|---|---|---|
+| Hook file | `~/.claude/settings.json` (`hooks` next to other settings) | `~/.codex/hooks.json` (also read from `config.toml` and project `.codex/`; Wisp writes only the user hooks.json) |
+| Hook input fields | `session_id`, `cwd`, `hook_event_name`, `transcript_path`, `tool_name`, `tool_input`, `tool_use_id`, ... | The same names, plus `turn_id`, `model` and `permission_mode` |
+| SessionStart, UserPromptSubmit, Stop, SessionEnd | Yes | Yes (`SessionStart.source` adds `fork`) |
+| Notification (idle, elicitation) | Yes | No such event |
+| PermissionRequest | Allow or deny, `updatedInput` for plans and questions | Allow or deny only; `updatedInput` is reserved and fails closed |
+| Plan approval (ExitPlanMode) | From the notch | No equivalent tool |
+| Questions (AskUserQuestion) | Answered from the notch | No equivalent tool |
+| PreCompact, PostCompact | Yes, `async` | Yes, synchronous (matcher `manual` or `auto`) |
+| PreToolUse, PostToolUse, SubagentStop | Yes, `async` | Yes, `async`. File edits arrive as `apply_patch` with the whole patch in `tool_input.command`; Wisp shows the first file it touches |
+| `async` handlers | Yes | Yes |
+| Status line (live cost, context, model) | `statusLine` command | None |
+| Context % | Status line `context_window.used_percentage` | Rollout `token_count`: `info.last_token_usage.total_tokens` over `info.model_context_window`, read when a turn stops |
+| Model | Status line, or the transcript's messages | Rollout `turn_context.payload.model` |
+| Cost | Status line `cost.total_cost_usd` (real); transcript estimate otherwise | Estimate from rollout `info.total_token_usage` (cached input split out) at OpenAI list prices |
+| Plan limits | Status line `rate_limits.five_hour` / `seven_day` | Rollout `token_count.rate_limits.primary` / `secondary` with `used_percent`, `window_minutes` (300 and 10080 are shown) and `resets_at` (epoch seconds), or `resets_in_seconds` in older rollouts |
+| Always-allow rules | `permissions.allow` (roadmap phase 2) | Not yet |
+| Not used by Wisp | | `Interrupt`, `SubagentStart`, `PreModelRequest`, `PostModelRequest` |
