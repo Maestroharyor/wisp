@@ -29,7 +29,8 @@ struct WindowWidgetDetail: View {
             BatteryPage(
                 monitor: services.battery,
                 accessories: services.preferences.accessoryBatteries ? services.accessories.devices : [],
-                showsAccessories: services.preferences.accessoryBatteries
+                showsAccessories: services.preferences.accessoryBatteries,
+                lowLevel: services.preferences.batteryLowThreshold
             ) {
                 services.showSettings(pane: .activities)
             }
@@ -40,7 +41,7 @@ struct WindowWidgetDetail: View {
         case .mirror: MirrorPage(camera: services.camera)
         case .script:
             ScriptPage(store: services.script, preferences: services.preferences) {
-                services.showSettings(pane: .widgets)
+                services.showSettings(pane: .shelf)
             }
         case .agents:
             AgentsDetail(hub: services.agents, cloud: services.cloud, model: model).padding(20)

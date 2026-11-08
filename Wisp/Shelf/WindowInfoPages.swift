@@ -75,6 +75,8 @@ struct BatteryPage: View {
     /// Accessories with a level, empty while the setting is off.
     let accessories: [BluetoothDevice]
     let showsAccessories: Bool
+    /// The battery warning level from Settings; parts at or below it show red.
+    let lowLevel: Int
     let openSettings: () -> Void
 
     var body: some View {
@@ -100,7 +102,9 @@ struct BatteryPage: View {
                         if !accessories.isEmpty {
                             WindowSectionTitle("Accessories").padding(.top, 12)
                             LazyVGrid(columns: windowGridColumns(width: width), spacing: WindowLayout.spacing) {
-                                ForEach(sortedAccessories, id: \.address) { AccessoryBatteryCard(device: $0) }
+                                ForEach(sortedAccessories, id: \.address) {
+                                    AccessoryBatteryCard(device: $0, lowLevel: lowLevel)
+                                }
                             }
                         } else if !showsAccessories {
                             HStack(spacing: 10) {
@@ -151,6 +155,7 @@ private struct MacBatteryCard: View {
 
 private struct AccessoryBatteryCard: View {
     let device: BluetoothDevice
+    let lowLevel: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -161,7 +166,7 @@ private struct AccessoryBatteryCard: View {
                     .background(Circle().fill(.ink.opacity(0.1)))
                 Text(device.name).font(.system(size: 13, weight: .semibold)).lineLimit(1)
             }
-            ForEach(BatteryText.parts(of: device), id: \.label) { part in
+            ForEach(BatteryText.parts(of: device, lowLevel: lowLevel), id: \.label) { part in
                 HStack(spacing: 8) {
                     Text(part.label)
                         .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
