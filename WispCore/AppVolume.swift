@@ -156,19 +156,18 @@ public enum AppVolumeTaps {
 public struct TapArming: Sendable, Equatable {
     public enum State: Sendable, Equatable {
         case listening
-        /// Sound came through: the tap may mute the app and play it scaled. Quiet alone never
-        /// undoes this, since a paused tab or a call on hold keeps an empty stream open.
+        /// Sound came through: the tap may mute the app and play it scaled. It stays armed
+        /// whatever it hears afterwards; open streams with nothing in them (a paused tab, a
+        /// quiet call, a game menu) are exact zeros, and hearing once already proved the
+        /// permission.
         case armed
         /// Never armed, and the app has been playing while the tap hears nothing, most likely
         /// because System Audio Recording is off. Keeps listening.
         case silent
-        /// Armed, then exact zeros for a long time while the app plays: recording was most
-        /// likely turned off. The tap should come down so the app plays directly.
-        case lost
     }
 
     public private(set) var state = State.listening
-    /// Whether this tap has ever heard real sound, which proves the permission.
+    /// Whether this tap has heard real sound (or Wisp already had), which proves the permission.
     public private(set) var hasHeard = false
     private var quietPlaying: Double = 0
 
@@ -176,40 +175,56 @@ public struct TapArming: Sendable, Equatable {
     static let threshold: Float = 0.000_1
     /// Seconds of playing with no sound before an unarmed tap counts as silent.
     static let silentAfter: Double = 3
-    /// Seconds of exact zeros while playing before an armed tap counts as lost.
-    static let lostAfter: Double = 30
 
-    public init() {}
+    /// `heard` starts the tap armed, for when another tap this session already proved Wisp
+    /// can hear apps.
+    public init(heard: Bool = false) {
+        if heard {
+            state = .armed
+            hasHeard = true
+        }
+    }
 
     /// `peak` is the loudest sample since the last call, `seconds` the time since then.
     public mutating func observe(peak: Float, appPlaying: Bool, seconds: Double) -> State {
-        switch state {
-        case .lost:
-            return state
-        case .armed:
-            // Only true digital silence counts; any sample at all means the tap still hears.
-            guard peak == 0, appPlaying else {
-                if peak != 0 { quietPlaying = 0 }
-                return state
-            }
+        guard state != .armed else { return state }
+        if peak > Self.threshold {
+            hasHeard = true
+            state = .armed
+        } else if appPlaying {
             quietPlaying += seconds
-            if quietPlaying >= Self.lostAfter { state = .lost }
-        case .listening, .silent:
-            if peak > Self.threshold {
-                quietPlaying = 0
-                hasHeard = true
-                state = .armed
-            } else if appPlaying {
-                quietPlaying += seconds
-                if quietPlaying >= Self.silentAfter { state = .silent }
-            }
+            if quietPlaying >= Self.silentAfter { state = .silent }
         }
         return state
     }
 }
 
-/// When a tap's audio IO has to run. Once armed the tap mutes the app by itself (it's
-/// private, so it goes with Wisp), and the IO only plays the scaled copy.
+/// Starting a tap's IO can fail; after a few failures in a row the tap gives up, so a muted
+/// app with no copy playing is handed back instead of retried forever.
+public struct TapStarts: Sendable, Equatable {
+    private var failures = 0
+    /// True right after the first failure of a run, so the log says it once.
+    public private(set) var shouldLog = false
+
+    static let limit = 3
+
+    public init() {}
+
+    /// Returns true when it's time to give up.
+    public mutating func record(success: Bool) -> Bool {
+        if success {
+            failures = 0
+            shouldLog = false
+            return false
+        }
+        failures += 1
+        shouldLog = failures == 1
+        return failures >= Self.limit
+    }
+}
+
+/// When a tap's audio IO has to run. Once armed the tap keeps the app muted while the IO is
+/// off, and the IO only plays the scaled copy.
 public enum TapIO {
     /// `active` is `TapActivity`'s answer: the app is playing or just stopped.
     public static func needsIO(armed: Bool, gain: Float, active: Bool) -> Bool {

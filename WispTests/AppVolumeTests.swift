@@ -197,28 +197,48 @@ final class AppVolumeTests: XCTestCase {
         var arming = TapArming()
         _ = arming.observe(peak: 0.3, appPlaying: true, seconds: 0.5)
         XCTAssertEqual(arming.observe(peak: 0.000_001, appPlaying: true, seconds: 120), .armed)
-        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 20), .armed)
     }
 
-    func testAnArmedTapReadingExactZerosForLongIsLost() {
+    func testAnArmedTapReadingExactZerosWhilePlayingStaysArmed() {
         var arming = TapArming()
         _ = arming.observe(peak: 0.3, appPlaying: true, seconds: 0.5)
-        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 29), .armed)
-        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 1), .lost)
+        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 60), .armed)
+        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 600), .armed)
     }
 
-    func testAnyNonZeroSampleResetsTheZeroCount() {
-        var arming = TapArming()
-        _ = arming.observe(peak: 0.3, appPlaying: true, seconds: 0.5)
-        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 29), .armed)
-        XCTAssertEqual(arming.observe(peak: 0.000_001, appPlaying: true, seconds: 0.5), .armed)
-        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 29), .armed)
+    func testATapBuiltOnceWispCanHearStartsArmed() {
+        var arming = TapArming(heard: true)
+        XCTAssertEqual(arming.state, .armed)
+        XCTAssertTrue(arming.hasHeard)
+        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 10), .armed)
+        XCTAssertEqual(TapArming(heard: false), TapArming())
     }
 
-    func testZerosWhileTheAppIsIdleNeverLoseTheTap() {
-        var arming = TapArming()
-        _ = arming.observe(peak: 0.3, appPlaying: true, seconds: 0.5)
-        XCTAssertEqual(arming.observe(peak: 0, appPlaying: false, seconds: 600), .armed)
+    // MARK: Start failures
+
+    func testThreeFailedStartsInARowGiveUp() {
+        var starts = TapStarts()
+        XCTAssertFalse(starts.record(success: false))
+        XCTAssertFalse(starts.record(success: false))
+        XCTAssertTrue(starts.record(success: false))
+    }
+
+    func testASuccessfulStartResetsTheCount() {
+        var starts = TapStarts()
+        _ = starts.record(success: false)
+        _ = starts.record(success: false)
+        XCTAssertFalse(starts.record(success: true))
+        XCTAssertFalse(starts.record(success: false))
+        XCTAssertFalse(starts.record(success: false))
+        XCTAssertTrue(starts.record(success: false))
+    }
+
+    func testOnlyTheFirstFailureIsLogged() {
+        var starts = TapStarts()
+        _ = starts.record(success: false)
+        XCTAssertTrue(starts.shouldLog)
+        _ = starts.record(success: false)
+        XCTAssertFalse(starts.shouldLog)
     }
 
     func testAnArmedTapNeverCountsAsSilent() {
