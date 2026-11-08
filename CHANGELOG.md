@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.17](https://github.com/Maestroharyor/wisp/compare/v0.1.16...v0.1.17) (2026-11-08)
+
+
+### Features
+
+* capture text and QR codes from the screen, clipboard images and PDFs ([#63](https://github.com/Maestroharyor/wisp/issues/63)) ([1723be8](https://github.com/Maestroharyor/wisp/commit/1723be81337672a679d68e923e14fcb08003b18f))
+* full window pages for Quick Toggles, Clipboard, Day Progress, World Clocks and Pomodoro ([#72](https://github.com/Maestroharyor/wisp/issues/72)) ([9fd8ebc](https://github.com/Maestroharyor/wisp/commit/9fd8ebcf7d77c717e096ee8046dc2708454ab91b))
+* full window pages for the remaining widgets ([#76](https://github.com/Maestroharyor/wisp/issues/76)) ([34277f2](https://github.com/Maestroharyor/wisp/commit/34277f20f544cc86c645697a6e4c783d72571c8c))
+* per-app volume and Up Next in Music ([#74](https://github.com/Maestroharyor/wisp/issues/74)) ([97ee2dc](https://github.com/Maestroharyor/wisp/commit/97ee2dc293fee875693f845d8ade32d9dd09bd2b))
+* quick add for timers, reminders and events ([#70](https://github.com/Maestroharyor/wisp/issues/70)) ([9e71684](https://github.com/Maestroharyor/wisp/commit/9e716841419247f24a778c40a429092a9c9161c2))
+
+
+### Bug fixes
+
+* keep approval buttons at full width so Allow All never empties ([#78](https://github.com/Maestroharyor/wisp/issues/78)) ([928bd5e](https://github.com/Maestroharyor/wisp/commit/928bd5eeeae86668617027ed82c8cc91756e102a))
+* keep the approval card's title row on one line ([#69](https://github.com/Maestroharyor/wisp/issues/69)) ([c7f7ffd](https://github.com/Maestroharyor/wisp/commit/c7f7ffd9fb91b5ae8c703230c6f9cd21c21091a7))
+
 ## [0.1.16](https://github.com/Maestroharyor/wisp/compare/v0.1.15...v0.1.16) (2026-11-08)
 
 
