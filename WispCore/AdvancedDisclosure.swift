@@ -3,7 +3,7 @@ import Foundation
 /// Whether a pane's Advanced disclosure is open. It starts closed and opens while the
 /// Settings search has text, so a search always shows the controls it found. Opening or
 /// closing it by hand outside a search is remembered while the pane is open; closing it
-/// during a search lasts only until the search text changes or is cleared.
+/// during a search holds while the search shows that same text, until it is cleared.
 public struct AdvancedDisclosureState: Equatable, Sendable {
     private var userExpanded = false
     private var collapsedForQuery: String?
