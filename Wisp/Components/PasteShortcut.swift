@@ -17,6 +17,24 @@ enum PasteShortcut {
         up?.post(tap: .cgAnnotatedSessionEventTap)
     }
 
+    /// Pastes `text` through the clipboard, then puts the user's clipboard back after `delay`
+    /// unless something new was copied meanwhile.
+    @MainActor
+    static func pasteRestoring(_ text: String, after delay: Duration) {
+        let saved = snapshot()
+        let staged = stage(text)
+        send()
+        guard let saved else { return }
+        Task {
+            try? await Task.sleep(for: delay)
+            guard
+                DictationPaste.shouldRestore(
+                    stagedChangeCount: staged, currentChangeCount: NSPasteboard.general.changeCount)
+            else { return }
+            restore(saved)
+        }
+    }
+
     /// Puts `text` on the pasteboard marked transient, so clipboard managers (Wisp's own
     /// history included) don't keep it. Returns the pasteboard's change count afterwards.
     @discardableResult

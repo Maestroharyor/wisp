@@ -47,6 +47,8 @@ public enum SurfaceSizing {
     public static let approvalPreviewHeight: CGFloat = 220
     /// An edit's first changed lines (`InlineDiff.maxLines`) under an approval card's summary.
     public static let inlineDiffHeight: CGFloat = 60
+    /// The answer under an AI result card's title; longer answers scroll.
+    public static let aiResultHeight: CGFloat = 132
 
     /// `contentScale` zooms the open shelf's content (the shelf size setting); pills and
     /// cards keep their size.
