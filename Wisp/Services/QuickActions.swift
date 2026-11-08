@@ -9,6 +9,8 @@ import WispCore
 @Observable
 final class QuickActions {
     private(set) var keepAwake = false
+    /// When the current Keep awake ends on its own; nil while off or kept on indefinitely.
+    private(set) var keepAwakeSession: KeepAwakeSession?
     private(set) var darkMode = QuickActions.systemIsDark
     private(set) var desktopHidden = QuickActions.finderHidesDesktop
 
@@ -16,9 +18,13 @@ final class QuickActions {
     var onNotice: (String, String) -> Void = { _, _ in }
     /// Closes open shelves before an action that needs the screen.
     var closeShelves: () -> Void = {}
+    /// Takes the shelf window off screen for a capture; the returned closure brings it back.
+    var stepAsideWindow: () -> @MainActor @Sendable () -> Void = { {} }
 
     @ObservationIgnored private let awake = SleepAssertion(
         type: kIOPMAssertionTypePreventUserIdleDisplaySleep, name: "Wisp Keep Awake")
+    /// Ends a timed Keep awake when its time is up.
+    @ObservationIgnored private var keepAwakeExpiry: Task<Void, Never>?
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let shortcuts: ShortcutsRunner
 
@@ -36,12 +42,42 @@ final class QuickActions {
 
     func toggleKeepAwake() {
         if keepAwake {
-            awake.release()
-            keepAwake = false
+            endKeepAwake()
         } else {
-            keepAwake = awake.hold()
+            startKeepAwake(KeepAwakeSession.lasting(nil, from: .now))
         }
-        onNotice(keepAwake ? "cup.and.saucer.fill" : "moon.zzz.fill", keepAwake ? "Staying awake" : "Sleep allowed")
+    }
+
+    /// Keeps the Mac awake for `session`, replacing one already running.
+    func startKeepAwake(_ session: KeepAwakeSession) {
+        keepAwakeExpiry?.cancel()
+        keepAwakeExpiry = nil
+        // The assertion is held once; a new length only moves the end.
+        if !keepAwake { keepAwake = awake.hold() }
+        guard keepAwake else { return onNotice("exclamationmark.triangle.fill", "Couldn't keep the Mac awake") }
+        keepAwakeSession = session.ends == nil ? nil : session
+        if session.ends != nil {
+            keepAwakeExpiry = Task { [weak self] in
+                // Checked again after waking, in case the clock changed while it slept.
+                while !Task.isCancelled, !session.isExpired(now: .now) {
+                    try? await Task.sleep(for: .seconds(min(session.remaining(now: .now) ?? 60, 60)))
+                }
+                guard !Task.isCancelled else { return }
+                self?.endKeepAwake()
+            }
+        }
+        let until = session.ends.map { "Awake until \($0.formatted(date: .omitted, time: .shortened))" }
+        onNotice("cup.and.saucer.fill", until ?? "Staying awake")
+    }
+
+    func endKeepAwake() {
+        keepAwakeExpiry?.cancel()
+        keepAwakeExpiry = nil
+        keepAwakeSession = nil
+        guard keepAwake else { return }
+        awake.release()
+        keepAwake = false
+        onNotice("moon.zzz.fill", "Sleep allowed")
     }
 
     // MARK: Appearance
@@ -77,7 +113,9 @@ final class QuickActions {
 
     func screenshot() {
         closeShelves()
+        let restore = stepAsideWindow()
         Task {
+            defer { restore() }
             // Let the shelf animate away first.
             try? await Task.sleep(for: .milliseconds(350))
             // A cancelled capture leaves the pasteboard alone, which may already hold an image.
@@ -94,7 +132,9 @@ final class QuickActions {
 
     func pickColor() {
         closeShelves()
+        let restore = stepAsideWindow()
         NSColorSampler().show { [weak self] color in
+            MainActor.assumeIsolated { restore() }
             guard let color, let rgb = color.usingColorSpace(.sRGB) else { return }
             let hex = ColorHex.string(
                 red: Double(rgb.redComponent), green: Double(rgb.greenComponent), blue: Double(rgb.blueComponent))

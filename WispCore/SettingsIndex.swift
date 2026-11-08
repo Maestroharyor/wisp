@@ -107,6 +107,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "home", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
                 "timer length", "script", "command", "output", "do not disturb", "dnd", "workday",
+                "working hours", "time zone",
             ]
         case .ring:
             [

@@ -405,6 +405,7 @@ final class AppServices {
         shortcuts.onNotice = notice
         quickActions.onNotice = notice
         quickActions.closeShelves = { [weak self] in self?.closeShelves() }
+        quickActions.stepAsideWindow = { [weak self] in self?.shelfWindow.stepAside() ?? {} }
 
         agents.onStatus = { [weak self] status in self?.agentStatusChanged(status) }
         agents.onApproval = { [weak self] approval in

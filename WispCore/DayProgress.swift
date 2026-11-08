@@ -25,13 +25,55 @@ public struct DayProgress: Sendable {
 
     /// Events as fractions of the day, clipped to it; events wholly outside are dropped.
     public func marks(for events: [ClosedRange<Date>], on day: Date) -> [ClosedRange<Double>] {
+        events.compactMap { mark(for: $0, on: day) }
+    }
+
+    /// One event as a fraction of the day, clipped to it; nil when it's wholly outside.
+    public func mark(for event: ClosedRange<Date>, on day: Date) -> ClosedRange<Double>? {
         let (start, end) = bounds(on: day)
         let length = end.timeIntervalSince(start)
-        return events.compactMap { event in
-            guard event.upperBound > start, event.lowerBound < end else { return nil }
-            let lower = clamp(event.lowerBound.timeIntervalSince(start) / length)
-            let upper = clamp(event.upperBound.timeIntervalSince(start) / length)
-            return lower...upper
+        guard event.upperBound > start, event.lowerBound < end else { return nil }
+        let lower = clamp(event.lowerBound.timeIntervalSince(start) / length)
+        let upper = clamp(event.upperBound.timeIntervalSince(start) / length)
+        return lower...upper
+    }
+
+    /// Within the working hours: from the start up to, not including, the end.
+    public func isWorking(at date: Date) -> Bool {
+        let (start, end) = bounds(on: date)
+        return date >= start && date < end
+    }
+
+    /// When the working day next starts: today's start before it, otherwise tomorrow's.
+    public func nextStart(after date: Date) -> Date {
+        let (start, _) = bounds(on: date)
+        guard date >= start else { return start }
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+        return bounds(on: tomorrow).0
+    }
+
+    /// Each whole hour of the working day with where it falls on the day, for timeline labels.
+    public func hourMarks(on day: Date) -> [(hour: Int, fraction: Double)] {
+        let (start, end) = bounds(on: day)
+        let length = end.timeIntervalSince(start)
+        return (startHour...endHour).map { hour in
+            let date =
+                hour == endHour ? end : calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? start
+            return (hour, clamp(date.timeIntervalSince(start) / length))
+        }
+    }
+
+    /// A lane for each mark, in order, so overlapping events sit on separate rows. A mark goes
+    /// in the first lane whose last mark has ended by its start.
+    public static func lanes(for marks: [ClosedRange<Double>]) -> [Int] {
+        var ends: [Double] = []
+        return marks.map { mark in
+            if let lane = ends.firstIndex(where: { $0 <= mark.lowerBound }) {
+                ends[lane] = mark.upperBound
+                return lane
+            }
+            ends.append(mark.upperBound)
+            return ends.count - 1
         }
     }
 

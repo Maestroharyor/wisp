@@ -20,6 +20,10 @@ final class TimerStore {
     private(set) var timer: Countdown
     private(set) var pomodoro: Countdown
     private(set) var phase: PomodoroPhase = .focus
+    /// Today's finished focus sessions (times only), kept across relaunches.
+    private(set) var log: PomodoroLog {
+        didSet { if let data = try? JSONEncoder().encode(log) { defaults.set(data, forKey: Self.logKey) } }
+    }
     var focusMinutes: Int {
         didSet { if !pomodoro.hasStarted, phase == .focus { pomodoro = Countdown(duration: minutes(focusMinutes)) } }
     }
@@ -31,12 +35,19 @@ final class TimerStore {
     /// A timer ran out: its label, and whether it ended a Pomodoro focus session.
     @ObservationIgnored var onFinished: (String, Bool) -> Void = { _, _ in }
     @ObservationIgnored private var tickTask: Task<Void, Never>?
+    @ObservationIgnored private let defaults: UserDefaults
 
-    init() {
+    static let logKey = "pomodoroLog"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         timer = Countdown(duration: 5 * 60)
         focusMinutes = 25
         breakMinutes = 5
         pomodoro = Countdown(duration: 25 * 60)
+        log =
+            defaults.data(forKey: Self.logKey).flatMap { try? JSONDecoder().decode(PomodoroLog.self, from: $0) }
+            ?? PomodoroLog()
     }
 
     // MARK: Timer
@@ -91,6 +102,18 @@ final class TimerStore {
         update()
     }
 
+    /// Moves on to the other phase without counting this one as done.
+    func skipPhase() {
+        setPhase(phase == .focus ? .rest : .focus)
+    }
+
+    /// Sets both lengths, for the window's preset chips; ignored while a session is going.
+    func applyPreset(focus: Int, rest: Int) {
+        guard !pomodoro.hasStarted else { return }
+        focusMinutes = focus
+        breakMinutes = rest
+    }
+
     // MARK: Ticking
 
     private func update() {
@@ -117,6 +140,11 @@ final class TimerStore {
         }
         if pomodoro.isRunning, pomodoro.isFinished(now: now) {
             let finished = phase
+            if finished == .focus {
+                // When it ran out, not when this tick noticed (the Mac may have slept).
+                let end = now.addingTimeInterval(pomodoro.duration - pomodoro.elapsed(now: now))
+                log.record(start: end.addingTimeInterval(-pomodoro.duration), end: end)
+            }
             setPhase(finished == .focus ? .rest : .focus)
             onFinished(finished == .focus ? "Focus done" : "Break over", finished == .focus)
         }
