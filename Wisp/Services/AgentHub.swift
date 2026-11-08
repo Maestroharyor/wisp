@@ -175,6 +175,11 @@ final class AgentHub {
     /// Needs you, Done, a usage limit or the budget, for phone push. Fired whatever the notch
     /// shows; the receiver decides what goes out.
     var onMoment: (AgentMoment) -> Void = { _ in }
+    /// A session finished a turn (`ended` false) or ended, with its record so far. The receiver
+    /// saves it to the history and sends Done to the phone.
+    var onRecord: (_ record: SessionRecord, _ ended: Bool) -> Void = { _, _ in }
+    /// Builds history records from the events; commands and files are left out while hidden.
+    @ObservationIgnored private var recorder = SessionRecorder()
     /// `wisp activity` (or a script) posted, changed or ended a live activity. Returns why it
     /// couldn't be done, which goes back to the sender, or nil.
     var onExternalActivity: (ExternalActivityAction) -> String? = { _ in nil }
@@ -380,13 +385,17 @@ final class AgentHub {
         // A new prompt or the end of a turn means a pending request was answered in the
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
-        let before = sessions.session(event.sessionID)?.state
+        let previous = sessions.session(event.sessionID)
+        let before = previous?.state
+        recorder.observe(event, at: .now, keepDetails: !detailsHidden, session: previous)
+        if event.kind == .sessionEnd, let previous { finishRecord(previous) }
         sessions.apply(event, at: .now)
         reportMoment(session: event.sessionID, before: before, stopped: event.kind == .stop)
         // Tool activity comes several times a second; the branch and pruning can wait for the
         // next prompt, stop or status bar snapshot.
         if !event.kind.isToolActivity {
             sessions.prune(now: .now, olderThan: 6 * 3600)
+            recorder.keep(only: Set(sessions.list.map(\.id)))
             if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
         }
 
@@ -539,7 +548,12 @@ final class AgentHub {
     private func reportMoment(session id: String, before: AgentSession.State?, stopped: Bool) {
         guard let session = sessions.session(id) else { return }
         if stopped {
-            onMoment(.done(session: id, project: session.project, source: session.source))
+            // Done goes out with the record, so the receiver can add its summary.
+            if let record = recorder.record(session, at: .now) {
+                onRecord(record, false)
+            } else {
+                onMoment(.done(session: id, project: session.project, source: session.source))
+            }
         } else if session.state == .waiting, before != .waiting {
             onMoment(.needsYou(session: id, project: session.project, source: session.source))
         }
@@ -561,6 +575,7 @@ final class AgentHub {
         if let allow {
             sessions.record(
                 allow ? .allowed : .denied, allow ? "Allowed" : "Denied", session: approval.sessionID, at: .now)
+            if !allow { recorder.denied(session: approval.sessionID, command: approval.summary) }
         }
         // Handed back to the terminal (timed out, or answered there) counts as resolved too,
         // so the session doesn't keep saying it waits on the notch.
@@ -589,9 +604,16 @@ final class AgentHub {
             reply(connection, approval.source.adapter.reply(.deny(approval.prompt, reason: reason)))
         }
         sessions.record(.denied, "Denied", session: approval.sessionID, at: .now)
+        recorder.denied(session: approval.sessionID, command: approval.summary)
         sessions.resolveApproval(session: approval.sessionID, at: .now)
         approvalsChanged()
         publishStatus()
+    }
+
+    /// Hands a session's last record over as it ends and lets its draft go.
+    private func finishRecord(_ session: AgentSession) {
+        if let record = recorder.record(session, at: .now) { onRecord(record, true) }
+        recorder.forget(session.id)
     }
 
     /// Lines of a diff or new file an approval card shows at most.
@@ -736,9 +758,11 @@ final class AgentHub {
 
     /// A session whose agent has quit (closed tab, crash, `kill`) ends as if SessionEnd came.
     private func endExitedSessions() {
+        let live = sessions.list
         let ended = sessions.endExited(at: .now) { $0.isRunning(info: AgentProcess.systemInfo) }
         guard !ended.isEmpty else { return }
         for id in ended {
+            if let session = live.first(where: { $0.id == id }) { finishRecord(session) }
             settleApprovals(for: id)
             transcripts[id] = nil
         }
