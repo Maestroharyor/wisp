@@ -75,7 +75,7 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
   - **Forms:** switch between notch, corner, bottom, side, orb and window from the button at the end of the shelf's page pill, the ring's Form action, Hyper+F or the right-click menu. A new form springs in; the orb's shelf, cards and pills bloom out of it and fold back into it.
   - **Window mode:** use the shelf like a normal app. Form › Open as Window in the right-click menu, or pulling the open shelf away by its edge (the strip above the pages or the margins beside them, never the pages themselves), opens its pages in an ordinary window you can move, resize and minimise. Minimising or closing it puts Wisp back into the notch, island or orb it was, with the same size and spot remembered for next time. The Window form (Form › Window, the ring, Hyper+F or Settings › Notch › Window) keeps it that way: minimising still collapses to the shell, and clicking the shell or pressing the shortcut brings the window back until you pick another form. Wisp stays out of the Dock and the app switcher. While the window has the shelf, the shell keeps showing live activities and alerts but doesn't open its own shelf on hover; dragging files to it still opens the drop tiles.
   - **Dynamic Island Macs:** on a MacBook Pro with Apple's Dynamic Island, Wisp stays clear of it (Top moves to the top right). Settings › Notch › "This Mac has a Dynamic Island" sets this by hand, and "Copy display info" copies the measurements Wisp reads, for bug reports.
-- **The ring:** a radial ring of eight actions with optional sub-rings. Hyper+R (or a shortcut you set) opens it at the pointer, clicking the idle orb opens it around the orb, and the middle, back or forward mouse button can too (hold, move, let go to pick). Actions: shelf pages, a widget, Agents (Allow and Deny for waiting requests, or jump to a session), media controls, Clipboard, the mini player, a timer, quick toggles, Watch region, a Shortcut, and file actions (Tray, AirDrop, Transform, Zip, drop actions) that take files dragged onto the orb. Apps can have their own ring. Its wedges fly out in turn and fold back in on close. Set it up in Settings › Ring, by clicking segments on a picture of the ring.
+- **The ring:** a radial ring of eight actions with optional sub-rings. Hyper+R (or a shortcut you set) opens it at the pointer, clicking the idle orb opens it around the orb, and the middle, back or forward mouse button can too (hold, move, let go to pick). Actions: shelf pages, a widget, Agents (Allow and Deny for waiting requests, or jump to a session), media controls, Clipboard, the mini player, a timer, Quick add, quick toggles, Watch region, a Shortcut, and file actions (Tray, AirDrop, Transform, Zip, drop actions) that take files dragged onto the orb. Apps can have their own ring. Its wedges fly out in turn and fold back in on close. Set it up in Settings › Ring, by clicking segments on a picture of the ring.
 - **Appearance** (its own Settings pane)
   - **Presets:** Default, Calm, Arcade, Minimal and Neon each set the whole look at once. Save your own, give each profile a look, and share looks as `.wisplook` files.
   - **Shell:** roundness, shadow, opacity, shelf size (compact, standard, roomy), glow strength and reach, grain, a slow shimmer, an outline, and the page switcher as a pill, dots or hidden.
@@ -99,7 +99,8 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
   - **Home**: up to four widgets, resizable and reorderable.
   - **Widgets**: an icon grid of every widget; click one to open it on its own.
   - Calendar shows the coming week and scrolls.
-  - Widgets: Now Playing, Calendar, Timer, Pomodoro, Battery, System Stats, Weather, Notes, Quick Toggles, Shortcuts, Clipboard, Mirror, Day Progress, World Clocks, Agents and Script.
+  - Widgets: Now Playing, Calendar, Timer, Pomodoro, Battery, System Stats, Weather, Notes, Quick Toggles, Shortcuts, Clipboard, Mirror, Day Progress, World Clocks, Agents, Script and Quick add.
+  - **Quick add**: type or dictate "25 min", "pomodoro", "remind me to call Sam at 5" or "tomorrow 9am meeting" and Wisp starts a timer, adds a Reminders item or puts an event on your default calendar. A card shows what it read (title, day and time, in your time zone and time format) and nothing is made until you press Start or Add. Common English phrasings are read on your Mac without AI; anything else goes to the on-device AI when it's on. Reminders asks for access the first time you add one; events use the Calendars access Wisp already asks for. Hold the dictation key while the field has the cursor to speak into it. Also a ring action.
   - **Script widget**: the first lines a command of yours prints, refreshed while the widget is on screen.
   - New timers start at a length you type, such as 10, 1h30m or 90s.
   - **Tray**: drop files on the notch to keep them; each shows its type and size. Drag them out, AirDrop, transform or zip them.
@@ -109,7 +110,7 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
   - **Media**: the player, with synced lyrics from LRCLIB (optional) and a floating mini player.
 - **Lock screen player**: while the screen is locked and music plays, a player shows where macOS allows it.
 - **Clipboard history**: a bottom panel with type tabs, search and pinning. Return pastes into the app in front; concealed (password) items are skipped.
-- **On-device AI** (off by default): Settings › AI picks Apple Intelligence (Apple's Foundation Models, macOS 26 or later with Apple Intelligence on) or [Ollama](https://ollama.com) running on your Mac, with a model picker for Ollama and a status line that says what's missing ("Apple Intelligence is off", "Ollama isn't running"). Long text is cut to fit the model's 4,096-token window, keeping its start and end. A small "Try it" box summarises, fixes grammar, rewrites, lists action items or explains code; features that use AI come in later releases.
+- **On-device AI** (off by default): Settings › AI picks Apple Intelligence (Apple's Foundation Models, macOS 26 or later with Apple Intelligence on) or [Ollama](https://ollama.com) running on your Mac, with a model picker for Ollama and a status line that says what's missing ("Apple Intelligence is off", "Ollama isn't running"). Long text is cut to fit the model's 4,096-token window, keeping its start and end. A small "Try it" box summarises, fixes grammar, rewrites, lists action items or explains code. Quick add uses it for requests its own reader can't follow; more features that use AI come in later releases.
 - **Settings**: a searchable sidebar with a live notch preview and a setup check that flags missing permissions. The menu bar icon can be hidden; open Wisp again to reach Settings.
 
 ## Requirements
@@ -215,7 +216,8 @@ These secrets live in the repository settings (Settings › Secrets and variable
 | Accessibility | Caps Lock as Hyper, volume and brightness keys, pasting, hiding system banners, Lock Screen, call controls |
 | Full Disk Access | Reading notifications, Messages chats and Focus status |
 | Automation | Replying in Messages, Dark Mode and Empty Trash toggles, Music fallback, selecting a session's tab in iTerm2, Terminal or Ghostty |
-| Calendars | Calendar and Day Progress widgets |
+| Calendars | Calendar and Day Progress widgets, and events you add with Quick add |
+| Reminders | Reminders you add with Quick add (asked the first time you add one) |
 | Contacts | Photos and names on notifications |
 | Camera | Mirror widget |
 | Screen Recording | Watching a window region (asked the first time you use it) |
@@ -249,6 +251,8 @@ Cloud agents only reads: it lists tasks the agents already run in the cloud and 
 Phone push is the one feature that sends anything about your agents off the Mac, and only when you turn it on. ntfy topics on a public server have no password: anyone who knows the topic can read the alerts and post to it. Wisp makes each topic from 128 random bits, uses a separate topic for replies, and accepts a reply only if it carries the single-use code of a request that is still waiting; anything else posted there is ignored, and nothing in a reply is used beyond that code and Allow or Deny. For alerts only you can read, use your own ntfy server or an access token.
 
 On-device AI never goes online. Apple Intelligence runs Apple's model on your Mac through the Foundation Models framework. Ollama is only reached on this Mac: Wisp accepts only a `localhost`, `127.0.0.1` or `::1` address, checks it before every request, uses no proxy and refuses redirects. Prompts and answers aren't logged or saved.
+
+Quick add reads your request on your Mac, or with the on-device AI above. Reminders and events go into your own Reminders and Calendar through EventKit (which syncs them however those apps are set up), only after you confirm the card. Wisp doesn't log what you type or what it adds.
 
 Lyrics and artwork are on by default because the Now Playing feature looks broken without them. They follow the "feature lookups" rule in [AGENTS.md](AGENTS.md): visible feature only, minimum data, public endpoint, cached, own switch, listed here. Everything else that goes online stays off until you turn it on.
 
