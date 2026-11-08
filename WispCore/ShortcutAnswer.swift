@@ -41,7 +41,7 @@ public enum ShortcutAnswer {
     }
 
     /// "Claude Code wants to run a command (Bash) in wisp.", then what it runs (masked, as push's
-    /// "Include details" shows it) unless details are hidden, then "Allow it?".
+    /// "Add the command or file name" shows it) unless details are hidden, then "Allow it?".
     public static func confirmation(_ request: Request, allow: Bool, hidden: Bool) -> String {
         let action = PushMessage.verb(tool: request.tool, prompt: request.prompt)
         let place = place(request.project, hidden: hidden)
