@@ -87,16 +87,12 @@ struct NotchSettings: View {
             RingSection(preferences: preferences, trigger: ringTrigger, hotkeys: hotkeys)
             AdvancedSection {
                 Picker("Dynamic Island detection", selection: $preferences.islandSetting) {
-                    Text("Automatic").tag(IslandSetting.automatic)
-                    Text("Has a Dynamic Island").tag(IslandSetting.yes)
-                    Text("No Dynamic Island").tag(IslandSetting.no)
+                    ForEach(IslandSetting.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 Text(
-                    "On a MacBook Pro with a Dynamic Island, Wisp stays clear of it. Choose Has a Dynamic Island if Wisp draws over it."
+                    "On a MacBook Pro with a Dynamic Island, Wisp stays clear of it. Choose Has a Dynamic Island if Wisp draws over it, and paste About › Copy diagnostics into a bug report."
                 )
                 .font(.caption).foregroundStyle(.secondary)
-                Button("Copy display info") { copyDisplayInfo() }
-                    .help("Copies the model and screen measurements Wisp uses to find the notch or island")
                 Text("Displays").font(.headline).padding(.top, 6)
                 ForEach(screens, id: \.displayUUID) { screen in
                     if let uuid = screen.displayUUID {
@@ -147,12 +143,6 @@ struct NotchSettings: View {
 
     private var hasSystemIsland: Bool {
         screens.contains { $0.hasSystemIsland(preferences.islandSetting) }
-    }
-
-    private func copyDisplayInfo() {
-        let text = screens.map(\.islandReport).joined(separator: "\n\n")
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
     }
 
     /// Goes through the window's rules, so turning it on opens the window and off puts it away.

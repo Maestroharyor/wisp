@@ -34,7 +34,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
 
     public var subtitle: String {
         switch self {
-        case .general: "Shortcuts, startup and setup"
+        case .general: "Shortcuts, dictation and startup"
         case .notch: "Where the notch sits, how it opens, and the ring"
         case .appearance: "Theme, shape, motion and the fun extras"
         case .activities: "What shows beside the notch while it's closed"
@@ -43,7 +43,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .agents: "Claude Code, Codex, Gemini CLI, Copilot CLI, Cursor and OpenCode, alerts and phone alerts"
         case .ai: "On-device AI with Apple Intelligence or Ollama"
         case .permissions: "What Wisp can access, and why"
-        case .about: "Version, updates, shortcuts and reset"
+        case .about: "Version, updates, diagnostics and reset"
         }
     }
 
@@ -55,6 +55,11 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "shortcut", "hotkey", "caps lock", "hyper", "space", "launch", "login", "startup", "accessibility",
                 "menu bar", "icon", "dictation", "dictate", "speech", "speech recognition", "voice", "push to talk",
                 "transcribe", "speak", "microphone",
+                // The keyboard shortcuts list, which was in About. No "approve": it would pull
+                // "app" searches here.
+                "keyboard shortcuts", "shortcuts", "keyboard", "hyper y", "hyper n",
+                "switch profile", "allow or deny", "pick an answer", "esc", "escape",
+                "right-click the notch", "right click", "menu",
             ]
         case .notch:
             [
@@ -152,8 +157,10 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .about:
             [
-                "version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release", "keyboard",
-                "approve with keyboard", "hyper y", "check for updates", "check now",
+                "version", "github", "issue", "reset", "help", "updates", "sparkle", "release", "check for updates",
+                "check now", "website", "run setup again", "reset all settings",
+                // Copy diagnostics took over Notch's Copy display info; that name stays a keyword.
+                "copy diagnostics", "diagnostics", "bug report", "copy display info", "display info",
             ]
         }
     }
@@ -162,10 +169,12 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     /// for "advanced", finds the pane, and any search opens the disclosure.
     public var advancedKeywords: [String] {
         switch self {
+        case .general:
+            ["show wisp in the menu bar", "menu bar icon", "caps lock on its own", "quick press", "turns caps lock on"]
         case .notch:
             [
-                "dynamic island detection", "dynamic island", "camera", "hole punch", "copy display info",
-                "display info", "displays", "each display", "per display", "move back", "reset position",
+                "dynamic island detection", "dynamic island", "camera", "hole punch", "displays", "each display",
+                "per display", "move back", "reset position",
                 "this mac has a dynamic island",
             ]
         case .appearance: ["glow reach", "reach", "spread", "pointer effect", "hover strength", "strength"]
