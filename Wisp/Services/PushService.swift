@@ -168,7 +168,7 @@ final class PushService {
         guard preferences.pushEnabled, policy.allow(moment.kind, key: moment.key, away: isAway, now: .now) else {
             return
         }
-        let notice = moment.notice(hidden: hub.detailsHidden)
+        let notice = moment.notice(hidden: hub.detailsHidden, includeDetails: preferences.pushDetails)
         Task { await publish(notice) }
     }
 

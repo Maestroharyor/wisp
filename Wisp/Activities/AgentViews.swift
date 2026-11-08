@@ -878,6 +878,7 @@ struct AgentsDetail: View {
     let model: NotchModel
 
     @State private var selection: String?
+    @State private var showingHistory = false
     @State private var note: String?
     /// This view's claim on dictation's draft box target; see `DraftBoxClaim`.
     @State private var owner = UUID()
@@ -890,6 +891,7 @@ struct AgentsDetail: View {
                 HStack(spacing: 6) {
                     SpendTrend(spend: hub.spend)
                     Spacer(minLength: 0)
+                    AgentHistoryButton(showing: $showingHistory)
                     PrivacyButton(hub: hub)
                 }
                 LimitsHeader(readings: hub.limitReadings)
@@ -902,7 +904,10 @@ struct AgentsDetail: View {
                                 DetailSessionRow(
                                     session: session, selected: session.id == selected?.id, hidden: hub.detailsHidden
                                 )
-                                .onTapGesture { selection = session.id }
+                                .onTapGesture {
+                                    selection = session.id
+                                    showingHistory = false
+                                }
                             }
                             CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                         }
@@ -911,7 +916,11 @@ struct AgentsDetail: View {
             }
             .frame(width: 190)
 
-            if let selected {
+            if showingHistory {
+                AgentHistoryView(
+                    store: model.services.agentHistory, hidden: hub.detailsHidden,
+                    enabled: model.services.preferences.agentHistory)
+            } else if let selected {
                 SessionDetail(
                     session: selected, hub: hub, hidden: hub.detailsHidden, draft: draft(for: selected.id),
                     note: $note, listening: listening(to: selected.id))

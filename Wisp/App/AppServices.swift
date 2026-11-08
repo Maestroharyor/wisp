@@ -77,6 +77,18 @@ final class AppServices {
     private(set) lazy var automation = Automation(services: self)
     private(set) lazy var regionWatch = RegionWatchController(services: self)
     private(set) lazy var ai = AIService(preferences: preferences)
+    /// Made on first use; quitting flushes it only if it exists.
+    var agentHistory: AgentHistoryStore {
+        if let agentHistoryStore { return agentHistoryStore }
+        let store = AgentHistoryStore(preferences: preferences, ai: ai)
+        agentHistoryStore = store
+        return store
+    }
+    @ObservationIgnored private var agentHistoryStore: AgentHistoryStore?
+    /// Done pushes waiting on a session summary; whichever of the summary and the
+    /// time limit comes first sends it.
+    @ObservationIgnored private var donePending: Set<UUID> = []
+    private static let summaryWait: Duration = .seconds(20)
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -209,6 +221,53 @@ final class AppServices {
             try? await Task.sleep(for: .seconds(60))
             guard !Task.isCancelled else { return }
             self?.updateAgentAwake()
+        }
+    }
+
+    /// Saves a finished turn or session to the history. After a turn, with summaries available,
+    /// the summary follows Done as a notice. The Done push waits for it (at most `summaryWait`)
+    /// only when it could carry it (`DonePush`); otherwise it goes at once.
+    private func agentRecorded(_ record: SessionRecord, ended: Bool) {
+        agentHistory.save(record)
+        guard !ended else { return }
+        let done: (String?) -> AgentMoment = {
+            .done(session: record.sessionID, project: record.project, source: record.source, summary: $0)
+        }
+        let summarise = agentHistory.summariesAvailable && !record.isEmpty
+        let waits =
+            summarise
+            && DonePush.waitsForSummary(
+                pushOn: preferences.pushEnabled, doneOn: preferences.pushKinds.contains(.done),
+                includeDetails: preferences.pushDetails, hidden: agents.detailsHidden)
+        guard waits else {
+            push.moment(done(nil))
+            if summarise { showSummary(of: record, token: nil, done: done) }
+            return
+        }
+        let token = UUID()
+        donePending.insert(token)
+        Task { [weak self] in
+            try? await Task.sleep(for: Self.summaryWait)
+            guard let self, self.donePending.remove(token) != nil else { return }
+            self.push.moment(done(nil))
+        }
+        showSummary(of: record, token: token, done: done)
+    }
+
+    /// Summarises the record, shows it after Done, and sends the waiting Done push with it.
+    private func showSummary(of record: SessionRecord, token: UUID?, done: @escaping (String?) -> AgentMoment) {
+        Task { [weak self] in
+            guard let self else { return }
+            let summary = await self.agentHistory.summarise(record, hidden: self.agents.detailsHidden)
+            // A new turn has begun since; its own Done will bring a fresh summary.
+            let stillDone = self.agents.sessions.session(record.sessionID).map { $0.state == .finished } ?? true
+            if stillDone,
+                let text = SessionSummaryText.notice(
+                    project: record.project, summary: summary, hidden: self.agents.detailsHidden)
+            {
+                self.activities.post(.notice(symbol: "checkmark.circle.fill", text: text), slot: .notice, duration: 5)
+            }
+            if let token, self.donePending.remove(token) != nil { self.push.moment(done(summary)) }
         }
     }
 
@@ -347,6 +406,7 @@ final class AppServices {
             self?.approvalCardChanged(approval?.prompt)
         }
         agents.onMoment = { [weak self] moment in self?.push.moment(moment) }
+        agents.onRecord = { [weak self] record, ended in self?.agentRecorded(record, ended: ended) }
         push.start()
         // Features read `ai.isReady` to decide whether to offer AI, so check at launch and on wake.
         ai.start()
@@ -549,6 +609,7 @@ final class AppServices {
         automation.stop()
         regionWatch.stop()
         ai.stop()
+        agentHistoryStore?.flush()
         microphone.stop()
         meetingTask?.cancel()
         meetingControlsTask?.cancel()
