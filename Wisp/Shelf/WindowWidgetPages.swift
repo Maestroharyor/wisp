@@ -13,11 +13,11 @@ struct WindowWidgetDetail: View {
         switch kind {
         case .quickToggles:
             QuickTogglesPage(actions: services.quickActions, preferences: services.preferences) {
-                services.showSettings(pane: .widgets)
+                services.showSettings(pane: .shelf)
             }
         case .clipboard:
             ClipboardPage(store: services.clipboard, preferences: services.preferences) {
-                services.showSettings(pane: .clipboard)
+                services.showSettings(pane: .shelf)
             }
         case .dayProgress: DayProgressPage(calendar: services.calendar, preferences: services.preferences)
         case .worldClocks: WorldClocksPage(preferences: services.preferences)

@@ -171,8 +171,8 @@ final class SettingsIndexTests: XCTestCase {
     }
 
     func testWindowPageSettingsAreFound() {
-        XCTAssertTrue(SettingsIndex.panes(matching: "working hours").contains(.widgets))
-        XCTAssertTrue(SettingsIndex.panes(matching: "time zone").contains(.widgets))
+        XCTAssertTrue(SettingsIndex.panes(matching: "working hours").contains(.shelf))
+        XCTAssertTrue(SettingsIndex.panes(matching: "time zone").contains(.shelf))
     }
 
     func testEveryPaneBelongsToASectionInOrder() {
