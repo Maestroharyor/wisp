@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.15](https://github.com/Maestroharyor/wisp/compare/v0.1.14...v0.1.15) (2026-11-08)
+
+
+### Features
+
+* agent session history with on-device summaries ([#62](https://github.com/Maestroharyor/wisp/issues/62)) ([8576970](https://github.com/Maestroharyor/wisp/commit/8576970b9d59f749c21ec6168e4b08486bcc35aa))
+* redesign the shelf window with a sidebar ([#61](https://github.com/Maestroharyor/wisp/issues/61)) ([78f1af0](https://github.com/Maestroharyor/wisp/commit/78f1af0909248047dab3229e4a3351e3090500b0))
+
+
+### Changes under the hood
+
+* settings Advanced disclosure and search expansion ([#58](https://github.com/Maestroharyor/wisp/issues/58)) ([be3dd1f](https://github.com/Maestroharyor/wisp/commit/be3dd1f5d0a4401a998c32b3c3d7116890e0e7c7))
+
 ## [0.1.14](https://github.com/Maestroharyor/wisp/compare/v0.1.13...v0.1.14) (2026-11-07)
 
 

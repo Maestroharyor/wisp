@@ -201,4 +201,10 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "AI").first, .ai)
         XCTAssertTrue(SettingsIndex.panes(matching: "summarize").contains(.ai))
     }
+
+    func testAIClipboardActionsAreFound() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "translate to"), [.ai])
+        XCTAssertTrue(SettingsIndex.panes(matching: "selected text").contains(.ai))
+        XCTAssertTrue(SettingsIndex.panes(matching: "ai action").contains(.notch))
+    }
 }

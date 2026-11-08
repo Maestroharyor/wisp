@@ -250,6 +250,7 @@ final class Preferences {
         static let aiEngine = "aiEngine"
         static let ollamaAddress = "ollamaAddress"
         static let ollamaModel = "ollamaModel"
+        static let aiTranslateLanguage = "aiTranslateLanguage"
         static let lyrics = "lyrics"
         static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
@@ -753,6 +754,10 @@ final class Preferences {
     var ollamaAddress: String { didSet { defaults.set(ollamaAddress, forKey: Key.ollamaAddress) } }
     /// The Ollama model to use; empty means the first one pulled.
     var ollamaModel: String { didSet { defaults.set(ollamaModel, forKey: Key.ollamaModel) } }
+    /// The language Translate writes in, by name ("French"); empty means English.
+    var aiTranslateLanguage: String {
+        didSet { defaults.set(aiTranslateLanguage, forKey: Key.aiTranslateLanguage) }
+    }
     /// The PermissionRequest hook timeout these settings ask for.
     var approvalTimeout: Int { HookInstaller.approvalTimeout(push: pushEnabled, minutes: pushTimeoutMinutes) }
     /// Cloud agent tasks in the Agents widget. Off by default: it asks Codex, GitHub and Cursor.
@@ -1133,6 +1138,7 @@ final class Preferences {
         aiEngine = defaults.string(forKey: Key.aiEngine).flatMap(AIEngineKind.init(rawValue:)) ?? .default
         ollamaAddress = defaults.string(forKey: Key.ollamaAddress) ?? OllamaEndpoint.defaultAddress
         ollamaModel = defaults.string(forKey: Key.ollamaModel) ?? ""
+        aiTranslateLanguage = defaults.string(forKey: Key.aiTranslateLanguage) ?? ""
         lyrics = defaults.bool(forKey: Key.lyrics)
         artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)

@@ -74,7 +74,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "don't show", "external displays", "show on external displays", "sidebar",
                 // The ring, which had its own pane before; its name stays a keyword.
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "hyper r",
-                "per app", "edit ring", "ring shortcut",
+                "per app", "edit ring", "ring shortcut", "ai action",
             ]
         case .appearance:
             [
@@ -147,7 +147,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             [
                 "apple intelligence", "foundation models", "ollama", "llm", "language model", "on-device", "local",
                 "localhost", "summarise", "summarize", "translate", "grammar", "rewrite", "action items", "explain",
-                "try it",
+                "try it", "translate to", "language", "selection", "selected text", "clipboard actions", "replace",
             ]
         case .permissions:
             [

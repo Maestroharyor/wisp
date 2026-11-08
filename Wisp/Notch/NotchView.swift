@@ -252,6 +252,11 @@ private struct SurfaceView: View {
                     .id(download.path)
                     .transition(reveal)
             }
+            if case .aiResult(let card) = model.activity {
+                AIResultCardView(card: card, model: model)
+                    .id(card.id)
+                    .transition(reveal)
+            }
             if case .meeting(let status) = model.activity, model.showsMeetingControls {
                 MeetingControlsCard(status: status, model: model)
                     .transition(reveal)

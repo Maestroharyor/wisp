@@ -66,8 +66,14 @@ final class HyperKeyTap {
         tap = nil
         source = nil
         hyperDown = false
-        swallowedKeyUps.removeAll()
+        releaseSwallowedChords()
         endHold()
+    }
+
+    /// Their key-ups will never reach the tap now, so report the releases or the chords stay down.
+    private func releaseSwallowedChords() {
+        swallowedKeyUps.forEach(onChordReleased)
+        swallowedKeyUps.removeAll()
     }
 
     /// The key-up will never come (the tap stopped or missed it): a hold can't finish.
@@ -91,8 +97,7 @@ final class HyperKeyTap {
         // of the shelf key into a toggle, and a stale swallowed key-up would eat a real one.
         hyperDown = false
         chordUsed = true
-        swallowedKeyUps.forEach(onChordReleased)
-        swallowedKeyUps.removeAll()
+        releaseSwallowedChords()
         endHold()
     }
 
@@ -101,7 +106,7 @@ final class HyperKeyTap {
     /// (and Esc during a hold) comes first, since it owns its own repeats and release; then
     /// Hyper itself; then key-ups of swallowed chords; then repeats, which never act; then chords.
     fileprivate func shouldSwallow(keyCode: UInt16, isKeyDown: Bool, isRepeat: Bool) -> Bool {
-        switch hold.key(keyCode, down: isKeyDown, hyperDown: hyperDown, holdKey: holdKey) {
+        switch hold.key(keyCode, down: isKeyDown, hyperDown: hyperDown, holdKey: holdKey, isRepeat: isRepeat) {
         case .notMine: break
         case .swallow(let event):
             if let event {
