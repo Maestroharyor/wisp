@@ -14,10 +14,13 @@ public struct HoldKey: Sendable {
         case swallow(Event?)
     }
 
-    /// The hold key went down with Hyper and hasn't come up yet.
+    /// The hold key went down with Hyper and the hold hasn't ended yet.
     public private(set) var holding = false
-    /// Esc cancelled a hold; its key-up is swallowed too.
+    /// Esc cancelled a hold; its repeats and key-up are swallowed too.
     private var escapeDown = false
+    /// A hold ended (Esc or a reset) while its key may still be down: the key's repeats and
+    /// release are swallowed so nothing types, and none of them start a new hold.
+    private var abandoned = false
 
     public init() {}
 
@@ -27,8 +30,10 @@ public struct HoldKey: Sendable {
         _ code: UInt16, down: Bool, hyperDown: Bool, holdKey: UInt16?, isRepeat: Bool = false
     ) -> Decision {
         if code == KeyCodes.escape {
-            if down, holding {
+            if down, escapeDown { return .swallow(nil) }
+            if down, holding, !isRepeat {
                 escapeDown = true
+                abandon()
                 return .swallow(.cancel)
             }
             if !down, escapeDown {
@@ -41,10 +46,16 @@ public struct HoldKey: Sendable {
             // Key repeats while held are swallowed too, so nothing types.
             if holding { return .swallow(nil) }
             // Only a fresh press starts a hold. A repeat here means the key was held before Hyper,
-            // or the tap reset mid-hold; starting then would record again without a new press.
-            guard hyperDown, !isRepeat else { return .notMine }
+            // or the hold was abandoned; starting then would record again without a new press.
+            if isRepeat { return abandoned ? .swallow(nil) : .notMine }
+            abandoned = false
+            guard hyperDown else { return .notMine }
             holding = true
             return .swallow(.down)
+        }
+        if abandoned {
+            abandoned = false
+            return .swallow(nil)
         }
         // Released, even if Hyper came up first.
         guard holding else { return .notMine }
@@ -56,7 +67,12 @@ public struct HoldKey: Sendable {
     public mutating func reset() -> Event? {
         escapeDown = false
         guard holding else { return nil }
-        holding = false
+        abandon()
         return .cancel
+    }
+
+    private mutating func abandon() {
+        holding = false
+        abandoned = true
     }
 }
