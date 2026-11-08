@@ -66,8 +66,14 @@ final class HyperKeyTap {
         tap = nil
         source = nil
         hyperDown = false
-        swallowedKeyUps.removeAll()
+        releaseSwallowedChords()
         endHold()
+    }
+
+    /// Their key-ups will never reach the tap now, so report the releases or the chords stay down.
+    private func releaseSwallowedChords() {
+        swallowedKeyUps.forEach(onChordReleased)
+        swallowedKeyUps.removeAll()
     }
 
     /// The key-up will never come (the tap stopped or missed it): a hold can't finish.
@@ -91,8 +97,7 @@ final class HyperKeyTap {
         // of the shelf key into a toggle, and a stale swallowed key-up would eat a real one.
         hyperDown = false
         chordUsed = true
-        swallowedKeyUps.forEach(onChordReleased)
-        swallowedKeyUps.removeAll()
+        releaseSwallowedChords()
         endHold()
     }
 
