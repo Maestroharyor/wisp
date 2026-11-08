@@ -8,6 +8,8 @@ import WispCore
 final class ShortcutsRunner {
     private(set) var available: [String] = []
     private(set) var running: String?
+    /// Whether a list has come back yet, so the window can tell "none" from "still looking".
+    private(set) var hasListed = false
     var onNotice: (String, String) -> Void = { _, _ in }
 
     @ObservationIgnored private var lastRefresh: Date?
@@ -25,6 +27,7 @@ final class ShortcutsRunner {
         Task {
             let output = (try? await ProcessRunner.run(Self.tool, ["list"])) ?? ""
             available = ShortcutList.parse(output)
+            hasListed = true
             // A failed or empty list is asked for again next time rather than kept for five minutes.
             lastRefresh = available.isEmpty ? nil : .now
         }

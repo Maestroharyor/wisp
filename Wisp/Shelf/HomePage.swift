@@ -515,7 +515,8 @@ struct MediaPage: View {
 }
 
 /// The Media page in the window: large artwork with the controls under it and lyrics beside it.
-private struct WindowMediaPage: View {
+/// The Now Playing row shows it too.
+struct WindowMediaPage: View {
     let model: NotchModel
 
     var body: some View {

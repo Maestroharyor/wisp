@@ -197,8 +197,8 @@ private struct DayTimeline: View {
     }
 }
 
-/// One of today's events: calendar colour, time and title, with Join for a call.
-private struct DayEventRow: View {
+/// One event: calendar colour, time and title, with Join for a call. The Calendar page uses it too.
+struct DayEventRow: View {
     let event: CalendarStore.Event
     let open: () -> Void
 
@@ -512,13 +512,13 @@ struct PomodoroPage: View {
         let countdown = store.pomodoro
         return VStack(spacing: 20) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                PomodoroRing(
-                    countdown: countdown, phase: store.phase, now: context.date, animated: !reduceMotion)
+                CountdownRing(
+                    countdown: countdown, title: store.phase.title, now: context.date, animated: !reduceMotion)
             }
             .frame(width: 260, height: 260)
             HStack(spacing: 8) {
                 ForEach(Self.presets, id: \.0) { focus, rest in
-                    PresetChip(
+                    LengthChip(
                         title: "\(focus)/\(rest)",
                         selected: store.focusMinutes == focus && store.breakMinutes == rest
                     ) {
@@ -612,11 +612,11 @@ struct PomodoroPage: View {
     }
 }
 
-/// The Pomodoro ring: progress in Wisp violet around the time left, the phase and when it ends.
-/// Sweeps between seconds, or steps with Reduce Motion.
-private struct PomodoroRing: View {
+/// A large countdown ring (Pomodoro and Timer): progress in Wisp violet around the time left,
+/// a title and when it ends. Sweeps between seconds, or steps with Reduce Motion.
+struct CountdownRing: View {
     let countdown: Countdown
-    let phase: PomodoroPhase
+    let title: String
     let now: Date
     let animated: Bool
 
@@ -630,7 +630,7 @@ private struct PomodoroRing: View {
                 .rotationEffect(.degrees(-90))
                 .animation(animated && countdown.isRunning ? .linear(duration: 1) : nil, value: progress)
             VStack(spacing: 6) {
-                Text(phase.title.uppercased())
+                Text(title.uppercased())
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.wispViolet)
                 ValueText(text: Countdown.format(countdown.remaining(now: now)), size: 52)
@@ -641,7 +641,7 @@ private struct PomodoroRing: View {
         }
         .padding(7)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(phase.title), \(Countdown.format(countdown.remaining(now: now))) left, \(status)")
+        .accessibilityLabel("\(title), \(Countdown.format(countdown.remaining(now: now))) left, \(status)")
     }
 
     private var status: String {
@@ -653,7 +653,7 @@ private struct PomodoroRing: View {
 }
 
 /// A rounded chip for a preset length.
-private struct PresetChip: View {
+struct LengthChip: View {
     let title: String
     let selected: Bool
     let action: () -> Void
@@ -666,7 +666,7 @@ private struct PresetChip: View {
     }
 }
 
-private struct ChipLabel: View {
+struct ChipLabel: View {
     let title: String
     let selected: Bool
 
@@ -678,5 +678,112 @@ private struct ChipLabel: View {
             .background(Capsule().fill(selected ? AnyShapeStyle(Color.wispViolet) : AnyShapeStyle(.ink.opacity(0.08))))
             .foregroundStyle(selected ? Color.white : .ink.opacity(0.85))
             .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+// MARK: Timer
+
+/// The timer in the window: a large ring with the time left and when it ends, preset lengths,
+/// and what's counting down right now (the timer and the Pomodoro).
+struct TimerPage: View {
+    let store: TimerStore
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let presets = [5, 10, 15, 30, 60]
+
+    var body: some View {
+        WindowWidgetPage { _ in
+            VStack(spacing: 20) {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    CountdownRing(
+                        countdown: store.timer, title: TimerStore.timerLabel, now: context.date,
+                        animated: !reduceMotion)
+                }
+                .frame(width: 260, height: 260)
+                HStack(spacing: 8) {
+                    ForEach(Self.presets, id: \.self) { minutes in
+                        LengthChip(title: "\(minutes) min", selected: Int(store.timer.duration) == minutes * 60) {
+                            store.setTimer(minutes: minutes)
+                        }
+                    }
+                }
+                .disabled(store.timer.hasStarted)
+                HStack(spacing: 10) {
+                    Button("One less minute", systemImage: "minus") { store.adjustTimer(byMinutes: -1) }
+                        .help("One less minute")
+                    Button("One more minute", systemImage: "plus") { store.adjustTimer(byMinutes: 1) }
+                        .help("One more minute")
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(store.timer.hasStarted)
+                running.padding(.top, 8)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(
+                    store.timer.isRunning ? "Pause" : "Start",
+                    systemImage: store.timer.isRunning ? "pause.fill" : "play.fill", action: store.toggleTimer
+                )
+                .buttonStyle(.borderedProminent)
+                .help(store.timer.isRunning ? "Pause" : "Start")
+                Button("Reset", systemImage: "arrow.counterclockwise", action: store.resetTimer)
+                    .disabled(!store.timer.hasStarted)
+                    .help("Reset")
+            }
+        }
+    }
+
+    /// The countdowns that have started, each with its own pause and resume.
+    @ViewBuilder private var running: some View {
+        let rows = [
+            store.timer.hasStarted
+                ? RunningRow(title: TimerStore.timerLabel, countdown: store.timer, toggle: store.toggleTimer) : nil,
+            store.pomodoro.hasStarted
+                ? RunningRow(
+                    title: "Pomodoro, \(store.phase.title.lowercased())", countdown: store.pomodoro,
+                    toggle: store.togglePomodoro) : nil,
+        ]
+        .compactMap { $0 }
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                WindowSectionTitle("Running")
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    VStack(spacing: 8) {
+                        ForEach(rows, id: \.title) { row in
+                            HStack(spacing: 10) {
+                                Image(systemName: row.countdown.isRunning ? "timer" : "pause.circle")
+                                    .foregroundStyle(Color.wispViolet)
+                                Text(row.title).font(.system(size: 13, weight: .medium))
+                                Spacer()
+                                ValueText(text: Countdown.format(row.countdown.remaining(now: context.date)), size: 15)
+                                Button(
+                                    row.countdown.isRunning ? "Pause" : "Resume",
+                                    systemImage: row.countdown.isRunning ? "pause.fill" : "play.fill",
+                                    action: row.toggle
+                                )
+                                .labelStyle(.iconOnly)
+                                .buttonStyle(.borderless)
+                                .help(row.countdown.isRunning ? "Pause" : "Resume")
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.ink.opacity(0.05)))
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: 420)
+        }
+    }
+
+    private struct RunningRow {
+        let title: String
+        let countdown: Countdown
+        let toggle: () -> Void
     }
 }

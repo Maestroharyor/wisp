@@ -106,6 +106,10 @@ final class CalendarStore {
     /// that has just ended.
     var events: [Event] { upcoming.filter { $0.end > .now } }
     private var upcoming: [Event] = []
+    /// The same week with no cap, for the window's Calendar page, where a busy week must not
+    /// leave its last days looking empty. Filtered when read, like `events`.
+    var weekEvents: [Event] { week.filter { $0.end > .now } }
+    private var week: [Event] = []
     /// Every timed event today, including finished ones, for the Day Progress widget.
     private(set) var dayEvents: [ClosedRange<Date>] = []
     /// Every event today with its title, finished and all-day ones included, for the window's
@@ -154,6 +158,7 @@ final class CalendarStore {
         guard access == .fullAccess else {
             // Access was revoked: stop showing (and offering Join cards for) the cached week.
             upcoming = []
+            week = []
             dayEvents = []
             todayEvents = []
             lastRefresh = nil
@@ -186,6 +191,7 @@ final class CalendarStore {
             // Access can go while the query runs, and the revoked branch has already cleared the week.
             if access == .fullAccess {
                 upcoming = week.upcoming
+                self.week = week.all
                 dayEvents = week.day
                 todayEvents = week.today
                 onWeekLoaded()
@@ -214,6 +220,8 @@ final class CalendarStore {
 private actor CalendarReader {
     struct Week: Sendable {
         let upcoming: [CalendarStore.Event]
+        /// Every event still to come this week, uncapped.
+        let all: [CalendarStore.Event]
         let day: [ClosedRange<Date>]
         let today: [CalendarStore.Event]
     }
@@ -234,9 +242,10 @@ private actor CalendarReader {
             .sorted { $0.startDate < $1.startDate }
         let day = week.filter { !$0.isAllDay && $0.startDate < tomorrow && $0.startDate <= $0.endDate }
             .map { $0.startDate...$0.endDate }
-        let upcoming = week.filter { $0.endDate > now }.prefix(30).map(Self.event)
+        let all = week.filter { $0.endDate > now }.map(Self.event)
+        let upcoming = all.prefix(30)
         let today = week.filter { $0.startDate < tomorrow && $0.startDate <= $0.endDate }.prefix(50).map(Self.event)
-        return Week(upcoming: Array(upcoming), day: day, today: Array(today))
+        return Week(upcoming: Array(upcoming), all: all, day: day, today: Array(today))
     }
 
     private static func event(_ event: EKEvent) -> CalendarStore.Event {
