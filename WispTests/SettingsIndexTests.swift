@@ -80,12 +80,49 @@ final class SettingsIndexTests: XCTestCase {
         for query in [
             "displays without a notch", "floating island", "don't show", "show on external displays",
             "dynamic island detection", "this mac has a dynamic island", "displays", "each display", "move back",
-            "copy display info", "advanced",
+            "advanced",
         ] {
             XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.notch), query)
         }
         XCTAssertEqual(SettingsIndex.panes(matching: "dynamic island detection"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "each display"), [.notch])
+    }
+
+    func testKeyboardShortcutsAreFoundInGeneral() {
+        for query in [
+            "keyboard shortcuts", "shortcuts", "allow or deny", "hyper y", "switch profile", "right-click the notch",
+            "pick an answer",
+        ] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .general, query)
+        }
+        // The list moved from About.
+        XCTAssertFalse(SettingsIndex.panes(matching: "keyboard shortcuts").contains(.about))
+        XCTAssertFalse(SettingsIndex.panes(matching: "hyper y").contains(.about))
+    }
+
+    func testGeneralAdvancedOptionsAreFound() {
+        for query in ["show wisp in the menu bar", "caps lock on its own", "quick press"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .general, query)
+        }
+        XCTAssertTrue(SettingsIndex.panes(matching: "advanced").contains(.general))
+    }
+
+    func testDiagnosticsAreFoundInAbout() {
+        for query in ["copy diagnostics", "diagnostics", "bug report", "copy display info", "display info"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query), [.about], query)
+        }
+    }
+
+    func testTheSidebarHasTenPanes() {
+        XCTAssertEqual(SettingsSection.wisp.panes, [.general, .notch, .appearance])
+        XCTAssertEqual(SettingsSection.system.panes, [.permissions, .about])
+        XCTAssertEqual(SettingsPaneID.allCases.count, 10)
+        XCTAssertEqual(
+            SettingsPaneID.allCases.map(\.title),
+            [
+                "General", "Notch", "Appearance", "Live Activities", "Shelf", "Notifications", "Agents", "AI",
+                "Permissions", "About",
+            ])
     }
 
     func testApostrophesAreOptional() {
