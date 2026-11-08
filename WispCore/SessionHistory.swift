@@ -523,6 +523,21 @@ public struct SessionHistory: Codable, Equatable, Sendable {
     }
 }
 
+/// Lets only the newest write of a file through: each write carries the generation of the data
+/// it holds, and one no newer than the last admitted is dropped, so a slow write of older data
+/// can't land after a newer one.
+public struct WriteGate: Sendable {
+    public private(set) var latest = 0
+
+    public init() {}
+
+    public mutating func admit(_ generation: Int) -> Bool {
+        guard generation > latest else { return false }
+        latest = generation
+        return true
+    }
+}
+
 /// Text for the Done notice and push from a session summary.
 public enum SessionSummaryText {
     /// Characters the notch's one-line notice keeps.

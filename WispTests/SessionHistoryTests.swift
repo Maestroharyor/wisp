@@ -332,6 +332,16 @@ final class SessionHistoryTests: XCTestCase {
         XCTAssertEqual(decoded.records.map(\.sessionID), ["a"])
     }
 
+    func testOnlyNewerWritesGetThrough() {
+        var gate = WriteGate()
+        XCTAssertFalse(gate.admit(0))
+        XCTAssertTrue(gate.admit(3))
+        XCTAssertFalse(gate.admit(2))
+        XCTAssertFalse(gate.admit(3))
+        XCTAssertTrue(gate.admit(4))
+        XCTAssertEqual(gate.latest, 4)
+    }
+
     func testSearchSkipsHiddenFields() {
         var history = SessionHistory()
         var one = record("a", ended: 0, project: "wisp")

@@ -85,10 +85,16 @@ final class AgentHistoryStore {
 
     /// Writes the latest history now, on this thread, unless a write of it already finished, so
     /// quitting doesn't lose the last turn. A slower write of older data can't land after it.
+    /// Before the launch read has finished, the file is read here and the changes merged onto it,
+    /// so neither is lost.
     func flush() {
-        guard loaded, generation > 0 else { return }
+        guard generation > 0 else { return }
         writeTask?.cancel()
         writeTask = nil
+        if !loaded {
+            history = merged(onto: file.readNow(now: .now))
+            loaded = true
+        }
         file.writeNow(encoded(), generation: generation)
     }
 
@@ -96,12 +102,18 @@ final class AgentHistoryStore {
         history.records.isEmpty ? nil : try? JSONEncoder().encode(history)
     }
 
-    /// Records saved before the file was read are kept on top of it.
-    private func finishLoading(_ saved: SessionHistory) {
+    /// The changes made here (saves, removals, a clear) applied on top of the file's history.
+    private func merged(onto saved: SessionHistory) -> SessionHistory {
         var merged = clearedBeforeLoad ? SessionHistory() : saved
         for record in history.records where !removed.contains(record.id) { merged.save(record, now: .now) }
         for id in removed { merged.remove(id) }
-        history = merged
+        return merged
+    }
+
+    /// Records saved before the file was read are kept on top of it.
+    private func finishLoading(_ saved: SessionHistory) {
+        guard !loaded else { return }
+        history = merged(onto: saved)
         loaded = true
         if writeTask != nil {
             writeTask?.cancel()
@@ -131,8 +143,8 @@ final class AgentHistoryFile: Sendable {
     let url: URL
     private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "agent-history")
     private let queue = DispatchQueue(label: "com.ayomideodewale.wisp.agent-history")
-    /// The newest generation written; held while writing, so writes never interleave.
-    private let written = OSAllocatedUnfairLock(initialState: 0)
+    /// Held while writing, so writes never interleave and an older one never lands last.
+    private let gate = OSAllocatedUnfairLock(initialState: WriteGate())
 
     init(folder: URL) {
         self.folder = folder
@@ -154,10 +166,14 @@ final class AgentHistoryFile: Sendable {
         store(data, generation: generation)
     }
 
+    /// Reads on the caller's thread; for quitting before the launch read finished.
+    func readNow(now: Date) -> SessionHistory {
+        read(now: now)
+    }
+
     private func store(_ data: Data?, generation: Int) {
-        written.withLock { latest in
-            guard generation > latest else { return }
-            latest = generation
+        gate.withLock { gate in
+            guard gate.admit(generation) else { return }
             save(data)
         }
     }
