@@ -147,6 +147,10 @@ private struct WindowDetail: View {
         detail(selection)
             .navigationTitle(WindowRow.title(of: selection, services: services))
             .toolbar { toolbar(selection) }
+            // The titlebar is transparent so the sidebar reaches the top edge; without a bar
+            // behind the detail's toolbar, scrolled rows would show through its buttons.
+            .toolbarBackground(.visible, for: .windowToolbar)
+            .modifier(HardTopScrollEdge())
             .onChange(of: selection, initial: true) { _, row in previous = row }
     }
 
@@ -317,6 +321,18 @@ private enum WindowRow {
         case .live(.regionWatch): .teal
         case .live(.downloads): .green
         case .live(.external): .orange
+        }
+    }
+}
+
+/// On macOS 26 and later, rows scrolling under the toolbar fade out behind a hard edge rather
+/// than meeting the toolbar's buttons.
+private struct HardTopScrollEdge: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content.scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            content
         }
     }
 }
