@@ -251,26 +251,10 @@ final class DictationEngine {
             guard AccessibilityPermission.isTrusted,
                 DictationPaste.action(appAtStart: appAtStart, appNow: appNow) == .paste
             else { return copy(text) }
-            paste(text)
+            PasteShortcut.pasteRestoring(text, after: Self.restoreDelay)
         case .agentDraft, .questionAnswer:
             guard !deliverInWisp(text, target) else { return }
             copy(text)
-        }
-    }
-
-    /// Pastes through the clipboard, then puts the user's clipboard back.
-    private func paste(_ text: String) {
-        let saved = PasteShortcut.snapshot()
-        let staged = PasteShortcut.stage(text)
-        PasteShortcut.send()
-        guard let saved else { return }
-        Task {
-            try? await Task.sleep(for: Self.restoreDelay)
-            guard
-                DictationPaste.shouldRestore(
-                    stagedChangeCount: staged, currentChangeCount: NSPasteboard.general.changeCount)
-            else { return }
-            PasteShortcut.restore(saved)
         }
     }
 

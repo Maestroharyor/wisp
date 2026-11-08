@@ -5,14 +5,21 @@ import WispCore
 /// Clipboard history: type tabs, search, and a row of typed cards.
 struct ClipboardView: View {
     @Bindable var model: ClipboardPanelModel
+    let ai: AITextActions
     let paste: (ClipItem) -> Void
+    let runAI: (AITask, ClipItem) -> Void
     let close: () -> Void
 
     @FocusState private var searchFocused: Bool
 
-    init(model: ClipboardPanelModel, paste: @escaping (ClipItem) -> Void, close: @escaping () -> Void) {
+    init(
+        model: ClipboardPanelModel, ai: AITextActions, paste: @escaping (ClipItem) -> Void,
+        runAI: @escaping (AITask, ClipItem) -> Void, close: @escaping () -> Void
+    ) {
         self.model = model
+        self.ai = ai
         self.paste = paste
+        self.runAI = runAI
         self.close = close
     }
 
@@ -103,6 +110,7 @@ struct ClipboardView: View {
                                         if item.kind == .image {
                                             Button("Copy text") { model.copyText(item) }
                                         }
+                                        aiMenu(for: item)
                                         Divider()
                                         Button("Delete") { model.store.remove(item) }
                                     }
@@ -113,6 +121,23 @@ struct ClipboardView: View {
                     .onChange(of: selected) { _, id in
                         withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id, anchor: .center) }
                     }
+                }
+            }
+        }
+    }
+}
+
+extension ClipboardView {
+    /// AI tasks for a text item, with ⌘1 to ⌘8 matching the panel's keys. Shown only while AI
+    /// is on; while the engine isn't ready the tasks are disabled under its status line.
+    @ViewBuilder fileprivate func aiMenu(for item: ClipItem) -> some View {
+        if ai.isEnabled, AIClipboardText.offers(item) {
+            Menu("AI") {
+                if !ai.isReady { Text(ai.statusMessage) }
+                ForEach(Array(ai.tasks.enumerated()), id: \.offset) { index, task in
+                    Button(task.title) { runAI(task, item) }
+                        .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+                        .disabled(!ai.isReady)
                 }
             }
         }

@@ -67,6 +67,7 @@ final class ClipboardPanelController {
         hiding = false
         model.query = ""
         model.selectedID = model.items.first?.id
+        services.aiActions.refresh()
 
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
@@ -111,11 +112,19 @@ final class ClipboardPanelController {
         }
     }
 
+    /// Closes the panel, so the card under the notch shows, and runs the task on the item.
+    func runAI(_ task: AITask, on item: ClipItem) {
+        hide()
+        services.aiActions.run(task, on: item)
+    }
+
     private func makePanel() -> ClipboardPanel {
         let panel = ClipboardPanel(contentRect: CGRect(origin: .zero, size: size))
         let view = ClipboardView(
             model: model,
+            ai: services.aiActions,
             paste: { [weak self] in self?.paste($0) },
+            runAI: { [weak self] in self?.runAI($0, on: $1) },
             close: { [weak self] in self?.hide() }
         )
         panel.contentView = NSHostingView(rootView: view)
@@ -136,8 +145,12 @@ final class ClipboardPanelController {
         removeKeyMonitor()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let keyCode = event.keyCode
-            let command = event.modifierFlags.contains(.command)
-            let handled = MainActor.assumeIsolated { self?.handleKey(keyCode, command: command) ?? false }
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let command = modifiers.contains(.command)
+            let commandOnly = modifiers == .command
+            let handled = MainActor.assumeIsolated {
+                self?.handleKey(keyCode, command: command, commandOnly: commandOnly) ?? false
+            }
             return handled ? nil : event
         }
     }
@@ -147,7 +160,10 @@ final class ClipboardPanelController {
         keyMonitor = nil
     }
 
-    private func handleKey(_ keyCode: UInt16, command: Bool) -> Bool {
+    /// Key codes of 1 to 8 on the number row.
+    private static let digitKeys: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28]
+
+    private func handleKey(_ keyCode: UInt16, command: Bool, commandOnly: Bool) -> Bool {
         guard isVisible else { return false }
         switch keyCode {
         case 53:  // Esc
@@ -158,6 +174,17 @@ final class ClipboardPanelController {
             model.move(by: 1)
         case 36, 76:  // Return, Enter
             if let item = model.selectedItem { paste(item) }
+        case let key where commandOnly && Self.digitKeys.contains(key):  // ⌘1 to ⌘8: AI tasks
+            let actions = services.aiActions
+            guard actions.isEnabled, let index = Self.digitKeys.firstIndex(of: key),
+                actions.tasks.indices.contains(index), let item = model.selectedItem, AIClipboardText.offers(item)
+            else { return false }
+            // Not ready: say why and keep the panel open.
+            guard actions.isReady else {
+                actions.showStatus()
+                return true
+            }
+            runAI(actions.tasks[index], on: item)
         case 51 where command:  // ⌘Delete
             if let item = model.selectedItem {
                 model.move(by: 1)
