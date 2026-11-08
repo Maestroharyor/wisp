@@ -38,6 +38,22 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.ring])
     }
 
+    func testAppearanceControlsAreFoundByNewAndOldNames() {
+        for query in [
+            "edge highlight", "glass edge", "effects", "finish", "shell", "number style", "numbers in",
+            "accent follows", "playing album", "change colour through the day", "through the day",
+            "beside the closed notch", "while idle", "match the desktop picture", "confetti",
+        ] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .appearance, query)
+        }
+        XCTAssertTrue(SettingsIndex.panes(matching: "shape").contains(.appearance))
+        XCTAssertTrue(SettingsIndex.panes(matching: "shape").contains(.notch))
+    }
+
+    func testPermissionSoundLandsOnAgents() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "permission sound").first, .agents)
+    }
+
     func testTitlesMatchCaseAndAccentInsensitively() {
         XCTAssertEqual(SettingsIndex.panes(matching: "CLIPBOARD").first, .clipboard)
         XCTAssertTrue(SettingsIndex.panes(matching: "notch").contains(.notch))

@@ -16,13 +16,9 @@ struct ActivitySettings: View {
                     ForEach(HUDDuration.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                Picker("Volume steps", selection: $preferences.volumeSteps) {
-                    ForEach([8, 16, 32, 64], id: \.self) { Text("\($0)").tag($0) }
-                }
-                .pickerStyle(.segmented)
                 Toggle("Use the theme accent for the level bars", isOn: $preferences.hudUsesAccent)
                 Text(
-                    "Volume and brightness need Accessibility access to intercept the keys. Hold Option and Shift for steps four times finer."
+                    "Volume and brightness need Accessibility access to intercept the keys. Hold Option and Shift for finer steps."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -96,6 +92,14 @@ struct ActivitySettings: View {
                     )
                     .font(.caption).foregroundStyle(.orange)
                 }
+            }
+            AdvancedSection {
+                Picker("Volume steps", selection: $preferences.volumeSteps) {
+                    ForEach([8, 16, 32, 64], id: \.self) { Text("\($0)").tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text("Hold Option and Shift while changing the volume for steps four times finer.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

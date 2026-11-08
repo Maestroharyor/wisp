@@ -85,13 +85,18 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "shimmer", "nav", "pill", "dots", "font", "type", "hover", "wobble", "ears", "idle", "time",
                 "date", "breathing", "music glow", "beat", "sunset", "night", "light", "dark", "sound", "sound pack",
                 "confetti", "celebrate", "pet", "sprite", "import", "export", "share", "reset",
+                // Current control names, then the older ones so searches for those still land.
+                "shape", "effects", "edge highlight", "number style", "accent follows", "playing album",
+                "change colour through the day", "change color through the day", "beside the closed notch",
+                "sounds", "shell", "finish", "glass edge", "numbers in", "through the day", "while idle",
+                "match the desktop picture", "tint with the playing album",
             ]
         case .activities:
             [
                 "volume", "brightness", "battery", "hud", "overlay", "media", "music", "pointer", "display", "focus",
                 "lyrics", "lrclib", "album art", "artwork", "itunes", "lock screen", "meeting", "call", "microphone",
                 "recording",
-                "zoom", "meet", "teams", "mute", "camera", "leave", "call controls", "bubbles", "split", "volume steps",
+                "zoom", "meet", "teams", "mute", "camera", "leave", "call controls", "bubbles", "split",
                 "duration", "low battery", "threshold",
                 "left", "right", "airpods", "headphones", "bluetooth", "downloads", "download progress", "safari",
                 "chrome", "firefox", "folder", "finder", "mouse", "keyboard", "trackpad", "magic mouse", "accessory",
@@ -99,7 +104,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .widgets:
             [
-                "home", "grid", "rows", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
+                "home", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
                 "timer length", "script", "command", "output", "do not disturb", "dnd", "workday",
             ]
@@ -119,7 +124,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             [
                 "claude", "claude code", "codex", "gemini", "gemini cli", "copilot", "copilot cli", "github copilot",
                 "cursor", "cursor-agent", "opencode", "open code", "plugin", "ai", "hooks", "approve", "allow", "deny",
-                "sessions", "sound",
+                "sessions", "sound", "permission sound",
                 "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
@@ -153,6 +158,22 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "approve with keyboard", "hyper y", "check for updates", "check now",
             ]
         }
+    }
+
+    /// Words for the controls under this pane's Advanced disclosure. Searching for them, or
+    /// for "advanced", finds the pane, and any search opens the disclosure.
+    public var advancedKeywords: [String] {
+        switch self {
+        case .appearance: ["glow reach", "reach", "spread", "pointer effect", "hover strength", "strength"]
+        case .activities: ["volume steps", "steps", "finer"]
+        case .widgets: ["widget rows", "rows", "grid", "one row", "two rows"]
+        default: []
+        }
+    }
+
+    /// Everything a search looks through for this pane besides its title.
+    var searchTerms: [String] {
+        advancedKeywords.isEmpty ? keywords : keywords + ["advanced"] + advancedKeywords
     }
 }
 
@@ -193,7 +214,7 @@ public enum SettingsIndex {
         func matches(_ text: String) -> Bool { words.allSatisfy(normalise(text).contains) }
         let byTitle = SettingsPaneID.allCases.filter { matches($0.title) }
         let byKeyword = SettingsPaneID.allCases.filter {
-            !byTitle.contains($0) && matches(([$0.title] + $0.keywords).joined(separator: " "))
+            !byTitle.contains($0) && matches(([$0.title] + $0.searchTerms).joined(separator: " "))
         }
         return byTitle + byKeyword
     }
