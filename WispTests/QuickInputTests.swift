@@ -235,11 +235,11 @@ final class QuickInputParserTests: XCTestCase {
     }
 
     func testModelDatesMustBeNearNow() {
-        // Up to a minute ago is allowed for a slow model; earlier, or over a year ahead, isn't.
+        // `now` is when the request was typed, so even a slow answer has no reason to be earlier.
+        XCTAssertNil(model(#"{"kind":"reminder","title":"Tea","date":"2025-11-05T14:19:30Z"}"#))
         XCTAssertEqual(
-            model(#"{"kind":"reminder","title":"Tea","date":"2025-11-05T14:19:30Z"}"#),
-            .reminder(title: "Tea", due: now.addingTimeInterval(-30)))
-        XCTAssertNil(model(#"{"kind":"reminder","title":"Tea","date":"2025-11-05T14:18:00Z"}"#))
+            model(#"{"kind":"reminder","title":"Tea","date":"2025-11-05T14:20:00Z"}"#),
+            .reminder(title: "Tea", due: now))
         XCTAssertNil(model(#"{"kind":"reminder","title":"Tea","date":"2027-01-01T09:00:00Z"}"#))
         XCTAssertNil(model(#"{"kind":"event","title":"Tea","date":"2025-11-05T10:00:00Z"}"#))
     }
@@ -268,8 +268,36 @@ final class QuickInputParserTests: XCTestCase {
             parse("remind me on wednesday to call"), .reminder(title: "Call", due: date(2025, 11, 12, 9, 0)))
     }
 
-    func testADayPartThatIsOverReadsAsNothing() {
+    func testADayPartThatIsOverReadsAsPassed() {
         XCTAssertNil(parse("remind me this morning to call"))
+        XCTAssertEqual(QuickInputParser.read("remind me this morning to call", now: now, calendar: london), .passed)
+        XCTAssertEqual(QuickInputParser.read("what's the weather", now: now, calendar: london), .unknown)
+        XCTAssertEqual(QuickInputParser.read("25 min", now: now, calendar: london), .intent(.timer(.minutes(25))))
+    }
+
+    func testEarlyHoursAtNightAreTheNextDay() {
+        XCTAssertEqual(
+            parse("remind me tonight at 1 to sleep"), .reminder(title: "Sleep", due: date(2025, 11, 6, 1, 0)))
+        XCTAssertEqual(
+            parse("remind me this evening at 2 to sleep"), .reminder(title: "Sleep", due: date(2025, 11, 6, 2, 0)))
+        XCTAssertEqual(
+            parse("remind me tonight at 1am to sleep"), .reminder(title: "Sleep", due: date(2025, 11, 6, 1, 0)))
+        XCTAssertEqual(parse("remind me tonight at 9 to read"), .reminder(title: "Read", due: date(2025, 11, 5, 21, 0)))
+    }
+
+    func testTwelveAmIsTheEndOfTheDayNamed() {
+        XCTAssertEqual(parse("remind me tomorrow at 12am to go"), .reminder(title: "Go", due: date(2025, 11, 7, 0, 0)))
+    }
+
+    func testRemindMeWithUnreadTimingGoesToTheModel() {
+        XCTAssertNil(parse("remind me to call mom in 2 days"))
+        XCTAssertNil(parse("remind me to x next week"))
+        XCTAssertNil(parse("remind me at 9.30pm to x"))
+        XCTAssertNil(parse("remind me to pay 2 bills"))
+    }
+
+    func testEventLongerThanADayIsNotRead() {
+        XCTAssertNil(parse("meeting tomorrow at 3 for 25 hours"))
     }
 
     func testADayPartUnderWayGivesTheNextHour() {

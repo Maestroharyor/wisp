@@ -71,9 +71,10 @@ final class QuickInputStore {
         guard !input.isEmpty, state != .thinking else { return }
         let now = Date.now
         let calendar = Calendar.autoupdatingCurrent
-        if let intent = QuickInputParser.parse(input, now: now, calendar: calendar) {
-            propose(intent, input: input)
-            return
+        switch QuickInputParser.read(input, now: now, calendar: calendar) {
+        case .intent(let intent): return propose(intent, input: input)
+        case .passed: return show(QuickIntentCheck.passed)
+        case .unknown: break
         }
         guard ai.isReady else { return show(Self.hint) }
         state = .thinking

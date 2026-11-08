@@ -27,9 +27,16 @@ public enum QuickInputParser {
     static let morningHour = 9
 
     public static func parse(_ text: String, now: Date, calendar: Calendar) -> QuickIntent? {
+        if case .intent(let intent) = read(text, now: now, calendar: calendar) { return intent }
+        return nil
+    }
+
+    /// What `parse` read, and when it found nothing, whether that's because the time named is
+    /// over ("this morning" in the afternoon), which the model can't fix either.
+    public static func read(_ text: String, now: Date, calendar: Calendar) -> QuickRead {
         let words = Word.split(text)
-        guard !words.isEmpty, text.count <= 300 else { return nil }
-        if let timer = timer(words.map(\.key)) { return .timer(timer) }
+        guard !words.isEmpty, text.count <= 300 else { return .unknown }
+        if let timer = timer(words.map(\.key)) { return .intent(.timer(timer)) }
         return scheduled(words, now: now, calendar: calendar)
     }
 
@@ -139,7 +146,7 @@ public enum QuickInputParser {
     /// Joining words left at either end of a title once the time is taken out.
     private static let edgeWords: Set<String> = ["to", "at", "on", "by", "about", "that", "for"]
 
-    private static func scheduled(_ all: [Word], now: Date, calendar: Calendar) -> QuickIntent? {
+    private static func scheduled(_ all: [Word], now: Date, calendar: Calendar) -> QuickRead {
         var words = all
         let keys = words.map(\.key)
         let prefix = reminderPrefixes.first { keys.starts(with: $0) }
@@ -169,25 +176,37 @@ public enum QuickInputParser {
         let isEvent =
             prefix == nil && !timeSpans.isEmpty && words.contains { eventWords.contains($0.key) } && when.hasTime
         let skipped = isEvent ? timeSpans.union(lengthSpan) : timeSpans
-        let title = Self.title(words.enumerated().filter { !skipped.contains($0.offset) }.map(\.element))
+        let left = words.enumerated().filter { !skipped.contains($0.offset) }.map(\.element)
+        let title = Self.title(left)
 
         let due: Date?
         switch when.resolve(now: now, calendar: calendar) {
-        case .passed: return nil
+        case .passed: return .passed
         case .none: due = nil
         case .date(let date): due = date
         }
         if isEvent {
-            guard let start = due, let title else { return nil }
             let minutes = when.length.map { Int($0 / 60) } ?? eventMinutes
-            return .event(title: title, start: start, minutes: min(max(minutes, 1), maxEventMinutes))
+            guard let start = due, let title, (1...maxEventMinutes).contains(minutes) else { return .unknown }
+            return .intent(.event(title: title, start: start, minutes: minutes))
         }
         if prefix != nil {
-            if title == nil, due == nil { return nil }
-            return .reminder(title: title ?? "Reminder", due: due)
+            if title == nil, due == nil { return .unknown }
+            // Timing this reader couldn't follow ("in 2 days", "next week", "9.30pm") would end
+            // up in the title of an undated reminder; the model may read it.
+            if due == nil, hasUnreadTiming(left.map(\.key)) { return .unknown }
+            return .intent(.reminder(title: title ?? "Reminder", due: due))
         }
-        guard let due, !words.contains(where: { eventWords.contains($0.key) }) else { return nil }
-        return .reminder(title: title ?? "Reminder", due: due)
+        guard let due, !words.contains(where: { eventWords.contains($0.key) }) else { return .unknown }
+        return .intent(.reminder(title: title ?? "Reminder", due: due))
+    }
+
+    private static func hasUnreadTiming(_ keys: [String]) -> Bool {
+        for (index, key) in keys.enumerated() {
+            if key.contains(where: \.isNumber) { return true }
+            if ["in", "at", "by", "next"].contains(key), index + 1 < keys.count { return true }
+        }
+        return false
     }
 
     /// The words left, joined, with joining words trimmed from the ends and a capital first letter.
@@ -207,8 +226,9 @@ public enum QuickInputParser {
 
     // MARK: Model answers
 
-    /// How far a model's date may be from now: a minute back for a slow answer, a year ahead.
-    static let modelDateWindow: (back: TimeInterval, ahead: TimeInterval) = (60, 366 * 24 * 3600)
+    /// How far ahead a model's date may be. `now` is when the request was typed, so nothing
+    /// earlier is accepted, matching `QuickIntentCheck`.
+    static let modelDateAhead: TimeInterval = 366 * 24 * 3600
 
     /// The AI quick-input task's JSON object as an intent, or nil when it doesn't make sense.
     /// Dates without an offset are read in `calendar`'s time zone; a date far from `now` or an
@@ -222,7 +242,7 @@ public enum QuickInputParser {
         let date = object["date"]?.stringValue.flatMap { self.date($0, timeZone: calendar.timeZone) }
         if let date {
             let offset = date.timeIntervalSince(now)
-            guard offset >= -modelDateWindow.back, offset <= modelDateWindow.ahead else { return nil }
+            guard offset >= 0, offset <= modelDateAhead else { return nil }
         }
         switch kind {
         case "timer":
@@ -266,6 +286,15 @@ public enum QuickInputParser {
         }
         return nil
     }
+}
+
+/// What the reader made of a request.
+public enum QuickRead: Equatable, Sendable {
+    case intent(QuickIntent)
+    /// It names a time that's over, with no sensible next one.
+    case passed
+    /// Not a form the reader knows; the AI task may.
+    case unknown
 }
 
 /// A word of the request: as typed, and lowercased without surrounding punctuation.
@@ -547,14 +576,27 @@ struct When {
 
     /// The hour when the words settle it; nil for a bare "5" today, which depends on the time now.
     private func fixedHour(_ clock: ClockTime, laterDay: Bool) -> Int? {
+        if let part, part == .evening || part == .night { return nightHour(clock) }
+        // "12am" is the end of the day named, like "midnight".
+        if clock.meridiem == .am, clock.hour == 12 { return 24 }
         if let meridiem = clock.meridiem { return clock.hour % 12 + (meridiem == .pm ? 12 : 0) }
         if clock.isTwentyFourHour { return clock.hour }
-        if let part {
-            // "Tonight at 12" is midnight; "this afternoon at 12" is noon.
-            if clock.hour == 12 { return part == .evening || part == .night ? 24 : 12 }
-            return part.isAfterNoon ? clock.hour % 12 + 12 : clock.hour % 12
-        }
+        if let part { return part.isAfterNoon ? clock.hour % 12 + 12 : clock.hour % 12 }
         return laterDay ? Self.guessedHour(clock.hour) : nil
+    }
+
+    /// Tonight or this evening: "9" is 21:00, while "12" and "1" to "4" (or "1am") are the small
+    /// hours after midnight, so they fall on the next day.
+    private func nightHour(_ clock: ClockTime) -> Int {
+        let hour: Int
+        if let meridiem = clock.meridiem {
+            hour = clock.hour % 12 + (meridiem == .pm ? 12 : 0)
+        } else if clock.isTwentyFourHour {
+            hour = clock.hour
+        } else {
+            hour = clock.hour == 12 || (1...4).contains(clock.hour) ? clock.hour % 12 : clock.hour % 12 + 12
+        }
+        return hour < 5 ? hour + 24 : hour
     }
 
     /// A bare hour on another day: 1 to 6 is the afternoon, 7 to 12 the morning (12 is noon).
