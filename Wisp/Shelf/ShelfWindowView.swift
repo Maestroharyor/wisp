@@ -50,13 +50,13 @@ final class WindowNavigation {
         if preferences.windowSelection != destination.rawValue { preferences.windowSelection = destination.rawValue }
     }
 
-    /// The live activities that are running. Reads only whether there are downloads, so the
-    /// sidebar doesn't redraw on every progress tick.
+    /// The live activities that are running. Reads only whether each runs, so the window
+    /// doesn't redraw on every download or activity progress tick.
     func live(services: AppServices) -> [WindowLive] {
         var live: [WindowLive] = []
         if services.regionWatch.appName != nil { live.append(.regionWatch) }
         if services.downloads.hasDownloads { live.append(.downloads) }
-        if services.automation.current != nil { live.append(.external) }
+        if services.automation.hasCurrent { live.append(.external) }
         return live
     }
 
@@ -105,22 +105,18 @@ extension ActivityDetail {
 
 /// The shelf window: a sidebar of pages, widgets and live activities, and the chosen one
 /// filling the rest. Follows the system's Light or Dark mode.
+/// The root reads only what picks the selection (preferences and whether each live activity
+/// runs); rows, titles and pages are in their own views.
 struct ShelfWindowView: View {
     let model: NotchModel
     @Bindable var navigation: WindowNavigation
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var services: AppServices { model.services }
-
     var body: some View {
-        let selection = navigation.selection(in: navigation.sections(services: services))
+        let selection = navigation.selection(in: navigation.sections(services: model.services))
         NavigationSplitView(columnVisibility: $navigation.columns) {
             WindowSidebarList(model: model, navigation: navigation, selection: selection)
         } detail: {
-            detail(selection)
-                .navigationTitle(WindowRow.title(of: selection, services: services))
-                .toolbar { toolbar(selection) }
+            WindowDetail(model: model, navigation: navigation, selection: selection)
         }
         .tint(Color.wispViolet)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
@@ -132,6 +128,23 @@ struct ShelfWindowView: View {
             // notch's shelf does.
             if row != .home, model.editingHome { model.endHomeEditing() }
         }
+    }
+}
+
+/// The selected row's page, with its title and toolbar.
+private struct WindowDetail: View {
+    let model: NotchModel
+    let navigation: WindowNavigation
+    let selection: WindowDestination
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var services: AppServices { model.services }
+
+    var body: some View {
+        detail(selection)
+            .navigationTitle(WindowRow.title(of: selection, services: services))
+            .toolbar { toolbar(selection) }
     }
 
     private func detail(_ selection: WindowDestination) -> some View {

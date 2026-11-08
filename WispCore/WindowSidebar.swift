@@ -47,7 +47,6 @@ public enum WindowDestination: Hashable, Sendable {
             return nil
         }
     }
-
 }
 
 /// A group of sidebar rows.
@@ -119,15 +118,15 @@ public enum WindowKeys {
         case toggleSidebar
     }
 
-    /// `key` is the character typed without modifiers; `commandOnly` is whether ⌘ is the only
-    /// modifier held.
-    public static func action(key: String, commandOnly: Bool) -> Action? {
+    /// `keyCode` is the physical key (number row keys, so AZERTY's "&" key is ⌘1 too);
+    /// `commandOnly` is whether ⌘ is the only modifier held.
+    public static func action(keyCode: UInt16, commandOnly: Bool) -> Action? {
         guard commandOnly else { return nil }
-        switch key {
-        case "1": return .select(.home)
-        case "2": return .select(.tray)
-        case "3": return .select(.media)
-        case "0": return .toggleSidebar
+        switch keyCode {
+        case 0x12: return .select(.home)  // kVK_ANSI_1
+        case 0x13: return .select(.tray)  // kVK_ANSI_2
+        case 0x14: return .select(.media)  // kVK_ANSI_3
+        case 0x1D: return .toggleSidebar  // kVK_ANSI_0
         default: return nil
         }
     }

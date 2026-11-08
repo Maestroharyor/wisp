@@ -175,13 +175,13 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     private func installKeyMonitor() {
         removeKeyMonitor()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            let key = event.charactersIgnoringModifiers ?? ""
+            let keyCode = event.keyCode
             let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
                 .subtracting([.capsLock, .numericPad, .function])
             let target = event.window
             let handled = MainActor.assumeIsolated { () -> Bool in
                 guard let self, self.owns(target),
-                    let action = WindowKeys.action(key: key, commandOnly: modifiers == .command)
+                    let action = WindowKeys.action(keyCode: keyCode, commandOnly: modifiers == .command)
                 else { return false }
                 self.navigation.perform(action)
                 return true

@@ -14,7 +14,11 @@ final class Automation {
     private(set) static weak var shared: Automation?
 
     /// The outside activity on show, for the details its pill opens.
-    private(set) var current: ExternalActivity?
+    private(set) var current: ExternalActivity? {
+        didSet { if hasCurrent != (current != nil) { hasCurrent = current != nil } }
+    }
+    /// Whether an outside activity is on show, for views that shouldn't redraw on its progress.
+    private(set) var hasCurrent = false
 
     @ObservationIgnored private let services: AppServices
     @ObservationIgnored private var board = ExternalActivities()

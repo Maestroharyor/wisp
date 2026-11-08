@@ -179,9 +179,8 @@ final class AppServices {
     /// The second colour of the shelf glow; the same as the accent for one-colour themes.
     var glow: Color { activeAlbumTint ?? Color(rgb: palette.glow) }
 
-    /// The music pill's waveform colour: the artwork's, or the theme's accent without artwork,
-    /// so it reads in Light and Dark mode alike.
-    var albumTint: Color { nowPlaying.tint ?? Color(rgb: palette.accent) }
+    /// The music pill's waveform colour: the artwork's, or white without artwork.
+    var albumTint: Color { nowPlaying.tint ?? .white }
 
     /// Set by the notch coordinator: the page closed shelves open on next.
     var restingPage: @MainActor (ShelfPage) -> Void = { _ in }

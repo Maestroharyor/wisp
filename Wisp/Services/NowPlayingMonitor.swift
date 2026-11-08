@@ -12,7 +12,7 @@ final class NowPlayingMonitor {
     private(set) var info: NowPlayingInfo?
     private(set) var artwork: NSImage?
     /// Dominant artwork colour, for the waveform and progress tint.
-    /// Nil without artwork; `AppServices.albumTint` falls back to the theme's accent then.
+    /// Nil without artwork; see `AppServices.albumTint`.
     private(set) var tint: Color?
     /// When `info.position` was read, to extrapolate the playhead between polls.
     private(set) var readAt = Date.now

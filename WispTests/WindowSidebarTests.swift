@@ -95,21 +95,27 @@ final class WindowSidebarTests: XCTestCase {
 
     // MARK: Keys
 
+    // Key codes of the number row (kVK_ANSI_1, 2, 3 and 0), the same keys on every layout,
+    // AZERTY included, where they type "&", "é", "\"" and "à" without Shift.
+    private let one: UInt16 = 0x12
+    private let two: UInt16 = 0x13
+    private let three: UInt16 = 0x14
+    private let zero: UInt16 = 0x1D
+
     func testCommandNumbersPickTheWispPagesAndZeroTogglesTheSidebar() {
-        XCTAssertEqual(WindowKeys.action(key: "1", commandOnly: true), .select(.home))
-        XCTAssertEqual(WindowKeys.action(key: "2", commandOnly: true), .select(.tray))
-        XCTAssertEqual(WindowKeys.action(key: "3", commandOnly: true), .select(.media))
-        XCTAssertEqual(WindowKeys.action(key: "0", commandOnly: true), .toggleSidebar)
+        XCTAssertEqual(WindowKeys.action(keyCode: one, commandOnly: true), .select(.home))
+        XCTAssertEqual(WindowKeys.action(keyCode: two, commandOnly: true), .select(.tray))
+        XCTAssertEqual(WindowKeys.action(keyCode: three, commandOnly: true), .select(.media))
+        XCTAssertEqual(WindowKeys.action(keyCode: zero, commandOnly: true), .toggleSidebar)
     }
 
     func testOtherKeysAndOtherModifiersAreLeftAlone() {
-        XCTAssertNil(WindowKeys.action(key: "4", commandOnly: true))
-        XCTAssertNil(WindowKeys.action(key: "a", commandOnly: true))
-        XCTAssertNil(WindowKeys.action(key: "", commandOnly: true))
-        XCTAssertNil(WindowKeys.action(key: "12", commandOnly: true))
+        XCTAssertNil(WindowKeys.action(keyCode: 0x15, commandOnly: true))  // 4
+        XCTAssertNil(WindowKeys.action(keyCode: 0x00, commandOnly: true))  // A
+        XCTAssertNil(WindowKeys.action(keyCode: 0x53, commandOnly: true))  // keypad 1
         // Plain digits type into fields; ⌥⌘1 or ⇧⌘1 belong to someone else.
-        XCTAssertNil(WindowKeys.action(key: "1", commandOnly: false))
-        XCTAssertNil(WindowKeys.action(key: "0", commandOnly: false))
+        XCTAssertNil(WindowKeys.action(keyCode: one, commandOnly: false))
+        XCTAssertNil(WindowKeys.action(keyCode: zero, commandOnly: false))
     }
 }
 
