@@ -102,11 +102,20 @@ public struct PushPolicy: Sendable {
     }
 }
 
+/// Whether a Done push waits for the session summary. It waits only when the summary could go
+/// with it (push and Done on, Include details on, details shown); otherwise it goes at once.
+public enum DonePush {
+    public static func waitsForSummary(pushOn: Bool, doneOn: Bool, includeDetails: Bool, hidden: Bool) -> Bool {
+        pushOn && doneOn && includeDetails && !hidden
+    }
+}
+
 /// Something about the agents worth telling the user away from the Mac. Approvals are followed
 /// through the hub's queue instead, since they need a reply.
 public enum AgentMoment: Equatable, Sendable {
     case needsYou(session: String, project: String, source: AgentSource)
-    case done(session: String, project: String, source: AgentSource)
+    /// `summary` is the on-device AI's summary of the session, when there is one.
+    case done(session: String, project: String, source: AgentSource, summary: String? = nil)
     /// Wisp's own notice text for a usage window or the daily budget.
     case limit(String)
     case budget(String)
@@ -125,19 +134,22 @@ public enum AgentMoment: Equatable, Sendable {
     /// Tells repeats apart for `PushPolicy`: per session, or per text.
     public var key: String {
         switch self {
-        case .needsYou(let session, _, _), .done(let session, _, _): session
+        case .needsYou(let session, _, _), .done(let session, _, _, _): session
         case .limit(let text), .budget(let text): text
         case .cloud(let event): event.kind.rawValue + "|" + event.task.id
         }
     }
 
-    /// The notification, masked as `PushMessage` describes.
-    public func notice(hidden: Bool) -> PushNotice {
+    /// The notification, masked as `PushMessage` describes. `includeDetails` is the "Include
+    /// details" switch, which lets a Done carry its summary.
+    public func notice(hidden: Bool, includeDetails: Bool = false) -> PushNotice {
         switch self {
         case .needsYou(_, let project, let source):
             PushMessage.needsYou(agent: source.displayName, project: project, hidden: hidden)
-        case .done(_, let project, let source):
-            PushMessage.done(agent: source.displayName, project: project, hidden: hidden)
+        case .done(_, let project, let source, let summary):
+            PushMessage.done(
+                agent: source.displayName, project: project, hidden: hidden, summary: summary,
+                includeDetails: includeDetails)
         case .limit(let text): PushMessage.limit(text)
         case .budget(let text): PushMessage.budget(text)
         case .cloud(let event): PushMessage.cloud(event, hidden: hidden)
