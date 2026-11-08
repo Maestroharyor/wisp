@@ -632,9 +632,12 @@ final class Preferences {
         didSet { defaults.set(workdayEnd, forKey: Key.workdayEnd) }
     }
 
-    /// Time zone identifiers for the World Clocks widget, at most three.
+    /// Time zone identifiers for the World Clocks widget, at most eight; the notch shows the
+    /// first three. Settings keeps an emptied slot as "".
     var worldClockZones: [String] {
-        didSet { defaults.set(Array(worldClockZones.prefix(3)), forKey: Key.worldClockZones) }
+        didSet {
+            defaults.set(Array(worldClockZones.prefix(WorldClock.maximumCities)), forKey: Key.worldClockZones)
+        }
     }
 
     /// Switched-on widgets in the grid's saved order.

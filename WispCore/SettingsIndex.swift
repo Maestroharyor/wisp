@@ -69,7 +69,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "don't show", "external displays", "show on external displays", "sidebar",
                 // The ring, which had its own pane before; its name stays a keyword.
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "hyper r",
-                "per app", "edit ring", "ring shortcut", "ai action",
+                "per app", "edit ring", "ring shortcut", "capture text", "ocr", "qr code", "barcode", "ai action",
             ]
         case .appearance:
             [
@@ -111,7 +111,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "timer length", "command output", "command", "output", "run every", "script", "do not disturb",
                 "dnd", "workday", "focus button runs this shortcut", "focus button", "do not disturb toggle runs",
                 "clipboard history", "history", "copy", "paste", "limit", "keep up to", "pinned", "clear history",
-                "concealed", "passwords",
+                "concealed", "passwords", "ocr", "text from image", "working hours", "time zone",
                 "profiles", "profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus",
                 "save current setup", "switch profiles automatically", "switch automatically", "opens on",
                 "profile look", "look for", "keep the current look",

@@ -75,12 +75,16 @@ struct ShelfSettings: View {
                     in: (preferences.workdayStart + 1)...24)
             }
             Section("World Clocks") {
-                ForEach(0..<3, id: \.self) { index in
+                // One empty slot after the last city, up to the limit.
+                let slots = min(max(preferences.worldClockZones.count + 1, 3), WorldClock.maximumCities)
+                ForEach(0..<slots, id: \.self) { index in
                     Picker("City \(index + 1)", selection: zone(at: index)) {
                         Text("None").tag("")
                         ForEach(Self.zones, id: \.self) { Text(WorldClock.cityName($0) + "  (\($0))").tag($0) }
                     }
                 }
+                Text("The notch shows the first three cities; the window shows them all.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             ClipboardSection(preferences: preferences, store: clipboard)
             ProfilesSection(preferences: preferences, context: context)

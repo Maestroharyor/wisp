@@ -486,6 +486,13 @@ final class RegionWatchTests: XCTestCase {
         XCTAssertEqual(flipped, CGRect(x: 10, y: 250, width: 100, height: 50))
     }
 
+    func testPicksTheDisplayHoldingMostOfTheSelection() {
+        let displays = [CGRect(x: 0, y: 0, width: 1000, height: 800), CGRect(x: 1000, y: 0, width: 1000, height: 800)]
+        XCTAssertEqual(RegionGeometry.displayIndex(for: CGRect(x: 900, y: 10, width: 300, height: 50), in: displays), 1)
+        XCTAssertEqual(RegionGeometry.displayIndex(for: CGRect(x: 10, y: 10, width: 30, height: 30), in: displays), 0)
+        XCTAssertNil(RegionGeometry.displayIndex(for: CGRect(x: 10, y: 900, width: 30, height: 30), in: displays))
+    }
+
     func testRegionIsAnOffsetInPointsFromTheWindowCorner() {
         let window = CGRect(x: 100, y: 100, width: 400, height: 200)
         let region = RegionGeometry.region(CGRect(x: 200, y: 150, width: 100, height: 50), in: window)

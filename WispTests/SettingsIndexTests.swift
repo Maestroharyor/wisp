@@ -170,6 +170,11 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "glass zebra").isEmpty)
     }
 
+    func testWindowPageSettingsAreFound() {
+        XCTAssertTrue(SettingsIndex.panes(matching: "working hours").contains(.widgets))
+        XCTAssertTrue(SettingsIndex.panes(matching: "time zone").contains(.widgets))
+    }
+
     func testEveryPaneBelongsToASectionInOrder() {
         let flattened = SettingsSection.allCases.flatMap(\.panes)
         XCTAssertEqual(flattened, SettingsPaneID.allCases)

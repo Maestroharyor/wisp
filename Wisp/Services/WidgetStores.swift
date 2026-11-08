@@ -108,6 +108,9 @@ final class CalendarStore {
     private var upcoming: [Event] = []
     /// Every timed event today, including finished ones, for the Day Progress widget.
     private(set) var dayEvents: [ClosedRange<Date>] = []
+    /// Every event today with its title, finished and all-day ones included, for the window's
+    /// Day Progress page.
+    private(set) var todayEvents: [Event] = []
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
 
     /// Asks for access. Queries go through `reader`, whose own store runs them off the main actor.
@@ -152,6 +155,7 @@ final class CalendarStore {
             // Access was revoked: stop showing (and offering Join cards for) the cached week.
             upcoming = []
             dayEvents = []
+            todayEvents = []
             lastRefresh = nil
             if hadAccess { revocations += 1 }
             hadAccess = false
@@ -183,6 +187,7 @@ final class CalendarStore {
             if access == .fullAccess {
                 upcoming = week.upcoming
                 dayEvents = week.day
+                todayEvents = week.today
                 onWeekLoaded()
             }
             if refetch {
@@ -210,6 +215,7 @@ private actor CalendarReader {
     struct Week: Sendable {
         let upcoming: [CalendarStore.Event]
         let day: [ClosedRange<Date>]
+        let today: [CalendarStore.Event]
     }
 
     private var store: EKEventStore?
@@ -228,20 +234,19 @@ private actor CalendarReader {
             .sorted { $0.startDate < $1.startDate }
         let day = week.filter { !$0.isAllDay && $0.startDate < tomorrow && $0.startDate <= $0.endDate }
             .map { $0.startDate...$0.endDate }
-        let upcoming =
-            week
-            .filter { $0.endDate > now }
-            .prefix(30)
-            .map {
-                let eventID = $0.eventIdentifier ?? UUID().uuidString
-                return CalendarStore.Event(
-                    id: Meetings.occurrenceID(eventID: eventID, start: $0.startDate), eventID: eventID,
-                    title: $0.title ?? "Event", start: $0.startDate,
-                    end: $0.endDate, isAllDay: $0.isAllDay,
-                    color: Color(nsColor: $0.calendar.color ?? .systemPurple),
-                    link: MeetingLink.find(in: [$0.url?.absoluteString, $0.location, $0.notes]))
-            }
-        return Week(upcoming: Array(upcoming), day: day)
+        let upcoming = week.filter { $0.endDate > now }.prefix(30).map(Self.event)
+        let today = week.filter { $0.startDate < tomorrow && $0.startDate <= $0.endDate }.prefix(50).map(Self.event)
+        return Week(upcoming: Array(upcoming), day: day, today: Array(today))
+    }
+
+    private static func event(_ event: EKEvent) -> CalendarStore.Event {
+        let eventID = event.eventIdentifier ?? UUID().uuidString
+        return CalendarStore.Event(
+            id: Meetings.occurrenceID(eventID: eventID, start: event.startDate), eventID: eventID,
+            title: event.title ?? "Event", start: event.startDate,
+            end: event.endDate, isAllDay: event.isAllDay,
+            color: Color(nsColor: event.calendar.color ?? .systemPurple),
+            link: MeetingLink.find(in: [event.url?.absoluteString, event.location, event.notes]))
     }
 }
 
