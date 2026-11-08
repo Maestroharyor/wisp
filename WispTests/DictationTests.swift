@@ -259,6 +259,91 @@ final class HoldKeyTests: XCTestCase {
         XCTAssertEqual(hold.key(space, down: true, hyperDown: false, holdKey: space), .swallow(nil))
     }
 
+    func testARepeatNeverStartsAHold() {
+        var hold = HoldKey()
+        // The key was already held when Hyper went down (or the tap was reset mid-hold).
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space, isRepeat: true), .notMine)
+        XCTAssertFalse(hold.holding)
+        XCTAssertEqual(hold.key(space, down: false, hyperDown: true, holdKey: space), .notMine)
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space), .swallow(.down))
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space, isRepeat: true), .swallow(nil))
+    }
+
+    func testARepeatAfterResetDoesNotRestart() {
+        var hold = HoldKey()
+        _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
+        _ = hold.reset()
+        // The key is still held: its repeats and release are swallowed so nothing types.
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space, isRepeat: true), .swallow(nil))
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: false, holdKey: space, isRepeat: true), .swallow(nil))
+        XCTAssertFalse(hold.holding)
+        XCTAssertEqual(hold.key(space, down: false, hyperDown: false, holdKey: space), .swallow(nil))
+        XCTAssertEqual(hold.key(space, down: false, hyperDown: false, holdKey: space), .notMine)
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: false, holdKey: space, isRepeat: true), .notMine)
+    }
+
+    func testAFreshPressAfterResetStartsAgain() {
+        var hold = HoldKey()
+        _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
+        _ = hold.reset()
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space), .swallow(.down))
+        XCTAssertEqual(hold.key(space, down: false, hyperDown: true, holdKey: space), .swallow(.up))
+    }
+
+    func testEscapeRepeatsDoNotCancelAgain() {
+        var hold = HoldKey()
+        _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
+        XCTAssertEqual(hold.key(KeyCodes.escape, down: true, hyperDown: true, holdKey: space), .swallow(.cancel))
+        XCTAssertEqual(
+            hold.key(KeyCodes.escape, down: true, hyperDown: true, holdKey: space, isRepeat: true), .swallow(nil))
+        XCTAssertEqual(hold.key(KeyCodes.escape, down: false, hyperDown: true, holdKey: space), .swallow(nil))
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space, isRepeat: true), .swallow(nil))
+        XCTAssertEqual(hold.key(space, down: false, hyperDown: true, holdKey: space), .swallow(nil))
+    }
+
+    func testAFreshEscapeWhileTheCancelEscapeIsDownIsSwallowed() {
+        var hold = HoldKey()
+        _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
+        XCTAssertEqual(hold.key(KeyCodes.escape, down: true, hyperDown: true, holdKey: space), .swallow(.cancel))
+        XCTAssertEqual(hold.key(KeyCodes.escape, down: true, hyperDown: true, holdKey: space), .swallow(nil))
+        XCTAssertEqual(hold.key(KeyCodes.escape, down: false, hyperDown: true, holdKey: space), .swallow(nil))
+        XCTAssertEqual(hold.key(KeyCodes.escape, down: false, hyperDown: true, holdKey: space), .notMine)
+    }
+
+    func testEscapeHeldBeforeAHoldPassesItsRepeats() {
+        var hold = HoldKey()
+        XCTAssertEqual(hold.key(KeyCodes.escape, down: true, hyperDown: true, holdKey: space), .notMine)
+        XCTAssertEqual(
+            hold.key(KeyCodes.escape, down: true, hyperDown: true, holdKey: space, isRepeat: true), .notMine)
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space), .swallow(.down))
+        XCTAssertEqual(
+            hold.key(KeyCodes.escape, down: true, hyperDown: true, holdKey: space, isRepeat: true), .notMine)
+        XCTAssertEqual(hold.key(KeyCodes.escape, down: false, hyperDown: true, holdKey: space), .notMine)
+        XCTAssertTrue(hold.holding)
+    }
+
+    func testRebindingClearsAnAbandonedHold() {
+        for newKey: UInt16? in [nil, KeyCodes.r] {
+            var hold = HoldKey()
+            _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
+            _ = hold.reset()
+            // Any event with the new binding forgets the abandoned hold.
+            _ = hold.key(KeyCodes.v, down: true, hyperDown: false, holdKey: newKey)
+            XCTAssertEqual(
+                hold.key(space, down: true, hyperDown: false, holdKey: space, isRepeat: true), .notMine,
+                "after rebinding to \(String(describing: newKey)) and back")
+            XCTAssertEqual(hold.key(space, down: false, hyperDown: false, holdKey: space), .notMine)
+        }
+    }
+
+    func testAnEscapeRepeatNeverCancels() {
+        var hold = HoldKey()
+        _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
+        XCTAssertEqual(
+            hold.key(KeyCodes.escape, down: true, hyperDown: true, holdKey: space, isRepeat: true), .notMine)
+        XCTAssertTrue(hold.holding)
+    }
+
     func testReleaseCountsEvenAfterHyperComesUp() {
         var hold = HoldKey()
         _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
@@ -274,9 +359,10 @@ final class HoldKeyTests: XCTestCase {
         _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
         XCTAssertEqual(hold.key(KeyCodes.escape, down: true, hyperDown: true, holdKey: space), .swallow(.cancel))
         XCTAssertEqual(hold.key(KeyCodes.escape, down: false, hyperDown: true, holdKey: space), .swallow(nil))
+        XCTAssertFalse(hold.holding)
         XCTAssertEqual(
-            hold.key(space, down: false, hyperDown: true, holdKey: space), .swallow(.up),
-            "the hold key's own release still ends the hold")
+            hold.key(space, down: false, hyperDown: true, holdKey: space), .swallow(nil),
+            "the cancelled hold's release is swallowed without an event")
     }
 
     func testOtherKeysAndNoHoldKeyAreNotMine() {
@@ -291,7 +377,10 @@ final class HoldKeyTests: XCTestCase {
         _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
         XCTAssertEqual(hold.reset(), .cancel)
         XCTAssertFalse(hold.holding)
-        XCTAssertEqual(hold.key(space, down: false, hyperDown: false, holdKey: space), .notMine)
+        XCTAssertNil(hold.reset())
+        XCTAssertEqual(
+            hold.key(space, down: false, hyperDown: false, holdKey: space), .swallow(nil),
+            "the abandoned hold's release is swallowed without an event")
     }
 }
 

@@ -76,6 +76,8 @@ enum Activity: Sendable, Equatable {
     case dictation(since: Date)
     /// What a quick add request will make, waiting for Add or Cancel.
     case quickIntent(QuickIntent)
+    /// An AI action on selected or copied text: working, then the answer with Copy and Replace.
+    case aiResult(AIResultCard)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -123,6 +125,7 @@ enum Activity: Sendable, Equatable {
         case .regionWatch: "regionWatch"
         case .dictation: "dictation"
         case .quickIntent: "quickIntent"
+        case .aiResult(let card): "aiResult-\(card.id)"
         }
     }
 }
@@ -149,4 +152,13 @@ struct RegionWatchStatus: Sendable, Equatable {
     let appName: String
     let rule: RegionWatchRule
     let paused: Bool
+}
+
+/// One AI action and, once the model has answered, its answer.
+struct AIResultCard: Sendable, Equatable {
+    let id: UUID
+    let task: AITask
+    let input: AITextInput
+    /// Nil while the model works.
+    var answer: AIAnswer?
 }

@@ -22,6 +22,7 @@ final class ActivitySlotTests: XCTestCase {
     func testCardsAndAlertsCanBeDismissedButOngoingActivitiesCant() {
         let dismissable: Set<ActivitySlot> = [
             .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone,
+            .aiResult,
             .quickInput,
         ]
         XCTAssertEqual(Set(ActivitySlot.allCases.filter(\.isDismissable)), dismissable)
@@ -56,6 +57,20 @@ final class DownloadSlotTests: XCTestCase {
         XCTAssertTrue(ActivitySlot.downloadDone.isDismissable)
         XCTAssertGreaterThan(ActivitySlot.downloadDone.priority, ActivitySlot.tray.priority)
         XCTAssertLessThan(ActivitySlot.downloadDone.priority, ActivitySlot.notification.priority)
+    }
+}
+
+final class AIResultSlotTests: XCTestCase {
+    func testTheResultCardCanBeClosedAndShowsOverNoticesButUnderNotifications() {
+        XCTAssertTrue(ActivitySlot.aiResult.isDismissable)
+        XCTAssertFalse(ActivitySlot.aiResult.canBeBubble)
+        XCTAssertGreaterThan(ActivitySlot.aiResult.priority, ActivitySlot.notice.priority)
+        XCTAssertGreaterThan(ActivitySlot.aiResult.priority, ActivitySlot.downloadDone.priority)
+        XCTAssertLessThan(ActivitySlot.aiResult.priority, ActivitySlot.notification.priority)
+    }
+
+    func testAJoinCardShowsOverTheResultCard() {
+        XCTAssertGreaterThan(ActivitySlot.meetingSoon.priority, ActivitySlot.aiResult.priority)
     }
 }
 

@@ -26,6 +26,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case dictation
     /// The confirm card for a quick request (a timer, reminder or event) before it's made.
     case quickInput
+    /// The answer to an AI action on selected or copied text, with Copy and Replace.
+    case aiResult
 
     /// Ongoing activities sit below every short alert, so a battery or device alert still
     /// shows during a call and then hands the pill back.
@@ -45,7 +47,10 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         case .notice: 45
         case .timerDone: 46
         case .downloadDone: 47
-        case .meetingSoon: 48
+        // Asked for just now, so it sits over notices and finished downloads; a call's Join
+        // card and notifications still pass over it.
+        case .aiResult: 48
+        case .meetingSoon: 49
         case .notification: 50
         // The user just asked for it, so it shows over a notification; an agent's request still
         // comes first.
@@ -71,7 +76,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     public var isDismissable: Bool {
         switch self {
         case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone,
-            .quickInput:
+            .aiResult, .quickInput:
             true
         default: false
         }

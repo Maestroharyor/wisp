@@ -71,11 +71,11 @@ final class NotchController {
         }
     }
 
-    /// Approval, Join, call control, finished download and quick add cards have buttons, so the
-    /// closed panel stops being click-through while one shows.
+    /// Approval, Join, call control, finished download, AI result and quick add cards have
+    /// buttons, so the closed panel stops being click-through while one shows.
     private var showsApproval: Bool {
         switch model.activity {
-        case .agentApproval, .meetingSoon, .downloadDone, .quickIntent: true
+        case .agentApproval, .meetingSoon, .downloadDone, .aiResult, .quickIntent: true
         case .meeting: model.showsMeetingControls
         default: false
         }
@@ -155,7 +155,14 @@ final class NotchController {
     /// A card that took the keyboard for typing (an answer, a reason) went away: hand the
     /// keyboard back to the app the user was in.
     private func releaseKeyAfterCard() {
-        guard machine.phase != .open, !isReplying, !showsApproval, panel.isKeyWindow else { return }
+        guard !showsApproval else { return }
+        releaseKey()
+    }
+
+    /// Gives up the keyboard while closed, even under a card with buttons, so keys Wisp sends
+    /// (a paste from the AI card) reach the app in front instead of the notch.
+    func releaseKey() {
+        guard machine.phase != .open, !isReplying, panel.isKeyWindow else { return }
         panel.resignKey()
     }
 

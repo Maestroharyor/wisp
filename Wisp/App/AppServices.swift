@@ -77,6 +77,9 @@ final class AppServices {
     private(set) lazy var automation = Automation(services: self)
     private(set) lazy var regionWatch = RegionWatchController(services: self)
     private(set) lazy var ai = AIService(preferences: preferences)
+    private(set) lazy var aiActions = AITextActions(
+        ai: ai, preferences: preferences, activities: activities,
+        releaseNotchKey: { [weak self] in self?.releaseNotchKey() })
     private(set) lazy var quickInput = QuickInputStore(ai: ai, timers: timers, activities: activities)
 
     /// Quick add on its own in the shelf, with the cursor in its field.
@@ -118,6 +121,8 @@ final class AppServices {
     var approvalCardChanged: @MainActor (PermissionPrompt?) -> Void = { _ in }
     /// Whether any display's shelf is open, where the approval shows as a bar.
     var isShelfOpen: @MainActor () -> Bool = { false }
+    /// Makes every closed notch give up the keyboard, so a paste reaches the app in front.
+    var releaseNotchKey: @MainActor () -> Void = {}
 
     /// The approval card or bar is what's on screen, not hidden behind a HUD or another card,
     /// so a shortcut answers what the user can see.
@@ -424,6 +429,10 @@ final class AppServices {
         push.start()
         // Features read `ai.isReady` to decide whether to offer AI, so check at launch and on wake.
         ai.start()
+        activities.onRemove = { [weak self] slot in
+            // Closing the AI card stops the request it was waiting on.
+            if slot == .aiResult { self?.aiActions.cancel() }
+        }
         agents.onNewRequest = { [weak self] in
             guard self?.preferences.approvalSound == true else { return }
             self?.needsYouFeedback()

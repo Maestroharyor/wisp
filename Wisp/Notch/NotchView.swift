@@ -252,6 +252,11 @@ private struct SurfaceView: View {
                     .id(download.path)
                     .transition(reveal)
             }
+            if case .aiResult(let card) = model.activity {
+                AIResultCardView(card: card, model: model)
+                    .id(card.id)
+                    .transition(reveal)
+            }
             if case .quickIntent(let intent) = model.activity {
                 QuickIntentCard(intent: intent, model: model)
                     .transition(reveal)

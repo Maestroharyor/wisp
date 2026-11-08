@@ -112,7 +112,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .ring:
             [
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "orb",
-                "hyper r", "per app", "quick add",
+                "hyper r", "per app", "ai action", "quick add",
             ]
         case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
         case .clipboard: ["history", "copy", "paste", "limit", "pinned"]
@@ -146,7 +146,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             [
                 "apple intelligence", "foundation models", "ollama", "llm", "language model", "on-device", "local",
                 "localhost", "summarise", "summarize", "translate", "grammar", "rewrite", "action items", "explain",
-                "try it",
+                "try it", "translate to", "language", "selection", "selected text", "clipboard actions", "replace",
             ]
         case .permissions:
             [
