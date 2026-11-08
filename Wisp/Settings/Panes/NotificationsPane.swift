@@ -24,9 +24,8 @@ struct NotificationSettings: View {
                 }
                 Text("Pointing at a card keeps it open. Close it with the × or a swipe up.")
                     .font(.caption).foregroundStyle(.secondary)
-                Toggle("Show Focus changes", isOn: $preferences.focusActivity)
                 Text(
-                    "macOS has no public way to read other apps' notifications, so Wisp reads the system's notification store. It needs Full Disk Access and could break after a macOS update."
+                    "macOS has no public way to read other apps' notifications, so Wisp reads the system's notification store. It needs Full Disk Access and could break after a macOS update. Focus changes are in Live Activities."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
