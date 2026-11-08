@@ -77,7 +77,14 @@ final class AppServices {
     private(set) lazy var automation = Automation(services: self)
     private(set) lazy var regionWatch = RegionWatchController(services: self)
     private(set) lazy var ai = AIService(preferences: preferences)
-    private(set) lazy var agentHistory = AgentHistoryStore(preferences: preferences, ai: ai)
+    /// Made on first use; quitting flushes it only if it exists.
+    var agentHistory: AgentHistoryStore {
+        if let agentHistoryStore { return agentHistoryStore }
+        let store = AgentHistoryStore(preferences: preferences, ai: ai)
+        agentHistoryStore = store
+        return store
+    }
+    @ObservationIgnored private var agentHistoryStore: AgentHistoryStore?
     /// Done pushes waiting on a session summary; whichever of the summary and the
     /// time limit comes first sends it.
     @ObservationIgnored private var donePending: Set<UUID> = []
@@ -602,7 +609,7 @@ final class AppServices {
         automation.stop()
         regionWatch.stop()
         ai.stop()
-        agentHistory.flush()
+        agentHistoryStore?.flush()
         microphone.stop()
         meetingTask?.cancel()
         meetingControlsTask?.cancel()

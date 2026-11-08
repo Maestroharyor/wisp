@@ -150,16 +150,38 @@ final class SessionRecorderTests: XCTestCase {
             [try event("Stop"), try event("SessionStart", extra: #","source":"resume""#)], recorder: &recorder,
             sessions: &sessions)
         sessions.setUsage(TokenUsage(input: 1500), cost: 1.5, session: "s")
-        var record = try XCTUnwrap(recorder.record(try XCTUnwrap(sessions.session("s")), at: start))
+        recorder.figuresChanged(try XCTUnwrap(sessions.session("s")))
+        let record = try XCTUnwrap(recorder.record(try XCTUnwrap(sessions.session("s")), at: start))
         XCTAssertEqual(try XCTUnwrap(record.cost), 0.5, accuracy: 0.0001)
         XCTAssertEqual(record.tokens, 500)
-        // The agent started counting again from zero: all of it belongs to this run.
-        sessions.setUsage(TokenUsage(input: 200), cost: 0.2, session: "s")
-        record = try XCTUnwrap(recorder.record(try XCTUnwrap(sessions.session("s")), at: start))
-        XCTAssertEqual(try XCTUnwrap(record.cost), 0.2, accuracy: 0.0001)
-        XCTAssertEqual(record.tokens, 200)
-        XCTAssertEqual(SessionRecorder.delta(5, from: 3), 2)
-        XCTAssertEqual(SessionRecorder.delta(2, from: 3), 2)
+    }
+
+    /// A resumed agent counts from zero while Wisp's session still holds the old figure; once the
+    /// new count passes the old one it must not be read as a small increase.
+    func testACounterThatStartedOverIsCountedInFullAfterItPassesTheOldFigure() throws {
+        var recorder = SessionRecorder()
+        var sessions = AgentSessions()
+        run([try event("UserPromptSubmit")], recorder: &recorder, sessions: &sessions)
+        sessions.setUsage(TokenUsage(input: 5000), cost: 5.0, session: "s")
+        run(
+            [try event("Stop"), try event("SessionStart", extra: #","source":"resume""#)], recorder: &recorder,
+            sessions: &sessions)
+        sessions.setUsage(TokenUsage(input: 100), cost: 1.0, session: "s")
+        recorder.figuresChanged(try XCTUnwrap(sessions.session("s")))
+        sessions.setUsage(TokenUsage(input: 7000), cost: 7.0, session: "s")
+        recorder.figuresChanged(try XCTUnwrap(sessions.session("s")))
+        let record = try XCTUnwrap(recorder.record(try XCTUnwrap(sessions.session("s")), at: start))
+        XCTAssertEqual(try XCTUnwrap(record.cost), 7.0, accuracy: 0.0001)
+        XCTAssertEqual(record.tokens, 7000)
+    }
+
+    func testAnExitedSessionsOpenTestsAreUnknown() throws {
+        var recorder = SessionRecorder()
+        var sessions = AgentSessions()
+        run([try bash("PreToolUse", "make test", id: "t1")], recorder: &recorder, sessions: &sessions)
+        recorder.exited(session: "s")
+        let record = try XCTUnwrap(recorder.record(try XCTUnwrap(sessions.session("s")), at: start))
+        XCTAssertEqual(record.tests, [TestRun(command: "make test", outcome: .unknown)])
     }
 
     func testCopilotPostToolUseAloneIsCountedOnce() throws {

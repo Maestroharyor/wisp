@@ -2,6 +2,7 @@ import Foundation
 import OSLog
 import Observation
 import WispCore
+import os
 
 /// Finished agent sessions, kept in Application Support so the history survives relaunches, and
 /// their on-device summaries. Records hold figures, tool counts, masked commands and file names,
@@ -20,6 +21,8 @@ final class AgentHistoryStore {
     @ObservationIgnored private var removed: Set<String> = []
     @ObservationIgnored private var loaded = false
     @ObservationIgnored private var clearedBeforeLoad = false
+    /// Counts changes, so the file keeps the newest write (see `AgentHistoryFile`).
+    @ObservationIgnored private var generation = 0
     @ObservationIgnored private var writeTask: Task<Void, Never>?
     private static let writeDelay: Duration = .seconds(1)
 
@@ -72,18 +75,25 @@ final class AgentHistoryStore {
         scheduleWrite()
     }
 
+    /// A run still going keeps its record id, so cleared ids stay out when its next turn saves.
     func clear() {
         if !loaded { clearedBeforeLoad = true }
+        removed.formUnion(history.records.map(\.id))
         history.clear()
         scheduleWrite()
     }
 
-    /// Writes a change still waiting for its delay, so quitting doesn't lose the last turn.
+    /// Writes the latest history now, on this thread, unless a write of it already finished, so
+    /// quitting doesn't lose the last turn. A slower write of older data can't land after it.
     func flush() {
-        guard loaded, let task = writeTask else { return }
-        task.cancel()
+        guard loaded, generation > 0 else { return }
+        writeTask?.cancel()
         writeTask = nil
-        file.writeNow(history.records.isEmpty ? nil : try? JSONEncoder().encode(history))
+        file.writeNow(encoded(), generation: generation)
+    }
+
+    private func encoded() -> Data? {
+        history.records.isEmpty ? nil : try? JSONEncoder().encode(history)
     }
 
     /// Records saved before the file was read are kept on top of it.
@@ -101,37 +111,60 @@ final class AgentHistoryStore {
     }
 
     private func scheduleWrite() {
+        generation += 1
         guard writeTask == nil else { return }
         writeTask = Task { [weak self] in
             try? await Task.sleep(for: Self.writeDelay)
             guard let self, !Task.isCancelled, self.loaded else { return }
             self.writeTask = nil
             // Encoded here, so the snapshot is the history as it is now; written off the main actor.
-            let data = self.history.records.isEmpty ? nil : try? JSONEncoder().encode(self.history)
-            await self.file.write(data)
+            self.file.write(self.encoded(), generation: self.generation)
         }
     }
 }
 
-/// The history file, read and written in order away from the main actor.
-actor AgentHistoryFile {
-    nonisolated let folder: URL
-    nonisolated let url: URL
-    nonisolated let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "agent-history")
-
-    /// Writes a pending change straight away, on the caller's thread; for quitting.
-    nonisolated func writeNow(_ data: Data?) {
-        Self.store(data, folder: folder, url: url, log: log)
-    }
+/// The history file, read and written on a serial queue away from the main actor. Each write
+/// carries the history's generation, and one older than the last written is dropped, so a
+/// queued write can't replace what `writeNow` saved at quit.
+final class AgentHistoryFile: Sendable {
+    let folder: URL
+    let url: URL
+    private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "agent-history")
+    private let queue = DispatchQueue(label: "com.ayomideodewale.wisp.agent-history")
+    /// The newest generation written; held while writing, so writes never interleave.
+    private let written = OSAllocatedUnfairLock(initialState: 0)
 
     init(folder: URL) {
         self.folder = folder
         url = folder.appendingPathComponent("history.json")
     }
 
+    func load(now: Date) async -> SessionHistory {
+        await withCheckedContinuation { continuation in
+            queue.async { continuation.resume(returning: self.read(now: now)) }
+        }
+    }
+
+    func write(_ data: Data?, generation: Int) {
+        queue.async { self.store(data, generation: generation) }
+    }
+
+    /// Writes straight away on the caller's thread; for quitting.
+    func writeNow(_ data: Data?, generation: Int) {
+        store(data, generation: generation)
+    }
+
+    private func store(_ data: Data?, generation: Int) {
+        written.withLock { latest in
+            guard generation > latest else { return }
+            latest = generation
+            save(data)
+        }
+    }
+
     /// The saved history, or an empty one. A file that can't be read at all is moved to
     /// `history.json.bak`, so the next write doesn't replace it.
-    func load(now: Date) -> SessionHistory {
+    private func read(now: Date) -> SessionHistory {
         guard let data = try? Data(contentsOf: url) else { return SessionHistory() }
         do {
             return try SessionHistory.decode(data, now: now)
@@ -145,12 +178,8 @@ actor AgentHistoryFile {
         }
     }
 
-    func write(_ data: Data?) {
-        Self.store(data, folder: folder, url: url, log: log)
-    }
-
     /// Writes `data`, readable by this user only, or removes the file when there's nothing to keep.
-    nonisolated static func store(_ data: Data?, folder: URL, url: URL, log: Logger) {
+    private func save(_ data: Data?) {
         let manager = FileManager.default
         do {
             guard let data else {

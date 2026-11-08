@@ -167,23 +167,45 @@ extension TestOutcome {
 /// Tools, files, commands and tests come from tool hooks: Wisp's tool activity hooks (Settings ›
 /// Agents, off by default) and Copilot CLI's PostToolUse, which is always installed.
 public struct SessionRecorder: Sendable {
-    /// The live session's figures when a draft starts.
+    /// A figure the live session reports and a record counts from the run's start.
+    enum Figure: CaseIterable, Sendable {
+        case cost, tokens, linesAdded, linesRemoved, toolCount, duration
+
+        func read(_ session: AgentSession) -> Double? {
+            switch self {
+            case .cost: session.cost
+            case .tokens: session.usage.map { Double($0.all) }
+            case .linesAdded: Double(session.linesAdded)
+            case .linesRemoved: Double(session.linesRemoved)
+            case .toolCount: Double(session.toolCount)
+            case .duration: session.duration
+            }
+        }
+    }
+
+    /// The live session's figures when a draft starts. Wisp's session keeps its old figures on a
+    /// resume, but the agent reports from zero, so the first reading that differs decides: below
+    /// the start means the counter started over (the start becomes 0), above it means it went on.
+    /// Either way the figure is settled for the rest of the run.
     struct Baseline: Sendable, Equatable {
-        var cost = 0.0
-        var tokens = 0
-        var linesAdded = 0
-        var linesRemoved = 0
-        var toolCount = 0
-        var duration: TimeInterval = 0
+        var start: [Figure: Double] = [:]
+        var settled: Set<Figure> = []
 
         init(_ session: AgentSession?) {
-            guard let session else { return }
-            cost = session.cost ?? 0
-            tokens = session.usage?.all ?? 0
-            linesAdded = session.linesAdded
-            linesRemoved = session.linesRemoved
-            toolCount = session.toolCount
-            duration = session.duration ?? 0
+            for figure in Figure.allCases { start[figure] = session.flatMap(figure.read) ?? 0 }
+        }
+
+        mutating func watch(_ session: AgentSession) {
+            for figure in Figure.allCases where !settled.contains(figure) {
+                guard let now = figure.read(session), let base = start[figure], now != base else { continue }
+                if now < base { start[figure] = 0 }
+                settled.insert(figure)
+            }
+        }
+
+        /// The figure's part in this run; `watch` should have seen the session first.
+        func delta(_ figure: Figure, _ now: Double) -> Double {
+            max(0, now - (start[figure] ?? 0))
         }
     }
 
@@ -282,10 +304,18 @@ public struct SessionRecorder: Sendable {
         return pending.asked ? .unknown : .notPassed
     }
 
-    /// `now` less `base`, or all of `now` when the counter started over (a resumed agent
-    /// reports its cost and lines from zero).
-    static func delta<T: Numeric & Comparable>(_ now: T, from base: T) -> T {
-        now >= base ? now - base : now
+    /// Call whenever the session's figures change (status bar, transcript), so a counter that
+    /// started over is caught at its first reading, before it climbs past the old figure.
+    public mutating func figuresChanged(_ session: AgentSession) {
+        drafts[session.id]?.baseline.watch(session)
+    }
+
+    /// The agent quit without a SessionEnd: its open tests never reported, and there's no telling why.
+    public mutating func exited(session id: String) {
+        guard var draft = drafts[id] else { return }
+        for pending in draft.pendingTests { Self.add(TestRun(command: pending.shown, outcome: .unknown), to: &draft) }
+        draft.pendingTests = []
+        drafts[id] = draft
     }
 
     /// A denied call never runs, so its test can't count as a failure. `command` is the
@@ -299,17 +329,17 @@ public struct SessionRecorder: Sendable {
     /// The record for `session` as it stands, or nil when Wisp never saw it start.
     public func record(_ session: AgentSession, at date: Date) -> SessionRecord? {
         guard let draft = drafts[session.id] else { return nil }
-        let base = draft.baseline
+        var base = draft.baseline
+        base.watch(session)
         let wall = max(0, date.timeIntervalSince(draft.started))
+        func count(_ figure: Figure) -> Int { Int(base.delta(figure, figure.read(session) ?? 0).rounded()) }
         return SessionRecord(
             sessionID: session.id, project: session.project, source: session.source, started: draft.started,
-            ended: date, duration: session.duration.map { Self.delta($0, from: base.duration) } ?? wall,
+            ended: date, duration: session.duration.map { base.delta(.duration, $0) } ?? wall,
             turns: draft.turns, branch: session.branch, model: session.displayModel,
-            cost: session.cost.map { Self.delta($0, from: base.cost) }, costIsReal: session.costIsReal,
-            tokens: session.usage.map { Self.delta($0.all, from: base.tokens) },
-            linesAdded: Self.delta(session.linesAdded, from: base.linesAdded),
-            linesRemoved: Self.delta(session.linesRemoved, from: base.linesRemoved),
-            toolCount: max(Self.delta(session.toolCount, from: base.toolCount), draft.tools.values.reduce(0, +)),
+            cost: session.cost.map { base.delta(.cost, $0) }, costIsReal: session.costIsReal,
+            tokens: session.usage.map { _ in count(.tokens) }, linesAdded: count(.linesAdded),
+            linesRemoved: count(.linesRemoved), toolCount: max(count(.toolCount), draft.tools.values.reduce(0, +)),
             tools: draft.tools, files: draft.files, commands: draft.commands, tests: draft.tests,
             requests: draft.requests, questions: draft.questions,
             endedWaiting: session.state == .waiting || session.state == .needsApproval)

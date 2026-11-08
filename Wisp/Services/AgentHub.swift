@@ -469,6 +469,7 @@ final class AgentHub {
             let branch = item.snapshot.branch == nil ? Self.branch(cwd: item.snapshot.cwd) : nil
             let pillChanged = sessions.apply(
                 item.snapshot, source: item.source, terminal: item.terminal, branch: branch, at: .now)
+            if let session = sessions.session(id) { recorder.figuresChanged(session) }
             if let cost = item.snapshot.cost {
                 let increase = ledger.record(
                     total: cost, session: id, transcript: item.snapshot.transcriptPath, at: .now)
@@ -762,6 +763,7 @@ final class AgentHub {
         let ended = sessions.endExited(at: .now) { $0.isRunning(info: AgentProcess.systemInfo) }
         guard !ended.isEmpty else { return }
         for id in ended {
+            recorder.exited(session: id)
             if let session = live.first(where: { $0.id == id }) { finishRecord(session) }
             settleApprovals(for: id)
             transcripts[id] = nil
@@ -832,6 +834,7 @@ final class AgentHub {
                     adding: ledger.record(total: cost, for: path, at: .now), project: sessions.session(id)?.project)
             }
             sessions.setUsage(next.usage.total, cost: cost, session: id)
+            if let session = sessions.session(id) { recorder.figuresChanged(session) }
             sessions.setModelID(next.usage.lastModel, session: id)
             // Codex has no status line; its rollout carries the context and plan limits instead.
             if let percent = next.usage.contextPercent,
