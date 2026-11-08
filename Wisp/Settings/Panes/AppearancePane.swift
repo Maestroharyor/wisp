@@ -39,6 +39,7 @@ struct AppearanceSettings: View {
             Section {
                 Button("Reset the look to default", role: .destructive) { preferences.applyLook(.standard) }
             }
+            advanced
         }
         .formStyle(.grouped)
         .alert("Save this look", isPresented: $naming) {
@@ -156,9 +157,6 @@ struct AppearanceSettings: View {
     private var finish: some View {
         Section("Finish") {
             slider("Glow strength", value: look.glowIntensity, in: Appearance.glowRange)
-            if preferences.surfaceStyle == .tinted {
-                slider("Glow reach", value: look.glowSpread, in: Appearance.glowRange)
-            }
             Picker("Grain", selection: look.grain) {
                 ForEach(GrainLevel.allCases) { Text($0.title).tag($0) }
             }
@@ -177,7 +175,7 @@ struct AppearanceSettings: View {
             caption(
                 preferences.appearance.navPill == .hidden
                     ? "Switch pages from the Open menu when you right-click the notch."
-                    : "Glow strength sets the Tinted glow and the rim glows. Reach and shimmer apply to the Tinted surface."
+                    : "Glow strength sets the Tinted glow and the rim glows. Shimmer applies to the Tinted surface."
             )
         }
     }
@@ -208,9 +206,6 @@ struct AppearanceSettings: View {
                 ForEach(HoverFeedback.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            if preferences.appearance.hoverFeedback != .none {
-                slider("Strength", value: look.hoverStrength, in: Appearance.hoverStrengthRange)
-            }
             caption("Reduce Motion in System Settings turns off the wobble, the shimmer and confetti.")
         }
     }
@@ -287,6 +282,21 @@ struct AppearanceSettings: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Play")
             }
+        }
+    }
+
+    // MARK: Advanced
+
+    /// Dimmed rather than hidden, so a search that finds them shows them.
+    private var advanced: some View {
+        AdvancedSection {
+            slider("Glow reach", value: look.glowSpread, in: Appearance.glowRange)
+                .disabled(preferences.surfaceStyle != .tinted)
+            slider("Pointer effect strength", value: look.hoverStrength, in: Appearance.hoverStrengthRange)
+                .disabled(preferences.appearance.hoverFeedback == .none)
+            caption(
+                "Glow reach needs the Tinted surface. Pointer effect strength needs a pointer effect under Motion."
+            )
         }
     }
 

@@ -21,15 +21,6 @@ struct WidgetSettings: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Widgets page") {
-                Picker("Rows", selection: $preferences.widgetGridRows) {
-                    Text("One").tag(1)
-                    Text("Two").tag(2)
-                }
-                .pickerStyle(.segmented)
-                Text("Five or fewer widgets always sit in one row with larger icons.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             Section("Shortcuts") {
                 if shortcuts.available.isEmpty {
                     Text("No Shortcuts found. Make some in the Shortcuts app.").foregroundStyle(.secondary)
@@ -87,6 +78,17 @@ struct WidgetSettings: View {
                         ForEach(Self.zones, id: \.self) { Text(WorldClock.cityName($0) + "  (\($0))").tag($0) }
                     }
                 }
+            }
+            AdvancedSection {
+                Picker("Widget rows", selection: $preferences.widgetGridRows) {
+                    Text("One").tag(1)
+                    Text("Two").tag(2)
+                }
+                .pickerStyle(.segmented)
+                Text(
+                    "Rows of icons on the Widgets page. Five or fewer widgets always sit in one row with larger icons."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
