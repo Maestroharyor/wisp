@@ -118,10 +118,17 @@ public enum PushMessage {
             tags: ["bell"])
     }
 
-    public static func done(agent: String, project: String, hidden: Bool) -> PushNotice {
-        PushNotice(
-            title: "Done", message: "\(agent) finished\(place(project, hidden: hidden)).", priority: 3,
-            tags: ["white_check_mark"])
+    /// The session summary's first sentence goes along only with "Include details" on and details
+    /// shown, since it can name files and commands.
+    public static func done(
+        agent: String, project: String, hidden: Bool, summary: String? = nil, includeDetails: Bool = false
+    ) -> PushNotice {
+        var message = "\(agent) finished\(place(project, hidden: hidden))."
+        if includeDetails, !hidden, let summary {
+            let sentence = SessionSummaryText.firstSentence(summary)
+            if !sentence.isEmpty { message += " " + sentence }
+        }
+        return PushNotice(title: "Done", message: message, priority: 3, tags: ["white_check_mark"])
     }
 
     /// `text` is Wisp's own notice ("5 h limit 82%"), which holds no session details.

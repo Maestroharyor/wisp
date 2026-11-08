@@ -30,6 +30,10 @@ struct RingSection: View {
             Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
             LabeledContent("Actions") {
                 Button("Edit ring…") { editorShown = true }
+                    // On the button, not the Section: a Form can apply a Section's modifiers per row.
+                    .sheet(isPresented: $editorShown) {
+                        RingEditorSheet(preferences: preferences) { editorShown = false }
+                    }
             }
             Text(
                 "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring. With Hyper on, Hyper+R opens it at the pointer."
@@ -37,9 +41,6 @@ struct RingSection: View {
             .font(.caption).foregroundStyle(.secondary)
         } header: {
             Text("Ring")
-        }
-        .sheet(isPresented: $editorShown) {
-            RingEditorSheet(preferences: preferences) { editorShown = false }
         }
     }
 

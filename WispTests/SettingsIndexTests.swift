@@ -33,6 +33,7 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "form"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "open as window"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "minimise"), [.notch])
+        XCTAssertEqual(SettingsIndex.panes(matching: "sidebar"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "check for updates"), [.about])
         XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.notch])
     }

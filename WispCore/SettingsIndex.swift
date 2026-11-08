@@ -71,7 +71,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "shake", "position", "placement", "bottom", "left", "right", "corner", "edge", "side", "dock",
                 "orb", "float", "detach", "move", "form", "shape", "window", "open as window", "windowed",
                 "minimise", "minimize", "tear off", "normal app", "displays without a notch", "floating island",
-                "don't show", "external displays", "show on external displays",
+                "don't show", "external displays", "show on external displays", "sidebar",
                 // The ring, which had its own pane before; its name stays a keyword.
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "hyper r",
                 "per app", "edit ring", "ring shortcut",
@@ -135,6 +135,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "cloud", "cloud agents", "codex cloud", "copilot", "coding agent", "agent task", "github", "gh",
                 "cursor", "background agent", "api key", "pull request", "pr", "ci", "checks", "codex apply",
                 "tmux", "iterm", "ghostty", "wezterm", "jump to terminal", "tab", "pane", "keyboard",
+                "history", "session history", "past sessions", "summary", "summaries", "clear history",
             ]
         case .phone:
             [

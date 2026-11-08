@@ -94,8 +94,8 @@ public struct ShelfWindowState: Equatable, Sendable {
 /// Where the shelf window goes: its remembered frame kept on a connected display, or where
 /// the pointer tore it off.
 public enum ShelfWindowFrame {
-    public static let defaultSize = CGSize(width: 760, height: 500)
-    public static let minimumSize = CGSize(width: 560, height: 380)
+    public static let defaultSize = CGSize(width: 960, height: 640)
+    public static let minimumSize = CGSize(width: 720, height: 480)
     /// How far below the window's top edge the pointer holds a torn-off window: in its title bar.
     public static let grabDepth: CGFloat = 14
     /// Less of a saved frame than this on any display, and it's treated as on a missing one.

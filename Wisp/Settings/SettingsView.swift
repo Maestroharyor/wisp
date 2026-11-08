@@ -165,7 +165,9 @@ struct SettingsView: View {
         case .profiles: ProfileSettings(preferences: preferences, context: services.context)
         case .clipboard: ClipboardSettings(preferences: preferences, store: services.clipboard)
         case .notifications: NotificationSettings(preferences: preferences, monitor: services.notifications)
-        case .agents: AgentSettings(hub: services.agents, cloud: services.cloud, preferences: preferences)
+        case .agents:
+            AgentSettings(
+                hub: services.agents, cloud: services.cloud, history: services.agentHistory, preferences: preferences)
         case .phone: PhoneSettings(push: services.push, hub: services.agents, preferences: preferences)
         case .ai: AISettings(ai: services.ai, preferences: preferences)
         case .permissions: PermissionSettings(model: model)
