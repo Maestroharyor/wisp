@@ -189,22 +189,26 @@ final class AppVolumeStore {
             let app = cache.appID(object: object, pid: pid) { pid in Self.resolveApp(object: object, pid: pid) }
             return AudioProcess(objectID: object, appID: app, isPlaying: playing[object] ?? false)
         }
-        refreshPlaying(all: true)
+        // A rebuilt tap may start armed; start its IO now if its app is playing.
+        if refreshPlaying(all: true) { checkTaps(seconds: 0) }
     }
 
     /// Re-reads who's playing: every process, or only the tapped ones.
-    private func refreshPlaying(all: Bool) {
+    /// Returns whether new taps were built.
+    @discardableResult
+    private func refreshPlaying(all: Bool) -> Bool {
         let tapped = Set(taps.values.flatMap(\.processes))
         for index in processes.indices where all || tapped.contains(processes[index].objectID) {
             let running: UInt32? = SystemVolume.read(
                 processes[index].objectID, ProcessTapAddress.global(kAudioProcessPropertyIsRunningOutput))
             processes[index].isPlaying = running == 1
         }
-        apply()
+        return apply()
     }
 
     /// Rebuilds the rows and brings the taps in line with the levels.
-    private func apply() {
+    @discardableResult
+    private func apply() -> Bool {
         let settings = preferences.appVolumeSettings
         let own = Bundle.main.bundleIdentifier
         for app in Set(processes.compactMap(\.appID)) where names[app] == nil {
@@ -212,7 +216,7 @@ final class AppVolumeStore {
         }
         let next = AppVolumeList.rows(processes: processes, settings: settings, ownAppID: own, names: names)
         if next != rows { rows = next }
-        guard isSupported, let outputUID else { return }
+        guard isSupported, let outputUID else { return false }
         let wanted = AppVolumeTaps.wanted(processes: processes, settings: settings, ownAppID: own)
         var current: [String: Set<UInt32>] = [:]
         for tap in taps.values { current[tap.app] = tap.processes }
@@ -231,6 +235,7 @@ final class AppVolumeStore {
         }
         for tap in taps.values { tap.setGain(settings.gain(for: tap.app)) }
         if !plan.remove.isEmpty || !plan.create.isEmpty { syncPlayListeners() }
+        return !plan.create.isEmpty
     }
 
     /// Listens to the playing flag of exactly the tapped process objects.

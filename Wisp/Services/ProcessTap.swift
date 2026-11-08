@@ -28,6 +28,8 @@ final class ProcessTap {
 
     private var activity = TapActivity()
     private var starts = TapStarts()
+    /// A failed switch to fully muted is being retried, so it's logged once.
+    private var muteRetrying = false
     private var appliedGain: Float
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var deviceID = AudioObjectID(kAudioObjectUnknown)
@@ -137,7 +139,13 @@ final class ProcessTap {
             running = started
             if started, armed { setMute(.mutedWhenTapped) }
         } else {
-            if armed { setMute(.muted) }
+            // Unmuted with no IO the app would play at full volume, so keep reading and retry.
+            if armed, !setMute(.muted) {
+                if !muteRetrying { Self.log.error("couldn't keep an idle app muted; trying again") }
+                muteRetrying = true
+                return
+            }
+            muteRetrying = false
             AudioDeviceStop(deviceID, procID)
             running = false
             // Peaks from before the pause say nothing about the next play.

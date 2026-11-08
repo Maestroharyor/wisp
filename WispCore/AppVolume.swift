@@ -167,7 +167,8 @@ public struct TapArming: Sendable, Equatable {
     }
 
     public private(set) var state = State.listening
-    /// Whether this tap has heard real sound (or Wisp already had), which proves the permission.
+    /// Whether this tap itself has heard real sound, which proves the permission. A tap built
+    /// armed (`heard`) hasn't.
     public private(set) var hasHeard = false
     private var quietPlaying: Double = 0
 
@@ -179,10 +180,7 @@ public struct TapArming: Sendable, Equatable {
     /// `heard` starts the tap armed, for when another tap this session already proved Wisp
     /// can hear apps.
     public init(heard: Bool = false) {
-        if heard {
-            state = .armed
-            hasHeard = true
-        }
+        if heard { state = .armed }
     }
 
     /// `peak` is the loudest sample since the last call, `seconds` the time since then.

@@ -209,7 +209,8 @@ final class AppVolumeTests: XCTestCase {
     func testATapBuiltOnceWispCanHearStartsArmed() {
         var arming = TapArming(heard: true)
         XCTAssertEqual(arming.state, .armed)
-        XCTAssertTrue(arming.hasHeard)
+        // Built armed on another tap's word, so it proves nothing about the permission itself.
+        XCTAssertFalse(arming.hasHeard)
         XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 10), .armed)
         XCTAssertEqual(TapArming(heard: false), TapArming())
     }
