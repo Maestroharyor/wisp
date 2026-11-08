@@ -29,3 +29,38 @@ public enum DisplayName {
         return builtIn ? "Built-in display" : "External display (\(width) × \(height))"
     }
 }
+
+/// What Settings shows as "On displays without a notch". It's one picker over the two stored
+/// settings, show on external displays and the external style.
+public enum NotchlessDisplayChoice: String, CaseIterable, Identifiable, Sendable {
+    case notch
+    case island
+    case hidden
+
+    public var id: Self { self }
+    public var title: String {
+        switch self {
+        case .notch: "Notch"
+        case .island: "Floating island"
+        case .hidden: "Don't show"
+        }
+    }
+
+    public init(showOnExternal: Bool, externalIsland: Bool) {
+        if !showOnExternal {
+            self = .hidden
+        } else {
+            self = externalIsland ? .island : .notch
+        }
+    }
+
+    /// The stored settings for this choice. Don't show keeps the current style, so picking
+    /// Notch or Floating island later is the only thing that changes it.
+    public func stored(externalIsland current: Bool) -> (showOnExternal: Bool, externalIsland: Bool) {
+        switch self {
+        case .notch: (true, false)
+        case .island: (true, true)
+        case .hidden: (false, current)
+        }
+    }
+}
