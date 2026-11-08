@@ -47,10 +47,16 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     /// returned closure brings it back unless it was put away meanwhile.
     func stepAside() -> @MainActor @Sendable () -> Void {
         guard let window, window.isVisible, !hiding else { return {} }
+        let wasKey = window.isKeyWindow
         window.orderOut(nil)
         return { [weak self] in
             guard let self, self.isOpen, !self.hiding, let window = self.window else { return }
-            window.orderFront(nil)
+            if wasKey {
+                NSApp.activate()
+                window.makeKeyAndOrderFront(nil)
+            } else {
+                window.orderFront(nil)
+            }
         }
     }
 
@@ -220,7 +226,16 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
 
     /// Fades the window back toward the shell it came from, then orders it out.
     private func hide() {
-        guard let window, window.isVisible, !hiding else { return }
+        guard let window, !hiding else { return }
+        guard window.isVisible else {
+            // Already off screen (stepped aside for a capture): there's nothing to fade, but the
+            // page still has to stop.
+            if model?.phase == .open {
+                saveFrame()
+                finishHiding()
+            }
+            return
+        }
         saveFrame()
         hiding = true
         animating = true
@@ -235,17 +250,21 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated {
                 guard let self, self.hiding else { return }
                 self.hiding = false
-                // Out of the view tree while hidden, so the camera, pollers and scripts stop.
-                self.model?.phase = .closed
-                // Customise Home ends with its changes kept, as when the notch's shelf closes.
-                if self.model?.editingHome == true { self.model?.endHomeEditing() }
-                self.removeKeyMonitor()
+                self.finishHiding()
                 window.orderOut(nil)
                 window.setFrameOrigin(frame.origin)
                 window.alphaValue = 1
                 self.animating = false
             }
         }
+    }
+
+    private func finishHiding() {
+        // Out of the view tree while hidden, so the camera, pollers and scripts stop.
+        model?.phase = .closed
+        // Customise Home ends with its changes kept, as when the notch's shelf closes.
+        if model?.editingHome == true { model?.endHomeEditing() }
+        removeKeyMonitor()
     }
 
     /// A short way from `frame` toward the shell, for the window to leave by or come out
