@@ -293,7 +293,7 @@ private struct WidgetGridView: View {
         if widgets.isEmpty {
             VStack(spacing: 6) {
                 Image(systemName: "square.grid.2x2").font(.system(size: 18))
-                Text("Switch widgets on in Settings › Widgets")
+                Text("Switch widgets on in Settings › Shelf")
                     .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

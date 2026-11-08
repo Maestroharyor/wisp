@@ -91,16 +91,8 @@ struct AppearanceSettings: View {
                 Button("Import…", action: importLook)
                 Button("Export…") { export(preferences.appearance, name: "My look") }
             }
-            if !preferences.profiles.isEmpty {
-                ForEach(preferences.profiles) { profile in
-                    Picker("Look for \(profile.name)", selection: profileLook(profile.name)) {
-                        Text("Keep the current look").tag(String?.none)
-                        ForEach(preferences.allLookPresets) { Text($0.name).tag(String?.some($0.name)) }
-                    }
-                }
-            }
             caption(
-                "A preset sets everything below at once. Right-click one to export it or delete it. A profile with a look applies it when it switches; one without a look brings yours back."
+                "A preset sets everything below at once. Right-click one to export it or delete it. To give a profile its own look, see Settings › Shelf."
             )
         }
     }
@@ -349,12 +341,6 @@ struct AppearanceSettings: View {
 
     private func caption(_ text: String) -> some View {
         Text(text).font(.caption).foregroundStyle(.secondary)
-    }
-
-    private func profileLook(_ name: String) -> Binding<String?> {
-        Binding(
-            get: { preferences.profile(named: name)?.look },
-            set: { preferences.setLook($0, forProfile: name) })
     }
 
     private static var lookType: UTType { UTType(filenameExtension: LookFile.fileExtension) ?? .json }

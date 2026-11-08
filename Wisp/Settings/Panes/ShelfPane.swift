@@ -2,9 +2,12 @@ import AppKit
 import SwiftUI
 import WispCore
 
-struct WidgetSettings: View {
+/// Widgets, clipboard history and profiles: what the shelf holds and how it's set up.
+struct ShelfSettings: View {
     @Bindable var preferences: Preferences
     let shortcuts: ShortcutsRunner
+    let clipboard: ClipboardStore
+    let context: ContextEngine
 
     @State private var scriptDraft = ""
 
@@ -38,7 +41,7 @@ struct WidgetSettings: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Script") {
+            Section("Command output") {
                 // A draft, saved only on Return or Save: a half-typed command must never run.
                 HStack {
                     TextField("Command", text: $scriptDraft, prompt: Text("/usr/bin/uptime"))
@@ -55,7 +58,7 @@ struct WidgetSettings: View {
                     Text("15 minutes").tag(900.0)
                 }
                 Text(
-                    "Shows the first lines the command prints, only while the widget is on screen. It runs directly, not in a shell; for pipes, write zsh -c \"…\" yourself."
+                    "The Script widget shows the first lines the command prints, only while the widget is on screen. It runs directly, not in a shell; for pipes, write zsh -c \"…\" yourself."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -79,6 +82,8 @@ struct WidgetSettings: View {
                     }
                 }
             }
+            ClipboardSection(preferences: preferences, store: clipboard)
+            ProfilesSection(preferences: preferences, context: context)
             AdvancedSection {
                 Picker("Widget rows", selection: $preferences.widgetGridRows) {
                     Text("One").tag(1)
@@ -89,6 +94,10 @@ struct WidgetSettings: View {
                     "Rows of icons on the Widgets page. Five or fewer widgets always sit in one row with larger icons."
                 )
                 .font(.caption).foregroundStyle(.secondary)
+                Stepper(value: $preferences.clipboardLimit, in: 20...1000, step: 20) {
+                    LabeledContent("Clipboard keeps up to", value: "\(preferences.clipboardLimit) items")
+                }
+                .disabled(!preferences.clipboardEnabled)
             }
         }
         .formStyle(.grouped)

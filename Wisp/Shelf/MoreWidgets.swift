@@ -83,7 +83,7 @@ struct ShortcutsWidget: View {
         Group {
             if names.isEmpty {
                 VStack(spacing: 6) {
-                    Text(runner.available.isEmpty ? "No Shortcuts found" : "Pick favourites in Settings › Widgets")
+                    Text(runner.available.isEmpty ? "No Shortcuts found" : "Pick favourites in Settings › Shelf")
                         .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                     Button("Open Shortcuts") {
                         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Shortcuts.app"))
@@ -350,7 +350,7 @@ struct WorldClocksWidget: View {
             VStack(alignment: .leading, spacing: 6) {
                 let zones = preferences.worldClockZones.compactMap(TimeZone.init(identifier:)).prefix(3)
                 if zones.isEmpty {
-                    Text("Add cities in Settings › Widgets")
+                    Text("Add cities in Settings › Shelf")
                         .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -402,7 +402,7 @@ struct ScriptWidget: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if preferences.scriptCommand.isEmpty {
-                Text("Set a command in Settings › Widgets")
+                Text("Set a command in Settings › Shelf")
                     .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
