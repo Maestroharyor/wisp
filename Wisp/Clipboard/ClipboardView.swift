@@ -107,6 +107,9 @@ struct ClipboardView: View {
                                         Button("Paste") { paste(item) }
                                         Button("Copy") { model.store.copy(item) }
                                         Button(item.pinned ? "Unpin" : "Pin") { model.store.togglePin(item) }
+                                        if item.kind == .image {
+                                            Button("Copy text") { model.copyText(item) }
+                                        }
                                         aiMenu(for: item)
                                         Divider()
                                         Button("Delete") { model.store.remove(item) }

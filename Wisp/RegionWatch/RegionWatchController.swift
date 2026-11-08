@@ -64,7 +64,7 @@ final class RegionWatchController {
         guard !picker.isPicking else { return }
         closeSetup()
         guard CGPreflightScreenCaptureAccess() else {
-            askForScreenRecording()
+            notice(Permission.askForScreenRecording())
             return
         }
         services.closeShelves()
@@ -72,16 +72,6 @@ final class RegionWatchController {
             guard let self, let rect else { return }
             self.picked(rect)
         }
-    }
-
-    /// The first time, the system prompt. After that the prompt never shows again, so open
-    /// System Settings; a grant there reaches Wisp only after it's reopened.
-    private func askForScreenRecording() {
-        let askedBefore = Permission.askedScreenRecording
-        Permission.screenRecording.request()
-        notice(
-            askedBefore
-                ? "Turn on Screen Recording, then quit and reopen Wisp" : "Allow Screen Recording, then try again")
     }
 
     private func picked(_ selection: CGRect) {
