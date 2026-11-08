@@ -228,6 +228,8 @@ final class Preferences {
         static let agentPrivacy = "agentPrivacy"
         static let agentToolActivity = "agentToolActivity"
         static let agentKeepAwake = "agentKeepAwake"
+        static let agentHistory = "agentHistory"
+        static let agentSummaries = "agentSummaries"
         static let toolAlert = "toolAlert"
         static let toolAlertMinutes = "toolAlertMinutes"
         static let nudgeAlert = "nudgeAlert"
@@ -281,6 +283,7 @@ final class Preferences {
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let windowForm = "windowForm"
         static let shelfWindowFrame = "shelfWindowFrame"
+        static let windowSelection = "windowSelection"
         static let activityDisplay = "activityDisplay"
         static let clipboardEnabled = "clipboardEnabled"
         static let clipboardLimit = "clipboardLimit"
@@ -702,6 +705,10 @@ final class Preferences {
     var agentToolActivity: Bool { didSet { defaults.set(agentToolActivity, forKey: Key.agentToolActivity) } }
     /// Stop the Mac sleeping while an agent is working (the display may still sleep).
     var agentKeepAwake: Bool { didSet { defaults.set(agentKeepAwake, forKey: Key.agentKeepAwake) } }
+    /// Finished sessions are kept on this Mac (figures, tools, masked commands, no prompts).
+    var agentHistory: Bool { didSet { defaults.set(agentHistory, forKey: Key.agentHistory) } }
+    /// A finished session is summarised by the on-device AI, when AI is on.
+    var agentSummaries: Bool { didSet { defaults.set(agentSummaries, forKey: Key.agentSummaries) } }
     /// A notice when one tool call runs longer than `toolAlertMinutes`; needs tool activity.
     var toolAlert: Bool { didSet { defaults.set(toolAlert, forKey: Key.toolAlert) } }
     var toolAlertMinutes: Int { didSet { defaults.set(toolAlertMinutes, forKey: Key.toolAlertMinutes) } }
@@ -901,6 +908,8 @@ final class Preferences {
     var windowForm: Bool { didSet { defaults.set(windowForm, forKey: Key.windowForm) } }
     /// Where the shelf window was last left, as "x,y,width,height" (see `ShelfWindowFrame`).
     var shelfWindowFrame: String? { didSet { defaults.set(shelfWindowFrame, forKey: Key.shelfWindowFrame) } }
+    /// The shelf window's last sidebar row, as `WindowDestination.rawValue`.
+    var windowSelection: String? { didSet { defaults.set(windowSelection, forKey: Key.windowSelection) } }
 
     /// Where live activities (Now Playing, HUDs, timers) appear.
     var activityDisplay: ActivityDisplayTarget {
@@ -961,6 +970,8 @@ final class Preferences {
             Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
             Key.agentToolActivity: false,
             Key.agentKeepAwake: false,
+            Key.agentHistory: true,
+            Key.agentSummaries: true,
             Key.toolAlert: true,
             Key.toolAlertMinutes: AgentAlertRules.defaultToolMinutes,
             Key.nudgeAlert: false,
@@ -1084,6 +1095,8 @@ final class Preferences {
             defaults.string(forKey: Key.agentPrivacy).flatMap(AgentPrivacy.Mode.init(rawValue:)) ?? .default
         agentToolActivity = defaults.bool(forKey: Key.agentToolActivity)
         agentKeepAwake = defaults.bool(forKey: Key.agentKeepAwake)
+        agentHistory = defaults.bool(forKey: Key.agentHistory)
+        agentSummaries = defaults.bool(forKey: Key.agentSummaries)
         toolAlert = defaults.bool(forKey: Key.toolAlert)
         toolAlertMinutes = min(max(defaults.integer(forKey: Key.toolAlertMinutes), 1), 60)
         nudgeAlert = defaults.bool(forKey: Key.nudgeAlert)
@@ -1140,6 +1153,7 @@ final class Preferences {
         miniPlayerOrigin = defaults.string(forKey: Key.miniPlayerOrigin)
         windowForm = defaults.bool(forKey: Key.windowForm)
         shelfWindowFrame = defaults.string(forKey: Key.shelfWindowFrame)
+        windowSelection = defaults.string(forKey: Key.windowSelection)
         activityDisplay =
             defaults.string(forKey: Key.activityDisplay).flatMap(ActivityDisplayTarget.init(rawValue:)) ?? .pointer
         clipboardEnabled = defaults.bool(forKey: Key.clipboardEnabled)

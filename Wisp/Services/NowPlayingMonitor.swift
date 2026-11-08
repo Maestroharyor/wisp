@@ -12,7 +12,8 @@ final class NowPlayingMonitor {
     private(set) var info: NowPlayingInfo?
     private(set) var artwork: NSImage?
     /// Dominant artwork colour, for the waveform and progress tint.
-    private(set) var tint: Color = .white
+    /// Nil without artwork; see `AppServices.albumTint`.
+    private(set) var tint: Color?
     /// When `info.position` was read, to extrapolate the playhead between polls.
     private(set) var readAt = Date.now
 
@@ -283,7 +284,7 @@ final class NowPlayingMonitor {
 
     private func setArtwork(_ image: NSImage?) {
         artwork = image
-        tint = image.flatMap(Self.averageColor) ?? .white
+        tint = image.flatMap(Self.averageColor)
     }
 
     private static func averageColor(of image: NSImage) -> Color? {

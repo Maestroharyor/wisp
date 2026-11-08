@@ -7,9 +7,75 @@ import WispCore
 struct HomePage: View {
     let model: NotchModel
 
+    @Environment(\.shelfHost) private var host
+    @Environment(\.openWindowRow) private var openRow
+
     private var preferences: Preferences { model.preferences }
 
     var body: some View {
+        switch host {
+        case .notch: notchBody
+        case .window: windowBody
+        }
+    }
+
+    /// In the window: a grid of cards, each opening its own sidebar row.
+    private var windowBody: some View {
+        let widgets = preferences.homeWidgets
+        return ScrollView(.vertical) {
+            VStack(spacing: 16) {
+                if widgets.isEmpty {
+                    emptyHint.frame(height: Self.windowCardHeight)
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 16)], spacing: 16) {
+                    ForEach(widgets) { kind in
+                        VStack(alignment: .leading, spacing: 6) {
+                            windowCardHeader(kind)
+                            WidgetCard(kind: kind, model: model)
+                        }
+                        .padding(
+                            model.editingHome
+                                ? EdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 18) : Self.cardInsets
+                        )
+                        .frame(height: Self.windowCardHeight)
+                        .card()
+                        .overlay { if model.editingHome { editOverlay(kind) } }
+                        .onDrag { NSItemProvider(object: NSString(string: kind.rawValue)) }
+                        .onDrop(of: [.plainText], isTargeted: nil) { providers in
+                            reorder(providers, onto: kind)
+                        }
+                    }
+                }
+                if model.editingHome { pickerRow }
+            }
+            .padding(20)
+        }
+        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: preferences.homeLayout)
+    }
+
+    private static let windowCardHeight: CGFloat = 200
+    private static let cardInsets = EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)
+
+    private func windowCardHeader(_ kind: WidgetKind) -> some View {
+        Button {
+            openRow(.widget(kind.rawValue))
+        } label: {
+            HStack(spacing: 6) {
+                IconTile(symbol: kind.symbol, tint: kind.tint, size: 16)
+                Text(kind.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.secondaryText)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.secondaryText)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(model.editingHome)
+        .help("Open \(kind.title)")
+        .accessibilityLabel("Open \(kind.title)")
+    }
+
+    @ViewBuilder private var notchBody: some View {
         let widgets = preferences.homeWidgets
         let rowHeight = SurfaceSizing.shelfContentHeight
 
@@ -46,8 +112,11 @@ struct HomePage: View {
     private var emptyHint: some View {
         VStack(spacing: 6) {
             Image(systemName: "square.grid.2x2").font(.system(size: 18))
-            Text("Right-click the notch and choose Tools › Customise Home")
-                .font(.system(size: 11)).foregroundStyle(Color.secondaryText).multilineTextAlignment(.center)
+            Text(
+                host == .window
+                    ? "Choose Customise Home in the toolbar" : "Right-click the notch and choose Tools › Customise Home"
+            )
+            .font(.system(size: 11)).foregroundStyle(Color.secondaryText).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -71,19 +140,23 @@ struct HomePage: View {
                 .offset(x: -2, y: -4)
             }
             .overlay(alignment: .bottomTrailing) {
-                Button {
-                    preferences.homeLayout.resize(kind.rawValue, to: preferences.size(of: kind).next(in: kind.sizes))
-                } label: {
-                    Label(preferences.size(of: kind).rawValue.capitalized, systemImage: "arrow.left.and.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(.ink.opacity(0.18)))
+                // Sizes are widths in the notch's row; the window's grid has none to change.
+                if host == .notch {
+                    Button {
+                        preferences.homeLayout.resize(
+                            kind.rawValue, to: preferences.size(of: kind).next(in: kind.sizes))
+                    } label: {
+                        Label(preferences.size(of: kind).rawValue.capitalized, systemImage: "arrow.left.and.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(.ink.opacity(0.18)))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 10)
+                    .padding(.bottom, 6)
+                    .help("Change size")
                 }
-                .buttonStyle(.plain)
-                .padding(.trailing, 10)
-                .padding(.bottom, 6)
-                .help("Change size")
             }
     }
 
@@ -98,22 +171,7 @@ struct HomePage: View {
                 .padding(.top, 6)
             }
             Button {
-                if let snapshot = model.homeSnapshot {
-                    if snapshot.profile == preferences.homeProfile {
-                        preferences.homeLayout = snapshot.layout
-                        preferences.enabledWidgets = snapshot.enabled
-                    } else {
-                        // A profile switch happened meanwhile: put the old profile's Home back
-                        // into that profile, and leave the one now showing alone.
-                        preferences.restoreHome(snapshot.layout, toProfile: snapshot.profile)
-                        // Widgets this edit switched on go off again, unless the Home now showing uses them.
-                        let added = Set(preferences.enabledWidgets).subtracting(snapshot.enabled)
-                        for kind in added where !preferences.homeLayout.contains(kind.rawValue) {
-                            preferences.disable(kind)
-                        }
-                    }
-                }
-                endEditing()
+                model.cancelHomeEditing()
             } label: {
                 Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
                     .frame(width: 28, height: 28).background(Circle().fill(.ink.opacity(0.14)))
@@ -164,10 +222,7 @@ struct HomePage: View {
         .help(!onHome && full ? "Home holds four widgets; remove one first" : kind.title)
     }
 
-    private func endEditing() {
-        model.editingHome = false
-        model.homeSnapshot = nil
-    }
+    private func endEditing() { model.endHomeEditing() }
 
     private func reorder(_ providers: [NSItemProvider], onto target: WidgetKind) -> Bool {
         guard let provider = providers.first else { return false }
@@ -420,7 +475,16 @@ extension WidgetKind {
 struct MediaPage: View {
     let model: NotchModel
 
+    @Environment(\.shelfHost) private var host
+
     var body: some View {
+        switch host {
+        case .notch: notchBody
+        case .window: WindowMediaPage(model: model)
+        }
+    }
+
+    @ViewBuilder private var notchBody: some View {
         let services = model.services
         let showsLyrics = model.showsLyrics
         HStack(spacing: 6) {
@@ -447,6 +511,52 @@ struct MediaPage: View {
             }
         }
         .frame(width: SurfaceSizing.mediaPageWidth, height: SurfaceSizing.shelfContentHeight)
+    }
+}
+
+/// The Media page in the window: large artwork with the controls under it and lyrics beside it.
+private struct WindowMediaPage: View {
+    let model: NotchModel
+
+    var body: some View {
+        let monitor = model.services.nowPlaying
+        GeometryReader { proxy in
+            let art = min(max(min(proxy.size.height - 190, proxy.size.width * 0.45), 160), 340)
+            HStack(alignment: .center, spacing: 36) {
+                VStack(alignment: .leading, spacing: 14) {
+                    ArtworkView(image: monitor.artwork, size: art, radius: 16)
+                        .shadow(color: .black.opacity(0.2), radius: 12, y: 6)
+                        .onTapGesture { monitor.openPlayer() }
+                    if let info = monitor.info {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(info.title).font(.system(size: 20, weight: .semibold)).lineLimit(2)
+                            Text(info.artist.isEmpty ? (info.appName ?? "") : info.artist)
+                                .font(.system(size: 14)).foregroundStyle(Color.secondaryText).lineLimit(1)
+                        }
+                        NowPlayingProgress(monitor: monitor, info: info)
+                        HStack(spacing: 12) {
+                            NowPlayingTransport(monitor: monitor, info: info)
+                            ShelfButton(symbol: "pip", size: 12, hint: "Mini player") {
+                                model.services.miniPlayer.toggle()
+                            }
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Nothing playing").font(.system(size: 20, weight: .semibold))
+                            Text("Play something in any app or browser")
+                                .font(.system(size: 13)).foregroundStyle(Color.secondaryText)
+                        }
+                    }
+                }
+                .frame(width: art)
+                if model.preferences.lyrics, monitor.info != nil {
+                    LyricLines(monitor: monitor, lyrics: model.services.lyrics, size: 24)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                }
+            }
+            .padding(32)
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
     }
 }
 

@@ -53,8 +53,8 @@ final class NotchCoordinator {
             guard event.keyCode == KeyCodes.escape else { return event }
             let handled = MainActor.assumeIsolated { () -> Bool in
                 guard let self else { return false }
-                // The shelf window's Esc is its own: a field's, or back out of a solo widget.
-                if self.services.shelfWindow.owns(event.window) { return self.services.shelfWindow.leaveSoloWidget() }
+                // The shelf window's Esc is its own (a field's); its sidebar has no solo view to leave.
+                if self.services.shelfWindow.owns(event.window) { return false }
                 return self.dismissOpenShelves()
             }
             return handled ? nil : event
@@ -348,8 +348,7 @@ final class NotchCoordinator {
             return
         }
         guard ShelfTearOff.tearsOff(from: drag.start, to: location) else { return }
-        let shown = controller.shown
-        services.shelfWindow.tearOff(shown.view, fromPill: shown.fromPill, returnPage: shown.returnPage, at: location)
+        services.shelfWindow.tearOff(controller.shown, at: location)
         drag.centre = location
     }
 

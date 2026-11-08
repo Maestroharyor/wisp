@@ -10,6 +10,8 @@ struct WidgetCard: View {
     let kind: WidgetKind
     let model: NotchModel
 
+    @Environment(\.shelfHost) private var host
+
     var body: some View {
         let services = model.services
         Group {
@@ -33,7 +35,8 @@ struct WidgetCard: View {
             case .worldClocks: WorldClocksWidget(preferences: services.preferences)
             case .agents:
                 // Wide fills the shelf: room for the sessions and the selected one's details side by side.
-                if services.preferences.size(of: .agents) == .wide {
+                // The window's Home card stays compact; its header opens the full Agents row.
+                if services.preferences.size(of: .agents) == .wide, host == .notch {
                     AgentsDetail(hub: services.agents, cloud: services.cloud, model: model)
                 } else {
                     AgentsWidget(hub: services.agents, cloud: services.cloud)
@@ -78,42 +81,11 @@ struct NowPlayingWidget: View {
 
                 Spacer(minLength: 8)
 
-                // Elapsed, progress, remaining.
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    let position = monitor.position(at: context.date)
-                    HStack(spacing: 10) {
-                        ValueText(text: Countdown.format(position), tint: .secondaryText, size: 11)
-                        ProgressBar(
-                            value: info.duration > 0 ? position / info.duration : 0, tint: .accentColor, height: 5
-                        ) {
-                            monitor.seek(to: $0 * info.duration)
-                        }
-                        ValueText(
-                            text: "-" + Countdown.format(max(info.duration - position, 0)), tint: .secondaryText,
-                            size: 11)
-                    }
-                }
+                NowPlayingProgress(monitor: monitor, info: info)
 
                 Spacer(minLength: 8)
 
-                // Player, transport and output device spread across the width.
-                HStack(spacing: 0) {
-                    PlainIconButton(symbol: "list.bullet", size: 15, tint: .secondaryText, label: "Open player") {
-                        monitor.openPlayer()
-                    }
-                    Spacer()
-                    PlainIconButton(symbol: "backward.fill", size: 20) { monitor.previous() }
-                    Spacer()
-                    PlainIconButton(symbol: info.isPlaying ? "pause.fill" : "play.fill", size: 28) {
-                        monitor.togglePlayPause()
-                    }
-                    Spacer()
-                    PlainIconButton(symbol: "forward.fill", size: 20) { monitor.next() }
-                    Spacer()
-                    OutputDevicePicker()
-                        .frame(width: 26, height: 26)
-                        .hoverHint("Output device", help: "Output device")
-                }
+                NowPlayingTransport(monitor: monitor, info: info)
             }
         } else {
             HStack(spacing: 12) {
@@ -126,6 +98,55 @@ struct NowPlayingWidget: View {
                 Spacer(minLength: 0)
             }
             .frame(maxHeight: .infinity)
+        }
+    }
+}
+
+/// Elapsed, progress, remaining.
+struct NowPlayingProgress: View {
+    let monitor: NowPlayingMonitor
+    let info: NowPlayingInfo
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let position = monitor.position(at: context.date)
+            HStack(spacing: 10) {
+                ValueText(text: Countdown.format(position), tint: .secondaryText, size: 11)
+                ProgressBar(
+                    value: info.duration > 0 ? position / info.duration : 0, tint: .accentColor, height: 5
+                ) {
+                    monitor.seek(to: $0 * info.duration)
+                }
+                ValueText(
+                    text: "-" + Countdown.format(max(info.duration - position, 0)), tint: .secondaryText,
+                    size: 11)
+            }
+        }
+    }
+}
+
+/// Player, transport and output device spread across the width.
+struct NowPlayingTransport: View {
+    let monitor: NowPlayingMonitor
+    let info: NowPlayingInfo
+
+    var body: some View {
+        HStack(spacing: 0) {
+            PlainIconButton(symbol: "list.bullet", size: 15, tint: .secondaryText, label: "Open player") {
+                monitor.openPlayer()
+            }
+            Spacer()
+            PlainIconButton(symbol: "backward.fill", size: 20) { monitor.previous() }
+            Spacer()
+            PlainIconButton(symbol: info.isPlaying ? "pause.fill" : "play.fill", size: 28) {
+                monitor.togglePlayPause()
+            }
+            Spacer()
+            PlainIconButton(symbol: "forward.fill", size: 20) { monitor.next() }
+            Spacer()
+            OutputDevicePicker()
+                .frame(width: 26, height: 26)
+                .hoverHint("Output device", help: "Output device")
         }
     }
 }
@@ -168,7 +189,11 @@ struct OutputDevicePicker: NSViewRepresentable {
         let picker = AVRoutePickerView()
         picker.isRoutePickerButtonBordered = false
         picker.setRoutePickerButtonColor(.secondaryLabelColor, for: .normal)
-        picker.setRoutePickerButtonColor(.white, for: .active)
+        // White in Dark mode as before; the window in Light mode needs a dark icon.
+        picker.setRoutePickerButtonColor(
+            NSColor(name: "WispRouteActive") { appearance in
+                appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .white : .labelColor
+            }, for: .active)
         return picker
     }
 
