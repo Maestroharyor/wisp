@@ -265,6 +265,9 @@ final class NotchModel {
                 }
                 if case .meetingSoon = activity { return .notification(extra: 0) }
                 if case .downloadDone = activity { return .notification(extra: 0) }
+                if case .aiResult(let card) = activity {
+                    return .notification(extra: card.answer == nil ? 0 : SurfaceSizing.aiResultHeight)
+                }
                 if showsMeetingControls { return .notification(extra: 0) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }
@@ -357,6 +360,7 @@ final class NotchModel {
         guard cardHovered, replyingTo == nil, let activity, services.activities.currentSlot?.isDismissable == true
         else { return false }
         if case .notification = activity { return true }
+        if case .aiResult = activity { return true }
         return activity.isMedium
     }
 
