@@ -70,6 +70,7 @@ enum NotchMenu {
         } else {
             submenu.addItem(item("Watch a Window Region…", symbol: "eye") { services.regionWatch.begin() })
         }
+        submenu.addItem(item("Capture Text…", symbol: "text.viewfinder") { services.textCapture.begin() })
         submenu.addItem(item("Customise Home", symbol: "square.grid.2x2", action: customiseHome))
         parent.submenu = submenu
         return parent

@@ -31,6 +31,8 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case lockScreen
         /// Watches part of a window, or stops the watch running.
         case watchRegion
+        /// Reads text or a QR code from part of the screen and copies it.
+        case captureText
         /// Runs an AI task on the selected text, or else the clipboard's; `value` is the task's
         /// `AITask.actionID`.
         case ai
@@ -76,6 +78,7 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .pickColour: "Pick colour"
         case .lockScreen: "Lock screen"
         case .watchRegion: "Watch region"
+        case .captureText: "Capture text"
         case .ai: value.flatMap(AITask.actionTitle(id:)) ?? "AI action"
         case .shortcut: value ?? "Shortcut"
         case .dropAction: "Drop action"
@@ -108,6 +111,7 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .pickColour: "eyedropper"
         case .lockScreen: "lock"
         case .watchRegion: "eye"
+        case .captureText: "text.viewfinder"
         case .ai: "sparkle"
         case .shortcut: "square.stack.3d.up"
         case .dropAction: "terminal"
