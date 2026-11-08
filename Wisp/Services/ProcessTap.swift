@@ -6,13 +6,14 @@ import os
 
 /// One app's sound, played back at its own level. A private CoreAudio process tap (macOS
 /// 14.2) reads the app's output, and a private aggregate device on the current output plays
-/// it scaled. The tap starts unmuted and is switched to "muted when tapped" only after sound
-/// has come through this tap (see `TapArming`), so:
+/// it scaled. The tap starts unmuted and mutes the app only after sound has come through
+/// this tap (see `TapArming`), so:
 /// - without System Audio Recording the app keeps playing at full volume, never silent;
-/// - the app is muted only while Wisp is reading the tap. If Wisp quits or crashes, or the
-///   IO stops while the app is idle (`TapActivity`), the reading stops and the app plays
-///   directly. Both objects are private to Wisp's process, so CoreAudio drops them with it;
-///   a public tap would outlive a crash.
+/// - once muted, the app stays muted even while the IO is off (idle, or a level of zero),
+///   so resuming or a short alert never plays at full volume. Both objects are private to
+///   Wisp's process, so CoreAudio drops them, and the mute with them, when Wisp quits or
+///   crashes; a public tap would outlive a crash. Turning the app back to full, switching
+///   the feature off and a lost tap all take the tap down, which unmutes the app.
 @MainActor
 final class ProcessTap {
     let app: String
@@ -98,7 +99,8 @@ final class ProcessTap {
     /// loudest sample since the last call to `TapArming`: the app's sound is handed over once
     /// this tap has heard it. Returns the arming state; `.lost` means the tap should come down.
     func update(appPlaying: Bool, seconds: Double) -> TapArming.State {
-        setRunning(activity.observe(appPlaying: appPlaying, seconds: seconds))
+        let active = activity.observe(appPlaying: appPlaying, seconds: seconds)
+        setRunning(TapIO.needsIO(armed: arming.state == .armed, gain: appliedGain, active: active))
         guard running else { return arming.state }
         let before = arming.state
         let state = arming.observe(peak: render.takePeak(), appPlaying: appPlaying, seconds: seconds)
@@ -121,11 +123,11 @@ final class ProcessTap {
         }
     }
 
-    /// Mutes the app (only while Wisp reads it) and starts playing the scaled copy. If the
+    /// Mutes the app and starts playing the scaled copy, faded in from silence. If the
     /// live tap can't change, it's rebuilt muted. False when neither works; the caller takes
     /// everything down, since an unmuted app plus the copy would play twice.
     private func handOver() -> Bool {
-        description.muteBehavior = .mutedWhenTapped
+        description.muteBehavior = .muted
         if updateDescription() {
             render.arm()
             return true
@@ -243,12 +245,14 @@ final class TapRender: @unchecked Sendable {
                 count: Int(buffer.mDataByteSize) / MemoryLayout<Float>.size)
         }
         let peak = AudioGain.peak(source)
-        let start = last.pointee.gain
+        let wasArmed = last.pointee.armed
         // On a missed try-lock the last target and armed flag stand for this buffer.
         let fresh = shared.withLockIfAvailable { state -> (target: Float, armed: Bool) in
             state.peak = max(state.peak, peak)
             return (state.target, state.armed)
         }
+        // The first armed buffer fades in, so the moment before the mute lands never doubles.
+        let start = wasArmed ? last.pointee.gain : 0
         if let fresh { last.pointee = Last(gain: fresh.target, armed: fresh.armed) }
         let end = last.pointee.gain
         let armed = last.pointee.armed

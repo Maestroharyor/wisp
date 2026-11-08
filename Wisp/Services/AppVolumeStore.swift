@@ -7,8 +7,9 @@ import WispCore
 
 /// Per-app volume: lists the apps playing sound and plays the ones turned down through a
 /// `ProcessTap`. Runs only while the switch is on; apps at full volume are never tapped.
-/// CoreAudio's process list is followed through a listener. Who's playing is polled only
-/// while a tap exists, or slowly while the list is on screen.
+/// CoreAudio's process list is followed through a listener, and so is each tapped process's
+/// playing flag, so a tap's IO starts the moment its app plays. Who's playing is also polled
+/// while a tap exists (a backstop), or slowly while the list is on screen.
 @MainActor
 @Observable
 final class AppVolumeStore {
@@ -30,6 +31,8 @@ final class AppVolumeStore {
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var outputListener: AudioObjectPropertyListenerBlock?
     @ObservationIgnored private var listListener: AudioObjectPropertyListenerBlock?
+    /// Playing-flag listeners on the tapped process objects.
+    @ObservationIgnored private var playListeners: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
     @ObservationIgnored private var names: [String: String] = [:]
     @ObservationIgnored private var icons: [String: NSImage] = [:]
     /// Lists on screen; while any is, who's playing is refreshed even with no taps.
@@ -87,6 +90,7 @@ final class AppVolumeStore {
             self.listListener = nil
         }
         removeAllTaps()
+        syncPlayListeners()
         refused = [:]
         processes = []
         cache = AudioAppCache()
@@ -105,18 +109,26 @@ final class AppVolumeStore {
 
     func setLevel(_ level: Double, for app: String) {
         preferences.appVolumeSettings.setLevel(level, for: app)
-        apply()
+        userChanged(app)
     }
 
     func toggleMute(_ app: String) {
         let settings = preferences.appVolumeSettings
         preferences.appVolumeSettings.setMuted(!settings.isMuted(app), for: app)
-        apply()
+        userChanged(app)
     }
 
     func reset(_ app: String) {
         preferences.appVolumeSettings.reset(app)
+        userChanged(app)
+    }
+
+    /// Touching an app's slider gives a refused or lost tap another try, and starts or stops
+    /// its IO for the new level straight away.
+    private func userChanged(_ app: String) {
+        refused[app] = nil
         apply()
+        checkTaps(seconds: 0)
     }
 
     func icon(for app: String) -> NSImage? {
@@ -143,28 +155,26 @@ final class AppVolumeStore {
     /// Runs each tap's IO while its app plays, hands sound over once a tap hears it, and takes
     /// down taps that failed or went quiet while their app played.
     private func checkTaps(seconds: Double) {
-        var armed = 0
+        var heard = 0
         var silent = 0
         var dropped: [String] = []
         for tap in taps.values {
             let playing = processes.contains { $0.appID == tap.app && $0.isPlaying }
-            switch tap.update(appPlaying: playing, seconds: seconds) {
-            case .armed: armed += 1
-            case .silent: silent += 1
-            case .lost:
+            let state = tap.update(appPlaying: playing, seconds: seconds)
+            // A tap that ever heard its app proves the permission, whatever it hears now.
+            if tap.arming.hasHeard { heard += 1 } else if state == .silent { silent += 1 }
+            if state == .lost {
                 log.notice("a tap stopped hearing its app; letting the app play directly")
-                dropped.append(tap.app)
-            case .listening: break
             }
-            if tap.failed {
+            // Not rebuilt until the app's processes change or its slider is touched.
+            if state == .lost || tap.failed {
                 refused[tap.app] = tap.processes
                 dropped.append(tap.app)
             }
         }
         for app in dropped { removeTap(app) }
-        // Rebuilds a lost tap unmuted, to listen again.
-        if !dropped.isEmpty { apply() }
-        if let hearing = SystemAudioHearing.status(armed: armed, silent: silent), hearing != canHear {
+        if !dropped.isEmpty { syncPlayListeners() }
+        if let hearing = SystemAudioHearing.status(armed: heard, silent: silent), hearing != canHear {
             canHear = hearing
         }
     }
@@ -218,6 +228,33 @@ final class AppVolumeStore {
             taps[app] = tap
         }
         for tap in taps.values { tap.setGain(settings.gain(for: tap.app)) }
+        if !plan.remove.isEmpty || !plan.create.isEmpty { syncPlayListeners() }
+    }
+
+    /// Listens to the playing flag of exactly the tapped process objects.
+    private func syncPlayListeners() {
+        let wanted = Set(taps.values.flatMap(\.processes))
+        for (object, block) in playListeners where !wanted.contains(object) {
+            var address = Self.playingAddress
+            AudioObjectRemovePropertyListenerBlock(object, &address, .main, block)
+            playListeners[object] = nil
+        }
+        for object in wanted where playListeners[object] == nil {
+            let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+                MainActor.assumeIsolated { self?.playingChanged() }
+            }
+            var address = Self.playingAddress
+            if AudioObjectAddPropertyListenerBlock(object, &address, .main, block) == noErr {
+                playListeners[object] = block
+            }
+        }
+    }
+
+    /// A tapped app started or stopped playing: start or stop its IO now, not on the next poll.
+    private func playingChanged() {
+        guard pollTask != nil else { return }
+        refreshPlaying(all: false)
+        checkTaps(seconds: 0)
     }
 
     private func outputChanged() {
@@ -227,6 +264,7 @@ final class AppVolumeStore {
         refused = [:]
         canHear = nil
         removeAllTaps()
+        syncPlayListeners()
         apply()
     }
 
@@ -293,6 +331,7 @@ final class AppVolumeStore {
 
     private static let defaultOutputAddress = ProcessTapAddress.global(kAudioHardwarePropertyDefaultOutputDevice)
     private static let processListAddress = ProcessTapAddress.global(kAudioHardwarePropertyProcessObjectList)
+    private static let playingAddress = ProcessTapAddress.global(kAudioProcessPropertyIsRunningOutput)
 
     private static func defaultOutputUID() -> String? {
         guard let device = SystemVolume.defaultOutput,
