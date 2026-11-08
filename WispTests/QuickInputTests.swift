@@ -396,6 +396,30 @@ final class QuickInputParserTests: XCTestCase {
         XCTAssertEqual(read("remind me in 0 minutes to x"), .unknown)
     }
 
+    func testAHalfHour() {
+        XCTAssertEqual(
+            parse("remind me in a half hour to x"), .reminder(title: "X", due: now.addingTimeInterval(1800)))
+        XCTAssertEqual(
+            parse("remind me in a half an hour to x"), .reminder(title: "X", due: now.addingTimeInterval(1800)))
+        XCTAssertEqual(parse("a half hour"), .timer(.minutes(30)))
+        XCTAssertEqual(read("remind me to x in a half moon"), .unsure(.reminder(title: "X in a half moon", due: nil)))
+    }
+
+    func testANumberBeforeANounIsNotATime() {
+        XCTAssertEqual(
+            read("remind me to beat the record by 2 seconds"),
+            .unsure(.reminder(title: "Beat the record by 2 seconds", due: nil)))
+        XCTAssertEqual(
+            read("remind me to win by 3 goals"), .unsure(.reminder(title: "Win by 3 goals", due: nil)))
+        XCTAssertEqual(
+            read("remind me to sell tickets at 10 each"), .unsure(.reminder(title: "Sell tickets at 10 each", due: nil))
+        )
+        // Joining and timing words after the hour still leave it a time.
+        XCTAssertEqual(parse("remind me at 5 to call"), .reminder(title: "Call", due: date(2025, 11, 5, 17, 0)))
+        XCTAssertEqual(parse("call Sam at 5 tomorrow"), .reminder(title: "Call Sam", due: date(2025, 11, 6, 17, 0)))
+        XCTAssertEqual(parse("remind me at 5 o'clock to call"), .reminder(title: "Call", due: date(2025, 11, 5, 17, 0)))
+    }
+
     func testMidnightIsTheEndOfTheDayNamed() {
         XCTAssertEqual(
             parse("remind me tomorrow at midnight to go"), .reminder(title: "Go", due: date(2025, 11, 7, 0, 0)))

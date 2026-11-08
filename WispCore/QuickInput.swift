@@ -86,7 +86,10 @@ public enum QuickInputParser {
     /// when any word isn't part of it. A plain number counts as minutes only when `allowBare`.
     static func seconds(_ keys: [String], allowBare: Bool) -> TimeInterval? {
         guard !keys.isEmpty else { return nil }
-        if keys == ["half", "an", "hour"] || keys == ["half", "hour"] { return 1800 }
+        if [["half", "an", "hour"], ["half", "hour"], ["a", "half", "hour"], ["a", "half", "an", "hour"]].contains(keys)
+        {
+            return 1800
+        }
         var keys = keys
         var extra: TimeInterval = 0
         // "an hour and a half", "2 hours and a half".
@@ -221,7 +224,7 @@ public enum QuickInputParser {
         return .intent(.reminder(title: title ?? "Reminder", due: due))
     }
 
-    private static let timeUnits: Set<String> = [
+    static let timeUnits: Set<String> = [
         "second", "seconds", "sec", "secs", "minute", "minutes", "min", "mins", "hour", "hours", "hr", "hrs", "day",
         "days", "week", "weeks", "weekend", "fortnight", "month", "months", "year", "years",
     ]
@@ -256,7 +259,10 @@ public enum QuickInputParser {
             if key == "in", numberWords.contains(next) { return true }
             guard key == "in" || key == "next" else { continue }
             if digits(next) || timeUnits.contains(next) { return true }
-            if next == "a" || next == "an", timeUnits.contains(after) || numberWords.contains(after) { return true }
+            if next == "a" || next == "an", timeUnits.contains(after) || numberWords.contains(after) || after == "half"
+            {
+                return true
+            }
         }
         return false
     }
@@ -473,7 +479,9 @@ enum TimeMatcher {
         case "next":
             if let next, let day = weekday(next) { return Match(part: .weekday(day, next: true), count: 2) }
         case "at", "by", "@":
-            if let clock = clock(keys, at: index + 1, bare: true) {
+            if let clock = clock(keys, at: index + 1, bare: true),
+                !countsSomething(keys, lead: key, after: index + 1, clock)
+            {
                 return Match(part: .clock(clock.time), count: 1 + clock.count)
             }
         case "in":
@@ -494,6 +502,28 @@ enum TimeMatcher {
             }
         }
         return nil
+    }
+
+    /// Words that may follow a time: joining words and other timing.
+    private static let afterClock: Set<String> = [
+        "to", "and", "on", "for", "then", "please", "o'clock", "oclock", "sharp", "today", "tonight", "tomorrow",
+        "tmrw", "tmr", "this", "next", "in", "morning", "afternoon", "evening", "night", "about", "that",
+    ]
+
+    /// Words after "at <number>" that make it a price or a count, not a time.
+    private static let countWords: Set<String> = ["each", "apiece", "per", "a", "an", "percent", "%"]
+
+    /// "By 2 seconds", "by 3 goals", "at 10 each": a bare number that counts things. After "by"
+    /// any word but a joining or timing word does it; after "at" only a unit or a word like
+    /// "each", since "tonight at 9 film" is a time.
+    private static func countsSomething(
+        _ keys: [String], lead: String, after index: Int, _ clock: (time: ClockTime, count: Int)
+    ) -> Bool {
+        guard index < keys.count, keys[index].allSatisfy(\.isNumber), clock.count == 1, index + 1 < keys.count
+        else { return false }
+        let next = keys[index + 1]
+        if QuickInputParser.timeUnits.contains(next) || countWords.contains(next) { return true }
+        return lead == "by" && !afterClock.contains(next) && weekday(next) == nil
     }
 
     private static func dayPart(_ key: String) -> DayPart? {
@@ -541,7 +571,7 @@ enum TimeMatcher {
             case "pm", "p.m": meridiem = .pm
             default: break
             }
-            if meridiem != nil { count = 2 }
+            if meridiem != nil || ["o'clock", "oclock"].contains(keys[index + 1]) { count = 2 }
         }
         let pieces = body.split(separator: ":", omittingEmptySubsequences: false)
         guard (1...2).contains(pieces.count), pieces.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isASCII) }),
