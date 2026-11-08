@@ -17,12 +17,18 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     private var animating = false
     /// Where the pointer holds a window being torn off, relative to its origin.
     private var tearAnchor: CGVector?
+    /// The window's ⌘ keys, installed while it's on screen.
+    private var keyMonitor: Any?
     /// Set by the notch coordinator: the closed shell nearest a frame, which the window
     /// leaves toward and comes back out of.
     var shellRect: @MainActor (CGRect) -> CGRect? = { _ in nil }
 
+    /// The sidebar's selection, which pills, menus and tearing off point at a row.
+    private let navigation: WindowNavigation
+
     init(services: AppServices) {
         self.services = services
+        navigation = WindowNavigation(preferences: services.preferences)
     }
 
     private var preferences: Preferences { services.preferences }
@@ -37,16 +43,16 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     /// The form to show as current for a display whose shell has `shell`'s form.
     func form(shell: FormFactor) -> FormFactor { state.form(shell: shell) }
 
-    /// "Open as Window" from the menu.
-    func openAsWindow(page: ShelfPage) {
-        prepare(.page(page))
+    /// "Open as Window" from the menu, on what the shelf shows.
+    func openAsWindow(view: ShelfView) {
+        prepare(view)
         run(.openAsWindow)
     }
 
     /// The shell was clicked, swiped or asked for a page while the window has the shelf.
     /// `view` is what to open on, if anything: a page, a widget, or a clicked pill's own view.
-    func activateShell(view: ShelfView? = nil, fromPill: Bool = false, session: String? = nil) {
-        prepare(view, fromPill: fromPill, session: session)
+    func activateShell(view: ShelfView? = nil, session: String? = nil) {
+        prepare(view, session: session)
         run(.activateShell)
     }
 
@@ -76,10 +82,8 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     // MARK: Tearing the shelf off
 
     /// The open shelf was pulled off: the window opens on what it showed, held by its title bar.
-    /// A pill's view keeps its way back to the page the shelf came from.
-    func tearOff(_ view: ShelfView, fromPill: Bool, returnPage: ShelfPage?, at pointer: CGPoint) {
-        prepare(view, fromPill: fromPill)
-        if fromPill, let returnPage { model?.returnPage = returnPage }
+    func tearOff(_ view: ShelfView, at pointer: CGPoint) {
+        prepare(view)
         let visible = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }?.visibleFrame
         let size = preferences.shelfWindowFrame.flatMap(ShelfWindowFrame.decode)?.size ?? ShelfWindowFrame.defaultSize
         if let visible {
@@ -121,11 +125,11 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Points the window's pages where the request asked.
-    private func prepare(_ view: ShelfView?, fromPill: Bool = false, session: String? = nil) {
+    /// Points the window's sidebar at the row the request asked for.
+    private func prepare(_ view: ShelfView?, session: String? = nil) {
         guard let model = model ?? makeModel() else { return }
         self.model = model
-        if let view { model.show(view, fromPill: fromPill) }
+        if let view { navigation.open(WindowDestination(view, gridWidgets: preferences.gridWidgets)) }
         if let session { model.focusedSession = session }
     }
 
@@ -156,6 +160,7 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         syncFrameRate()
+        installKeyMonitor()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -166,18 +171,34 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// ⌘1 to ⌘3 and ⌘0 while the window is key. Wisp has no main menu to carry them.
+    private func installKeyMonitor() {
+        removeKeyMonitor()
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let keyCode = event.keyCode
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                .subtracting([.capsLock, .numericPad, .function])
+            let target = event.window
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self, self.owns(target),
+                    let action = WindowKeys.action(keyCode: keyCode, commandOnly: modifiers == .command)
+                else { return false }
+                self.navigation.perform(action)
+                return true
+            }
+            return handled ? nil : event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
+    }
+
     /// Whether `window` is the shelf window, whose own keys (Esc in a field) aren't the shell's.
     func owns(_ window: NSWindow?) -> Bool {
         guard let window, let own = self.window else { return false }
         return window === own
-    }
-
-    /// Esc in the window leaves a solo widget or pill view (back to the page a pill came from, or
-    /// the grid); false when there's none.
-    func leaveSoloWidget() -> Bool {
-        guard let model, model.soloWidget != nil || model.activityDetail != nil else { return false }
-        model.leaveSolo()
-        return true
     }
 
     private func focus() {
@@ -205,6 +226,9 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
                 self.hiding = false
                 // Out of the view tree while hidden, so the camera, pollers and scripts stop.
                 self.model?.phase = .closed
+                // Customise Home ends with its changes kept, as when the notch's shelf closes.
+                if self.model?.editingHome == true { self.model?.endHomeEditing() }
+                self.removeKeyMonitor()
                 window.orderOut(nil)
                 window.setFrameOrigin(frame.origin)
                 window.alphaValue = 1
@@ -245,18 +269,17 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered,
             defer: false)
         window.title = "Wisp"
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.appearance = NSAppearance(named: .darkAqua)
-        window.contentMinSize = ShelfWindowFrame.minimumSize
         window.delegate = self
         window.onMinimise = { [weak self] in self?.run(.putAway) }
-        let hosting = NSHostingView(rootView: ShelfWindowView(model: model))
-        hosting.sizingOptions = []
-        window.contentView = hosting
+        let host = NSHostingController(rootView: ShelfWindowView(model: model, navigation: navigation))
+        host.sizingOptions = []
+        host.sceneBridgingOptions = [.toolbars, .title]
+        window.contentViewController = host
+        // As in Settings: the sidebar runs to the top edge under a unified toolbar.
+        window.titlebarAppearsTransparent = true
+        window.toolbarStyle = .unified
+        window.contentMinSize = ShelfWindowFrame.minimumSize
         return window
     }
 
@@ -288,33 +311,4 @@ final class ShelfWindow: NSWindow {
     override func performMiniaturize(_ sender: Any?) { onMinimise() }
 
     override func miniaturize(_ sender: Any?) { onMinimise() }
-}
-
-/// The page pill in the title bar's row, the pages under it, on the shelf's own surface.
-private struct ShelfWindowView: View {
-    let model: NotchModel
-
-    var body: some View {
-        let look = model.preferences.appearance
-        VStack(spacing: 0) {
-            NavPill(model: model)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-            if model.phase == .open {
-                ShelfContent(model: model)
-            } else {
-                Color.clear
-            }
-        }
-        .hoverHintHost()
-        .background {
-            SurfaceBackground(
-                style: look.surface, glass: look.glassEdge, accent: model.accent, glow: model.glow,
-                intensity: look.glowIntensity, spread: look.glowSpread
-            )
-            .ignoresSafeArea()
-        }
-        .environment(\.colorScheme, .dark)
-        .environment(\.valueFont, look.valueFont)
-    }
 }

@@ -283,6 +283,7 @@ final class Preferences {
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let windowForm = "windowForm"
         static let shelfWindowFrame = "shelfWindowFrame"
+        static let windowSelection = "windowSelection"
         static let activityDisplay = "activityDisplay"
         static let clipboardEnabled = "clipboardEnabled"
         static let clipboardLimit = "clipboardLimit"
@@ -907,6 +908,8 @@ final class Preferences {
     var windowForm: Bool { didSet { defaults.set(windowForm, forKey: Key.windowForm) } }
     /// Where the shelf window was last left, as "x,y,width,height" (see `ShelfWindowFrame`).
     var shelfWindowFrame: String? { didSet { defaults.set(shelfWindowFrame, forKey: Key.shelfWindowFrame) } }
+    /// The shelf window's last sidebar row, as `WindowDestination.rawValue`.
+    var windowSelection: String? { didSet { defaults.set(windowSelection, forKey: Key.windowSelection) } }
 
     /// Where live activities (Now Playing, HUDs, timers) appear.
     var activityDisplay: ActivityDisplayTarget {
@@ -1150,6 +1153,7 @@ final class Preferences {
         miniPlayerOrigin = defaults.string(forKey: Key.miniPlayerOrigin)
         windowForm = defaults.bool(forKey: Key.windowForm)
         shelfWindowFrame = defaults.string(forKey: Key.shelfWindowFrame)
+        windowSelection = defaults.string(forKey: Key.windowSelection)
         activityDisplay =
             defaults.string(forKey: Key.activityDisplay).flatMap(ActivityDisplayTarget.init(rawValue:)) ?? .pointer
         clipboardEnabled = defaults.bool(forKey: Key.clipboardEnabled)
