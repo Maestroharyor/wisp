@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/Maestroharyor/wisp/compare/v0.2.0...v0.2.1) (2026-11-08)
+
+
+### Bug fixes
+
+* a solid toolbar over scrolled window pages ([#80](https://github.com/Maestroharyor/wisp/issues/80)) ([6293914](https://github.com/Maestroharyor/wisp/commit/62939141259d9d05461d0332babbc1ad15f5ad2c))
+
 ## [0.2.0](https://github.com/Maestroharyor/wisp/compare/v0.1.17...v0.2.0) (2026-11-08)
 
 
