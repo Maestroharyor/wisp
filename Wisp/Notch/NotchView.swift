@@ -257,6 +257,10 @@ private struct SurfaceView: View {
                     .id(card.id)
                     .transition(reveal)
             }
+            if case .quickIntent(let intent) = model.activity {
+                QuickIntentCard(intent: intent, model: model)
+                    .transition(reveal)
+            }
             if case .meeting(let status) = model.activity, model.showsMeetingControls {
                 MeetingControlsCard(status: status, model: model)
                     .transition(reveal)

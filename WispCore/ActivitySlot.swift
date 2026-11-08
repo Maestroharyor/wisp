@@ -24,6 +24,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case external
     case regionWatch
     case dictation
+    /// The confirm card for a quick request (a timer, reminder or event) before it's made.
+    case quickInput
     /// The answer to an AI action on selected or copied text, with Copy and Replace.
     case aiResult
 
@@ -50,6 +52,9 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         case .aiResult: 48
         case .meetingSoon: 49
         case .notification: 50
+        // The user just asked for it, so it shows over a notification; an agent's request still
+        // comes first.
+        case .quickInput: 51
         case .agentApproval: 55
         // Held down on purpose, so it shows over cards; only HUDs (volume, Caps Lock) go above.
         case .dictation: 57
@@ -71,7 +76,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     public var isDismissable: Bool {
         switch self {
         case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone,
-            .aiResult:
+            .aiResult, .quickInput:
             true
         default: false
         }

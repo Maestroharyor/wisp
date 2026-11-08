@@ -83,6 +83,14 @@ final class AppServices {
     private(set) lazy var aiActions = AITextActions(
         ai: ai, preferences: preferences, activities: activities,
         releaseNotchKey: { [weak self] in self?.releaseNotchKey() })
+    private(set) lazy var quickInput = QuickInputStore(ai: ai, timers: timers, activities: activities)
+
+    /// Quick add on its own in the shelf, with the cursor in its field.
+    func openQuickInput() {
+        quickInput.requestFocus()
+        openWidget(.quickInput)
+    }
+
     /// Made on first use; quitting flushes it only if it exists.
     var agentHistory: AgentHistoryStore {
         if let agentHistoryStore { return agentHistoryStore }

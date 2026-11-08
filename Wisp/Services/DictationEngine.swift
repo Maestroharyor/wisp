@@ -252,7 +252,7 @@ final class DictationEngine {
                 DictationPaste.action(appAtStart: appAtStart, appNow: appNow) == .paste
             else { return copy(text) }
             PasteShortcut.pasteRestoring(text, after: Self.restoreDelay)
-        case .agentDraft, .questionAnswer:
+        case .agentDraft, .questionAnswer, .quickInput:
             guard !deliverInWisp(text, target) else { return }
             copy(text)
         }

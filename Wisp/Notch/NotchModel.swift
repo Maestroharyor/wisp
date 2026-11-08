@@ -268,6 +268,7 @@ final class NotchModel {
                 if case .aiResult(let card) = activity {
                     return .notification(extra: card.answer == nil ? 0 : SurfaceSizing.aiResultHeight)
                 }
+                if case .quickIntent = activity { return .notification(extra: 0) }
                 if showsMeetingControls { return .notification(extra: 0) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }

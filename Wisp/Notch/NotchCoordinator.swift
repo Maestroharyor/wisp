@@ -128,17 +128,22 @@ final class NotchCoordinator {
         let shelves = controllers.values
         return DictationTarget.choose(
             draftSession: shelves.lazy.compactMap(\.dictationDraftSession).first,
-            questionCard: shelves.lazy.compactMap(\.dictationQuestion).first)
+            questionCard: shelves.lazy.compactMap(\.dictationQuestion).first,
+            quickInput: services.quickInput.isDictationTarget)
     }
 
     /// Hands dictated text to the display that shows its draft box or question card. False
     /// when it has closed (the shelf closed, or the question was answered elsewhere).
     func deliverDictation(_ text: String, to target: DictationTarget) -> Bool {
+        if target == .quickInput {
+            services.quickInput.appendDictation(text)
+            return true
+        }
         let controller: NotchController? =
             switch target {
             case .agentDraft(let session): controllers.values.first { $0.dictationDraftSession == session }
             case .questionAnswer(let id): controllers.values.first { $0.dictationQuestion == id }
-            case .focusedApp: nil
+            case .quickInput, .focusedApp: nil
             }
         guard let controller else { return false }
         controller.receiveDictation(text, target: target)

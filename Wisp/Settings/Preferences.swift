@@ -105,6 +105,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
     case worldClocks
     case agents
     case script
+    case quickInput
 
     var id: Self { self }
 
@@ -126,6 +127,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         case .worldClocks: "World Clocks"
         case .agents: "Agents"
         case .script: "Script"
+        case .quickInput: "Quick add"
         }
     }
 
@@ -136,7 +138,8 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
     var defaultSize: WidgetSize {
         switch self {
         case .nowPlaying: .large
-        case .calendar, .systemStats, .notes, .quickToggles, .shortcuts, .clipboard, .dayProgress, .agents, .script:
+        case .calendar, .systemStats, .notes, .quickToggles, .shortcuts, .clipboard, .dayProgress, .agents, .script,
+            .quickInput:
             .medium
         case .timer, .pomodoro, .battery, .weather, .mirror, .worldClocks: .small
         }
@@ -160,6 +163,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         case .worldClocks: "globe"
         case .agents: "sparkle"
         case .script: "terminal"
+        case .quickInput: "text.badge.plus"
         }
     }
 }

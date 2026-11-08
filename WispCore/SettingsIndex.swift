@@ -72,6 +72,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 // The ring, which had its own pane before; its name stays a keyword.
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "hyper r",
                 "per app", "edit ring", "ring shortcut", "capture text", "ocr", "qr code", "barcode", "ai action",
+                "quick add",
             ]
         case .appearance:
             [
@@ -117,7 +118,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "concealed", "passwords", "ocr", "text from image", "working hours", "time zone",
                 "profiles", "profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus",
                 "save current setup", "switch profiles automatically", "switch automatically", "opens on",
-                "profile look", "look for", "keep the current look",
+                "profile look", "look for", "keep the current look", "quick add", "quick input", "reminder",
+                "reminders", "event", "natural language",
             ]
         case .notifications:
             [
@@ -154,7 +156,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .permissions:
             [
                 "accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera",
-                "microphone", "speech recognition",
+                "microphone", "speech recognition", "reminders",
             ]
         case .about:
             [
