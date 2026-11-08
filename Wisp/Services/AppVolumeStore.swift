@@ -107,26 +107,29 @@ final class AppVolumeStore {
 
     func listDisappeared() { viewers = max(viewers - 1, 0) }
 
+    /// A drag on the app's slider began: a refused tap gets one more try for this gesture.
+    func adjustmentBegan(_ app: String) { refused[app] = nil }
+
     func setLevel(_ level: Double, for app: String) {
         preferences.appVolumeSettings.setLevel(level, for: app)
-        userChanged(app)
+        levelChanged()
     }
 
     func toggleMute(_ app: String) {
         let settings = preferences.appVolumeSettings
+        refused[app] = nil
         preferences.appVolumeSettings.setMuted(!settings.isMuted(app), for: app)
-        userChanged(app)
+        levelChanged()
     }
 
     func reset(_ app: String) {
+        refused[app] = nil
         preferences.appVolumeSettings.reset(app)
-        userChanged(app)
+        levelChanged()
     }
 
-    /// Touching an app's slider gives a refused or lost tap another try, and starts or stops
-    /// its IO for the new level straight away.
-    private func userChanged(_ app: String) {
-        refused[app] = nil
+    /// Builds or drops taps for the new level, and starts or stops IO straight away.
+    private func levelChanged() {
         apply()
         checkTaps(seconds: 0)
     }
@@ -163,11 +166,8 @@ final class AppVolumeStore {
             let state = tap.update(appPlaying: playing, seconds: seconds)
             // A tap that ever heard its app proves the permission, whatever it hears now.
             if tap.arming.hasHeard { heard += 1 } else if state == .silent { silent += 1 }
-            if state == .lost {
-                log.notice("a tap stopped hearing its app; letting the app play directly")
-            }
             // Not rebuilt until the app's processes change or its slider is touched.
-            if state == .lost || tap.failed {
+            if tap.failed {
                 refused[tap.app] = tap.processes
                 dropped.append(tap.app)
             }
@@ -219,7 +219,9 @@ final class AppVolumeStore {
         let plan = AppVolumeTaps.plan(current: current, wanted: wanted)
         for app in plan.remove { removeTap(app) }
         for (app, members) in plan.create where refused[app] != members {
-            let tap = ProcessTap(app: app, processes: members, outputUID: outputUID, gain: settings.gain(for: app))
+            let tap = ProcessTap(
+                app: app, processes: members, outputUID: outputUID, gain: settings.gain(for: app),
+                heard: canHear == true)
             guard let tap else {
                 refused[app] = members
                 log.error("couldn't tap an app")

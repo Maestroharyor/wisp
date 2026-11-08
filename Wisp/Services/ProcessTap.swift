@@ -7,23 +7,27 @@ import os
 /// One app's sound, played back at its own level. A private CoreAudio process tap (macOS
 /// 14.2) reads the app's output, and a private aggregate device on the current output plays
 /// it scaled. The tap starts unmuted and mutes the app only after sound has come through
-/// this tap (see `TapArming`), so:
-/// - without System Audio Recording the app keeps playing at full volume, never silent;
-/// - once muted, the app stays muted even while the IO is off (idle, or a level of zero),
-///   so resuming or a short alert never plays at full volume. Both objects are private to
-///   Wisp's process, so CoreAudio drops them, and the mute with them, when Wisp quits or
-///   crashes; a public tap would outlive a crash. Turning the app back to full, switching
-///   the feature off and a lost tap all take the tap down, which unmutes the app.
+/// (see `TapArming`), so without System Audio Recording the app keeps playing at full
+/// volume, never silent. Once armed:
+/// - while the IO runs, the tap is "muted when tapped": the app is muted only while Wisp
+///   reads it, so if Wisp crashes mid-play the reading stops and the app plays directly;
+/// - while the IO is off (the app idle, or a level of zero) it's fully muted, so a resume or
+///   a short alert never plays at full volume. A crash in that state relies on CoreAudio
+///   dropping a private tap with its process, which couldn't be checked by hand.
+/// Turning the app back to full and switching the feature off take the tap down, which
+/// unmutes the app.
 @MainActor
 final class ProcessTap {
     let app: String
     let processes: Set<UInt32>
-    private(set) var arming = TapArming()
-    /// Set when the app's sound couldn't be handed over; the tap is down and should be dropped.
+    private(set) var arming: TapArming
+    /// Set when the app's sound couldn't be handed over or the IO wouldn't start; the tap is
+    /// down and should be dropped.
     private(set) var failed = false
     private(set) var running = false
 
     private var activity = TapActivity()
+    private var starts = TapStarts()
     private var appliedGain: Float
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var deviceID = AudioObjectID(kAudioObjectUnknown)
@@ -34,14 +38,16 @@ final class ProcessTap {
     private static let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "app-volume")
 
     /// Nil when CoreAudio refuses any step; everything built so far is taken down again.
-    /// The IO doesn't run until `update(appPlaying:seconds:)` sees the app play.
-    init?(app: String, processes: Set<UInt32>, outputUID: String, gain: Float) {
+    /// The IO doesn't run until `update(appPlaying:seconds:)` sees the app play. `heard`
+    /// builds it muted and armed, for when Wisp already knows it can hear apps.
+    init?(app: String, processes: Set<UInt32>, outputUID: String, gain: Float, heard: Bool) {
         self.app = app
         self.processes = processes
+        arming = TapArming(heard: heard)
         description = CATapDescription(stereoMixdownOfProcesses: processes.sorted())
         description.name = "Wisp app volume"
         description.isPrivate = true
-        description.muteBehavior = .unmuted
+        description.muteBehavior = heard ? .muted : .unmuted
         render = TapRender(gain: gain)
         appliedGain = gain
         self.outputUID = outputUID
@@ -49,6 +55,7 @@ final class ProcessTap {
             teardown()
             return nil
         }
+        if heard { render.arm() }
     }
 
     private func build() -> Bool {
@@ -72,8 +79,7 @@ final class ProcessTap {
         return check(AudioDeviceCreateIOProcIDWithBlock(&procID, deviceID, nil, block), "create IO")
     }
 
-    /// Takes everything down: stopping the device ends the reading, so the app is heard
-    /// directly again even before the tap goes.
+    /// Takes everything down, which unmutes the app.
     func teardown() {
         if deviceID != kAudioObjectUnknown {
             if let procID {
@@ -95,12 +101,16 @@ final class ProcessTap {
         render.setGain(gain)
     }
 
-    /// Runs the IO only while the app plays (plus a grace), and while it runs feeds the
-    /// loudest sample since the last call to `TapArming`: the app's sound is handed over once
-    /// this tap has heard it. Returns the arming state; `.lost` means the tap should come down.
+    /// Runs the IO only while it's needed (`TapIO`), and while it runs feeds the loudest
+    /// sample since the last call to `TapArming`: the app's sound is handed over once this
+    /// tap has heard it. Check `failed` afterwards.
     func update(appPlaying: Bool, seconds: Double) -> TapArming.State {
         let active = activity.observe(appPlaying: appPlaying, seconds: seconds)
         setRunning(TapIO.needsIO(armed: arming.state == .armed, gain: appliedGain, active: active))
+        if failed {
+            teardown()
+            return arming.state
+        }
         guard running else { return arming.state }
         let before = arming.state
         let state = arming.observe(peak: render.takePeak(), appPlaying: appPlaying, seconds: seconds)
@@ -111,11 +121,23 @@ final class ProcessTap {
         return state
     }
 
+    /// Starts or stops the IO. An armed tap is "muted when tapped" while it runs and fully
+    /// muted while it's off; the switch happens on the side that keeps the app muted.
     private func setRunning(_ run: Bool) {
         guard run != running, let procID, deviceID != kAudioObjectUnknown else { return }
+        let armed = arming.state == .armed
         if run {
-            running = check(AudioDeviceStart(deviceID, procID), "start")
+            let started = AudioDeviceStart(deviceID, procID) == noErr
+            if starts.record(success: started) {
+                Self.log.error("an app's audio wouldn't start; handing the app back")
+                failed = true
+            } else if !started, starts.shouldLog {
+                Self.log.error("an app's audio didn't start; trying again")
+            }
+            running = started
+            if started, armed { setMute(.mutedWhenTapped) }
         } else {
+            if armed { setMute(.muted) }
             AudioDeviceStop(deviceID, procID)
             running = false
             // Peaks from before the pause say nothing about the next play.
@@ -123,27 +145,28 @@ final class ProcessTap {
         }
     }
 
-    /// Mutes the app and starts playing the scaled copy, faded in from silence. If the
-    /// live tap can't change, it's rebuilt muted. False when neither works; the caller takes
-    /// everything down, since an unmuted app plus the copy would play twice.
+    /// Mutes the app and starts playing the scaled copy, faded in from silence. Runs while
+    /// the IO does, so the tap becomes "muted when tapped". If the live tap can't change,
+    /// it's rebuilt muted. False when neither works; the caller takes everything down,
+    /// since an unmuted app plus the copy would play twice.
     private func handOver() -> Bool {
-        description.muteBehavior = .muted
-        if updateDescription() {
+        if setMute(.mutedWhenTapped) {
             render.arm()
             return true
         }
-        let wasRunning = running
         teardown()
         guard build() else {
             Self.log.error("couldn't hand over an app's sound; leaving it untouched")
             return false
         }
         render.arm()
-        if wasRunning { setRunning(true) }
-        return running || !wasRunning
+        setRunning(true)
+        return running
     }
 
-    private func updateDescription() -> Bool {
+    @discardableResult
+    private func setMute(_ behavior: CATapMuteBehavior) -> Bool {
+        description.muteBehavior = behavior
         var address = ProcessTapAddress.global(kAudioTapPropertyDescription)
         var value = description
         let status = withUnsafeMutablePointer(to: &value) {

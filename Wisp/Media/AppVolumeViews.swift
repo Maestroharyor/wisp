@@ -54,7 +54,9 @@ private struct AppVolumeRowView: View {
                 .opacity(row.isPlaying ? 1 : 0.6)
             Slider(
                 value: Binding(get: { row.level }, set: { store.setLevel($0, for: row.id) }), in: 0...1
-            )
+            ) { editing in
+                if editing { store.adjustmentBegan(row.id) }
+            }
             .controlSize(.mini)
             .tint(Color.wispViolet)
             .disabled(row.muted)
