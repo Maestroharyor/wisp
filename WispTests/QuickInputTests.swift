@@ -314,6 +314,20 @@ final class QuickInputParserTests: XCTestCase {
         XCTAssertEqual(
             read("remind me to pay rent on the 3rd"), .unsure(.reminder(title: "Pay rent on the 3rd", due: nil)))
         XCTAssertNil(parse("remind me to call mom in 2 days"))
+        let unsure = [
+            "remind me to pay rent on november 12", "remind me to pay rent on 12 november", "remind me to pay on dec 3",
+            "remind me in two days to x", "remind me to x 2 weeks from now", "remind me to x this weekend",
+            "remind me to x around 6", "remind me to x before 6", "remind me to x until 6", "remind me at 930 to x",
+            "remind me to x at half past five", "remind me to x at quarter to six",
+            "remind me to x in a couple of days",
+            "remind me to call on may 3",
+        ]
+        for phrase in unsure {
+            guard case .unsure(.reminder(_, nil)) = read(phrase) else {
+                XCTFail("expected an unsure reminder: \(phrase)")
+                continue
+            }
+        }
     }
 
     func testEverydayUndatedRemindersAreRead() {
@@ -350,7 +364,36 @@ final class QuickInputParserTests: XCTestCase {
         XCTAssertEqual(
             parse("remind me this evening at 12 to sleep"), .reminder(title: "Sleep", due: date(2025, 11, 6, 0, 0)))
         XCTAssertEqual(
-            parse("remind me this afternoon at 12 to eat"), .reminder(title: "Eat", due: date(2025, 11, 6, 12, 0)))
+            parse("remind me tomorrow afternoon at 12 to eat"), .reminder(title: "Eat", due: date(2025, 11, 6, 12, 0)))
+    }
+
+    func testThisPartAtAPassedTimeIsPassed() {
+        // At 14:20 "this afternoon at 12" and "this morning at 12am" are over; they don't move to tomorrow.
+        XCTAssertEqual(read("remind me this afternoon at 12 to eat"), .passed)
+        XCTAssertEqual(read("remind me this morning at 12am to go"), .passed)
+        XCTAssertEqual(
+            read("remind me this evening at 7 to go"), .intent(.reminder(title: "Go", due: date(2025, 11, 5, 19, 0))))
+    }
+
+    func testMorningAtMidnightIsTheStartOfTheDay() {
+        XCTAssertEqual(
+            parse("remind me tomorrow morning at midnight to go"), .reminder(title: "Go", due: date(2025, 11, 6, 0, 0)))
+    }
+
+    func testAnHourAndAHalf() {
+        XCTAssertEqual(
+            parse("remind me to stretch in an hour and a half"),
+            .reminder(title: "Stretch", due: now.addingTimeInterval(90 * 60)))
+        XCTAssertEqual(parse("an hour and a half"), .timer(.minutes(90)))
+        XCTAssertEqual(parse("2 hours and a half"), .timer(.minutes(150)))
+        // A trailing "a" isn't a number: "a" before "walk" is just a word.
+        XCTAssertEqual(
+            parse("remind me to take a walk in 10 minutes"),
+            .reminder(title: "Take a walk", due: now.addingTimeInterval(600)))
+    }
+
+    func testInZeroMinutesIsRefused() {
+        XCTAssertEqual(read("remind me in 0 minutes to x"), .unknown)
     }
 
     func testMidnightIsTheEndOfTheDayNamed() {

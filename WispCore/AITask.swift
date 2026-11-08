@@ -76,7 +76,8 @@ public enum AITask: Hashable, Sendable {
             "Turn the user's request into one JSON object and nothing else. Fields: \"kind\" (\"timer\", "
                 + "\"reminder\" or \"event\"), \"title\" (short text), \"minutes\" (number, for timers and event "
                 + "length) and \"date\" (ISO 8601 with offset, for reminders and events). Leave out fields that "
-                + "don't apply. It is now \(Self.timestamp(now, timeZone)) in \(timeZone.identifier)."
+                + "don't apply. Dates must be in the future: a time that has already passed today means "
+                + "tomorrow. It is now \(Self.timestamp(now, timeZone)) in \(timeZone.identifier)."
         }
     }
 

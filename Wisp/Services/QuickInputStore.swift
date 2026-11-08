@@ -96,7 +96,8 @@ final class QuickInputStore {
             guard !Task.isCancelled else { return }
             switch QuickInputFlow.step(afterModel: intent, fallback: fallback) {
             case .propose(let chosen): self.propose(chosen, input: input)
-            default: self.show(Self.hint)
+            case .passed: self.show(QuickIntentCheck.passed)
+            case .hint, .askModel: self.show(Self.hint)
             }
         }
     }

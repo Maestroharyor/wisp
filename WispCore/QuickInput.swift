@@ -87,9 +87,23 @@ public enum QuickInputParser {
     static func seconds(_ keys: [String], allowBare: Bool) -> TimeInterval? {
         guard !keys.isEmpty else { return nil }
         if keys == ["half", "an", "hour"] || keys == ["half", "hour"] { return 1800 }
+        var keys = keys
+        var extra: TimeInterval = 0
+        // "an hour and a half", "2 hours and a half".
+        for tail in [["and", "a", "half"], ["and", "half"]]
+        where keys.count > tail.count && keys.suffix(tail.count) == tail[...] {
+            let hours = keys[keys.count - tail.count - 1]
+            guard unit(hours) == "h" || compactToken(hours)?.last == "h" else { return nil }
+            keys.removeLast(tail.count)
+            extra = 1800
+            break
+        }
+        let words = keys.filter { $0 != "and" }
         var compact = ""
-        for key in keys where key != "and" {
+        for (index, key) in words.enumerated() {
             if key == "a" || key == "an" {
+                // Only "a" before a unit is one of it; "take a walk" has no number in it.
+                guard index + 1 < words.count, unit(words[index + 1]) != nil else { return nil }
                 compact += "1"
             } else if let letter = unit(key) {
                 compact.append(letter)
@@ -103,10 +117,10 @@ public enum QuickInputParser {
         if let last = compact.last, last.isNumber, compact.contains("h"), !compact.contains("m") { compact += "m" }
         let hasUnit = compact.contains { !$0.isNumber }
         guard hasUnit || allowBare else { return nil }
-        if let seconds = DurationText.seconds(from: compact) { return seconds }
+        if let seconds = DurationText.seconds(from: compact) { return seconds + extra }
         // "0 min" is a length too, so callers can refuse it rather than leave it in a title.
         let zero = hasUnit && compact.contains("0") && compact.allSatisfy { $0 == "0" || !$0.isNumber }
-        return zero ? 0 : nil
+        return zero ? extra : nil
     }
 
     /// "25min" as "25m"; nil for anything that isn't digits and units.
@@ -182,6 +196,8 @@ public enum QuickInputParser {
         let left = words.enumerated().filter { !skipped.contains($0.offset) }.map(\.element)
         let title = Self.title(left)
 
+        // "In 0 minutes" is no time at all.
+        if when.relative == 0 { return .unknown }
         let due: Date?
         switch when.resolve(now: now, calendar: calendar) {
         case .passed: return .passed
@@ -210,16 +226,37 @@ public enum QuickInputParser {
         "days", "week", "weeks", "weekend", "fortnight", "month", "months", "year", "years",
     ]
 
-    /// "in 2 days", "in a week", "next month", or a word like "9.30pm", "3rd" or "5/11". A plain
-    /// number ("chapter 3") or "at work" isn't timing.
+    private static let months: Set<String> = [
+        "january", "february", "march", "april", "june", "july", "august", "september", "october", "november",
+        "december", "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+    ]
+    private static let numberWords: Set<String> = [
+        "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "couple",
+        "few",
+    ]
+    private static let clockLeads: Set<String> = ["at", "around", "before", "until", "by", "after"]
+
+    /// Timing the reader doesn't follow: "in 2 days", "in two days", "in a week", "next month",
+    /// "on november 12", "this weekend", "2 weeks from now", "around 6", "at 930", "half past
+    /// five", or a word like "9.30pm", "3rd" or "5/11". A plain number ("chapter 3", "pay 2
+    /// bills") or "at work" isn't timing.
     private static func hasUnreadTiming(_ keys: [String]) -> Bool {
+        func digits(_ key: String) -> Bool { !key.isEmpty && key.allSatisfy(\.isNumber) }
         for (index, key) in keys.enumerated() {
-            if let first = key.first, first.isNumber, key.contains(where: { !$0.isNumber }) { return true }
-            guard key == "in" || key == "next", index + 1 < keys.count else { continue }
-            let next = keys[index + 1]
+            let previous = index > 0 ? keys[index - 1] : ""
+            let next = index + 1 < keys.count ? keys[index + 1] : ""
             let after = index + 2 < keys.count ? keys[index + 2] : ""
-            if next.allSatisfy(\.isNumber) || timeUnits.contains(next) { return true }
-            if next == "a" || next == "an", timeUnits.contains(after) { return true }
+            if let first = key.first, first.isNumber, key.contains(where: { !$0.isNumber }) { return true }
+            if months.contains(key) || key == "weekend" || key == "tonight" { return true }
+            // "May" is also a name and a verb, so only beside a number.
+            if key == "may", digits(previous) || digits(next) { return true }
+            if key == "from", next == "now" { return true }
+            if key == "half" || key == "quarter", next == "past" || next == "to" { return true }
+            if clockLeads.contains(key), digits(next) { return true }
+            if key == "in", numberWords.contains(next) { return true }
+            guard key == "in" || key == "next" else { continue }
+            if digits(next) || timeUnits.contains(next) { return true }
+            if next == "a" || next == "an", timeUnits.contains(after) || numberWords.contains(after) { return true }
         }
         return false
     }
@@ -468,10 +505,10 @@ enum TimeMatcher {
         }
     }
 
-    /// The longest run of up to four words after `start` that reads as a length.
+    /// The longest run of up to five words after `start` that reads as a length.
     private static func longestDuration(_ keys: [String], from start: Int) -> (value: TimeInterval, count: Int)? {
         guard start < keys.count else { return nil }
-        for end in stride(from: min(start + 4, keys.count), to: start, by: -1) {
+        for end in stride(from: min(start + 5, keys.count), to: start, by: -1) {
             if let seconds = QuickInputParser.seconds(Array(keys[start..<end]), allowBare: false) {
                 return (seconds, end - start)
             }
@@ -572,6 +609,7 @@ struct When {
         let date: Date?
         if let clock {
             date = clockDate(clock, offset: offset, now: now, today: today, calendar: calendar)
+            if part != nil, offset == nil, let date, date <= now { return .passed }
         } else if let part {
             if (offset ?? 0) == 0, !sameWeekday {
                 return partToday(part, now: now, today: today, calendar: calendar)
@@ -591,7 +629,8 @@ struct When {
     }
 
     private func clockDate(_ clock: ClockTime, offset: Int?, now: Date, today: Date, calendar: Calendar) -> Date? {
-        let namedDay = offset != nil
+        // A day part names today ("this afternoon at 12"), so a passed time isn't moved to tomorrow.
+        let namedDay = offset != nil || part != nil
         if let hour = fixedHour(clock, laterDay: (offset ?? 0) > 0) {
             let date = at(hour, clock.minute, dayOffset: offset ?? 0, from: today, calendar: calendar)
             guard !namedDay, let date, date <= now else { return date }
@@ -622,6 +661,8 @@ struct When {
     /// The hour when the words settle it; nil for a bare "5" today, which depends on the time now.
     private func fixedHour(_ clock: ClockTime, laterDay: Bool) -> Int? {
         if let part, part == .evening || part == .night { return nightHour(clock) }
+        // "Tomorrow morning at midnight" is the start of that day, as with "12am" below.
+        if part == .morning, clock.hour == 24 { return 0 }
         // "12am" is the end of the day named, like "midnight", except in "tomorrow morning at 12am".
         if clock.meridiem == .am, clock.hour == 12 { return part == .morning ? 0 : 24 }
         if let meridiem = clock.meridiem { return clock.hour % 12 + (meridiem == .pm ? 12 : 0) }
