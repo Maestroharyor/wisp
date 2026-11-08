@@ -155,8 +155,8 @@ final class NotchController {
     /// A card that took the keyboard for typing (an answer, a reason) went away: hand the
     /// keyboard back to the app the user was in.
     private func releaseKeyAfterCard() {
-        guard machine.phase != .open, !isReplying, !showsApproval, panel.isKeyWindow else { return }
-        panel.resignKey()
+        guard !showsApproval else { return }
+        releaseKey()
     }
 
     /// Gives up the keyboard while closed, even under a card with buttons, so keys Wisp sends

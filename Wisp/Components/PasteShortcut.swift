@@ -19,6 +19,7 @@ enum PasteShortcut {
 
     /// Pastes `text` through the clipboard, then puts the user's clipboard back after `delay`
     /// unless something new was copied meanwhile.
+    @MainActor
     static func pasteRestoring(_ text: String, after delay: Duration) {
         let saved = snapshot()
         let staged = stage(text)

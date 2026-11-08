@@ -42,8 +42,10 @@ final class AITextActions {
         Task { await ai.refresh() }
     }
 
-    /// Says why the tasks can't run now: AI is off or the engine isn't ready.
+    /// Says why the tasks can't run now: AI is off or the engine isn't ready. An older answer's
+    /// card goes first, since it would hide the notice.
     func showStatus() {
+        activities.remove(.aiResult)
         notice(isEnabled ? statusMessage : "Turn on AI in Settings first", symbol: "sparkle")
     }
 
@@ -71,6 +73,8 @@ final class AITextActions {
             if trusted, let app { selection = await SelectedText.read(from: app) }
             guard let self else { return }
             guard let input = AITextInput.pick(selection: selection, clipboard: clipboard, app: app) else {
+                // An older answer's card would hide the notice.
+                self.activities.remove(.aiResult)
                 self.notice("Select or copy some text first", symbol: "text.cursor")
                 return
             }
