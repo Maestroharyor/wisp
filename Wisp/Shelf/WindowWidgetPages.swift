@@ -24,6 +24,10 @@ struct WindowWidgetDetail: View {
         case .pomodoro: PomodoroPage(store: services.timers, preferences: services.preferences)
         case .agents:
             AgentsDetail(hub: services.agents, cloud: services.cloud, model: model).padding(20)
+        case .quickInput:
+            WindowWidgetPage(width: .readable) { _ in
+                QuickInputWidget(store: services.quickInput, dictation: services.dictation)
+            }
         default:
             WidgetCard(kind: kind, model: model).padding(20)
         }
