@@ -321,6 +321,13 @@ private struct RingActionPicker: View {
                     ForEach(WidgetKind.allCases) { Text($0.title).tag($0.rawValue) }
                 }
                 .labelsHidden()
+            case .ai:
+                Picker("Task", selection: value(default: action.aiTaskID)) {
+                    ForEach(AITask.textActions(language: ""), id: \.self) { task in
+                        if let id = task.actionID { Text(AITask.actionTitle(id: id) ?? task.title).tag(id) }
+                    }
+                }
+                .labelsHidden()
             case .shortcut:
                 TextField("Shortcut name", text: value(default: ""))
             case .dropAction:
@@ -336,7 +343,8 @@ private struct RingActionPicker: View {
     }
 
     private var kind: Binding<RingAction.Kind> {
-        Binding(get: { action.kind }, set: { action = RingAction($0) })
+        // An AI action always saves its task, so the segment's label matches what it runs.
+        Binding(get: { action.kind }, set: { action = RingAction($0, value: $0 == .ai ? "summarise" : nil) })
     }
 
     private var minutes: Binding<Int> {

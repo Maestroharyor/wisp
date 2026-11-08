@@ -35,10 +35,19 @@ final class ActivityCenter {
         refresh()
     }
 
+    /// Called after a slot is removed or dismissed, so its owner can stop work for it.
+    @ObservationIgnored var onRemove: @MainActor (ActivitySlot) -> Void = { _ in }
+
     func remove(_ slot: ActivitySlot) {
         guard queue.entries[slot.rawValue] != nil else { return }
         queue.remove(id: slot.rawValue)
         refresh()
+        onRemove(slot)
+    }
+
+    /// What a slot holds now, shown or waiting behind something more urgent.
+    func activity(in slot: ActivitySlot) -> Activity? {
+        queue.live(id: slot.rawValue, now: .now)?.payload
     }
 
     /// Closes the card or alert in the main pill early; false when it can't be dismissed.

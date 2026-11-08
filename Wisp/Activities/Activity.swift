@@ -74,6 +74,8 @@ enum Activity: Sendable, Equatable {
     case regionWatch(RegionWatchStatus)
     /// Wisp is listening for dictation while the key is held.
     case dictation(since: Date)
+    /// An AI action on selected or copied text: working, then the answer with Copy and Replace.
+    case aiResult(AIResultCard)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -120,6 +122,7 @@ enum Activity: Sendable, Equatable {
         case .custom: "custom"
         case .regionWatch: "regionWatch"
         case .dictation: "dictation"
+        case .aiResult(let card): "aiResult-\(card.id)"
         }
     }
 }
@@ -146,4 +149,13 @@ struct RegionWatchStatus: Sendable, Equatable {
     let appName: String
     let rule: RegionWatchRule
     let paused: Bool
+}
+
+/// One AI action and, once the model has answered, its answer.
+struct AIResultCard: Sendable, Equatable {
+    let id: UUID
+    let task: AITask
+    let input: AITextInput
+    /// Nil while the model works.
+    var answer: AIAnswer?
 }
