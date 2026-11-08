@@ -170,13 +170,18 @@ public enum DictationTarget: Equatable, Sendable {
     case agentDraft(session: String)
     /// The typed answer of the question card under the notch.
     case questionAnswer(UUID)
+    /// The quick add field in the open shelf.
+    case quickInput
     /// Pasted into the app in front.
     case focusedApp
 
-    /// The draft box the user is looking at first, then a question waiting for them, then
-    /// whatever app has focus.
-    public static func choose(draftSession: String?, questionCard: UUID?) -> DictationTarget {
+    /// The draft box the user is looking at first, then the quick add field they're typing in,
+    /// then a question waiting for them, then whatever app has focus.
+    public static func choose(draftSession: String?, questionCard: UUID?, quickInput: Bool = false)
+        -> DictationTarget
+    {
         if let draftSession, !draftSession.isEmpty { return .agentDraft(session: draftSession) }
+        if quickInput { return .quickInput }
         if let questionCard { return .questionAnswer(questionCard) }
         return .focusedApp
     }

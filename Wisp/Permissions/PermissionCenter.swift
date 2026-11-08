@@ -14,6 +14,7 @@ enum Permission: String, CaseIterable, Identifiable {
     case contacts
     case automation
     case calendars
+    case reminders
     case camera
     case microphone
     case speechRecognition
@@ -28,6 +29,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .contacts: "Contacts"
         case .automation: "Automation"
         case .calendars: "Calendars"
+        case .reminders: "Reminders"
         case .camera: "Camera"
         case .microphone: "Microphone"
         case .speechRecognition: "Speech Recognition"
@@ -42,7 +44,8 @@ enum Permission: String, CaseIterable, Identifiable {
         case .screenRecording: "Watching a window region"
         case .contacts: "Photos and names on notifications"
         case .automation: "Replying in Messages, meeting controls, Music fallback"
-        case .calendars: "Calendar and Day Progress widgets"
+        case .calendars: "Calendar and Day Progress widgets, and events from Quick add"
+        case .reminders: "Reminders from Quick add, asked the first time you add one"
         case .camera: "Mirror widget"
         case .microphone: "Dictation, only while you hold the key"
         case .speechRecognition: "Dictation, transcribed on this Mac"
@@ -58,6 +61,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .contacts: CNContactStore.authorizationStatus(for: .contacts) == .authorized
         case .automation: AutomationPermission.status
         case .calendars: EKEventStore.authorizationStatus(for: .event) == .fullAccess
+        case .reminders: EKEventStore.authorizationStatus(for: .reminder) == .fullAccess
         case .camera: AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         case .microphone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         case .speechRecognition: SFSpeechRecognizer.authorizationStatus() == .authorized
@@ -77,6 +81,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .contacts: "Privacy_Contacts"
         case .automation: "Privacy_Automation"
         case .calendars: "Privacy_Calendars"
+        case .reminders: "Privacy_Reminders"
         case .camera: "Privacy_Camera"
         case .microphone: "Privacy_Microphone"
         case .speechRecognition: "Privacy_SpeechRecognition"
@@ -119,10 +124,32 @@ enum Permission: String, CaseIterable, Identifiable {
         case .calendars:
             guard EKEventStore.authorizationStatus(for: .event) == .notDetermined else { return openSettings() }
             Task { _ = try? await EKEventStore().requestFullAccessToEvents() }
+        case .reminders:
+            guard EKEventStore.authorizationStatus(for: .reminder) == .notDetermined else { return openSettings() }
+            Task { _ = try? await EKEventStore().requestFullAccessToReminders() }
         case .fullDiskAccess:
             // No prompt, and Wisp isn't listed until added by hand: show a guide to drag it in.
             FullDiskAccessGuide.shared.show()
         case .automation: AutomationPermission.request()
+        }
+    }
+
+    /// Whether `store` can save a new item for Quick add, asking the first time. Reminders need
+    /// full access (EventKit has no write-only level for them). Events use the Calendars access
+    /// Wisp already asks for; write-only access, granted to an older build or by hand, is enough.
+    @MainActor static func canSave(_ entity: EKEntityType, in store: EKEventStore) async -> Bool {
+        let status = EKEventStore.authorizationStatus(for: entity)
+        switch status {
+        case .fullAccess: return true
+        case .writeOnly: return entity == .event
+        case .notDetermined:
+            let permission: Permission = entity == .reminder ? .reminders : .calendars
+            lastRequest = PermissionRequest(id: permission.rawValue, at: .now)
+            let granted =
+                entity == .reminder
+                ? (try? await store.requestFullAccessToReminders()) : (try? await store.requestFullAccessToEvents())
+            return granted ?? false
+        default: return false
         }
     }
 

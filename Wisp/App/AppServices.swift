@@ -77,6 +77,13 @@ final class AppServices {
     private(set) lazy var automation = Automation(services: self)
     private(set) lazy var regionWatch = RegionWatchController(services: self)
     private(set) lazy var ai = AIService(preferences: preferences)
+    private(set) lazy var quickInput = QuickInputStore(ai: ai, timers: timers, activities: activities)
+
+    /// Quick add on its own in the shelf, with the cursor in its field.
+    func openQuickInput() {
+        quickInput.requestFocus()
+        openWidget(.quickInput)
+    }
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()

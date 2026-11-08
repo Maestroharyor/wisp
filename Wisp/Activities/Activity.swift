@@ -74,6 +74,8 @@ enum Activity: Sendable, Equatable {
     case regionWatch(RegionWatchStatus)
     /// Wisp is listening for dictation while the key is held.
     case dictation(since: Date)
+    /// What a quick add request will make, waiting for Add or Cancel.
+    case quickIntent(QuickIntent)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -120,6 +122,7 @@ enum Activity: Sendable, Equatable {
         case .custom: "custom"
         case .regionWatch: "regionWatch"
         case .dictation: "dictation"
+        case .quickIntent: "quickIntent"
         }
     }
 }

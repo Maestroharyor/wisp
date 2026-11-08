@@ -327,3 +327,14 @@ final class RingFormTests: XCTestCase {
         XCTAssertFalse(RingAction(.home).opensChoices)
     }
 }
+
+final class QuickInputRingTests: XCTestCase {
+    func testQuickAddRoundTripsAndTakesNoFiles() throws {
+        let action = RingAction(.quickInput)
+        let data = try JSONEncoder().encode(action)
+        XCTAssertEqual(try JSONDecoder().decode(RingAction.self, from: data), action)
+        XCTAssertEqual(action.title, "Quick add")
+        XCTAssertFalse(action.acceptsFiles)
+        XCTAssertFalse(action.opensChoices)
+    }
+}

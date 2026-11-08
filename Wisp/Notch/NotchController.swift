@@ -71,11 +71,11 @@ final class NotchController {
         }
     }
 
-    /// Approval, Join, call control and finished download cards have buttons, so the closed
-    /// panel stops being click-through while one shows.
+    /// Approval, Join, call control, finished download and quick add cards have buttons, so the
+    /// closed panel stops being click-through while one shows.
     private var showsApproval: Bool {
         switch model.activity {
-        case .agentApproval, .meetingSoon, .downloadDone: true
+        case .agentApproval, .meetingSoon, .downloadDone, .quickIntent: true
         case .meeting: model.showsMeetingControls
         default: false
         }
@@ -206,7 +206,7 @@ final class NotchController {
             model.agentDrafts[session] = DictationText.appending(text, to: model.agentDrafts[session] ?? "")
         case .questionAnswer(let approval):
             model.dictatedAnswer = DictatedAnswer(approval: approval, text: text)
-        case .focusedApp:
+        case .quickInput, .focusedApp:
             break
         }
     }

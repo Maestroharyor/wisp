@@ -412,6 +412,7 @@ extension WidgetKind {
         case .worldClocks: .cyan
         case .agents: Color(red: 0.85, green: 0.47, blue: 0.34)
         case .script: .green
+        case .quickInput: .purple
         }
     }
 }

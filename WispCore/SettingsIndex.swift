@@ -101,12 +101,13 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             [
                 "home", "grid", "rows", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
-                "timer length", "script", "command", "output", "do not disturb", "dnd", "workday",
+                "timer length", "script", "command", "output", "do not disturb", "dnd", "workday", "quick add",
+                "quick input", "reminder", "reminders", "event", "natural language",
             ]
         case .ring:
             [
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "orb",
-                "hyper r", "per app",
+                "hyper r", "per app", "quick add",
             ]
         case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
         case .clipboard: ["history", "copy", "paste", "limit", "pinned"]
@@ -144,7 +145,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .permissions:
             [
                 "accessibility", "full disk", "screen recording", "contacts", "automation", "calendars", "camera",
-                "microphone", "speech recognition",
+                "microphone", "speech recognition", "reminders",
             ]
         case .about:
             [

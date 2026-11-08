@@ -26,11 +26,11 @@ public enum PillDestination: Equatable, Sendable {
         case .download: self = .downloads
         case .regionWatch: self = .regionWatch
         case .external: self = .externalDetails
-        // Calls already open their own controls from the pill, and the finished download card
-        // has its own Open and Show in Finder; the rest are short alerts or HUDs with nothing
-        // more to show.
+        // Calls already open their own controls from the pill, the finished download card has
+        // its own Open and Show in Finder and the quick add card its own Add; the rest are short
+        // alerts or HUDs with nothing more to show.
         case .notice, .notification, .focus, .capsLock, .level, .agentApproval, .meeting, .meetingSoon, .device,
-            .dictation, .downloadDone:
+            .dictation, .downloadDone, .quickInput:
             self = .home
         }
     }

@@ -24,6 +24,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case external
     case regionWatch
     case dictation
+    /// The confirm card for a quick request (a timer, reminder or event) before it's made.
+    case quickInput
 
     /// Ongoing activities sit below every short alert, so a battery or device alert still
     /// shows during a call and then hands the pill back.
@@ -45,6 +47,9 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         case .downloadDone: 47
         case .meetingSoon: 48
         case .notification: 50
+        // The user just asked for it, so it shows over a notification; an agent's request still
+        // comes first.
+        case .quickInput: 51
         case .agentApproval: 55
         // Held down on purpose, so it shows over cards; only HUDs (volume, Caps Lock) go above.
         case .dictation: 57
@@ -65,7 +70,9 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     /// call, a timer, an agent at work), approvals and HUDs can't be.
     public var isDismissable: Bool {
         switch self {
-        case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone: true
+        case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone,
+            .quickInput:
+            true
         default: false
         }
     }

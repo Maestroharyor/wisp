@@ -35,6 +35,8 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "minimise"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "check for updates"), [.about])
         XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.ring])
+        XCTAssertEqual(SettingsIndex.panes(matching: "quick add"), [.ring, .widgets])
+        XCTAssertTrue(SettingsIndex.panes(matching: "reminders").contains(.permissions))
     }
 
     func testTitlesMatchCaseAndAccentInsensitively() {
