@@ -242,14 +242,9 @@ private struct WindowSidebarList: View {
             ForEach(navigation.sections(services: services)) { section in
                 Section(section.title) {
                     ForEach(section.rows, id: \.self) { row in
-                        Label {
-                            Text(WindowRow.title(of: row, services: services))
-                        } icon: {
-                            IconTile(
-                                symbol: WindowRow.symbol(of: row, services: services), tint: WindowRow.tint(of: row))
-                        }
-                        .badge(badge(of: row))
-                        .tag(row)
+                        WindowSidebarRow(row: row, services: services)
+                            .badge(badge(of: row))
+                            .tag(row)
                     }
                 }
             }
@@ -262,6 +257,20 @@ private struct WindowSidebarList: View {
         case .page(.tray): services.tray.count
         case .widget(WidgetKind.agents.rawValue): services.agents.approvals.count
         default: 0
+        }
+    }
+}
+
+/// One row's label on its own, so an outside activity's progress redraws only its row.
+private struct WindowSidebarRow: View {
+    let row: WindowDestination
+    let services: AppServices
+
+    var body: some View {
+        Label {
+            Text(WindowRow.title(of: row, services: services))
+        } icon: {
+            IconTile(symbol: WindowRow.symbol(of: row, services: services), tint: WindowRow.tint(of: row))
         }
     }
 }
