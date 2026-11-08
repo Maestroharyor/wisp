@@ -94,7 +94,7 @@ targets:
         # Menu bar app: no Dock icon or app menu.
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 Ayomide Odewale"
-        NSAppleEventsUsageDescription: Wisp reads what is playing in Music and Spotify, controls playback from the notch, and brings a coding agent's terminal tab forward.
+        NSAppleEventsUsageDescription: Wisp reads what is playing in Music and Spotify, shows what's next in Music, controls playback from the notch, and brings a coding agent's terminal tab forward.
         NSCalendarsFullAccessUsageDescription: Wisp shows your next events in the Calendar widget and adds the events you ask for in Quick add.
         NSRemindersFullAccessUsageDescription: Wisp adds the reminders you ask for in Quick add.
         NSLocationUsageDescription: Wisp uses your approximate location for the Weather widget.
@@ -105,6 +105,8 @@ targets:
         SUScheduledCheckInterval: 86400
         NSCameraUsageDescription: Wisp shows your camera in the Mirror widget so you can check yourself before a call.
         NSMicrophoneUsageDescription: Wisp listens only while you hold the dictation key, to type what you say.
+        # Per-app volume (off by default): a CoreAudio tap reads an app's sound and plays it back quieter.
+        NSAudioCaptureUsageDescription: Wisp plays apps you turn down at the volume you choose. Their sound is never saved or sent anywhere.
         NSSpeechRecognitionUsageDescription: Wisp turns what you say into text on this Mac when you dictate. The audio never leaves your Mac.
         # wisp:// links (wisp-dev:// for Wisp Dev): open a page, switch profile, start a timer or show an
         # activity. ExternalCommand parses them; a link can never approve or deny an agent's request.

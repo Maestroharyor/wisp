@@ -249,7 +249,7 @@ struct MirrorWidget: View {
 }
 
 /// A mirrored live preview layer for the capture session.
-private struct CameraPreview: NSViewRepresentable {
+struct CameraPreview: NSViewRepresentable {
     let session: AVCaptureSession
 
     func makeNSView(context: Context) -> NSView {

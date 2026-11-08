@@ -18,6 +18,7 @@ enum Permission: String, CaseIterable, Identifiable {
     case camera
     case microphone
     case speechRecognition
+    case systemAudio
 
     var id: Self { self }
 
@@ -33,6 +34,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .camera: "Camera"
         case .microphone: "Microphone"
         case .speechRecognition: "Speech Recognition"
+        case .systemAudio: "System Audio Recording"
         }
     }
 
@@ -43,16 +45,19 @@ enum Permission: String, CaseIterable, Identifiable {
             "Reading notifications, Messages chats and Focus status. Click + or drag Wisp into the list, then switch it on"
         case .screenRecording: "Watching a window region and Capture text"
         case .contacts: "Photos and names on notifications"
-        case .automation: "Replying in Messages, meeting controls, Music fallback"
+        case .automation: "Replying in Messages, meeting controls, Up Next in Music, Music fallback"
         case .calendars: "Calendar and Day Progress widgets, and events from Quick add"
         case .reminders: "Reminders from Quick add, asked the first time you add one"
         case .camera: "Mirror widget"
         case .microphone: "Dictation, only while you hold the key"
         case .speechRecognition: "Dictation, transcribed on this Mac"
+        case .systemAudio:
+            "Per-app volume. macOS asks the first time you turn an app down; Wisp can tell it's on only once it hears that app"
         }
     }
 
-    /// Nil when macOS can't say yet (Automation, while neither Finder nor System Events can answer).
+    /// Nil when macOS can't say yet (Automation, while neither Finder nor System Events can answer;
+    /// System Audio Recording, which has no status check, until a tap has heard something).
     @MainActor var isGranted: Bool? {
         switch self {
         case .accessibility: AccessibilityPermission.isTrusted
@@ -65,6 +70,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .camera: AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         case .microphone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         case .speechRecognition: SFSpeechRecognizer.authorizationStatus() == .authorized
+        case .systemAudio: SystemAudioPermission.status
         }
     }
 
@@ -85,6 +91,8 @@ enum Permission: String, CaseIterable, Identifiable {
         case .camera: "Privacy_Camera"
         case .microphone: "Privacy_Microphone"
         case .speechRecognition: "Privacy_SpeechRecognition"
+        // The Screen & System Audio Recording pane.
+        case .systemAudio: "Privacy_ScreenCapture"
         }
     }
 
@@ -141,6 +149,8 @@ enum Permission: String, CaseIterable, Identifiable {
             // No prompt, and Wisp isn't listed until added by hand: show a guide to drag it in.
             FullDiskAccessGuide.shared.show()
         case .automation: AutomationPermission.request()
+        // No prompt to show on demand: macOS asks when a tap first plays, so open the list.
+        case .systemAudio: openSettings()
         }
     }
 

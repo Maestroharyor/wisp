@@ -562,8 +562,9 @@ struct BatteryWidget: View {
 struct SystemStatsWidget: View {
     let store: SystemStatsStore
 
-    private static let cpuTint = Color(red: 0.55, green: 0.5, blue: 1)
-    private static let ramTint = Color(red: 0.45, green: 0.85, blue: 0.7)
+    /// Shared with the window's System Stats page.
+    static let cpuTint = Color(red: 0.55, green: 0.5, blue: 1)
+    static let ramTint = Color(red: 0.45, green: 0.85, blue: 0.7)
 
     var body: some View {
         HStack(spacing: 12) {

@@ -14,6 +14,23 @@ public enum ScriptOutput {
                 .map { String($0.prefix(maxLineLength)) })
     }
 
+    /// The window page shows whole lines; past this they're cut so one huge line can't stall layout.
+    public static let maxTranscriptLineLength = 1000
+
+    /// Output as a terminal shows it, for the window page: colours removed, blank lines and
+    /// indentation inside kept, blank lines at either end and trailing spaces dropped.
+    public static func transcript(from output: String, limit: Int) -> [String] {
+        var lines = stripColours(output)
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line.prefix(maxTranscriptLineLength)).replacingOccurrences(
+                    of: "\\s+$", with: "", options: .regularExpression)
+            }
+        while lines.first?.isEmpty == true { lines.removeFirst() }
+        while lines.last?.isEmpty == true { lines.removeLast() }
+        return Array(lines.prefix(max(limit, 0)))
+    }
+
     /// Seconds between runs: at least 10, so a script can't keep the Mac busy, at most an hour.
     public static func clampedInterval(_ seconds: Double) -> Double {
         min(max(seconds, 10), 3600)

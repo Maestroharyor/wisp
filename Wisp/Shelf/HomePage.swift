@@ -488,9 +488,12 @@ struct MediaPage: View {
     @ViewBuilder private var notchBody: some View {
         let services = model.services
         let showsLyrics = model.showsLyrics
+        let showsVolume = model.showsAppVolume && model.preferences.appVolume
         HStack(spacing: 6) {
             Group {
-                if showsLyrics, services.nowPlaying.info != nil {
+                if showsVolume {
+                    AppVolumeMixer(store: services.appVolume, compact: true).transition(.opacity)
+                } else if showsLyrics, services.nowPlaying.info != nil {
                     HStack(spacing: 12) {
                         ArtworkView(image: services.nowPlaying.artwork, size: 50, radius: 11)
                         LyricLines(monitor: services.nowPlaying, lyrics: services.lyrics)
@@ -506,7 +509,23 @@ struct MediaPage: View {
                     ShelfButton(
                         symbol: showsLyrics ? "quote.bubble.fill" : "quote.bubble", size: 12,
                         tint: showsLyrics ? .accentColor : .ink, hint: "Lyrics (from LRCLIB)"
-                    ) { withAnimation(.easeOut(duration: 0.2)) { model.showsLyrics.toggle() } }
+                    ) {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            model.showsLyrics.toggle()
+                            model.showsAppVolume = false
+                        }
+                    }
+                }
+                if model.preferences.appVolume {
+                    ShelfButton(
+                        symbol: "slider.horizontal.3", size: 12, tint: showsVolume ? .accentColor : .ink,
+                        hint: "App volume"
+                    ) {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            model.showsAppVolume.toggle()
+                            model.showsLyrics = false
+                        }
+                    }
                 }
                 ShelfButton(symbol: "pip", size: 12) { services.miniPlayer.toggle() }
             }
@@ -516,13 +535,17 @@ struct MediaPage: View {
 }
 
 /// The Media page in the window: large artwork with the controls under it and lyrics beside it.
-private struct WindowMediaPage: View {
+/// The Now Playing row shows it too.
+struct WindowMediaPage: View {
     let model: NotchModel
+    @State private var showsAppVolume = false
 
     var body: some View {
         let monitor = model.services.nowPlaying
         GeometryReader { proxy in
-            let art = min(max(min(proxy.size.height - 190, proxy.size.width * 0.45), 160), 340)
+            // Room under the artwork for the title and controls, and Up Next when Music plays.
+            let below: CGFloat = model.preferences.upNext && UpNext.applies(to: monitor.info) ? 300 : 190
+            let art = min(max(min(proxy.size.height - below, proxy.size.width * 0.45), 160), 340)
             HStack(alignment: .center, spacing: 36) {
                 VStack(alignment: .leading, spacing: 14) {
                     ArtworkView(image: monitor.artwork, size: art, radius: 16)
@@ -540,6 +563,10 @@ private struct WindowMediaPage: View {
                             ShelfButton(symbol: "pip", size: 12, hint: "Mini player") {
                                 model.services.miniPlayer.toggle()
                             }
+                            appVolumeButton
+                        }
+                        if model.preferences.upNext {
+                            UpNextList(monitor: monitor, store: model.services.upNext)
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 3) {
@@ -547,6 +574,7 @@ private struct WindowMediaPage: View {
                             Text("Play something in any app or browser")
                                 .font(.system(size: 13)).foregroundStyle(Color.secondaryText)
                         }
+                        appVolumeButton
                     }
                 }
                 .frame(width: art)
@@ -557,6 +585,15 @@ private struct WindowMediaPage: View {
             }
             .padding(32)
             .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+    }
+
+    @ViewBuilder private var appVolumeButton: some View {
+        if model.preferences.appVolume {
+            ShelfButton(symbol: "slider.horizontal.3", size: 12, hint: "App volume") { showsAppVolume.toggle() }
+                .popover(isPresented: $showsAppVolume, arrowEdge: .bottom) {
+                    AppVolumeMixer(store: model.services.appVolume).padding(14).frame(width: 340, height: 240)
+                }
         }
     }
 }

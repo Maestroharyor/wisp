@@ -1,8 +1,8 @@
 import SwiftUI
 import WispCore
 
-/// A widget's row in the shelf window: its full window page where it has one, otherwise the
-/// notch layout with a margin. Home's cards use `WidgetCard` directly, so they stay compact.
+/// A widget's row in the shelf window: its full window page. Home's cards use `WidgetCard`
+/// directly, so they and the notch stay compact.
 struct WindowWidgetDetail: View {
     let kind: WidgetKind
     let model: NotchModel
@@ -22,14 +22,32 @@ struct WindowWidgetDetail: View {
         case .dayProgress: DayProgressPage(calendar: services.calendar, preferences: services.preferences)
         case .worldClocks: WorldClocksPage(preferences: services.preferences)
         case .pomodoro: PomodoroPage(store: services.timers, preferences: services.preferences)
+        case .nowPlaying: WindowMediaPage(model: model)
+        case .calendar: CalendarPage(store: services.calendar)
+        case .timer: TimerPage(store: services.timers)
+        case .battery:
+            BatteryPage(
+                monitor: services.battery,
+                accessories: services.preferences.accessoryBatteries ? services.accessories.devices : [],
+                showsAccessories: services.preferences.accessoryBatteries
+            ) {
+                services.showSettings(pane: .activities)
+            }
+        case .systemStats: SystemStatsPage(store: services.stats)
+        case .weather: WeatherPage(store: services.weather)
+        case .notes: NotesPage(store: services.notes)
+        case .shortcuts: ShortcutsPage(runner: services.shortcuts, preferences: services.preferences)
+        case .mirror: MirrorPage(camera: services.camera)
+        case .script:
+            ScriptPage(store: services.script, preferences: services.preferences) {
+                services.showSettings(pane: .widgets)
+            }
         case .agents:
             AgentsDetail(hub: services.agents, cloud: services.cloud, model: model).padding(20)
         case .quickInput:
             WindowWidgetPage(width: .readable) { _ in
                 QuickInputWidget(store: services.quickInput, dictation: services.dictation)
             }
-        default:
-            WidgetCard(kind: kind, model: model).padding(20)
         }
     }
 }
