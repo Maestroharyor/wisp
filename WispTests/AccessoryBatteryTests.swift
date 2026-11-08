@@ -103,6 +103,20 @@ final class AccessoryBatteryTests: XCTestCase {
         XCTAssertEqual(alerts.check([device("m", 5)]), [])
     }
 
+    func testWarnsAtTheLevelItIsGiven() {
+        var alerts = AccessoryBatteryAlerts()
+        XCTAssertEqual(alerts.check([device("m", 31)], lowLevel: 30), [])
+        XCTAssertEqual(alerts.check([device("m", 30)], lowLevel: 30).map(\.address), ["m"])
+
+        var lower = AccessoryBatteryAlerts()
+        XCTAssertEqual(lower.check([device("m", 11)], lowLevel: 10), [])
+        XCTAssertEqual(lower.check([device("m", 10)], lowLevel: 10).map(\.address), ["m"])
+    }
+
+    func testTheDefaultLevelIsTwentyPercent() {
+        XCTAssertEqual(AccessoryBatteryAlerts.defaultLowLevel, 20)
+    }
+
     func testAFirstReadingThatIsAlreadyLowWarns() {
         var alerts = AccessoryBatteryAlerts()
         XCTAssertEqual(alerts.check([device("m", 12)]).map(\.address), ["m"])

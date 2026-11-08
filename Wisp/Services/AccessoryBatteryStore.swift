@@ -6,13 +6,15 @@ import WispCore
 /// Battery levels of connected Bluetooth mice, keyboards and trackpads, read from
 /// `system_profiler` like the headphones' levels. It reads at start and when a Bluetooth
 /// input device connects or disconnects, then every 30 minutes only while accessories are
-/// listed, so a Mac without any pays nothing after launch. Warns once per device at 20%.
+/// listed, so a Mac without any pays nothing after launch. Warns once per device at `lowLevel`.
 @MainActor
 @Observable
 final class AccessoryBatteryStore {
     private(set) var devices: [BluetoothDevice] = []
 
     @ObservationIgnored var onLow: (BluetoothDevice) -> Void = { _ in }
+    /// The warning level, read at each check so a change in Settings applies to the next reading.
+    @ObservationIgnored var lowLevel: () -> Int = { AccessoryBatteryAlerts.defaultLowLevel }
     @ObservationIgnored private var alerts = AccessoryBatteryAlerts()
     @ObservationIgnored private var poll: Task<Void, Never>?
     /// A read that is waiting or running.
@@ -76,7 +78,7 @@ final class AccessoryBatteryStore {
 
     private func apply(_ found: [BluetoothDevice]) {
         devices = found
-        alerts.check(found).forEach { onLow($0) }
+        alerts.check(found, lowLevel: lowLevel()).forEach { onLow($0) }
         log.debug("read \(found.count, privacy: .public) accessory batteries")
         updatePoll()
     }
