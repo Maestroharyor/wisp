@@ -70,21 +70,15 @@ struct AboutSettings: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Keyboard shortcuts") {
-                ShortcutRow(keys: preferences.hotkey.description, action: "Open or close the shelf")
-                // Without Hyper, clipboard history has its own shortcut and profiles have none.
-                if preferences.hotkey.usesHyper {
-                    ShortcutRow(keys: "⇪ V", action: "Clipboard history")
-                    ShortcutRow(keys: "⇪ 1–9", action: "Switch profile")
-                    ShortcutRow(keys: "⇪ Y or ⇪ N", action: "Allow or deny the request on screen")
-                    ShortcutRow(keys: "⇪ 1–9", action: "Pick an answer while a question shows")
-                } else {
-                    ShortcutRow(keys: Hotkey.clipboardFallback.description, action: "Clipboard history")
-                    ShortcutRow(keys: "⌃⌥⌘Y or ⌃⌥⌘N", action: "Allow or deny the request on screen")
-                    ShortcutRow(keys: "⌃⌥⌘1–9", action: "Pick an answer while a question shows")
-                }
-                ShortcutRow(keys: "Esc", action: "Back to the grid, or close the shelf")
-                ShortcutRow(keys: "Right-click the notch", action: "Menu: pages, tools, profiles, form, Settings")
+            Section {
+                Button("Copy diagnostics", action: copyDiagnostics)
+            } header: {
+                Text("Bug reports")
+            } footer: {
+                Text(
+                    "Copies Wisp's version, the macOS version and the screen measurements Wisp uses to find the notch, to paste into an issue. Nothing is sent."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
             Section {
                 Button("Run Setup Again", action: runSetup)
@@ -106,6 +100,17 @@ struct AboutSettings: View {
         return "\(short) (\(build))"
     }
 
+    private func copyDiagnostics() {
+        let system = ProcessInfo.processInfo.operatingSystemVersion
+        let text = Diagnostics.report(
+            appVersion: Self.version,
+            systemVersion: "\(system.majorVersion).\(system.minorVersion).\(system.patchVersion)",
+            islandSetting: preferences.islandSetting,
+            displays: NSScreen.screens.map(\.islandReport))
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
     private func reset() {
         let alert = NSAlert()
         alert.messageText = "Reset all Wisp settings?"
@@ -125,20 +130,5 @@ struct AboutSettings: View {
         process.arguments = ["-c", "sleep 1; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
         try? process.run()
         NSApp.terminate(nil)
-    }
-}
-
-private struct ShortcutRow: View {
-    let keys: String
-    let action: String
-
-    var body: some View {
-        LabeledContent(action) {
-            Text(keys)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 5).fill(.quaternary))
-        }
     }
 }

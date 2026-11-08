@@ -43,7 +43,7 @@ public enum PushDecision: String, Equatable, Sendable {
 
 /// Builds what Wisp pushes. Masked by default: no commands, file paths, diffs, prompts or folder
 /// paths, only the agent, the kind of request and the project's name, and not even that while
-/// agent details are hidden (`AgentPrivacy`). "Include details" adds a short masked summary.
+/// agent details are hidden (`AgentPrivacy`). "Add the command or file name" adds a short masked summary.
 public enum PushMessage {
     /// Characters of detail at most; ntfy's own limit is 4,096 bytes.
     static let detailLimit = 160
@@ -118,7 +118,7 @@ public enum PushMessage {
             tags: ["bell"])
     }
 
-    /// The session summary's first sentence goes along only with "Include details" on and details
+    /// The session summary's first sentence goes along only with "Add the command or file name" on and details
     /// shown, since it can name files and commands.
     public static func done(
         agent: String, project: String, hidden: Bool, summary: String? = nil, includeDetails: Bool = false
@@ -205,7 +205,7 @@ public enum PushMessage {
         }
     }
 
-    /// The masked summary for "Include details": a file's name rather than its path, a page's
+    /// The masked summary for "Add the command or file name": a file's name rather than its path, a page's
     /// host, or the first line of a command with likely secrets masked.
     static func detail(tool: String, summary: String) -> String? {
         let text: String

@@ -1,6 +1,6 @@
 import Foundation
 
-/// What can be sent to the phone, each with its own switch in Settings › Phone.
+/// What can be sent to the phone, each with its own switch in Settings › Agents › Phone alerts.
 public enum PushKind: String, CaseIterable, Sendable {
     case approval
     case needsYou
@@ -103,7 +103,7 @@ public struct PushPolicy: Sendable {
 }
 
 /// Whether a Done push waits for the session summary. It waits only when the summary could go
-/// with it (push and Done on, Include details on, details shown); otherwise it goes at once.
+/// with it (push and Done on, Add the command or file name on, details shown); otherwise it goes at once.
 public enum DonePush {
     public static func waitsForSummary(pushOn: Bool, doneOn: Bool, includeDetails: Bool, hidden: Bool) -> Bool {
         pushOn && doneOn && includeDetails && !hidden

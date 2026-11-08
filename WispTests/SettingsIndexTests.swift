@@ -80,12 +80,49 @@ final class SettingsIndexTests: XCTestCase {
         for query in [
             "displays without a notch", "floating island", "don't show", "show on external displays",
             "dynamic island detection", "this mac has a dynamic island", "displays", "each display", "move back",
-            "copy display info", "advanced",
+            "advanced",
         ] {
             XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.notch), query)
         }
         XCTAssertEqual(SettingsIndex.panes(matching: "dynamic island detection"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "each display"), [.notch])
+    }
+
+    func testKeyboardShortcutsAreFoundInGeneral() {
+        for query in [
+            "keyboard shortcuts", "shortcuts", "allow or deny", "hyper y", "switch profile", "right-click the notch",
+            "pick an answer",
+        ] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .general, query)
+        }
+        // The list moved from About.
+        XCTAssertFalse(SettingsIndex.panes(matching: "keyboard shortcuts").contains(.about))
+        XCTAssertFalse(SettingsIndex.panes(matching: "hyper y").contains(.about))
+    }
+
+    func testGeneralAdvancedOptionsAreFound() {
+        for query in ["show wisp in the menu bar", "caps lock on its own", "quick press"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .general, query)
+        }
+        XCTAssertTrue(SettingsIndex.panes(matching: "advanced").contains(.general))
+    }
+
+    func testDiagnosticsAreFoundInAbout() {
+        for query in ["copy diagnostics", "diagnostics", "bug report", "copy display info", "display info"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query), [.about], query)
+        }
+    }
+
+    func testTheSidebarHasTenPanes() {
+        XCTAssertEqual(SettingsSection.wisp.panes, [.general, .notch, .appearance])
+        XCTAssertEqual(SettingsSection.system.panes, [.permissions, .about])
+        XCTAssertEqual(SettingsPaneID.allCases.count, 10)
+        XCTAssertEqual(
+            SettingsPaneID.allCases.map(\.title),
+            [
+                "General", "Notch", "Appearance", "Live Activities", "Shelf", "Notifications", "Agents", "AI",
+                "Permissions", "About",
+            ])
     }
 
     func testApostrophesAreOptional() {
@@ -145,7 +182,7 @@ final class SettingsIndexTests: XCTestCase {
 
     func testTheSidebarHasWispFeaturesAndSystem() {
         XCTAssertEqual(SettingsSection.allCases.map(\.title), ["Wisp", "Features", "System"])
-        XCTAssertEqual(SettingsSection.features.panes, [.activities, .shelf, .notifications, .agents, .phone, .ai])
+        XCTAssertEqual(SettingsSection.features.panes, [.activities, .shelf, .notifications, .agents, .ai])
     }
 
     func testAMissingOrUnknownPaneOpensGeneral() {
@@ -225,10 +262,36 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "keyboard").contains(.activities))
     }
 
-    func testPhonePaneIsFound() {
-        XCTAssertEqual(SettingsIndex.panes(matching: "ntfy"), [.phone])
-        XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.phone])
-        XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.phone))
+    func testPhoneAlertsAreFoundInAgents() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "ntfy"), [.agents])
+        XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.agents])
+        XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.agents))
+        // Phone had its own pane; its name stays a keyword. Headphones and microphone match it too.
+        XCTAssertTrue(SettingsIndex.panes(matching: "phone").contains(.agents))
+        XCTAssertEqual(SettingsIndex.panes(matching: "phone alerts"), [.agents])
+    }
+
+    func testThePhonePaneIsGone() {
+        XCTAssertNil(SettingsPaneID(rawValue: "phone"))
+        XCTAssertFalse(SettingsPaneID.allCases.map(\.title).contains("Phone"))
+    }
+
+    func testThePhonePaneReopensAsAgents() {
+        XCTAssertEqual(SettingsPaneID.restoring("phone"), .agents)
+    }
+
+    func testAgentsControlsAreFoundByNewAndOldNames() {
+        for query in [
+            "status line under claude code's prompt", "status line", "keep mine", "terminal bar",
+            "show what agents are doing", "tool activity", "your own ntfy server", "protected server",
+            "add the command or file name", "include details", "away after", "access token", "reply token",
+            "wait for an answer", "send agent alerts to my phone", "keep session history",
+            "summarise finished sessions", "last 7 days", "command-line tool",
+        ] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .agents, query)
+        }
+        // The clipboard has a Clear history button too.
+        XCTAssertTrue(SettingsIndex.panes(matching: "clear history").contains(.agents))
     }
 
     func testCloudAgentsAreFound() {

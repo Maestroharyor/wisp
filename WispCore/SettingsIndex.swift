@@ -9,8 +9,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     /// Widgets, Clipboard and Profiles in one pane. It keeps the Widgets pane's stored value.
     case shelf = "widgets"
     case notifications
+    /// Agents, with phone alerts folded in from the Phone pane.
     case agents
-    case phone
     case ai
     case permissions
     case about
@@ -26,7 +26,6 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .shelf: "Shelf"
         case .notifications: "Notifications"
         case .agents: "Agents"
-        case .phone: "Phone"
         case .ai: "AI"
         case .permissions: "Permissions"
         case .about: "About"
@@ -35,18 +34,16 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
 
     public var subtitle: String {
         switch self {
-        case .general: "Shortcuts, startup and setup"
+        case .general: "Shortcuts, dictation and startup"
         case .notch: "Where the notch sits, how it opens, and the ring"
         case .appearance: "Theme, shape, motion and the fun extras"
         case .activities: "What shows beside the notch while it's closed"
         case .shelf: "Widgets, clipboard history and profiles"
         case .notifications: "Notifications in the notch, and quick replies"
-        case .agents:
-            "Claude Code, Codex, Gemini CLI, Copilot CLI, Cursor and OpenCode sessions, approvals and status bar"
-        case .phone: "Agent alerts and approvals on your phone and watch"
+        case .agents: "Claude Code, Codex, Gemini CLI, Copilot CLI, Cursor and OpenCode, alerts and phone alerts"
         case .ai: "On-device AI with Apple Intelligence or Ollama"
         case .permissions: "What Wisp can access, and why"
-        case .about: "Version, updates, shortcuts and reset"
+        case .about: "Version, updates, diagnostics and reset"
         }
     }
 
@@ -58,6 +55,11 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "shortcut", "hotkey", "caps lock", "hyper", "space", "launch", "login", "startup", "accessibility",
                 "menu bar", "icon", "dictation", "dictate", "speech", "speech recognition", "voice", "push to talk",
                 "transcribe", "speak", "microphone",
+                // The keyboard shortcuts list, which was in About. No "approve": it would pull
+                // "app" searches here.
+                "keyboard shortcuts", "shortcuts", "keyboard", "hyper y", "hyper n",
+                "switch profile", "allow or deny", "pick an answer", "esc", "escape",
+                "right-click the notch", "right click", "menu",
             ]
         case .notch:
             [
@@ -135,12 +137,12 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "cursor", "background agent", "api key", "pull request", "pr", "ci", "checks", "codex apply",
                 "tmux", "iterm", "ghostty", "wezterm", "jump to terminal", "tab", "pane", "keyboard",
                 "history", "session history", "past sessions", "summary", "summaries", "clear history",
-            ]
-        case .phone:
-            [
-                "ntfy", "push", "iphone", "android", "apple watch", "watch", "mobile", "remote", "away", "idle",
-                "locked", "topic", "qr", "server", "self-hosted", "access token", "approval timeout", "test",
-                "include details",
+                "keep session history", "summarise finished sessions", "summarize finished sessions",
+                "alerts", "estimated spend today", "last 7 days",
+                // Phone alerts, which had their own pane; its name stays a keyword.
+                "phone", "phone alerts", "send agent alerts to my phone", "ntfy", "push", "iphone", "android",
+                "apple watch", "watch", "mobile", "remote", "away", "idle", "locked", "topic", "qr", "send test",
+                "what to send",
             ]
         case .ai:
             [
@@ -155,8 +157,10 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .about:
             [
-                "version", "github", "issue", "reset", "shortcuts", "help", "updates", "sparkle", "release", "keyboard",
-                "approve with keyboard", "hyper y", "check for updates", "check now",
+                "version", "github", "issue", "reset", "help", "updates", "sparkle", "release", "check for updates",
+                "check now", "website", "run setup again", "reset all settings",
+                // Copy diagnostics took over Notch's Copy display info; that name stays a keyword.
+                "copy diagnostics", "diagnostics", "bug report", "copy display info", "display info",
             ]
         }
     }
@@ -165,10 +169,12 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     /// for "advanced", finds the pane, and any search opens the disclosure.
     public var advancedKeywords: [String] {
         switch self {
+        case .general:
+            ["show wisp in the menu bar", "menu bar icon", "caps lock on its own", "quick press", "turns caps lock on"]
         case .notch:
             [
-                "dynamic island detection", "dynamic island", "camera", "hole punch", "copy display info",
-                "display info", "displays", "each display", "per display", "move back", "reset position",
+                "dynamic island detection", "dynamic island", "camera", "hole punch", "displays", "each display",
+                "per display", "move back", "reset position",
                 "this mac has a dynamic island",
             ]
         case .appearance: ["glow reach", "reach", "spread", "pointer effect", "hover strength", "strength"]
@@ -180,6 +186,16 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .shelf:
             ["widget rows", "rows", "grid", "one row", "two rows", "clipboard keeps up to", "history length"]
+        case .agents:
+            [
+                // Current control names, then the older ones so searches for those still land.
+                "status line under claude code's prompt", "status line", "keep mine",
+                "show what agents are doing", "command-line tool", "wisp command",
+                "your own ntfy server", "server", "self-hosted", "access token", "reply token",
+                "add the command or file name", "away after", "wait for an answer", "approval timeout",
+                "terminal bar", "claude code status bar", "tool activity", "show tool activity", "protected server",
+                "include details",
+            ]
         default: []
         }
     }
@@ -192,6 +208,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         switch rawValue {
         case "ring": return .notch
         case "clipboard", "profiles": return .shelf
+        case "phone": return .agents
         default: return .general
         }
     }
@@ -220,7 +237,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
     public var panes: [SettingsPaneID] {
         switch self {
         case .wisp: [.general, .notch, .appearance]
-        case .features: [.activities, .shelf, .notifications, .agents, .phone, .ai]
+        case .features: [.activities, .shelf, .notifications, .agents, .ai]
         case .system: [.permissions, .about]
         }
     }

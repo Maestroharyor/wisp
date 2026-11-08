@@ -13,7 +13,6 @@ extension SettingsPaneID {
         case .shelf: "square.grid.2x2.fill"
         case .notifications: "bell.badge.fill"
         case .agents: "sparkle"
-        case .phone: "iphone.radiowaves.left.and.right"
         case .ai: "wand.and.sparkles"
         case .permissions: "lock.shield.fill"
         case .about: "info.circle.fill"
@@ -26,7 +25,7 @@ extension SettingsPaneID {
         switch self {
         case .general, .about, .permissions: Color(red: 0.32, green: 0.27, blue: 0.62)
         case .notch, .appearance: .wispViolet
-        case .activities, .shelf, .notifications, .agents, .phone, .ai: Color(red: 0.6, green: 0.53, blue: 1)
+        case .activities, .shelf, .notifications, .agents, .ai: Color(red: 0.6, green: 0.53, blue: 1)
         }
     }
 }

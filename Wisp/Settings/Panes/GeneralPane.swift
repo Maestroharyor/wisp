@@ -24,21 +24,10 @@ struct GeneralSettings: View {
             }
             Section("Shortcut") {
                 Toggle("Open the shelf with Caps Lock + Space", isOn: usesCapsLock)
-                if preferences.hotkey.usesHyper {
-                    Toggle(
-                        "Pressing Caps Lock on its own still turns Caps Lock on",
-                        isOn: $preferences.quickPressTogglesCapsLock)
-                } else {
+                if !preferences.hotkey.usesHyper {
                     LabeledContent("Shortcut") {
                         HotkeyRecorder(hotkey: $preferences.hotkey)
                     }
-                }
-                LabeledContent("Clipboard history") {
-                    Text(
-                        preferences.hotkey.usesHyper
-                            ? Hotkey.clipboardHyper.description : Hotkey.clipboardFallback.description
-                    )
-                    .foregroundStyle(.secondary)
                 }
                 LabeledContent("Status") {
                     HStack {
@@ -48,6 +37,23 @@ struct GeneralSettings: View {
                         }
                     }
                 }
+            }
+
+            Section("Keyboard shortcuts") {
+                ShortcutRow(keys: preferences.hotkey.description, action: "Open or close the shelf")
+                // Without Hyper, clipboard history has its own shortcut and profiles have none.
+                if preferences.hotkey.usesHyper {
+                    ShortcutRow(keys: Hotkey.clipboardHyper.description, action: "Clipboard history")
+                    ShortcutRow(keys: "⇪ 1–9", action: "Switch profile")
+                    ShortcutRow(keys: "⇪ Y or ⇪ N", action: "Allow or deny the request on screen")
+                    ShortcutRow(keys: "⇪ 1–9", action: "Pick an answer while a question shows")
+                } else {
+                    ShortcutRow(keys: Hotkey.clipboardFallback.description, action: "Clipboard history")
+                    ShortcutRow(keys: "⌃⌥⌘Y or ⌃⌥⌘N", action: "Allow or deny the request on screen")
+                    ShortcutRow(keys: "⌃⌥⌘1–9", action: "Pick an answer while a question shows")
+                }
+                ShortcutRow(keys: "Esc", action: "Back to the grid, or close the shelf")
+                ShortcutRow(keys: "Right-click the notch", action: "Menu: pages, tools, profiles, form, Settings")
             }
 
             Section("Dictation") {
@@ -81,15 +87,23 @@ struct GeneralSettings: View {
             .onAppear { dictation.refreshReadiness() }
 
             Section("Startup") {
+                Toggle("Launch at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
+                if let launchError {
+                    Text(launchError).font(.caption).foregroundStyle(.red)
+                }
+            }
+
+            AdvancedSection {
                 Toggle("Show Wisp in the menu bar", isOn: $preferences.showMenuBarIcon)
                 if !preferences.showMenuBarIcon {
                     Text("Open Wisp again from Finder or Spotlight to get back to Settings.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Toggle("Launch at login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
-                if let launchError {
-                    Text(launchError).font(.caption).foregroundStyle(.red)
+                if preferences.hotkey.usesHyper {
+                    Toggle(
+                        "Pressing Caps Lock on its own still turns Caps Lock on",
+                        isOn: $preferences.quickPressTogglesCapsLock)
                 }
             }
         }
@@ -114,6 +128,21 @@ struct GeneralSettings: View {
         } catch {
             launchError = error.localizedDescription
             launchAtLogin = LaunchAtLogin.isEnabled
+        }
+    }
+}
+
+private struct ShortcutRow: View {
+    let keys: String
+    let action: String
+
+    var body: some View {
+        LabeledContent(action) {
+            Text(keys)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 5).fill(.quaternary))
         }
     }
 }

@@ -1106,7 +1106,7 @@ final class AgentHub {
         else { return }
         let detail =
             statusLine
-            ? "Only Wisp's entries are removed, and your own status bar, if you had one, comes back."
+            ? "Only Wisp's entries are removed, and your own status line, if you had one, comes back."
             : "Only Wisp's entries are removed."
         guard confirm("Remove Wisp's hooks from \(source.displayName)?", detail: detail, action: "Remove") else {
             return
@@ -1171,10 +1171,10 @@ final class AgentHub {
         }
         let change =
             mode == .off
-            ? " Claude Code's status bar goes back to how it was before Wisp." : barSentence(mode, original: original)
+            ? " Claude Code's status line goes back to how it was before Wisp." : barSentence(mode, original: original)
         guard
             confirm(
-                "Change Claude Code's status bar?",
+                "Change Claude Code's status line?",
                 detail:
                     "Wisp edits \(path).\(change) The current file is saved next to it with .wisp-previous on the end.",
                 action: "Change")
@@ -1285,8 +1285,8 @@ final class AgentHub {
         guard
             confirm(
                 on
-                    ? (changes.count == 1 ? "Show \(names)'s tool activity?" : "Show tool activity?")
-                    : "Stop showing tool activity?",
+                    ? (changes.count == 1 ? "Show what \(names) is doing?" : "Show what agents are doing?")
+                    : "Stop showing what agents are doing?",
                 detail: change + " The current file is saved next to it with .wisp-previous on the end.",
                 action: on ? "Add Hooks" : "Remove Hooks")
         else { return false }
@@ -1300,10 +1300,10 @@ final class AgentHub {
         switch mode {
         case .wisp:
             return mine
-                ? " Wisp's status bar replaces yours in the terminal; yours comes back if you turn it off."
-                : " Wisp's status bar is added to the terminal."
+                ? " Wisp's status line replaces yours under Claude Code's prompt; yours comes back if you choose None."
+                : " Wisp's status line is added under Claude Code's prompt."
         case .listen:
-            return mine ? " Your status bar stays, and Wisp reads the session figures through it." : ""
+            return mine ? " Your status line stays, and Wisp reads the session figures through it." : ""
         case .off: return ""
         }
     }
