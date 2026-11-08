@@ -105,6 +105,12 @@ public struct SampleHistory: Sendable, Equatable {
 
     public var latest: Double? { values.last }
 
+    /// The mean of the samples kept, nil before the first.
+    public var average: Double? { values.isEmpty ? nil : values.reduce(0, +) / Double(values.count) }
+
+    /// The highest sample kept, nil before the first.
+    public var peak: Double? { values.max() }
+
     public mutating func append(_ value: Double) {
         values.append(value)
         if values.count > capacity { values.removeFirst(values.count - capacity) }
