@@ -110,7 +110,7 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
 - **Lock screen player**: while the screen is locked and music plays, a player shows where macOS allows it.
 - **Clipboard history**: a bottom panel with type tabs, search and pinning. Return pastes into the app in front; concealed (password) items are skipped.
 - **On-device AI** (off by default): Settings › AI picks Apple Intelligence (Apple's Foundation Models, macOS 26 or later with Apple Intelligence on) or [Ollama](https://ollama.com) running on your Mac, with a model picker for Ollama and a status line that says what's missing ("Apple Intelligence is off", "Ollama isn't running"). Long text is cut to fit the model's 4,096-token window, keeping its start and end. A small "Try it" box summarises, fixes grammar, rewrites, lists action items or explains code; features that use AI come in later releases.
-- **Settings**: a searchable sidebar with a live notch preview and a setup check that flags missing permissions. The menu bar icon can be hidden; open Wisp again to reach Settings.
+- **Settings**: a searchable sidebar with a live notch preview and a setup check that flags missing permissions. Fine-tuning options (volume steps, Widgets page rows, glow reach, pointer effect strength) sit under a closed Advanced row in their pane, which opens while you search. The menu bar icon can be hidden; open Wisp again to reach Settings.
 
 ## Requirements
 
