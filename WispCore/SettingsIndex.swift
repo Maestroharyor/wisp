@@ -85,6 +85,11 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "shimmer", "nav", "pill", "dots", "font", "type", "hover", "wobble", "ears", "idle", "time",
                 "date", "breathing", "music glow", "beat", "sunset", "night", "light", "dark", "sound", "sound pack",
                 "confetti", "celebrate", "pet", "sprite", "import", "export", "share", "reset",
+                // Current control names, then the older ones so searches for those still land.
+                "shape", "effects", "edge highlight", "number style", "accent follows", "playing album",
+                "change colour through the day", "change color through the day", "beside the closed notch",
+                "sounds", "shell", "finish", "glass edge", "numbers in", "through the day", "while idle",
+                "match the desktop picture", "tint with the playing album",
             ]
         case .activities:
             [
@@ -119,7 +124,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             [
                 "claude", "claude code", "codex", "gemini", "gemini cli", "copilot", "copilot cli", "github copilot",
                 "cursor", "cursor-agent", "opencode", "open code", "plugin", "ai", "hooks", "approve", "allow", "deny",
-                "sessions", "sound",
+                "sessions", "sound", "permission sound",
                 "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",
                 "command line", "cli", "wisp status", "path", "budget", "long-running", "reminder", "nudge",
