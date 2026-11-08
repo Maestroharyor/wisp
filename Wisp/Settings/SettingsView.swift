@@ -162,18 +162,20 @@ struct SettingsView: View {
         case .notch:
             NotchSettings(
                 preferences: preferences, accent: services.accent, glow: services.glow, shortcuts: services.shortcuts,
-                shelfWindow: services.shelfWindow)
-        case .ring: RingSettings(preferences: preferences, trigger: services.ringTrigger, hotkeys: hotkeys)
+                shelfWindow: services.shelfWindow, ringTrigger: services.ringTrigger, hotkeys: hotkeys)
         case .appearance: AppearanceSettings(preferences: preferences, services: services)
-        case .activities: ActivitySettings(preferences: preferences, downloads: services.downloads)
-        case .widgets: WidgetSettings(preferences: preferences, shortcuts: services.shortcuts)
-        case .profiles: ProfileSettings(preferences: preferences, context: services.context)
-        case .clipboard: ClipboardSettings(preferences: preferences, store: services.clipboard)
+        case .activities:
+            ActivitySettings(
+                preferences: preferences, downloads: services.downloads, notifications: services.notifications)
+        case .shelf:
+            ShelfSettings(
+                preferences: preferences, shortcuts: services.shortcuts, clipboard: services.clipboard,
+                context: services.context)
         case .notifications: NotificationSettings(preferences: preferences, monitor: services.notifications)
         case .agents:
             AgentSettings(
-                hub: services.agents, cloud: services.cloud, history: services.agentHistory, preferences: preferences)
-        case .phone: PhoneSettings(push: services.push, hub: services.agents, preferences: preferences)
+                hub: services.agents, cloud: services.cloud, history: services.agentHistory, push: services.push,
+                preferences: preferences)
         case .ai: AISettings(ai: services.ai, preferences: preferences)
         case .permissions: PermissionSettings(model: model)
         case .about: AboutSettings(preferences: preferences, updater: services.updater, runSetup: services.openSetup)

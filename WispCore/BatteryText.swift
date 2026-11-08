@@ -6,9 +6,8 @@ public enum BatteryText {
     public struct Part: Sendable, Equatable {
         public let label: String
         public let level: Int
-
-        /// At or below the level the accessory alert fires at.
-        public var isLow: Bool { level <= AccessoryBatteryAlerts.lowLevel }
+        /// At or below the battery warning level, where the accessory alert fires.
+        public let isLow: Bool
     }
 
     public static func status(_ state: BatteryState) -> String {
@@ -23,9 +22,13 @@ public enum BatteryText {
     }
 
     /// The device's batteries in a fixed order: its own, then left, right and case.
-    public static func parts(of device: BluetoothDevice) -> [Part] {
+    public static func parts(
+        of device: BluetoothDevice, lowLevel: Int = AccessoryBatteryAlerts.defaultLowLevel
+    ) -> [Part] {
         let order: [(BatteryPart, String)] = [(.main, "Battery"), (.left, "Left"), (.right, "Right"), (.case, "Case")]
-        return order.compactMap { part, label in device.battery[part].map { Part(label: label, level: $0) } }
+        return order.compactMap { part, label in
+            device.battery[part].map { Part(label: label, level: $0, isLow: $0 <= lowLevel) }
+        }
     }
 
     /// The emptiest part, which is the one worth showing first.

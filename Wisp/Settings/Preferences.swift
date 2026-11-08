@@ -25,13 +25,10 @@ extension Placement {
     }
 }
 
-/// Shape on displays without a camera housing.
-enum ExternalStyle: String, CaseIterable, Identifiable {
+/// Shape on displays without a camera housing. Settings shows it through `NotchlessDisplayChoice`.
+enum ExternalStyle: String {
     case notch
     case island
-
-    var id: Self { self }
-    var title: String { self == .notch ? "Notch" : "Floating island" }
 }
 
 /// How long the volume, brightness and Caps Lock overlays stay up.
@@ -384,6 +381,16 @@ final class Preferences {
         didSet { defaults.set(externalStyle.rawValue, forKey: Key.externalStyle) }
     }
 
+    /// "On displays without a notch", one choice over `showOnExternalDisplays` and `externalStyle`.
+    var notchlessDisplays: NotchlessDisplayChoice {
+        get { NotchlessDisplayChoice(showOnExternal: showOnExternalDisplays, externalIsland: externalStyle == .island) }
+        set {
+            let stored = newValue.stored(externalIsland: externalStyle == .island)
+            showOnExternalDisplays = stored.showOnExternal
+            externalStyle = stored.externalIsland ? .island : .notch
+        }
+    }
+
     var glassEdge: GlassEdge {
         get { appearance.glassEdge }
         set { appearance.glassEdge = newValue }
@@ -619,7 +626,7 @@ final class Preferences {
         didSet { defaults.set(favouriteShortcuts, forKey: Key.favouriteShortcuts) }
     }
 
-    /// The Shortcut the Do Not Disturb toggle runs (macOS has no public Focus API).
+    /// The Shortcut the Quick Toggles Focus button runs (macOS has no public Focus API).
     var doNotDisturbShortcut: String {
         didSet { defaults.set(doNotDisturbShortcut, forKey: Key.doNotDisturbShortcut) }
     }
@@ -690,7 +697,8 @@ final class Preferences {
     var batteryHUD: Bool { didSet { defaults.set(batteryHUD, forKey: Key.batteryHUD) } }
     /// A pill when Bluetooth headphones connect, with their battery.
     var deviceActivity: Bool { didSet { defaults.set(deviceActivity, forKey: Key.deviceActivity) } }
-    /// Mouse, keyboard and trackpad batteries in the Battery widget, with a warning at 20%.
+    /// Mouse, keyboard and trackpad batteries in the Battery widget, with a warning at the battery
+    /// warning level (`batteryLowThreshold`).
     var accessoryBatteries: Bool { didSet { defaults.set(accessoryBatteries, forKey: Key.accessoryBatteries) } }
     /// A progress pill while a browser downloads into Downloads or a chosen folder. Off by
     /// default: turning it on can make macOS ask for access to the Downloads folder.
@@ -1090,8 +1098,7 @@ final class Preferences {
             })
         externalStyle = defaults.string(forKey: Key.externalStyle).flatMap(ExternalStyle.init(rawValue:)) ?? .notch
         contextAware = defaults.bool(forKey: Key.contextAware)
-        lastSettingsPane =
-            defaults.string(forKey: Key.lastSettingsPane).flatMap(SettingsPaneID.init(rawValue:)) ?? .general
+        lastSettingsPane = SettingsPaneID.restoring(defaults.string(forKey: Key.lastSettingsPane))
         contextRules =
             defaults.data(forKey: Key.contextRules).flatMap { try? JSONDecoder().decode([ContextRule].self, from: $0) }
             ?? ContextRules.defaults

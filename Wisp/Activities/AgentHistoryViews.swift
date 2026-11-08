@@ -141,8 +141,10 @@ private struct HistoryRow: View {
             if record.tools.isEmpty {
                 GridRow {
                     Text("Tools").foregroundStyle(Color.secondaryText)
-                    Text("Turn on Show tool activity in Settings › Agents to keep tools, files, commands and tests")
-                        .foregroundStyle(Color.secondaryText).lineLimit(3)
+                    Text(
+                        "Turn on Show what agents are doing in Settings › Agents › Advanced to keep tools, files, commands and tests"
+                    )
+                    .foregroundStyle(Color.secondaryText).lineLimit(3)
                 }
             }
         }

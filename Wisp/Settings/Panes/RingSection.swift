@@ -3,73 +3,45 @@ import SwiftUI
 import UniformTypeIdentifiers
 import WispCore
 
-struct RingSettings: View {
+/// The ring's part of the Notch pane: how it opens, and a button for the segment editor.
+struct RingSection: View {
     @Bindable var preferences: Preferences
     let trigger: RingTrigger
     let hotkeys: HotkeyCenter
 
-    /// The ring being edited: nil for the default ring, else an app's ring.
-    @State private var editing: UUID?
+    @State private var editorShown = false
 
     var body: some View {
-        Form {
-            Section("Opening") {
-                if preferences.hotkey.usesHyper {
-                    LabeledContent("Hyper key", value: "Hyper+R, at the pointer")
+        Section {
+            Toggle("Keyboard shortcut", isOn: hasRingHotkey)
+            if preferences.ringHotkey != nil {
+                LabeledContent("Shortcut") { HotkeyRecorder(hotkey: ringHotkey) }
+                if hotkeys.ringHotkeyTaken {
+                    Text("Wisp couldn't register this shortcut. Choose another.")
+                        .font(.caption).foregroundStyle(.orange)
                 }
-                Toggle("Keyboard shortcut", isOn: hasRingHotkey)
-                if preferences.ringHotkey != nil {
-                    LabeledContent("Shortcut") { HotkeyRecorder(hotkey: ringHotkey) }
-                    if hotkeys.ringHotkeyTaken {
-                        Text("Wisp couldn't register this shortcut. Choose another.")
-                            .font(.caption).foregroundStyle(.orange)
-                    }
-                }
-                Picker("Mouse button", selection: $preferences.ringButton) {
-                    ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                if preferences.ringButton != .off {
-                    LabeledContent("Status", value: trigger.status.message)
-                }
-                Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
-                Text(
-                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. The centre of the ring opens the shelf. Files dragged onto the orb always open the ring, to drop them on an action or on the centre for the tray."
-                )
-                .font(.caption).foregroundStyle(.secondary)
             }
-            Section {
-                Picker("Ring", selection: $editing) {
-                    Text("Default").tag(UUID?.none)
-                    ForEach(preferences.ringConfig.perApp) { set in
-                        Text(set.name).tag(UUID?.some(set.id))
-                    }
-                }
-                RingSetEditor(set: editedSet, dropActions: preferences.dropActions)
-                    .id(editing)
-                HStack {
-                    if let editing {
-                        Button("Remove this app's ring", role: .destructive) {
-                            preferences.ringConfig.perApp.removeAll { $0.id == editing }
-                            self.editing = nil
-                        }
-                    } else {
-                        Button("Reset to the default ring") {
-                            preferences.ringConfig.standard = RingConfig.defaults.standard
-                        }
-                    }
-                    Spacer()
-                    Button("Add a ring for an app…") { addAppRing() }
-                }
-            } header: {
-                Text("Actions")
-            } footer: {
-                Text(
-                    "Click a segment to change it. An app's ring opens instead of the default while that app is in front."
-                )
-                .font(.caption).foregroundStyle(.secondary)
+            Picker("Mouse button", selection: $preferences.ringButton) {
+                ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
             }
+            if preferences.ringButton != .off {
+                LabeledContent("Status", value: trigger.status.message)
+            }
+            Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
+            LabeledContent("Actions") {
+                Button("Edit ring…") { editorShown = true }
+                    // On the button, not the Section: a Form can apply a Section's modifiers per row.
+                    .sheet(isPresented: $editorShown) {
+                        RingEditorSheet(preferences: preferences) { editorShown = false }
+                    }
+            }
+            Text(
+                "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring. With Hyper on, Hyper+R opens it at the pointer."
+            )
+            .font(.caption).foregroundStyle(.secondary)
+        } header: {
+            Text("Ring")
         }
-        .formStyle(.grouped)
     }
 
     private static let suggestedHotkey = Hotkey(keyCode: KeyCodes.r, modifiers: [.control, .option, .command])
@@ -83,6 +55,61 @@ struct RingSettings: View {
     private var ringHotkey: Binding<Hotkey> {
         Binding(
             get: { preferences.ringHotkey ?? Self.suggestedHotkey }, set: { preferences.ringHotkey = $0 })
+    }
+}
+
+/// The segment editor, in a sheet. Changes apply as they're made, so Done (or Esc) only closes
+/// it. Done doesn't take Return, which belongs to the Shortcut name field.
+private struct RingEditorSheet: View {
+    @Bindable var preferences: Preferences
+    let done: () -> Void
+
+    /// The ring being edited: nil for the default ring, else an app's ring.
+    @State private var editing: UUID?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                Section {
+                    Picker("Ring", selection: $editing) {
+                        Text("Default").tag(UUID?.none)
+                        ForEach(preferences.ringConfig.perApp) { set in
+                            Text(set.name).tag(UUID?.some(set.id))
+                        }
+                    }
+                    RingSetEditor(set: editedSet, dropActions: preferences.dropActions)
+                        .id(editing)
+                    HStack {
+                        if let editing {
+                            Button("Remove this app's ring", role: .destructive) {
+                                preferences.ringConfig.perApp.removeAll { $0.id == editing }
+                                self.editing = nil
+                            }
+                        } else {
+                            Button("Reset to the default ring") {
+                                preferences.ringConfig.standard = RingConfig.defaults.standard
+                            }
+                        }
+                        Spacer()
+                        Button("Add a ring for an app…") { addAppRing() }
+                    }
+                } header: {
+                    Text("Ring actions")
+                } footer: {
+                    Text(
+                        "Click a segment to change it. The centre of the ring opens the shelf. An app's ring opens instead of the default while that app is in front."
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .formStyle(.grouped)
+            HStack {
+                Spacer()
+                Button("Done", action: done).keyboardShortcut(.cancelAction)
+            }
+            .padding([.horizontal, .bottom], 20)
+        }
+        .frame(minWidth: 600, idealWidth: 640, minHeight: 440, idealHeight: 560)
     }
 
     private var editedSet: Binding<RingSet> {

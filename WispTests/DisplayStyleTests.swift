@@ -47,3 +47,47 @@ final class DisplayNameTests: XCTestCase {
         XCTAssertEqual(DisplayName.title(name: "  ", builtIn: true, width: 1512, height: 982), "Built-in display")
     }
 }
+
+final class NotchlessDisplayChoiceTests: XCTestCase {
+    func testEveryStoredCombinationReadsAsOneChoice() {
+        XCTAssertEqual(NotchlessDisplayChoice(showOnExternal: true, externalIsland: false), .notch)
+        XCTAssertEqual(NotchlessDisplayChoice(showOnExternal: true, externalIsland: true), .island)
+        XCTAssertEqual(NotchlessDisplayChoice(showOnExternal: false, externalIsland: false), .hidden)
+        XCTAssertEqual(NotchlessDisplayChoice(showOnExternal: false, externalIsland: true), .hidden)
+    }
+
+    func testChoosingWritesTheStoredSettings() {
+        for current in [false, true] {
+            XCTAssertTrue(NotchlessDisplayChoice.notch.stored(externalIsland: current) == (true, false))
+            XCTAssertTrue(NotchlessDisplayChoice.island.stored(externalIsland: current) == (true, true))
+        }
+    }
+
+    func testDontShowKeepsTheStyleForLater() {
+        XCTAssertTrue(NotchlessDisplayChoice.hidden.stored(externalIsland: true) == (false, true))
+        XCTAssertTrue(NotchlessDisplayChoice.hidden.stored(externalIsland: false) == (false, false))
+    }
+
+    func testStoringAChoiceReadsBackAsThatChoice() {
+        for current in [false, true] {
+            for choice in NotchlessDisplayChoice.allCases {
+                let stored = choice.stored(externalIsland: current)
+                XCTAssertEqual(
+                    NotchlessDisplayChoice(
+                        showOnExternal: stored.showOnExternal, externalIsland: stored.externalIsland),
+                    choice)
+            }
+        }
+    }
+
+    func testResolvedStyleIsUnchangedByTheMergedPicker() {
+        // The picker writes the same two settings the resolver has always read.
+        for choice in NotchlessDisplayChoice.allCases {
+            let stored = choice.stored(externalIsland: false)
+            let style = DisplayStyle.resolve(
+                .automatic, hasNotch: false, showOnExternal: stored.showOnExternal,
+                externalIsland: stored.externalIsland)
+            XCTAssertEqual(style.rawValue, choice.rawValue)
+        }
+    }
+}

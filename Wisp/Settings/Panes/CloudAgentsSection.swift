@@ -27,7 +27,7 @@ struct CloudAgentsSection: View {
             Text("Cloud agents")
         } footer: {
             Text(
-                "Off by default. When on, Wisp lists your Codex cloud tasks with the codex command and your Copilot coding agent tasks with gh, both using their own logins, and your Cursor Cloud Agents with your API key. Checks come from gh pr checks. It looks every 2 minutes while a task runs, every 15 minutes for a while after, then waits until you open the Agents widget. Finished, failed and red tasks get a notice, and go to your phone when phone alerts are on and Cloud tasks is on in Settings › Phone."
+                "When on, the Agents widget lists your Codex, Copilot and Cursor cloud tasks, using the codex and gh commands' own logins and your Cursor API key. Finished, failed and red tasks get a notice, and go to your phone too when Cloud tasks is on under Phone alerts."
             )
         }
     }

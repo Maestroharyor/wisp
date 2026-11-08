@@ -477,6 +477,9 @@ final class AppServices {
             self.activities.post(.device(device), slot: .device, duration: 4)
         }
         headphones.start()
+        accessories.lowLevel = { [weak self] in
+            self?.preferences.batteryLowThreshold ?? AccessoryBatteryAlerts.defaultLowLevel
+        }
         accessories.onLow = { [weak self] device in
             guard let level = device.battery[.main] else { return }
             let text = "\(device.name) battery at \(level)%"

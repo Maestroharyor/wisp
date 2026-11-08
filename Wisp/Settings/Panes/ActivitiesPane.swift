@@ -5,22 +5,16 @@ import WispCore
 struct ActivitySettings: View {
     @Bindable var preferences: Preferences
     let downloads: DownloadMonitor
+    let notifications: NotificationMonitor
 
     var body: some View {
         Form {
-            Section("Replace system overlays") {
+            Section("Use Wisp for these pop-ups") {
                 Toggle("Volume", isOn: $preferences.volumeHUD)
                 Toggle("Display brightness", isOn: $preferences.brightnessHUD)
                 Toggle("Caps Lock", isOn: $preferences.capsLockHUD)
-                Picker("Stay on screen", selection: $preferences.hudDuration) {
-                    ForEach(HUDDuration.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                Toggle("Use the theme accent for the level bars", isOn: $preferences.hudUsesAccent)
-                Text(
-                    "Volume and brightness need Accessibility access to intercept the keys. Hold Option and Shift for finer steps."
-                )
-                .font(.caption).foregroundStyle(.secondary)
+                Text("Volume and brightness need Accessibility access to intercept the keys.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Show beside the notch") {
                 Toggle("Now Playing (any app, including browsers)", isOn: $preferences.mediaActivity)
@@ -50,36 +44,24 @@ struct ActivitySettings: View {
                     isOn: $preferences.meetingControls
                 )
                 .disabled(!preferences.meetingActivity)
-                Toggle(
-                    "Also Teams and Google Meet in Chromium browsers (types their shortcuts into the call window)",
-                    isOn: $preferences.meetingShortcutControls
-                )
-                .disabled(!preferences.meetingActivity || !preferences.meetingControls)
-                Text(
-                    "Teams and Meet don't say whether you're muted, so their buttons only toggle. Wisp can't always tell Teams' call window from its other windows, so this is off until you turn it on."
-                )
-                .font(.caption).foregroundStyle(.secondary)
+                Toggle("Focus changes", isOn: $preferences.focusActivity)
+                if preferences.focusActivity && !notifications.hasAccess {
+                    LabeledContent("Focus needs Full Disk Access") {
+                        Button("Allow") { Permission.fullDiskAccess.request() }
+                    }
+                }
+                Toggle("Show more than one activity at once", isOn: $preferences.activityBubbles)
+                Text("Extra activities get their own bubbles beside the notch.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Batteries") {
                 Toggle("Battery and charging", isOn: $preferences.batteryHUD)
-                Picker("Warn when the battery reaches", selection: $preferences.batteryLowThreshold) {
+                Toggle("Mouse, keyboard and trackpad batteries", isOn: $preferences.accessoryBatteries)
+                Picker("Warn when a battery reaches", selection: $preferences.batteryLowThreshold) {
                     ForEach([10, 15, 20, 25, 30], id: \.self) { Text("\($0)%").tag($0) }
                 }
-                .disabled(!preferences.batteryHUD)
+                .disabled(!preferences.batteryHUD && !preferences.accessoryBatteries)
                 Toggle("Headphones connecting, with their battery", isOn: $preferences.deviceActivity)
-                Toggle(
-                    "Mouse, keyboard and trackpad batteries, with a warning at 20%",
-                    isOn: $preferences.accessoryBatteries)
-                Toggle("Split extra activities into bubbles beside the notch", isOn: $preferences.activityBubbles)
-                Picker("First bubble", selection: $preferences.firstBubbleOnLeft) {
-                    Text("Right").tag(false)
-                    Text("Left").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .disabled(!preferences.activityBubbles)
-                Picker("Show on", selection: $preferences.activityDisplay) {
-                    Text("Display under the pointer").tag(ActivityDisplayTarget.pointer)
-                    Text("MacBook display").tag(ActivityDisplayTarget.builtIn)
-                    Text("All displays").tag(ActivityDisplayTarget.all)
-                }
             }
             Section("Downloads") {
                 Toggle("Download progress, with Open when it's done", isOn: $preferences.downloadActivity)
@@ -107,12 +89,37 @@ struct ActivitySettings: View {
                 }
             }
             AdvancedSection {
+                Picker("Pop-ups stay on screen", selection: $preferences.hudDuration) {
+                    ForEach(HUDDuration.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Toggle("Use the theme accent for the level bars", isOn: $preferences.hudUsesAccent)
                 Picker("Volume steps", selection: $preferences.volumeSteps) {
                     ForEach([8, 16, 32, 64], id: \.self) { Text("\($0)").tag($0) }
                 }
                 .pickerStyle(.segmented)
                 Text("Hold Option and Shift while changing the volume for steps four times finer.")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle(
+                    "Call controls for Teams and Google Meet in Chromium browsers",
+                    isOn: $preferences.meetingShortcutControls
+                )
+                .disabled(!preferences.meetingActivity || !preferences.meetingControls)
+                Text(
+                    "Wisp types their keyboard shortcuts into the call window. Teams and Meet don't say whether you're muted, so their buttons only toggle. Wisp can't always tell Teams' call window from its other windows, so this is off until you turn it on."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                Picker("First bubble", selection: $preferences.firstBubbleOnLeft) {
+                    Text("Right").tag(false)
+                    Text("Left").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .disabled(!preferences.activityBubbles)
+                Picker("Show on", selection: $preferences.activityDisplay) {
+                    Text("Display under the pointer").tag(ActivityDisplayTarget.pointer)
+                    Text("MacBook display").tag(ActivityDisplayTarget.builtIn)
+                    Text("All displays").tag(ActivityDisplayTarget.all)
+                }
             }
         }
         .formStyle(.grouped)

@@ -73,6 +73,8 @@ final class BatteryTextTests: XCTestCase {
         let mouse = BluetoothDevice(name: "Mouse", address: "b", kind: "Mouse", battery: [.main: 12])
         XCTAssertEqual(BatteryText.parts(of: mouse).map(\.label), ["Battery"])
         XCTAssertTrue(BatteryText.parts(of: mouse)[0].isLow)
+        XCTAssertFalse(BatteryText.parts(of: mouse, lowLevel: 10)[0].isLow)
+        XCTAssertTrue(BatteryText.parts(of: buds, lowLevel: 55)[0].isLow)
     }
 
     func testLowestLevel() {

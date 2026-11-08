@@ -23,7 +23,8 @@ struct WidgetCard: View {
             case .battery:
                 BatteryWidget(
                     monitor: services.battery,
-                    accessories: services.preferences.accessoryBatteries ? services.accessories.devices : [])
+                    accessories: services.preferences.accessoryBatteries ? services.accessories.devices : [],
+                    lowLevel: services.preferences.batteryLowThreshold)
             case .systemStats: SystemStatsWidget(store: services.stats)
             case .weather: WeatherWidget(store: services.weather)
             case .notes: NotesWidget(store: services.notes)
@@ -488,6 +489,8 @@ struct BatteryWidget: View {
     let monitor: BatteryMonitor
     /// Connected mice, keyboards and trackpads with a level, empty when the setting is off.
     let accessories: [BluetoothDevice]
+    /// The warning level from Settings, so a red level here matches when the warning shows.
+    let lowLevel: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -514,7 +517,7 @@ struct BatteryWidget: View {
                     Text("\(level)%").monospacedDigit()
                 }
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(level <= AccessoryBatteryAlerts.lowLevel ? Color.red : Color.secondaryText)
+                .foregroundStyle(level <= lowLevel ? Color.red : Color.secondaryText)
                 .fixedSize()
                 .hoverHint("\(device.name): \(level)%")
                 .accessibilityElement(children: .ignore)

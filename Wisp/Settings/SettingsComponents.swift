@@ -8,15 +8,11 @@ extension SettingsPaneID {
         switch self {
         case .general: "gearshape.fill"
         case .notch: "capsule.portrait.fill"
-        case .ring: "circle.circle.fill"
         case .appearance: "paintpalette.fill"
         case .activities: "waveform"
-        case .widgets: "square.grid.2x2.fill"
-        case .profiles: "rectangle.stack.fill"
-        case .clipboard: "doc.on.clipboard.fill"
+        case .shelf: "square.grid.2x2.fill"
         case .notifications: "bell.badge.fill"
         case .agents: "sparkle"
-        case .phone: "iphone.radiowaves.left.and.right"
         case .ai: "wand.and.sparkles"
         case .permissions: "lock.shield.fill"
         case .about: "info.circle.fill"
@@ -24,11 +20,12 @@ extension SettingsPaneID {
     }
 
     var tint: Color {
-        // One violet family: darker for the app itself, lighter for connections.
+        // One violet family: darker for setup and system panes, Wisp violet for the notch and its
+        // look, lighter for the Features group.
         switch self {
         case .general, .about, .permissions: Color(red: 0.32, green: 0.27, blue: 0.62)
-        case .notch, .ring, .appearance, .activities, .widgets, .profiles, .clipboard: .wispViolet
-        case .notifications, .agents, .phone, .ai: Color(red: 0.6, green: 0.53, blue: 1)
+        case .notch, .appearance: .wispViolet
+        case .activities, .shelf, .notifications, .agents, .ai: Color(red: 0.6, green: 0.53, blue: 1)
         }
     }
 }

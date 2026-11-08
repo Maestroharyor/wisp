@@ -8,6 +8,8 @@ struct NotchSettings: View {
     let glow: Color
     let shortcuts: ShortcutsRunner
     let shelfWindow: ShelfWindowController
+    let ringTrigger: RingTrigger
+    let hotkeys: HotkeyCenter
 
     /// Re-read when displays are plugged in or removed while Settings is open.
     @State private var screens = NSScreen.screens
@@ -29,6 +31,9 @@ struct NotchSettings: View {
                     Text("Apple's Dynamic Island sits at the top of this Mac, so Top moves to the top right.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                Picker("On displays without a notch", selection: $preferences.notchlessDisplays) {
+                    ForEach(NotchlessDisplayChoice.allCases) { Text($0.title).tag($0) }
+                }
             }
             Section("Window") {
                 Toggle("Open the shelf in a window", isOn: windowForm)
@@ -36,19 +41,6 @@ struct NotchSettings: View {
                     "The Window form: Wisp's pages open in a normal window you can move and resize. Minimise or close it and Wisp goes back to the notch, island or orb it was; click that, or press the shortcut, to bring the window back. Pick another form to leave it. For a one-off window, choose Form › Open as Window from the right-click menu, or pull the open shelf away by its edge."
                 )
                 .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Dynamic Island") {
-                Picker("This Mac has a Dynamic Island", selection: $preferences.islandSetting) {
-                    Text("Automatic").tag(IslandSetting.automatic)
-                    Text("Yes").tag(IslandSetting.yes)
-                    Text("No").tag(IslandSetting.no)
-                }
-                Text(
-                    "On a MacBook Pro with a Dynamic Island, Wisp stays clear of it. Choose Yes if Wisp draws over the island."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-                Button("Copy display info") { copyDisplayInfo() }
-                    .help("Copies the model and screen measurements Wisp uses to find the notch or island")
             }
             Section("Opening") {
                 Picker("Open the shelf on", selection: $preferences.openTrigger) {
@@ -92,47 +84,23 @@ struct NotchSettings: View {
             Section("Drop actions") {
                 DropActionsEditor(preferences: preferences, shortcuts: shortcuts)
             }
-            Section("Displays without a notch") {
-                Toggle("Show on external displays", isOn: $preferences.showOnExternalDisplays)
-                Picker("Style", selection: $preferences.externalStyle) {
-                    ForEach(ExternalStyle.allCases) { Text($0.title).tag($0) }
+            RingSection(preferences: preferences, trigger: ringTrigger, hotkeys: hotkeys)
+            AdvancedSection {
+                Picker("Dynamic Island detection", selection: $preferences.islandSetting) {
+                    ForEach(IslandSetting.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
-                .pickerStyle(.segmented)
-                .disabled(!preferences.showOnExternalDisplays)
-            }
-            Section("Each display") {
+                Text(
+                    "On a MacBook Pro with a Dynamic Island, Wisp stays clear of it. Choose Has a Dynamic Island if Wisp draws over it, and paste About › Copy diagnostics into a bug report."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                Text("Displays").font(.headline).padding(.top, 6)
                 ForEach(screens, id: \.displayUUID) { screen in
                     if let uuid = screen.displayUUID {
-                        Picker(
-                            DisplayName.title(
-                                name: screen.localizedName, builtIn: screen.isBuiltIn,
-                                width: Int(screen.frame.width), height: Int(screen.frame.height)),
-                            selection: displayStyle(uuid)
-                        ) {
-                            Text("Automatic").tag(DisplayStyle.automatic)
-                            Text("Notch").tag(DisplayStyle.notch)
-                            if !screen.metrics.hasCameraHousing {
-                                Text("Floating island").tag(DisplayStyle.island)
-                            }
-                            Text("Hidden").tag(DisplayStyle.hidden)
-                        }
-                        Picker("Position", selection: placementOverride(uuid)) {
-                            Text("Default (\(preferences.placement.title))").tag(Placement?.none)
-                            ForEach(Placement.allCases) { Text($0.title).tag(Placement?.some($0)) }
-                        }
-                        .padding(.leading, 16)
-                        if let layout = preferences.layout(for: screen, uuid: uuid), layout.moved {
-                            LabeledContent("Moved by dragging") {
-                                Button("Move back to the \(layout.placement.title.lowercased())") {
-                                    preferences.moveIslandBack(uuid)
-                                }
-                            }
-                            .padding(.leading, 16)
-                        }
+                        displayRows(screen, uuid: uuid)
                     }
                 }
                 Text(
-                    "Automatic follows the settings above. Notch and island apply at the top. Choices are remembered per display."
+                    "Automatic follows the choice for displays without a notch. Notch and island apply at the top. Choices are remembered per display."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -144,14 +112,37 @@ struct NotchSettings: View {
         }
     }
 
-    private var hasSystemIsland: Bool {
-        screens.contains { $0.hasSystemIsland(preferences.islandSetting) }
+    @ViewBuilder private func displayRows(_ screen: NSScreen, uuid: String) -> some View {
+        Picker(
+            DisplayName.title(
+                name: screen.localizedName, builtIn: screen.isBuiltIn,
+                width: Int(screen.frame.width), height: Int(screen.frame.height)),
+            selection: displayStyle(uuid)
+        ) {
+            Text("Automatic").tag(DisplayStyle.automatic)
+            Text("Notch").tag(DisplayStyle.notch)
+            if !screen.metrics.hasCameraHousing {
+                Text("Floating island").tag(DisplayStyle.island)
+            }
+            Text("Hidden").tag(DisplayStyle.hidden)
+        }
+        Picker("Position", selection: placementOverride(uuid)) {
+            Text("Default (\(preferences.placement.title))").tag(Placement?.none)
+            ForEach(Placement.allCases) { Text($0.title).tag(Placement?.some($0)) }
+        }
+        .padding(.leading, 16)
+        if let layout = preferences.layout(for: screen, uuid: uuid), layout.moved {
+            LabeledContent("Moved by dragging") {
+                Button("Move back to the \(layout.placement.title.lowercased())") {
+                    preferences.moveIslandBack(uuid)
+                }
+            }
+            .padding(.leading, 16)
+        }
     }
 
-    private func copyDisplayInfo() {
-        let text = screens.map(\.islandReport).joined(separator: "\n\n")
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+    private var hasSystemIsland: Bool {
+        screens.contains { $0.hasSystemIsland(preferences.islandSetting) }
     }
 
     /// Goes through the window's rules, so turning it on opens the window and off puts it away.
