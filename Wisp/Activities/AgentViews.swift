@@ -878,6 +878,7 @@ struct AgentsDetail: View {
     let model: NotchModel
 
     @State private var selection: String?
+    @State private var showingHistory = false
     @State private var note: String?
     /// This view's claim on dictation's draft box target; see `DraftBoxClaim`.
     @State private var owner = UUID()
@@ -890,6 +891,7 @@ struct AgentsDetail: View {
                 HStack(spacing: 6) {
                     SpendTrend(spend: hub.spend)
                     Spacer(minLength: 0)
+                    AgentHistoryButton(showing: $showingHistory)
                     PrivacyButton(hub: hub)
                 }
                 LimitsHeader(readings: hub.limitReadings)
@@ -902,7 +904,10 @@ struct AgentsDetail: View {
                                 DetailSessionRow(
                                     session: session, selected: session.id == selected?.id, hidden: hub.detailsHidden
                                 )
-                                .onTapGesture { selection = session.id }
+                                .onTapGesture {
+                                    selection = session.id
+                                    showingHistory = false
+                                }
                             }
                             CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                         }
@@ -911,7 +916,11 @@ struct AgentsDetail: View {
             }
             .frame(width: 190)
 
-            if let selected {
+            if showingHistory {
+                AgentHistoryView(
+                    store: model.services.agentHistory, hidden: hub.detailsHidden,
+                    enabled: model.services.preferences.agentHistory)
+            } else if let selected {
                 SessionDetail(
                     session: selected, hub: hub, hidden: hub.detailsHidden, draft: draft(for: selected.id),
                     note: $note, listening: listening(to: selected.id))
@@ -931,13 +940,23 @@ struct AgentsDetail: View {
         }
         .onDisappear { model.draftClaim = DraftBoxClaim.release(model.draftClaim, owner: owner) }
         .onAppear {
-            // Opened from the pill: start on that session, once.
+            // Opened from the pill: start on that session, once. The window keeps it, so
+            // switching sidebar rows comes back to the same session.
             if let focused = model.focusedSession {
                 selection = focused
-                model.focusedSession = nil
+                if host == .notch { model.focusedSession = nil }
             }
         }
+        .onChange(of: selection) { _, session in
+            if host == .window { model.focusedSession = session }
+        }
+        .onChange(of: model.focusedSession) { _, session in
+            // A pill click while the window already shows Agents.
+            if host == .window, let session { selection = session }
+        }
     }
+
+    @Environment(\.shelfHost) private var host
 
     private func listening(to session: String) -> Bool {
         let dictation = model.services.dictation
@@ -1055,6 +1074,19 @@ private struct SessionDetail: View {
     @Binding var note: String?
     var listening = false
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// White on 30% violet reads in Dark mode but not on a light window, so an empty draft
+    /// greys the button there instead.
+    private var pasteFill: Color {
+        if !draft.isEmpty { return Color.wispViolet.opacity(0.9) }
+        return colorScheme == .dark ? Color.wispViolet.opacity(0.3) : Color.ink.opacity(0.08)
+    }
+
+    private var pasteText: Color {
+        draft.isEmpty && colorScheme == .light ? Color.secondaryText : .white
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 10) {
@@ -1123,8 +1155,8 @@ private struct SessionDetail: View {
                 .buttonStyle(.plain)
                 .padding(.horizontal, 8)
                 .frame(height: 24)
-                .background(Capsule().fill(Color.wispViolet.opacity(draft.isEmpty ? 0.3 : 0.9)))
-                .foregroundStyle(.white)
+                .background(Capsule().fill(pasteFill))
+                .foregroundStyle(pasteText)
                 .disabled(draft.isEmpty)
                 .help("Pastes into the session's terminal without sending; press Return there")
         }

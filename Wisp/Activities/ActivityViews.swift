@@ -140,7 +140,7 @@ struct CompactActivityView: View {
                 ValueText(text: Countdown.format(countdown.remaining(now: context.date)), tint: .wispAmber)
             }
         case .media:
-            Waveform(tint: model.services.nowPlaying.tint, playing: model.services.nowPlaying.info?.isPlaying ?? false)
+            Waveform(tint: model.services.albumTint, playing: model.services.nowPlaying.info?.isPlaying ?? false)
                 .frame(width: 18, height: 14)
         case .tray(let count):
             ValueText(text: "\(count)", tint: .wispGreen)
@@ -259,7 +259,7 @@ struct SideActivityView: View {
                 ValueText(text: Countdown.format(countdown.remaining(now: context.date)), tint: .wispAmber)
             }
         case .media:
-            Waveform(tint: model.services.nowPlaying.tint, playing: model.services.nowPlaying.info?.isPlaying ?? false)
+            Waveform(tint: model.services.albumTint, playing: model.services.nowPlaying.info?.isPlaying ?? false)
                 .frame(width: 18, height: 14)
         case .tray(let count):
             ValueText(text: "\(count)", tint: .wispGreen)

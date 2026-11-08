@@ -5,6 +5,7 @@ import WispCore
 struct AgentSettings: View {
     let hub: AgentHub
     let cloud: CloudAgentStore
+    let history: AgentHistoryStore
     @Bindable var preferences: Preferences
 
     /// The week by project; empty when it would only repeat the total as "Other projects".
@@ -145,6 +146,24 @@ struct AgentSettings: View {
             } footer: {
                 Text(
                     "Hides commands, file paths, session names and prompt drafts in the notch, so they don't show on a shared screen. macOS doesn't tell apps when the screen is shared, so a call app or browser using the microphone counts as a call. The eye button beside today's spend in the Agents widget (Wide size, as in the Code profile) hides them any time."
+                )
+            }
+            Section {
+                Toggle("Keep session history", isOn: $preferences.agentHistory)
+                Toggle("Summarise finished sessions with AI", isOn: $preferences.agentSummaries)
+                    .disabled(!preferences.aiEnabled)
+                LabeledContent {
+                    Button("Clear history") { history.clear() }
+                        .disabled(history.history.records.isEmpty)
+                } label: {
+                    let count = history.history.records.count
+                    Text(count == 1 ? "1 session saved" : "\(count) sessions saved")
+                }
+            } header: {
+                Text("History")
+            } footer: {
+                Text(
+                    "Keeps finished sessions on this Mac for 30 days (at most \(SessionHistory.limit)): project, agent, length, cost, tool counts, test results, file names and commands with secrets masked. Tools, files, commands and tests need Show tool activity above (Copilot CLI sends finished tool calls anyway). Prompts, messages, file contents and command output are never saved. Commands and file names aren't saved while agent details are hidden. Turning history off stops saving; what's saved stays until you clear it. Summaries need AI (Settings › AI), run on this Mac and appear after Done and in the Done push when Include details is on. Open the history with the clock button in the Agents widget (Wide size)."
                 )
             }
             AgentRulesSection(hub: hub)

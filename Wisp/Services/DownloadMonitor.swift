@@ -18,7 +18,12 @@ final class DownloadMonitor {
     /// Watched folders macOS wouldn't let Wisp list, for Settings to explain.
     private(set) var deniedFolders: [String] = []
     /// Every download in progress, newest first, for the list the pill opens.
-    private(set) var downloads: [DownloadProgress] = []
+    private(set) var downloads: [DownloadProgress] = [] {
+        didSet { if hasDownloads == downloads.isEmpty { hasDownloads = !downloads.isEmpty } }
+    }
+    /// Whether any download is in progress, for views that only care about that and shouldn't
+    /// redraw on every progress tick.
+    private(set) var hasDownloads = false
 
     @ObservationIgnored private var stream: FSEventStreamRef?
     @ObservationIgnored private var folders: [String] = []
