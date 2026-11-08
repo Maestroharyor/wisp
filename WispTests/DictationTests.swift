@@ -259,6 +259,24 @@ final class HoldKeyTests: XCTestCase {
         XCTAssertEqual(hold.key(space, down: true, hyperDown: false, holdKey: space), .swallow(nil))
     }
 
+    func testARepeatNeverStartsAHold() {
+        var hold = HoldKey()
+        // The key was already held when Hyper went down (or the tap was reset mid-hold).
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space, isRepeat: true), .notMine)
+        XCTAssertFalse(hold.holding)
+        XCTAssertEqual(hold.key(space, down: false, hyperDown: true, holdKey: space), .notMine)
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space), .swallow(.down))
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space, isRepeat: true), .swallow(nil))
+    }
+
+    func testARepeatAfterResetDoesNotRestart() {
+        var hold = HoldKey()
+        _ = hold.key(space, down: true, hyperDown: true, holdKey: space)
+        _ = hold.reset()
+        XCTAssertEqual(hold.key(space, down: true, hyperDown: true, holdKey: space, isRepeat: true), .notMine)
+        XCTAssertFalse(hold.holding)
+    }
+
     func testReleaseCountsEvenAfterHyperComesUp() {
         var hold = HoldKey()
         _ = hold.key(space, down: true, hyperDown: true, holdKey: space)

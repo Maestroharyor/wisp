@@ -21,8 +21,11 @@ public struct HoldKey: Sendable {
 
     public init() {}
 
-    /// One key event. `holdKey` nil means push-to-talk is off.
-    public mutating func key(_ code: UInt16, down: Bool, hyperDown: Bool, holdKey: UInt16?) -> Decision {
+    /// One key event. `holdKey` nil means push-to-talk is off. `isRepeat` marks a key-down sent
+    /// because the key is held.
+    public mutating func key(
+        _ code: UInt16, down: Bool, hyperDown: Bool, holdKey: UInt16?, isRepeat: Bool = false
+    ) -> Decision {
         if code == KeyCodes.escape {
             if down, holding {
                 escapeDown = true
@@ -37,7 +40,9 @@ public struct HoldKey: Sendable {
         if down {
             // Key repeats while held are swallowed too, so nothing types.
             if holding { return .swallow(nil) }
-            guard hyperDown else { return .notMine }
+            // Only a fresh press starts a hold. A repeat here means the key was held before Hyper,
+            // or the tap reset mid-hold; starting then would record again without a new press.
+            guard hyperDown, !isRepeat else { return .notMine }
             holding = true
             return .swallow(.down)
         }

@@ -101,7 +101,7 @@ final class HyperKeyTap {
     /// (and Esc during a hold) comes first, since it owns its own repeats and release; then
     /// Hyper itself; then key-ups of swallowed chords; then repeats, which never act; then chords.
     fileprivate func shouldSwallow(keyCode: UInt16, isKeyDown: Bool, isRepeat: Bool) -> Bool {
-        switch hold.key(keyCode, down: isKeyDown, hyperDown: hyperDown, holdKey: holdKey) {
+        switch hold.key(keyCode, down: isKeyDown, hyperDown: hyperDown, holdKey: holdKey, isRepeat: isRepeat) {
         case .notMine: break
         case .swallow(let event):
             if let event {
