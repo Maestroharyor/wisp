@@ -71,12 +71,16 @@ final class QuickInputStore {
         guard !input.isEmpty, state != .thinking else { return }
         let now = Date.now
         let calendar = Calendar.autoupdatingCurrent
-        switch QuickInputParser.read(input, now: now, calendar: calendar) {
-        case .intent(let intent): return propose(intent, input: input)
-        case .passed: return show(QuickIntentCheck.passed)
-        case .unknown: break
+        let read = QuickInputParser.read(input, now: now, calendar: calendar)
+        switch QuickInputFlow.step(for: read, aiReady: ai.isReady) {
+        case .propose(let intent): propose(intent, input: input)
+        case .passed: show(QuickIntentCheck.passed)
+        case .hint: show(Self.hint)
+        case .askModel(let fallback): askModel(input, now: now, calendar: calendar, fallback: fallback)
         }
-        guard ai.isReady else { return show(Self.hint) }
+    }
+
+    private func askModel(_ input: String, now: Date, calendar: Calendar, fallback: QuickIntent?) {
         state = .thinking
         work?.cancel()
         work = Task { [weak self] in
@@ -86,11 +90,14 @@ final class QuickInputStore {
                 let answer = try await self.ai.run(.quickInput(now: now, timeZone: calendar.timeZone), on: input)
                 intent = QuickInputParser.intent(fromModel: answer.text, now: now, calendar: calendar)
             } catch {
-                self.log.info("Quick input fell back to the hint: the AI task failed")
+                self.log.info("Quick input: the AI task failed")
                 intent = nil
             }
             guard !Task.isCancelled else { return }
-            if let intent { self.propose(intent, input: input) } else { self.show(Self.hint) }
+            switch QuickInputFlow.step(afterModel: intent, fallback: fallback) {
+            case .propose(let chosen): self.propose(chosen, input: input)
+            default: self.show(Self.hint)
+            }
         }
     }
 

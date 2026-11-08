@@ -103,7 +103,10 @@ public enum QuickInputParser {
         if let last = compact.last, last.isNumber, compact.contains("h"), !compact.contains("m") { compact += "m" }
         let hasUnit = compact.contains { !$0.isNumber }
         guard hasUnit || allowBare else { return nil }
-        return DurationText.seconds(from: compact)
+        if let seconds = DurationText.seconds(from: compact) { return seconds }
+        // "0 min" is a length too, so callers can refuse it rather than leave it in a title.
+        let zero = hasUnit && compact.contains("0") && compact.allSatisfy { $0 == "0" || !$0.isNumber }
+        return zero ? 0 : nil
     }
 
     /// "25min" as "25m"; nil for anything that isn't digits and units.
@@ -192,19 +195,31 @@ public enum QuickInputParser {
         }
         if prefix != nil {
             if title == nil, due == nil { return .unknown }
-            // Timing this reader couldn't follow ("in 2 days", "next week", "9.30pm") would end
-            // up in the title of an undated reminder; the model may read it.
-            if due == nil, hasUnreadTiming(left.map(\.key)) { return .unknown }
-            return .intent(.reminder(title: title ?? "Reminder", due: due))
+            let reminder = QuickIntent.reminder(title: title ?? "Reminder", due: due)
+            // Timing this reader couldn't follow ("in 2 days", "next week", "9.30pm") is left in the
+            // title of an undated reminder: the model may read it, and without one it's still offered.
+            if due == nil, hasUnreadTiming(left.map(\.key)) { return .unsure(reminder) }
+            return .intent(reminder)
         }
         guard let due, !words.contains(where: { eventWords.contains($0.key) }) else { return .unknown }
         return .intent(.reminder(title: title ?? "Reminder", due: due))
     }
 
+    private static let timeUnits: Set<String> = [
+        "second", "seconds", "sec", "secs", "minute", "minutes", "min", "mins", "hour", "hours", "hr", "hrs", "day",
+        "days", "week", "weeks", "weekend", "fortnight", "month", "months", "year", "years",
+    ]
+
+    /// "in 2 days", "in a week", "next month", or a word like "9.30pm", "3rd" or "5/11". A plain
+    /// number ("chapter 3") or "at work" isn't timing.
     private static func hasUnreadTiming(_ keys: [String]) -> Bool {
         for (index, key) in keys.enumerated() {
-            if key.contains(where: \.isNumber) { return true }
-            if ["in", "at", "by", "next"].contains(key), index + 1 < keys.count { return true }
+            if let first = key.first, first.isNumber, key.contains(where: { !$0.isNumber }) { return true }
+            guard key == "in" || key == "next", index + 1 < keys.count else { continue }
+            let next = keys[index + 1]
+            let after = index + 2 < keys.count ? keys[index + 2] : ""
+            if next.allSatisfy(\.isNumber) || timeUnits.contains(next) { return true }
+            if next == "a" || next == "an", timeUnits.contains(after) { return true }
         }
         return false
     }
@@ -226,13 +241,13 @@ public enum QuickInputParser {
 
     // MARK: Model answers
 
-    /// How far ahead a model's date may be. `now` is when the request was typed, so nothing
-    /// earlier is accepted, matching `QuickIntentCheck`.
+    /// How far ahead a model's date may be.
     static let modelDateAhead: TimeInterval = 366 * 24 * 3600
 
     /// The AI quick-input task's JSON object as an intent, or nil when it doesn't make sense.
-    /// Dates without an offset are read in `calendar`'s time zone; a date far from `now` or an
-    /// event longer than a day is refused rather than fixed up.
+    /// Dates without an offset are read in `calendar`'s time zone. A date over a year ahead or an
+    /// event longer than a day is refused rather than fixed up; a past date is kept, so
+    /// `QuickIntentCheck` can say the time has passed.
     public static func intent(fromModel json: String, now: Date, calendar: Calendar) -> QuickIntent? {
         guard let data = json.data(using: .utf8), let object = try? JSONDecoder().decode(JSONValue.self, from: data),
             case .object = object, let kind = object["kind"]?.stringValue?.lowercased()
@@ -242,7 +257,7 @@ public enum QuickInputParser {
         let date = object["date"]?.stringValue.flatMap { self.date($0, timeZone: calendar.timeZone) }
         if let date {
             let offset = date.timeIntervalSince(now)
-            guard offset >= 0, offset <= modelDateAhead else { return nil }
+            guard offset <= modelDateAhead else { return nil }
         }
         switch kind {
         case "timer":
@@ -293,8 +308,38 @@ public enum QuickRead: Equatable, Sendable {
     case intent(QuickIntent)
     /// It names a time that's over, with no sensible next one.
     case passed
+    /// An undated reminder with timing words the reader couldn't follow: the model should try,
+    /// and without one this is what's offered.
+    case unsure(QuickIntent)
     /// Not a form the reader knows; the AI task may.
     case unknown
+}
+
+/// What Quick add does next with a request.
+public enum QuickInputStep: Equatable, Sendable {
+    case propose(QuickIntent)
+    case passed
+    /// Ask the AI; `fallback` is offered if it can't read the request either.
+    case askModel(fallback: QuickIntent?)
+    /// Nothing understood: show examples.
+    case hint
+}
+
+public enum QuickInputFlow {
+    public static func step(for read: QuickRead, aiReady: Bool) -> QuickInputStep {
+        switch read {
+        case .intent(let intent): .propose(intent)
+        case .passed: .passed
+        case .unsure(let intent): aiReady ? .askModel(fallback: intent) : .propose(intent)
+        case .unknown: aiReady ? .askModel(fallback: nil) : .hint
+        }
+    }
+
+    /// After the AI (or its failure, `intent` nil): its reading, else the fallback, else the hint.
+    public static func step(afterModel intent: QuickIntent?, fallback: QuickIntent?) -> QuickInputStep {
+        guard let chosen = intent ?? fallback else { return .hint }
+        return .propose(chosen)
+    }
 }
 
 /// A word of the request: as typed, and lowercased without surrounding punctuation.
@@ -427,7 +472,7 @@ enum TimeMatcher {
     private static func longestDuration(_ keys: [String], from start: Int) -> (value: TimeInterval, count: Int)? {
         guard start < keys.count else { return nil }
         for end in stride(from: min(start + 4, keys.count), to: start, by: -1) {
-            if let seconds = QuickInputParser.seconds(Array(keys[start..<end]), allowBare: false), seconds > 0 {
+            if let seconds = QuickInputParser.seconds(Array(keys[start..<end]), allowBare: false) {
                 return (seconds, end - start)
             }
         }
@@ -577,8 +622,8 @@ struct When {
     /// The hour when the words settle it; nil for a bare "5" today, which depends on the time now.
     private func fixedHour(_ clock: ClockTime, laterDay: Bool) -> Int? {
         if let part, part == .evening || part == .night { return nightHour(clock) }
-        // "12am" is the end of the day named, like "midnight".
-        if clock.meridiem == .am, clock.hour == 12 { return 24 }
+        // "12am" is the end of the day named, like "midnight", except in "tomorrow morning at 12am".
+        if clock.meridiem == .am, clock.hour == 12 { return part == .morning ? 0 : 24 }
         if let meridiem = clock.meridiem { return clock.hour % 12 + (meridiem == .pm ? 12 : 0) }
         if clock.isTwentyFourHour { return clock.hour }
         if let part { return part.isAfterNoon ? clock.hour % 12 + 12 : clock.hour % 12 }
@@ -617,12 +662,14 @@ struct When {
 public enum QuickIntentCheck {
     public static let passed = "That time has passed"
 
-    /// Why `intent` can't be made now, or nil when it can.
+    /// Why `intent` can't be made now, or nil when it can. Anything in the current minute counts
+    /// as now, since models (and people) round to the minute.
     public static func problem(_ intent: QuickIntent, now: Date) -> String? {
+        let minute = Date(timeIntervalSinceReferenceDate: (now.timeIntervalSinceReferenceDate / 60).rounded(.down) * 60)
         switch intent {
-        case .timer, .reminder(_, nil): nil
-        case .reminder(_, let due?): due < now ? passed : nil
-        case .event(_, let start, _): start < now ? passed : nil
+        case .timer, .reminder(_, nil): return nil
+        case .reminder(_, let due?): return due < minute ? passed : nil
+        case .event(_, let start, _): return start < minute ? passed : nil
         }
     }
 }

@@ -234,14 +234,26 @@ final class QuickInputParserTests: XCTestCase {
         XCTAssertEqual(title.count, QuickInputParser.maxTitleLength)
     }
 
-    func testModelDatesMustBeNearNow() {
-        // `now` is when the request was typed, so even a slow answer has no reason to be earlier.
-        XCTAssertNil(model(#"{"kind":"reminder","title":"Tea","date":"2025-11-05T14:19:30Z"}"#))
-        XCTAssertEqual(
-            model(#"{"kind":"reminder","title":"Tea","date":"2025-11-05T14:20:00Z"}"#),
-            .reminder(title: "Tea", due: now))
+    func testModelDatesOverAYearAheadAreRefused() {
         XCTAssertNil(model(#"{"kind":"reminder","title":"Tea","date":"2027-01-01T09:00:00Z"}"#))
-        XCTAssertNil(model(#"{"kind":"event","title":"Tea","date":"2025-11-05T10:00:00Z"}"#))
+    }
+
+    func testPastModelDatesReachTheCheck() {
+        // Read as given, so the card can say the time has passed rather than show the hint.
+        let earlier = model(#"{"kind":"event","title":"Tea","date":"2025-11-05T10:00:00Z"}"#)
+        XCTAssertEqual(earlier, .event(title: "Tea", start: date(2025, 11, 5, 10, 0), minutes: 60))
+        XCTAssertEqual(earlier.flatMap { QuickIntentCheck.problem($0, now: now) }, QuickIntentCheck.passed)
+        let lastMinute = model(#"{"kind":"reminder","title":"Tea","date":"2025-11-05T14:19:30Z"}"#)
+        XCTAssertEqual(lastMinute.flatMap { QuickIntentCheck.problem($0, now: now) }, QuickIntentCheck.passed)
+    }
+
+    func testTheSameMinuteIsNotPast() {
+        // Models round to the minute: 14:20 typed at 14:20:40 is fine.
+        let later = now.addingTimeInterval(40)
+        XCTAssertNil(QuickIntentCheck.problem(.reminder(title: "x", due: now), now: later))
+        XCTAssertEqual(
+            QuickIntentCheck.problem(.reminder(title: "x", due: now.addingTimeInterval(-1)), now: later),
+            QuickIntentCheck.passed)
     }
 
     func testModelEventLengthOutsideADayIsRejected() {
@@ -289,15 +301,40 @@ final class QuickInputParserTests: XCTestCase {
         XCTAssertEqual(parse("remind me tomorrow at 12am to go"), .reminder(title: "Go", due: date(2025, 11, 7, 0, 0)))
     }
 
-    func testRemindMeWithUnreadTimingGoesToTheModel() {
+    private func read(_ text: String) -> QuickRead {
+        QuickInputParser.read(text, now: now, calendar: london)
+    }
+
+    func testRemindMeWithUnreadTimingIsUnsure() {
+        XCTAssertEqual(
+            read("remind me to call mom in 2 days"), .unsure(.reminder(title: "Call mom in 2 days", due: nil)))
+        XCTAssertEqual(read("remind me to x next week"), .unsure(.reminder(title: "X next week", due: nil)))
+        XCTAssertEqual(read("remind me at 9.30pm to x"), .unsure(.reminder(title: "9.30pm to x", due: nil)))
+        XCTAssertEqual(read("remind me to call in a week"), .unsure(.reminder(title: "Call in a week", due: nil)))
+        XCTAssertEqual(
+            read("remind me to pay rent on the 3rd"), .unsure(.reminder(title: "Pay rent on the 3rd", due: nil)))
         XCTAssertNil(parse("remind me to call mom in 2 days"))
-        XCTAssertNil(parse("remind me to x next week"))
-        XCTAssertNil(parse("remind me at 9.30pm to x"))
-        XCTAssertNil(parse("remind me to pay 2 bills"))
+    }
+
+    func testEverydayUndatedRemindersAreRead() {
+        let phrases = [
+            "call mom at work": "Call mom at work", "look in the fridge": "Look in the fridge",
+            "check in on Sam": "Check in on Sam", "drop by the shop": "Drop by the shop",
+            "buy the next book": "Buy the next book", "read chapter 3": "Read chapter 3", "pay 2 bills": "Pay 2 bills",
+        ]
+        for (phrase, title) in phrases {
+            XCTAssertEqual(read("remind me to \(phrase)"), .intent(.reminder(title: title, due: nil)), phrase)
+        }
     }
 
     func testEventLongerThanADayIsNotRead() {
         XCTAssertNil(parse("meeting tomorrow at 3 for 25 hours"))
+        XCTAssertEqual(read("meeting tomorrow at 3 for 0 min"), .unknown)
+    }
+
+    func testMorningAtTwelveAmIsTheStartOfTheDay() {
+        XCTAssertEqual(
+            parse("remind me tomorrow morning at 12am to go"), .reminder(title: "Go", due: date(2025, 11, 6, 0, 0)))
     }
 
     func testADayPartUnderWayGivesTheNextHour() {
@@ -406,5 +443,31 @@ final class QuickIntentTextTests: XCTestCase {
         XCTAssertEqual(QuickIntentText.action(.timer(.minutes(5))), "Start")
         XCTAssertEqual(QuickIntentText.action(.reminder(title: "x", due: nil)), "Add")
         XCTAssertEqual(QuickIntentText.action(.event(title: "x", start: .now, minutes: 5)), "Add")
+    }
+}
+
+final class QuickInputFlowTests: XCTestCase {
+    private let undated = QuickIntent.reminder(title: "Call mom in 2 days", due: nil)
+    private let timer = QuickIntent.timer(.minutes(5))
+
+    func testAReadRequestIsProposed() {
+        XCTAssertEqual(QuickInputFlow.step(for: .intent(timer), aiReady: true), .propose(timer))
+        XCTAssertEqual(QuickInputFlow.step(for: .passed, aiReady: true), .passed)
+    }
+
+    func testWithoutAIAnUnsureReminderIsProposedUndated() {
+        XCTAssertEqual(QuickInputFlow.step(for: .unsure(undated), aiReady: false), .propose(undated))
+        XCTAssertEqual(QuickInputFlow.step(for: .unknown, aiReady: false), .hint)
+    }
+
+    func testWithAIUnsureAndUnknownGoToTheModel() {
+        XCTAssertEqual(QuickInputFlow.step(for: .unsure(undated), aiReady: true), .askModel(fallback: undated))
+        XCTAssertEqual(QuickInputFlow.step(for: .unknown, aiReady: true), .askModel(fallback: nil))
+    }
+
+    func testAfterTheModelItsReadingThenTheFallback() {
+        XCTAssertEqual(QuickInputFlow.step(afterModel: timer, fallback: undated), .propose(timer))
+        XCTAssertEqual(QuickInputFlow.step(afterModel: nil, fallback: undated), .propose(undated))
+        XCTAssertEqual(QuickInputFlow.step(afterModel: nil, fallback: nil), .hint)
     }
 }
