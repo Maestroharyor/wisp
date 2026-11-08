@@ -6,9 +6,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     case notch
     case appearance
     case activities
-    case widgets
-    case profiles
-    case clipboard
+    /// Widgets, Clipboard and Profiles in one pane. It keeps the Widgets pane's stored value.
+    case shelf = "widgets"
     case notifications
     case agents
     case phone
@@ -24,9 +23,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .notch: "Notch"
         case .appearance: "Appearance"
         case .activities: "Live Activities"
-        case .widgets: "Widgets"
-        case .profiles: "Profiles"
-        case .clipboard: "Clipboard"
+        case .shelf: "Shelf"
         case .notifications: "Notifications"
         case .agents: "Agents"
         case .phone: "Phone"
@@ -42,9 +39,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .notch: "Where the notch sits, how it opens, and the ring"
         case .appearance: "Theme, shape, motion and the fun extras"
         case .activities: "What shows beside the notch while it's closed"
-        case .widgets: "The widgets on Home and the Widgets page"
-        case .profiles: "Saved setups, and switching them automatically"
-        case .clipboard: "Clipboard history"
+        case .shelf: "Widgets, clipboard history and profiles"
         case .notifications: "Notifications in the notch, and quick replies"
         case .agents:
             "Claude Code, Codex, Gemini CLI, Copilot CLI, Cursor and OpenCode sessions, approvals and status bar"
@@ -108,15 +103,19 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "replace system overlays", "system overlays", "split extra activities", "show focus changes",
                 "notifications",
             ]
-        case .widgets:
+        case .shelf:
             [
-                "home", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
+                // Widgets, Clipboard and Profiles had their own panes; their names stay keywords.
+                "widgets", "home", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
-                "timer length", "script", "command", "output", "do not disturb", "dnd", "workday",
-                "focus button runs this shortcut", "focus button", "do not disturb toggle runs",
+                "timer length", "command output", "command", "output", "run every", "script", "do not disturb",
+                "dnd", "workday", "focus button runs this shortcut", "focus button", "do not disturb toggle runs",
+                "clipboard history", "history", "copy", "paste", "limit", "keep up to", "pinned", "clear history",
+                "concealed", "passwords",
+                "profiles", "profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus",
+                "save current setup", "switch profiles automatically", "switch automatically", "opens on",
+                "profile look", "look for", "keep the current look",
             ]
-        case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
-        case .clipboard: ["history", "copy", "paste", "limit", "pinned"]
         case .notifications:
             [
                 "messages", "imessage", "whatsapp", "telegram", "reply", "banner", "apps", "dismiss",
@@ -179,7 +178,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "theme accent", "teams", "google meet", "chromium", "first bubble", "show on",
                 "display under the pointer", "macbook display", "all displays",
             ]
-        case .widgets: ["widget rows", "rows", "grid", "one row", "two rows"]
+        case .shelf:
+            ["widget rows", "rows", "grid", "one row", "two rows", "clipboard keeps up to", "history length"]
         default: []
         }
     }
@@ -191,6 +191,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         if let pane = SettingsPaneID(rawValue: rawValue) { return pane }
         switch rawValue {
         case "ring": return .notch
+        case "clipboard", "profiles": return .shelf
         default: return .general
         }
     }
@@ -203,8 +204,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
 
 public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
     case wisp
-    case shelf
-    case connections
+    case features
     case system
 
     public var id: Self { self }
@@ -212,17 +212,15 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
     public var title: String {
         switch self {
         case .wisp: "Wisp"
-        case .shelf: "Shelf"
-        case .connections: "Connections"
+        case .features: "Features"
         case .system: "System"
         }
     }
 
     public var panes: [SettingsPaneID] {
         switch self {
-        case .wisp: [.general, .notch, .appearance, .activities]
-        case .shelf: [.widgets, .profiles, .clipboard]
-        case .connections: [.notifications, .agents, .phone, .ai]
+        case .wisp: [.general, .notch, .appearance]
+        case .features: [.activities, .shelf, .notifications, .agents, .phone, .ai]
         case .system: [.permissions, .about]
         }
     }

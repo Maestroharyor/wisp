@@ -161,9 +161,10 @@ struct SettingsView: View {
         case .activities:
             ActivitySettings(
                 preferences: preferences, downloads: services.downloads, notifications: services.notifications)
-        case .widgets: WidgetSettings(preferences: preferences, shortcuts: services.shortcuts)
-        case .profiles: ProfileSettings(preferences: preferences, context: services.context)
-        case .clipboard: ClipboardSettings(preferences: preferences, store: services.clipboard)
+        case .shelf:
+            ShelfSettings(
+                preferences: preferences, shortcuts: services.shortcuts, clipboard: services.clipboard,
+                context: services.context)
         case .notifications: NotificationSettings(preferences: preferences, monitor: services.notifications)
         case .agents:
             AgentSettings(

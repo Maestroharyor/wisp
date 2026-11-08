@@ -70,14 +70,14 @@ final class AdvancedDisclosureTests: XCTestCase {
 final class AdvancedKeywordTests: XCTestCase {
     func testSearchLandsOnTheOptionsUnderAdvanced() {
         XCTAssertEqual(SettingsIndex.panes(matching: "volume steps"), [.activities])
-        XCTAssertEqual(SettingsIndex.panes(matching: "widget rows"), [.widgets])
+        XCTAssertEqual(SettingsIndex.panes(matching: "widget rows"), [.shelf])
         XCTAssertEqual(SettingsIndex.panes(matching: "glow reach"), [.appearance])
         XCTAssertEqual(SettingsIndex.panes(matching: "pointer effect strength"), [.appearance])
     }
 
     func testAdvancedFindsEveryPaneWithAnAdvancedSection() {
         let withAdvanced = SettingsPaneID.allCases.filter { !$0.advancedKeywords.isEmpty }
-        XCTAssertEqual(withAdvanced, [.notch, .appearance, .activities, .widgets])
+        XCTAssertEqual(withAdvanced, [.notch, .appearance, .activities, .shelf])
         XCTAssertEqual(SettingsIndex.panes(matching: "advanced"), withAdvanced)
     }
 
