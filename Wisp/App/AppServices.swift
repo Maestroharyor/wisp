@@ -78,6 +78,7 @@ final class AppServices {
     private(set) lazy var push = PushService(preferences: preferences, hub: agents)
     private(set) lazy var automation = Automation(services: self)
     private(set) lazy var regionWatch = RegionWatchController(services: self)
+    private(set) lazy var textCapture = TextCaptureController(services: self)
     private(set) lazy var ai = AIService(preferences: preferences)
     private(set) lazy var aiActions = AITextActions(
         ai: ai, preferences: preferences, activities: activities,
@@ -409,6 +410,7 @@ final class AppServices {
         shortcuts.onNotice = notice
         quickActions.onNotice = notice
         quickActions.closeShelves = { [weak self] in self?.closeShelves() }
+        quickActions.stepAsideWindow = { [weak self] in self?.shelfWindow.stepAside() ?? {} }
 
         agents.onStatus = { [weak self] status in self?.agentStatusChanged(status) }
         agents.onApproval = { [weak self] approval in

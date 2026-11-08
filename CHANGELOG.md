@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.16](https://github.com/Maestroharyor/wisp/compare/v0.1.15...v0.1.16) (2026-11-08)
+
+
+### Features
+
+* AI actions on clipboard items and the selected text ([#59](https://github.com/Maestroharyor/wisp/issues/59)) ([68f3bb3](https://github.com/Maestroharyor/wisp/commit/68f3bb3dc05d0429a0d752dedc4e95fcd87a3e2b))
+
+
+### Bug fixes
+
+* dictation key repeats and cancels in the Hyper key tap ([#67](https://github.com/Maestroharyor/wisp/issues/67)) ([ca38349](https://github.com/Maestroharyor/wisp/commit/ca383496a283fc569c74bd16c0b54566b69f9787))
+
 ## [0.1.15](https://github.com/Maestroharyor/wisp/compare/v0.1.14...v0.1.15) (2026-11-08)
 
 

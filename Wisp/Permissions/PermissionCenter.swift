@@ -41,7 +41,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .accessibility: "Caps Lock shortcut, volume and brightness keys, pasting, hiding system banners"
         case .fullDiskAccess:
             "Reading notifications, Messages chats and Focus status. Click + or drag Wisp into the list, then switch it on"
-        case .screenRecording: "Watching a window region"
+        case .screenRecording: "Watching a window region and Capture text"
         case .contacts: "Photos and names on notifications"
         case .automation: "Replying in Messages, meeting controls, Up Next in Music, Music fallback"
         case .calendars: "Calendar and Day Progress widgets"
@@ -98,6 +98,16 @@ enum Permission: String, CaseIterable, Identifiable {
 
     /// Whether Wisp has shown the Screen Recording prompt, which macOS shows only once.
     static var askedScreenRecording: Bool { UserDefaults.standard.bool(forKey: askedScreenRecordingKey) }
+
+    /// For features that capture the screen: asks for Screen Recording and returns what to tell
+    /// the user. The first time that's the system prompt; after that the prompt never shows
+    /// again, so System Settings opens, and a grant there reaches Wisp only after it's reopened.
+    @MainActor static func askForScreenRecording() -> String {
+        let askedBefore = askedScreenRecording
+        screenRecording.request()
+        return askedBefore
+            ? "Turn on Screen Recording, then quit and reopen Wisp" : "Allow Screen Recording, then try again"
+    }
 
     @MainActor func request() {
         Self.lastRequest = PermissionRequest(id: rawValue, at: .now)

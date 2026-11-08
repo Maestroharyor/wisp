@@ -209,6 +209,9 @@ private struct TrayCard: View {
             Button("AirDrop") { tray.airDrop([url]) }
             Button("Transform…") { services.openTransform([url]) }
             Button("Zip") { tray.zip([url]) }
+            if url.pathExtension.lowercased() == "pdf", services.textCapture.canSummarise {
+                Button("Summarise PDF") { services.textCapture.summarise(url) }
+            }
             Divider()
             Button("Remove from Tray") { tray.remove(url) }
         }

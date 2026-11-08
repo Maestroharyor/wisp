@@ -138,6 +138,8 @@ private struct WindowDetail: View {
     let selection: WindowDestination
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The row shown before the current one, to tell whether the swap fades.
+    @State private var previous: WindowDestination?
 
     private var services: AppServices { model.services }
 
@@ -145,6 +147,16 @@ private struct WindowDetail: View {
         detail(selection)
             .navigationTitle(WindowRow.title(of: selection, services: services))
             .toolbar { toolbar(selection) }
+            .onChange(of: selection, initial: true) { _, row in previous = row }
+    }
+
+    /// Widget pages put their own items in the toolbar; a fade would show both pages' items for
+    /// a moment, so swaps to or from a widget row are instant.
+    private var fades: Bool {
+        guard !reduceMotion else { return false }
+        if case .widget = selection { return false }
+        if case .widget = previous { return false }
+        return true
     }
 
     private func detail(_ selection: WindowDestination) -> some View {
@@ -156,8 +168,9 @@ private struct WindowDetail: View {
                     .transition(.opacity)
             }
         }
-        // Swaps right away, like Notes or Music; a short fade unless Reduce Motion is on.
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: selection)
+        // Swaps right away, like Notes or Music; a short fade between the Wisp pages and live
+        // rows unless Reduce Motion is on.
+        .animation(fades ? .easeOut(duration: 0.12) : nil, value: selection)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             let hub = services.agents
@@ -180,14 +193,7 @@ private struct WindowDetail: View {
         case .page(.media): MediaPage(model: model)
         case .widget(let id):
             if let kind = WidgetKind(rawValue: id) {
-                Group {
-                    if kind == .agents {
-                        AgentsDetail(hub: services.agents, cloud: services.cloud, model: model)
-                    } else {
-                        WidgetCard(kind: kind, model: model)
-                    }
-                }
-                .padding(20)
+                WindowWidgetDetail(kind: kind, model: model)
             }
         case .live(let live):
             Group {
