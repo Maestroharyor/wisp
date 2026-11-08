@@ -112,10 +112,10 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .ring:
             [
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "orb",
-                "hyper r", "per app", "ai action",
+                "hyper r", "per app", "capture text", "ocr", "qr code", "barcode", "ai action",
             ]
         case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
-        case .clipboard: ["history", "copy", "paste", "limit", "pinned"]
+        case .clipboard: ["history", "copy", "paste", "limit", "pinned", "ocr", "text from image"]
         case .notifications:
             [
                 "messages", "imessage", "whatsapp", "telegram", "reply", "banner", "apps", "focus", "dismiss",

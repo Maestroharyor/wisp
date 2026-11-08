@@ -179,7 +179,9 @@ struct AgentApprovalCard: View {
                     .background(Circle().fill(Color.project(approval.project).opacity(0.18)))
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
+                        // One line each; the project name gives way first when the card is narrow.
                         Text(approval.title).font(.system(size: 13, weight: .bold))
+                            .lineLimit(1).fixedSize()
                         if let position = hub.queue.positionLabel {
                             Text(position)
                                 .font(.system(size: 10, weight: .semibold)).monospacedDigit()
@@ -191,6 +193,7 @@ struct AgentApprovalCard: View {
                         } label: {
                             Label(approval.project, systemImage: "arrow.up.forward.app")
                                 .font(.system(size: 11)).foregroundStyle(Color.project(approval.project))
+                                .lineLimit(1).truncationMode(.tail)
                         }
                         .buttonStyle(.plain)
                         .help("Show the terminal")
@@ -203,8 +206,10 @@ struct AgentApprovalCard: View {
                                     expanded ? "Less" : "Preview", systemImage: expanded ? "chevron.up" : "chevron.down"
                                 )
                                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.wispViolet)
+                                .lineLimit(1)
                             }
                             .buttonStyle(.plain)
+                            .fixedSize()
                             .help(approval.prompt == .plan ? "Read the plan" : "See what it will change")
                         }
                     }
