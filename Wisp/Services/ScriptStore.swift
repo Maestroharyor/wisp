@@ -8,6 +8,8 @@ import WispCore
 @Observable
 final class ScriptStore {
     private(set) var lines: [String] = []
+    /// The whole output as a terminal shows it, for the window page (the same run as `lines`).
+    private(set) var transcript: [String] = []
     private(set) var problem: String?
     private(set) var ranAt: Date?
     private(set) var running = false
@@ -16,9 +18,13 @@ final class ScriptStore {
     /// The command most recently asked for; it can change while another one is running.
     @ObservationIgnored private var wantedCommand: String?
 
+    /// Output is capped at 32 KB, so this rarely cuts anything.
+    private static let transcriptLimit = 500
+
     private struct Outcome {
         /// Nil keeps the output already shown (a timeout says nothing new).
         var lines: [String]?
+        var transcript: [String]?
         var problem: String?
     }
 
@@ -27,6 +33,7 @@ final class ScriptStore {
         wantedCommand = command
         if command != ranCommand {
             lines = []
+            transcript = []
             problem = nil
             ranAt = nil
         }
@@ -40,6 +47,7 @@ final class ScriptStore {
             let outcome = await run(current)
             guard let wanted = wantedCommand, wanted != current else {
                 if let fresh = outcome.lines { lines = fresh }
+                if let fresh = outcome.transcript { transcript = fresh }
                 problem = outcome.problem
                 ranAt = .now
                 ranCommand = current
@@ -53,7 +61,7 @@ final class ScriptStore {
     private func run(_ command: String) async -> Outcome {
         guard let words = CommandLineText.split(command), let program = words.first else {
             let empty = command.trimmingCharacters(in: .whitespaces).isEmpty
-            return Outcome(lines: [], problem: empty ? nil : "Close the quote in the command.")
+            return Outcome(lines: [], transcript: [], problem: empty ? nil : "Close the quote in the command.")
         }
         let head = program.hasPrefix("/") ? program : "/usr/bin/env"
         let arguments = program.hasPrefix("/") ? Array(words.dropFirst()) : words
@@ -61,10 +69,14 @@ final class ScriptStore {
             let output = try await ProcessRunner.run(
                 head, arguments, timeout: .seconds(15), maxOutput: 32 << 10,
                 environment: ProcessRunner.userEnvironment, includeErrors: true)
-            return Outcome(lines: ScriptOutput.lines(from: output, limit: 4))
+            return Outcome(
+                lines: ScriptOutput.lines(from: output, limit: 4),
+                transcript: ScriptOutput.transcript(from: output, limit: Self.transcriptLimit))
         } catch let failure as ProcessRunner.Failure {
             return Outcome(
-                lines: ScriptOutput.lines(from: failure.output, limit: 3), problem: "Exited with \(failure.status)")
+                lines: ScriptOutput.lines(from: failure.output, limit: 3),
+                transcript: ScriptOutput.transcript(from: failure.output, limit: Self.transcriptLimit),
+                problem: "Exited with \(failure.status)")
         } catch is ProcessRunner.TimedOut {
             return Outcome(lines: nil, problem: "Took longer than 15 seconds")
         } catch {
