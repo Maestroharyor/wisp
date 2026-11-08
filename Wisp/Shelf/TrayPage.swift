@@ -7,6 +7,7 @@ struct TrayPage: View {
     let model: NotchModel
 
     @State private var targeted = false
+    @Environment(\.shelfHost) private var host
 
     private var tray: TrayStore { model.services.tray }
 
@@ -20,6 +21,20 @@ struct TrayPage: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(DropOutline(active: targeted, cornerRadius: ShellMetrics.widgetCornerRadius))
+            } else if host == .window {
+                VStack(alignment: .leading, spacing: 12) {
+                    header
+                    ScrollView(.vertical) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12)], spacing: 12)
+                        {
+                            ForEach(tray.list.urls, id: \.self) { url in
+                                TrayCard(url: url, tray: tray, services: model.services, metrics: .window)
+                            }
+                            DropMoreCard(active: targeted, width: nil)
+                                .frame(height: TrayCardMetrics.window.thumbnail + 52)
+                        }
+                    }
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     header
@@ -33,6 +48,7 @@ struct TrayPage: View {
                 }
             }
         }
+        .modifier(WindowPageFill(host: host))
         .onDrop(of: [.fileURL], isTargeted: $targeted, perform: FileDrop.handler { tray.add($0) })
     }
 
@@ -45,8 +61,8 @@ struct TrayPage: View {
         }
     }
 
-    static let cardSpacing: CGFloat = 6
-    static var cardWidth: CGFloat { SurfaceSizing.trayItemWidth - cardSpacing }
+    nonisolated static let cardSpacing: CGFloat = 6
+    nonisolated static var cardWidth: CGFloat { SurfaceSizing.trayItemWidth - cardSpacing }
 
     private var header: some View {
         let list = tray.list
@@ -74,6 +90,36 @@ struct TrayPage: View {
         .frame(height: 24)
         .animation(.easeOut(duration: 0.15), value: tray.header)
     }
+}
+
+/// In the window the page fills the detail with a margin, so the whole of it takes drops.
+/// Under the shell it keeps its own size.
+private struct WindowPageFill: ViewModifier {
+    let host: ShelfHost
+
+    func body(content: Content) -> some View {
+        switch host {
+        case .notch:
+            content
+        case .window:
+            content
+                .padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .contentShape(Rectangle())
+        }
+    }
+}
+
+/// Card sizes: small in the notch's row, larger in the window's grid.
+struct TrayCardMetrics {
+    /// Nil fills the grid cell.
+    let width: CGFloat?
+    let thumbnail: CGFloat
+    let nameSize: CGFloat
+    let detailSize: CGFloat
+
+    static let notch = TrayCardMetrics(width: TrayPage.cardWidth, thumbnail: 50, nameSize: 10, detailSize: 9)
+    static let window = TrayCardMetrics(width: nil, thumbnail: 110, nameSize: 12, detailSize: 10)
 }
 
 /// A small capsule button for the tray header: an icon, with a label when there is room for one.
@@ -104,6 +150,7 @@ private struct TrayCard: View {
     let url: URL
     let tray: TrayStore
     let services: AppServices
+    var metrics = TrayCardMetrics.notch
 
     @State private var hovering = false
 
@@ -114,10 +161,11 @@ private struct TrayCard: View {
                 if let image = tray.thumbnails[url] {
                     Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
                 } else {
-                    Image(systemName: "doc").font(.system(size: 24))
+                    Image(systemName: "doc").font(.system(size: metrics.thumbnail * 0.48))
                 }
             }
-            .frame(width: TrayPage.cardWidth - 12, height: 50)
+            .frame(width: metrics.width.map { $0 - 12 }, height: metrics.thumbnail)
+            .frame(maxWidth: metrics.width == nil ? .infinity : nil)
             .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
             .overlay(alignment: .topTrailing) {
                 if selected {
@@ -130,17 +178,18 @@ private struct TrayCard: View {
             }
             .padding(.top, 6)
             Text(url.lastPathComponent)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: metrics.nameSize, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
             Text(tray.detail(for: url))
-                .font(.system(size: 9))
+                .font(.system(size: metrics.detailSize))
                 .foregroundStyle(Color.secondaryText)
                 .lineLimit(1)
         }
         .padding(.horizontal, 5)
         .padding(.bottom, 6)
-        .frame(width: TrayPage.cardWidth)
+        .frame(width: metrics.width)
+        .frame(maxWidth: metrics.width == nil ? .infinity : nil)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.ink.opacity(selected ? 0.14 : hovering ? 0.1 : 0.05))

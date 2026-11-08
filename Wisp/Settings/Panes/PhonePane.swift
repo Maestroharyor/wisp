@@ -118,7 +118,7 @@ struct PhoneSettings: View {
             }
             Toggle("Include details", isOn: $preferences.pushDetails)
             Text(
-                "Adds the command or file name to permission requests, with secrets masked. Hidden while agent details are hidden in the notch."
+                "Adds the command or file name to permission requests, with secrets masked, and the session summary to Done. Hidden while agent details are hidden in the notch."
             )
             .font(.caption).foregroundStyle(.secondary)
         }
