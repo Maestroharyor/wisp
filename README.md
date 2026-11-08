@@ -1,6 +1,17 @@
 # Wisp
 
-**The notch for people who build.** Wisp watches your coding agents from the Mac notch. Claude Code, Codex, Gemini CLI, Copilot CLI, Cursor and OpenCode runs show beside the camera, permission prompts become an Allow or Deny card, and a click on a session brings its terminal forward. Profiles follow what you're doing, and quick toggles, widgets, a file tray and clipboard history sit one click away. Displays without a notch get a drawn notch (or a floating island).
+**A Mac companion for people who build.** Wisp started as a notch app. It now runs your coding agents, shows live activities and keeps your files, clipboard, music and day within reach, from the notch, a floating island or orb, or an ordinary window. Its AI runs on your Mac, and it has no account and no analytics.
+
+## At a glance
+
+- **Coding agents:** Claude Code, Codex, Gemini CLI, Copilot CLI, Cursor and OpenCode sessions in one place, with Allow and Deny cards, answers to Claude's questions, always-allow rules, usage limits and spend, session history and a jump to the exact terminal pane. Approvals can also come to your phone or Apple Watch, and cloud agent tasks and their pull request checks have a lane of their own.
+- **Wherever you want it:** the notch, a drawn notch or island on other displays, a corner, an edge, the bottom of the screen, a floating orb you tear off the notch, or a resizable window with a sidebar and a full page for every widget. A radial ring puts eight actions at the pointer.
+- **Live activities:** music with lyrics, timers and Pomodoro, calls with mute, camera and leave controls, downloads, device batteries, AirPods, volume and brightness, a watched window region and pills from your own scripts.
+- **Shelf and tools:** 17 widgets, a file tray with AirDrop, convert and zip, clipboard history, per-app volume, Up Next, notifications with quick replies, and profiles that switch with the app you're in.
+- **On-device AI and input:** Apple Intelligence or Ollama on your Mac for text actions and PDF summaries, quick add for timers, reminders and events, push-to-talk dictation, and text or QR capture from the screen.
+- **Automation:** the `wisp` command, `wisp://` links and Shortcuts actions.
+
+The full list is under [Features](#features).
 
 Website: [ayomideodewale.com/wisp](https://ayomideodewale.com/wisp) · Made by [Ayomide Odewale](https://ayomideodewale.com).
 
