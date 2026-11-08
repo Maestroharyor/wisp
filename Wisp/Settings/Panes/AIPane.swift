@@ -31,6 +31,7 @@ struct AISettings: View {
             }
             if preferences.aiEnabled {
                 engine
+                actions
                 tryIt
             }
         }
@@ -103,6 +104,23 @@ struct AISettings: View {
         case .ready: Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.wispViolet)
         case .checking: ProgressView().controlSize(.small)
         default: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+        }
+    }
+
+    private var actions: some View {
+        Section {
+            LabeledContent("Translate to") {
+                TextField("Translate to", text: $preferences.aiTranslateLanguage, prompt: Text("English"))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 220)
+            }
+        } header: {
+            Text("Text actions")
+        } footer: {
+            Text(
+                "Right-click a text item in the clipboard panel and choose AI, or press ⌘1 to ⌘8. Add an AI action to the ring to work on the text selected in any app, or else on the clipboard. Reading the selection needs Accessibility."
+            )
         }
     }
 

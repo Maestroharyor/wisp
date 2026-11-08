@@ -112,6 +112,11 @@ final class NotchCoordinator {
 
     var hasOpenShelf: Bool { controllers.values.contains { $0.phase == .open } }
 
+    /// Hands the keyboard back to the app in front from any closed notch that took it.
+    func releaseKey() {
+        for controller in controllers.values { controller.releaseKey() }
+    }
+
     /// Hyper+F: the next form on the display under the pointer.
     func cycleForm() {
         let (form, systemIsland) = formUnderPointer()

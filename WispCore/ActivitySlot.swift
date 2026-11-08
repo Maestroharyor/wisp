@@ -24,6 +24,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case external
     case regionWatch
     case dictation
+    /// The answer to an AI action on selected or copied text, with Copy and Replace.
+    case aiResult
 
     /// Ongoing activities sit below every short alert, so a battery or device alert still
     /// shows during a call and then hands the pill back.
@@ -43,7 +45,10 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         case .notice: 45
         case .timerDone: 46
         case .downloadDone: 47
-        case .meetingSoon: 48
+        // Asked for just now, so it sits over notices and finished downloads; a call's Join
+        // card and notifications still pass over it.
+        case .aiResult: 48
+        case .meetingSoon: 49
         case .notification: 50
         case .agentApproval: 55
         // Held down on purpose, so it shows over cards; only HUDs (volume, Caps Lock) go above.
@@ -65,7 +70,9 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     /// call, a timer, an agent at work), approvals and HUDs can't be.
     public var isDismissable: Bool {
         switch self {
-        case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone: true
+        case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone,
+            .aiResult:
+            true
         default: false
         }
     }
