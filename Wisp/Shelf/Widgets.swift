@@ -10,6 +10,8 @@ struct WidgetCard: View {
     let kind: WidgetKind
     let model: NotchModel
 
+    @Environment(\.shelfHost) private var host
+
     var body: some View {
         let services = model.services
         Group {
@@ -33,7 +35,8 @@ struct WidgetCard: View {
             case .worldClocks: WorldClocksWidget(preferences: services.preferences)
             case .agents:
                 // Wide fills the shelf: room for the sessions and the selected one's details side by side.
-                if services.preferences.size(of: .agents) == .wide {
+                // The window's Home card stays compact; its header opens the full Agents row.
+                if services.preferences.size(of: .agents) == .wide, host == .notch {
                     AgentsDetail(hub: services.agents, cloud: services.cloud, model: model)
                 } else {
                     AgentsWidget(hub: services.agents, cloud: services.cloud)

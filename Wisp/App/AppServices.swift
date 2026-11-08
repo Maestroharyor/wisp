@@ -166,15 +166,22 @@ final class AppServices {
     private static let uses24Hour =
         !(DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: .current) ?? "").contains("a")
 
-    /// Without artwork the album tint is a plain white fallback, which turns the glow grey.
-    private var albumTintActive: Bool {
-        preferences.adaptiveAccent && nowPlaying.info?.isPlaying == true && nowPlaying.artwork != nil
+    /// The playing album's colour while there's artwork to take it from.
+    private var activeAlbumTint: Color? {
+        guard preferences.adaptiveAccent, nowPlaying.info?.isPlaying == true, nowPlaying.artwork != nil else {
+            return nil
+        }
+        return nowPlaying.tint
     }
 
-    var accent: Color { albumTintActive ? nowPlaying.tint : Color(rgb: palette.accent) }
+    var accent: Color { activeAlbumTint ?? Color(rgb: palette.accent) }
 
     /// The second colour of the shelf glow; the same as the accent for one-colour themes.
-    var glow: Color { albumTintActive ? nowPlaying.tint : Color(rgb: palette.glow) }
+    var glow: Color { activeAlbumTint ?? Color(rgb: palette.glow) }
+
+    /// The music pill's waveform colour: the artwork's, or the theme's accent without artwork,
+    /// so it reads in Light and Dark mode alike.
+    var albumTint: Color { nowPlaying.tint ?? Color(rgb: palette.accent) }
 
     /// Set by the notch coordinator: the page closed shelves open on next.
     var restingPage: @MainActor (ShelfPage) -> Void = { _ in }
