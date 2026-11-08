@@ -95,7 +95,8 @@ targets:
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 Ayomide Odewale"
         NSAppleEventsUsageDescription: Wisp reads what is playing in Music and Spotify, shows what's next in Music, controls playback from the notch, and brings a coding agent's terminal tab forward.
-        NSCalendarsFullAccessUsageDescription: Wisp shows your next events in the Calendar widget.
+        NSCalendarsFullAccessUsageDescription: Wisp shows your next events in the Calendar widget and adds the events you ask for in Quick add.
+        NSRemindersFullAccessUsageDescription: Wisp adds the reminders you ask for in Quick add.
         NSLocationUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSLocationWhenInUseUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSContactsUsageDescription: Wisp shows contact photos on notifications.
@@ -118,7 +119,7 @@ targets:
       properties:
         # Not sandboxed: event taps, hidutil and private frameworks need it.
         com.apple.security.app-sandbox: false
-        # Hardened runtime resource access for Now Playing, Calendar and Weather.
+        # Hardened runtime resource access for Now Playing, Calendar (events and reminders) and Weather.
         com.apple.security.automation.apple-events: true
         com.apple.security.personal-information.calendars: true
         com.apple.security.personal-information.location: true

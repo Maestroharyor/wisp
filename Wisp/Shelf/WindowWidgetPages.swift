@@ -44,6 +44,10 @@ struct WindowWidgetDetail: View {
             }
         case .agents:
             AgentsDetail(hub: services.agents, cloud: services.cloud, model: model).padding(20)
+        case .quickInput:
+            WindowWidgetPage(width: .readable) { _ in
+                QuickInputWidget(store: services.quickInput, dictation: services.dictation)
+            }
         }
     }
 }

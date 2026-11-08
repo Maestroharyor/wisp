@@ -42,6 +42,7 @@ struct WidgetCard: View {
                     AgentsWidget(hub: services.agents, cloud: services.cloud)
                 }
             case .script: ScriptWidget(store: services.script, preferences: services.preferences)
+            case .quickInput: QuickInputWidget(store: services.quickInput, dictation: services.dictation)
             }
         }
         .padding(.vertical, 4)

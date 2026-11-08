@@ -108,7 +108,7 @@ struct CompactActivityView: View {
                 Text("Listening").lineLimit(1)
             }
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone,
-            .aiResult:
+            .aiResult, .quickIntent:
             EmptyView()
         }
     }
@@ -201,7 +201,7 @@ struct CompactActivityView: View {
                     .help("Stop watching")
             }
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone,
-            .aiResult:
+            .aiResult, .quickIntent:
             EmptyView()
         }
     }
@@ -296,7 +296,7 @@ struct SideActivityView: View {
         case .regionWatch(let status):
             caption(status.paused ? "Paused" : "Watching")
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone,
-            .aiResult:
+            .aiResult, .quickIntent:
             EmptyView()
         }
     }
@@ -362,7 +362,7 @@ struct ActivityGlyph: View {
         case .dictation:
             Image(systemName: "mic.fill").foregroundStyle(.red)
         case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone,
-            .aiResult:
+            .aiResult, .quickIntent:
             EmptyView()
         }
     }

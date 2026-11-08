@@ -74,6 +74,8 @@ enum Activity: Sendable, Equatable {
     case regionWatch(RegionWatchStatus)
     /// Wisp is listening for dictation while the key is held.
     case dictation(since: Date)
+    /// What a quick add request will make, waiting for Add or Cancel.
+    case quickIntent(QuickIntent)
     /// An AI action on selected or copied text: working, then the answer with Copy and Replace.
     case aiResult(AIResultCard)
 
@@ -122,6 +124,7 @@ enum Activity: Sendable, Equatable {
         case .custom: "custom"
         case .regionWatch: "regionWatch"
         case .dictation: "dictation"
+        case .quickIntent: "quickIntent"
         case .aiResult(let card): "aiResult-\(card.id)"
         }
     }

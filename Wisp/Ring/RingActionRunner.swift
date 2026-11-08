@@ -41,6 +41,7 @@ enum RingActionRunner {
                 .notice(symbol: action.symbol, text: "Drag files onto the orb, then onto \(action.title)"),
                 slot: .notice, duration: 2)
         case .form: services.cycleForm()
+        case .quickInput: services.openQuickInput()
         case .none: break
         }
     }

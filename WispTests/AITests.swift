@@ -39,6 +39,7 @@ final class AITaskTests: XCTestCase {
         XCTAssertTrue(task.instructions.contains("JSON"))
         XCTAssertTrue(task.instructions.contains("2027-01-15T09:00:00+01:00"))
         XCTAssertTrue(task.instructions.contains("Europe/Paris"))
+        XCTAssertTrue(task.instructions.contains("in the future"))
         XCTAssertEqual(task.temperature, 0)
     }
 

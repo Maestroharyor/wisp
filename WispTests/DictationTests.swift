@@ -401,6 +401,15 @@ final class DictationTargetTests: XCTestCase {
         XCTAssertEqual(DictationTarget.choose(draftSession: "", questionCard: nil), .focusedApp)
     }
 
+    func testQuickAddFieldComesAfterTheDraftBox() {
+        let question = UUID()
+        XCTAssertEqual(
+            DictationTarget.choose(draftSession: nil, questionCard: question, quickInput: true), .quickInput)
+        XCTAssertEqual(
+            DictationTarget.choose(draftSession: "s1", questionCard: nil, quickInput: true), .agentDraft(session: "s1"))
+        XCTAssertFalse(DictationTarget.quickInput.showsPill)
+    }
+
     func testOnlyTheFocusedAppShowsThePill() {
         XCTAssertTrue(DictationTarget.focusedApp.showsPill)
         XCTAssertFalse(DictationTarget.agentDraft(session: "s").showsPill)

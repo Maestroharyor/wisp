@@ -45,6 +45,8 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case zip
         /// Switches Wisp's form; its sub-ring lists the forms.
         case form
+        /// Opens the quick add field ("25 min", "remind me to call Sam at 5").
+        case quickInput
         case none
     }
 
@@ -84,6 +86,7 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .transform: "Transform"
         case .zip: "Zip"
         case .form: "Form"
+        case .quickInput: "Quick add"
         case .none: "Nothing"
         }
     }
@@ -116,6 +119,7 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .transform: "wand.and.stars"
         case .zip: "doc.zipper"
         case .form: "circle.circle"
+        case .quickInput: "text.badge.plus"
         case .none: "circle.dashed"
         }
     }
