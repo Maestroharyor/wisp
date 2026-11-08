@@ -103,6 +103,8 @@ Decisions: ntfy push (any server, ntfy.sh by default, off by default; turning it
 | 21 | Per-app volume, Up Next | Spike first (CoreAudio process taps; whether any player exposes a queue), then build what works | Not started |
 | 22 | System Live Activities | After macOS 27.3 ships (see "Next for Dynamic Island Macs" above); needs a widget extension target | Waiting |
 
+Review follow-ups for the Hyper key tap (from phases 8 and 14): a key repeat never starts a dictation hold (`HoldKey` ignores repeats unless a hold is already going, so a key held before Caps Lock doesn't record; after Esc or a tap reset ends a hold, the still-held key's repeats and release are swallowed without an event, and an Esc repeat never cancels again), and `HyperKeyTap.stop()` now reports the release of every swallowed chord, as re-enabling already did, so an approval key can't stay down after the tap is torn down. Done (pending review). Not checked by hand: holding the dictation key before Caps Lock, and stopping the tap mid-chord, in the running app.
+
 Backlog: SSH-remote agents, notification digest, live captions, hiding Wisp from screen captures (`sharingType`), localisation, a local MCP server, table to CSV, and Antigravity, Amp and Droid adapters.
 
 ## Not done
