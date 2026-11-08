@@ -3,12 +3,15 @@ import Foundation
 /// Which permissions Wisp's switched-on features need but doesn't have.
 public enum SetupHealth {
     /// Permission ids the current features need, in display order.
-    public static func needed(notifications: Bool, calendarWidgets: Bool, mirror: Bool, dictation: Bool) -> [String] {
+    public static func needed(
+        notifications: Bool, calendarWidgets: Bool, mirror: Bool, dictation: Bool, appVolume: Bool = false
+    ) -> [String] {
         var ids = ["accessibility"]
         if notifications { ids.append("fullDiskAccess") }
         if calendarWidgets { ids.append("calendars") }
         if mirror { ids.append("camera") }
         if dictation { ids += ["microphone", "speechRecognition"] }
+        if appVolume { ids.append("systemAudio") }
         return ids
     }
 

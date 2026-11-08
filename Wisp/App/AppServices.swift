@@ -26,6 +26,8 @@ final class AppServices {
     let systemHUD: SystemHUD
     let notifications: NotificationMonitor
     let lyrics: LyricsStore
+    let upNext: UpNextStore
+    let appVolume: AppVolumeStore
     let microphone = MicrophoneMonitor()
     let meetingControls = MeetingControlsDriver()
     let dictation: DictationEngine
@@ -127,6 +129,8 @@ final class AppServices {
         systemHUD = SystemHUD(preferences: preferences, activities: activities)
         notifications = NotificationMonitor(preferences: preferences)
         lyrics = LyricsStore(preferences: preferences)
+        upNext = UpNextStore(preferences: preferences)
+        appVolume = AppVolumeStore(preferences: preferences)
         quickActions = QuickActions(preferences: preferences, shortcuts: shortcuts)
         context = ContextEngine(preferences: preferences)
         sounds = SoundPlayer(preferences: preferences)
@@ -482,6 +486,7 @@ final class AppServices {
             self?.activities.post(.downloadDone(download), slot: .downloadDone, duration: 8)
         }
         syncDownloads()
+        syncAppVolume()
         dropActions.onNotice = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 2)
         }
@@ -586,6 +591,16 @@ final class AppServices {
         }
     }
 
+    /// Per-app volume runs only while its switch is on; turning it off hands every app back.
+    private func syncAppVolume() {
+        let enabled = withObservationTracking {
+            preferences.appVolume
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.syncAppVolume() }
+        }
+        if enabled { appVolume.start() } else { appVolume.stop() }
+    }
+
     /// Ticks on each minute boundary.
     private func startClock() {
         guard clockTask == nil else { return }
@@ -620,6 +635,7 @@ final class AppServices {
         headphones.stop()
         accessories.stop()
         downloads.stop()
+        appVolume.stop()
         lockScreenPlayer.stop()
         push.stop()
         cloud.stop()

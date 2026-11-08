@@ -260,6 +260,9 @@ final class Preferences {
         static let meetingControls = "meetingControls"
         static let meetingShortcutControls = "meetingShortcutControls"
         static let lockScreenPlayer = "lockScreenPlayer"
+        static let appVolume = "appVolume"
+        static let appVolumeSettings = "appVolumeSettings"
+        static let upNext = "upNext"
         static let activityBubbles = "activityBubbles"
         static let theme = "theme"
         static let customAccent = "customAccent"
@@ -778,6 +781,14 @@ final class Preferences {
     }
     /// Show a player while the screen is locked, where macOS allows it.
     var lockScreenPlayer: Bool { didSet { defaults.set(lockScreenPlayer, forKey: Key.lockScreenPlayer) } }
+    /// Per-app volume through CoreAudio taps. Off by default: it needs System Audio Recording.
+    var appVolume: Bool { didSet { defaults.set(appVolume, forKey: Key.appVolume) } }
+    /// The apps turned down or muted, by bundle id.
+    var appVolumeSettings: AppVolumeSettings {
+        didSet { defaults.set(try? JSONEncoder().encode(appVolumeSettings), forKey: Key.appVolumeSettings) }
+    }
+    /// The rest of Music's playlist under the player. Off by default: it needs Automation for Music.
+    var upNext: Bool { didSet { defaults.set(upNext, forKey: Key.upNext) } }
     /// Extra live activities split off into round bubbles beside the pill.
     var activityBubbles: Bool { didSet { defaults.set(activityBubbles, forKey: Key.activityBubbles) } }
     /// The first bubble splits off to the left instead of the right.
@@ -1006,6 +1017,8 @@ final class Preferences {
             Key.meetingControls: true,
             Key.meetingShortcutControls: false,
             Key.lockScreenPlayer: true,
+            Key.appVolume: false,
+            Key.upNext: false,
             Key.activityBubbles: true,
             Key.firstBubbleOnLeft: false,
             Key.theme: ThemeID.default.rawValue,
@@ -1141,6 +1154,12 @@ final class Preferences {
         meetingControls = defaults.bool(forKey: Key.meetingControls)
         meetingShortcutControls = defaults.bool(forKey: Key.meetingShortcutControls)
         lockScreenPlayer = defaults.bool(forKey: Key.lockScreenPlayer)
+        appVolume = defaults.bool(forKey: Key.appVolume)
+        appVolumeSettings =
+            defaults.data(forKey: Key.appVolumeSettings).flatMap {
+                try? JSONDecoder().decode(AppVolumeSettings.self, from: $0)
+            } ?? AppVolumeSettings()
+        upNext = defaults.bool(forKey: Key.upNext)
         activityBubbles = defaults.bool(forKey: Key.activityBubbles)
         firstBubbleOnLeft = defaults.bool(forKey: Key.firstBubbleOnLeft)
         showMenuBarIcon = defaults.bool(forKey: Key.showMenuBarIcon)
