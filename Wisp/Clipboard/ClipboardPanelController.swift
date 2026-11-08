@@ -12,6 +12,8 @@ final class ClipboardPanelModel {
     var selectedID: UUID?
 
     let store: ClipboardStore
+    /// Reads the text in an image item and copies it (the card menu's Copy text).
+    @ObservationIgnored var copyText: (ClipItem) -> Void = { _ in }
 
     init(store: ClipboardStore) {
         self.store = store
@@ -46,6 +48,7 @@ final class ClipboardPanelController {
     init(services: AppServices) {
         self.services = services
         model = ClipboardPanelModel(store: services.clipboard)
+        model.copyText = { [weak services] item in services?.textCapture.copyText(from: item) }
     }
 
     /// Fading out; a show() meanwhile cancels the pending orderOut.
