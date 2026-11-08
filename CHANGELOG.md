@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/Maestroharyor/wisp/compare/v0.1.17...v0.2.0) (2026-11-08)
+
+
+### Changes under the hood
+
+* simplify Settings from fourteen panes to ten ([#65](https://github.com/Maestroharyor/wisp/issues/65)) ([a40b4a0](https://github.com/Maestroharyor/wisp/commit/a40b4a076b038eb8223831ef068988f84e710e61))
+
 ## [0.1.17](https://github.com/Maestroharyor/wisp/compare/v0.1.16...v0.1.17) (2026-11-08)
 
 
