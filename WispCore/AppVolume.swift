@@ -156,40 +156,65 @@ public enum AppVolumeTaps {
 public struct TapArming: Sendable, Equatable {
     public enum State: Sendable, Equatable {
         case listening
-        /// Sound came through: the tap may mute the app and play it scaled.
+        /// Sound came through: the tap may mute the app and play it scaled. Quiet alone never
+        /// undoes this, since a paused tab or a call on hold keeps an empty stream open.
         case armed
-        /// The app has been playing but the tap hears nothing, most likely because System
-        /// Audio Recording is off. Keeps listening.
+        /// Never armed, and the app has been playing while the tap hears nothing, most likely
+        /// because System Audio Recording is off. Keeps listening.
         case silent
-        /// Armed, but the app has played for a while with nothing coming through (the
-        /// permission was turned off, or the stream changed). The tap should come down so the
-        /// app plays directly.
+        /// Armed, then exact zeros for a long time while the app plays: recording was most
+        /// likely turned off. The tap should come down so the app plays directly.
         case lost
     }
 
     public private(set) var state = State.listening
+    /// Whether this tap has ever heard real sound, which proves the permission.
+    public private(set) var hasHeard = false
     private var quietPlaying: Double = 0
 
     /// About -80 dB, below any real recording but above the zeros of a denied tap.
     static let threshold: Float = 0.000_1
-    /// Seconds of playing with no sound before calling it silent or lost.
+    /// Seconds of playing with no sound before an unarmed tap counts as silent.
     static let silentAfter: Double = 3
+    /// Seconds of exact zeros while playing before an armed tap counts as lost.
+    static let lostAfter: Double = 30
 
     public init() {}
 
     /// `peak` is the loudest sample since the last call, `seconds` the time since then.
     public mutating func observe(peak: Float, appPlaying: Bool, seconds: Double) -> State {
-        if peak > Self.threshold {
-            quietPlaying = 0
-            if state != .lost { state = .armed }
+        switch state {
+        case .lost:
             return state
-        }
-        guard appPlaying, state != .lost else { return state }
-        quietPlaying += seconds
-        if quietPlaying >= Self.silentAfter {
-            state = state == .armed ? .lost : .silent
+        case .armed:
+            // Only true digital silence counts; any sample at all means the tap still hears.
+            guard peak == 0, appPlaying else {
+                if peak != 0 { quietPlaying = 0 }
+                return state
+            }
+            quietPlaying += seconds
+            if quietPlaying >= Self.lostAfter { state = .lost }
+        case .listening, .silent:
+            if peak > Self.threshold {
+                quietPlaying = 0
+                hasHeard = true
+                state = .armed
+            } else if appPlaying {
+                quietPlaying += seconds
+                if quietPlaying >= Self.silentAfter { state = .silent }
+            }
         }
         return state
+    }
+}
+
+/// When a tap's audio IO has to run. Once armed the tap mutes the app by itself (it's
+/// private, so it goes with Wisp), and the IO only plays the scaled copy.
+public enum TapIO {
+    /// `active` is `TapActivity`'s answer: the app is playing or just stopped.
+    public static func needsIO(armed: Bool, gain: Float, active: Bool) -> Bool {
+        guard active else { return false }
+        return !armed || gain > 0
     }
 }
 
@@ -203,9 +228,8 @@ public enum SystemAudioHearing {
     }
 }
 
-/// Whether a tap's audio IO should run: while its app plays, and for a short grace after,
-/// so an idle app turned down costs nothing. Stopping is safe: a tap that mutes only while
-/// it's read lets the app play directly the moment the reading stops.
+/// Whether a tap's app is active: playing, or stopped less than a short grace ago, so an
+/// idle app turned down costs no IO. An armed tap keeps the app muted while the IO is off.
 public struct TapActivity: Sendable, Equatable {
     public private(set) var running = false
     private var quiet: Double = 0

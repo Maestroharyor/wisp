@@ -192,19 +192,57 @@ final class AppVolumeTests: XCTestCase {
         XCTAssertEqual(arming.observe(peak: 0, appPlaying: false, seconds: 60), .armed)
     }
 
-    func testAnArmedTapThatGoesQuietWhileTheAppPlaysIsLost() {
+    func testAnArmedTapOnAQuietOpenStreamStaysArmed() {
+        // A paused tab or a call on hold keeps its stream open with nothing in it.
         var arming = TapArming()
         _ = arming.observe(peak: 0.3, appPlaying: true, seconds: 0.5)
-        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 2), .armed)
+        XCTAssertEqual(arming.observe(peak: 0.000_001, appPlaying: true, seconds: 120), .armed)
+        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 20), .armed)
+    }
+
+    func testAnArmedTapReadingExactZerosForLongIsLost() {
+        var arming = TapArming()
+        _ = arming.observe(peak: 0.3, appPlaying: true, seconds: 0.5)
+        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 29), .armed)
         XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 1), .lost)
     }
 
-    func testSoundResetsTheQuietCount() {
+    func testAnyNonZeroSampleResetsTheZeroCount() {
         var arming = TapArming()
         _ = arming.observe(peak: 0.3, appPlaying: true, seconds: 0.5)
-        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 2), .armed)
-        XCTAssertEqual(arming.observe(peak: 0.1, appPlaying: true, seconds: 0.5), .armed)
-        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 2), .armed)
+        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 29), .armed)
+        XCTAssertEqual(arming.observe(peak: 0.000_001, appPlaying: true, seconds: 0.5), .armed)
+        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 29), .armed)
+    }
+
+    func testZerosWhileTheAppIsIdleNeverLoseTheTap() {
+        var arming = TapArming()
+        _ = arming.observe(peak: 0.3, appPlaying: true, seconds: 0.5)
+        XCTAssertEqual(arming.observe(peak: 0, appPlaying: false, seconds: 600), .armed)
+    }
+
+    func testAnArmedTapNeverCountsAsSilent() {
+        var arming = TapArming()
+        _ = arming.observe(peak: 0.3, appPlaying: true, seconds: 0.5)
+        XCTAssertEqual(arming.observe(peak: 0, appPlaying: true, seconds: 5), .armed)
+        XCTAssertTrue(arming.hasHeard)
+    }
+
+    // MARK: IO
+
+    func testAListeningTapReadsWhileTheAppIsActive() {
+        XCTAssertTrue(TapIO.needsIO(armed: false, gain: 0, active: true))
+        XCTAssertFalse(TapIO.needsIO(armed: false, gain: 0.5, active: false))
+    }
+
+    func testAnArmedTapAtZeroNeedsNoIO() {
+        // The tap mutes the app by itself once armed, so silence costs nothing.
+        XCTAssertFalse(TapIO.needsIO(armed: true, gain: 0, active: true))
+    }
+
+    func testAnArmedTapPlaysOnlyWhileTheAppIsActive() {
+        XCTAssertTrue(TapIO.needsIO(armed: true, gain: 0.25, active: true))
+        XCTAssertFalse(TapIO.needsIO(armed: true, gain: 0.25, active: false))
     }
 
     // MARK: Hearing
