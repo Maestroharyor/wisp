@@ -74,7 +74,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "shake", "position", "placement", "bottom", "left", "right", "corner", "edge", "side", "dock",
                 "dynamic island", "camera", "hole punch", "display info", "orb", "float", "detach", "move", "form",
                 "shape", "move back", "reset position", "window", "open as window", "windowed", "minimise", "minimize",
-                "tear off", "normal app",
+                "tear off", "normal app", "sidebar",
             ]
         case .appearance:
             [
