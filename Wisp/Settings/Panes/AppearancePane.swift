@@ -30,11 +30,12 @@ struct AppearanceSettings: View {
         Form {
             presets
             theme
-            shell
-            finish
+            shape
+            effects
             pills
             motion
             idle
+            sounds
             fun
             Section {
                 Button("Reset the look to default", role: .destructive) { preferences.applyLook(.standard) }
@@ -113,25 +114,34 @@ struct AppearanceSettings: View {
                 ColorPicker("Accent", selection: $preferences.customAccent.color, supportsOpacity: false)
                 ColorPicker("Glow", selection: $preferences.customGlow.color, supportsOpacity: false)
             }
-            Toggle("Match the desktop picture", isOn: $preferences.wallpaperTint)
-            Toggle("Tint with the playing album's colour", isOn: $preferences.adaptiveAccent)
-            Picker("Through the day", selection: look.timeOfDay) {
+            Picker("Accent follows", selection: look.accentSource) {
+                ForEach(AccentSource.allCases) { Text($0.title).tag($0) }
+            }
+            Picker("Change colour through the day", selection: look.timeOfDay) {
                 ForEach(TimeOfDayMode.allCases) { Text($0.title).tag($0) }
             }
-            caption("The accent marks selection and progress. The glow runs from the accent to the glow colour.")
+            caption(themeCaption)
         }
     }
 
-    // MARK: Shell
+    private var themeCaption: String {
+        let base = "The accent marks selection and progress. The glow runs from the accent to the glow colour."
+        guard preferences.appearance.accentSource == .album else { return base }
+        let fallback = preferences.appearance.albumFallback == .wallpaper ? "the desktop picture" : "the theme"
+        return base
+            + " While nothing plays, it follows \(fallback), and only then does it change colour through the day."
+    }
 
-    private var shell: some View {
-        Section("Shell") {
+    // MARK: Shape
+
+    private var shape: some View {
+        Section("Shape") {
             Picker("Surface", selection: $preferences.surfaceStyle) {
                 ForEach(SurfaceStyle.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             if preferences.surfaceStyle == .black {
-                Picker("Glass edge", selection: look.glassEdge) {
+                Picker("Edge highlight", selection: look.glassEdge) {
                     ForEach(GlassEdge.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -152,10 +162,10 @@ struct AppearanceSettings: View {
         }
     }
 
-    // MARK: Finish
+    // MARK: Effects
 
-    private var finish: some View {
-        Section("Finish") {
+    private var effects: some View {
+        Section("Effects") {
             slider("Glow strength", value: look.glowIntensity, in: Appearance.glowRange)
             Picker("Grain", selection: look.grain) {
                 ForEach(GrainLevel.allCases) { Text($0.title).tag($0) }
@@ -185,7 +195,7 @@ struct AppearanceSettings: View {
     private var pills: some View {
         Section("Live activity pills") {
             Toggle("Minimal pill (an icon and a dot, no labels)", isOn: look.minimalPill)
-            Picker("Numbers in", selection: look.valueFont) {
+            Picker("Number style", selection: look.valueFont) {
                 ForEach(ValueFont.allCases) { font in
                     Text(font.title).font(.system(.body, design: font.design)).tag(font)
                 }
@@ -213,7 +223,7 @@ struct AppearanceSettings: View {
     // MARK: Idle
 
     private var idle: some View {
-        Section("While idle") {
+        Section("Beside the closed notch") {
             Picker("Left of the notch", selection: look.leftEar) {
                 ForEach(EarSlot.allCases) { Text($0.title).tag($0) }
             }
@@ -236,11 +246,11 @@ struct AppearanceSettings: View {
         }
     }
 
-    // MARK: Fun
+    // MARK: Sounds
 
-    private var fun: some View {
-        Section("Fun") {
-            Picker("Sounds", selection: look.soundPack) {
+    private var sounds: some View {
+        Section("Sounds") {
+            Picker("Sound pack", selection: look.soundPack) {
                 ForEach(SoundPackID.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -249,18 +259,42 @@ struct AppearanceSettings: View {
                     soundRow(event)
                 }
             }
-            Toggle("Confetti when a Pomodoro focus ends", isOn: look.confettiPomodoro)
-            Toggle("Confetti when an agent finishes a long run", isOn: look.confettiAgent)
-            Toggle("Confetti when the battery is full", isOn: look.confettiBattery)
-            Toggle("Notch pet", isOn: look.pet)
+            caption("Whether a permission request plays a sound is set in Agents › Alerts and spend.")
+        }
+    }
+
+    // MARK: Fun
+
+    private var fun: some View {
+        Section("Fun") {
+            Toggle("Confetti", isOn: look.confetti)
             HStack {
                 Button("Try confetti") { services.celebrateNow() }
                 Spacer()
             }
-            caption(
-                "The pet is a small flame that peeks out from under the notch. It dozes off when nothing happens and wakes when an agent needs you."
-            )
+            Toggle("Notch pet", isOn: look.pet)
+            caption(funCaption)
         }
+    }
+
+    private var funCaption: String {
+        confettiCaption
+            + " The pet is a small flame that peeks out from under the notch. It dozes off when nothing happens and wakes when an agent needs you."
+    }
+
+    private var confettiCaption: String {
+        let look = preferences.appearance
+        guard look.confettiIsPartial else {
+            return "Confetti bursts when a Pomodoro focus ends, an agent finishes a long run or the battery is full."
+        }
+        let moments = [
+            (look.confettiPomodoro, "a Pomodoro focus ends"),
+            (look.confettiAgent, "an agent finishes a long run"),
+            (look.confettiBattery, "the battery is full"),
+        ]
+        .filter(\.0).map(\.1)
+        return "Confetti is on only when \(moments.joined(separator: " or "))."
+            + " Switch it off and on to use every moment."
     }
 
     private func soundRow(_ event: SoundEvent) -> some View {
