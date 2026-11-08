@@ -18,6 +18,16 @@ enum ShelfPage: Hashable {
         }
     }
 
+    /// The stored name, as `init(name:)` reads it.
+    var name: String {
+        switch self {
+        case .home: "home"
+        case .tray: "tray"
+        case .media: "media"
+        case .widgets: "widgets"
+        }
+    }
+
     /// From a profile's stored page name; anything unknown is Home.
     init(name: String) {
         switch name {
@@ -116,6 +126,32 @@ final class NotchModel {
     var editingHome = false
     /// Widget order when customising began, restored on cancel.
     var homeSnapshot: (layout: HomeLayout, enabled: [WidgetKind], profile: String)?
+
+    /// Customise Home's Done: keeps the changes.
+    func endHomeEditing() {
+        editingHome = false
+        homeSnapshot = nil
+    }
+
+    /// Customise Home's Cancel: puts Home back as it was when customising began.
+    func cancelHomeEditing() {
+        if let snapshot = homeSnapshot {
+            if snapshot.profile == preferences.homeProfile {
+                preferences.homeLayout = snapshot.layout
+                preferences.enabledWidgets = snapshot.enabled
+            } else {
+                // A profile switch happened meanwhile: put the old profile's Home back
+                // into that profile, and leave the one now showing alone.
+                preferences.restoreHome(snapshot.layout, toProfile: snapshot.profile)
+                // Widgets this edit switched on go off again, unless the Home now showing uses them.
+                let added = Set(preferences.enabledWidgets).subtracting(snapshot.enabled)
+                for kind in added where !preferences.homeLayout.contains(kind.rawValue) {
+                    preferences.disable(kind)
+                }
+            }
+        }
+        endHomeEditing()
+    }
     /// A file drag is over the notch: show the quick-action tiles.
     var dragging = false
     /// Whether this display shows live activities.

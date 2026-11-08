@@ -66,13 +66,7 @@ struct NavPill: View {
     /// Switches Wisp between notch, corner, bottom, side and orb on this display.
     private var formMenu: some View {
         Menu {
-            ForEach(model.forms) { form in
-                Button {
-                    model.onSetForm(form)
-                } label: {
-                    Label(form.title, systemImage: form == model.form ? "checkmark" : form.symbol)
-                }
-            }
+            FormMenuItems(model: model)
         } label: {
             Image(systemName: model.form.symbol)
                 .font(.system(size: 12, weight: .semibold))
@@ -114,5 +108,20 @@ struct NavPill: View {
         .hoverHint(name, edge: hintEdge)
         .accessibilityLabel(badge > 0 ? "\(name), \(badge) file\(badge == 1 ? "" : "s")" : name)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// The forms Wisp can switch to on this display, for the nav pill's menu and the window's toolbar.
+struct FormMenuItems: View {
+    let model: NotchModel
+
+    var body: some View {
+        ForEach(model.forms) { form in
+            Button {
+                model.onSetForm(form)
+            } label: {
+                Label(form.title, systemImage: form == model.form ? "checkmark" : form.symbol)
+            }
+        }
     }
 }

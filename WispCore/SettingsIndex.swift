@@ -74,7 +74,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "shake", "position", "placement", "bottom", "left", "right", "corner", "edge", "side", "dock",
                 "dynamic island", "camera", "hole punch", "display info", "orb", "float", "detach", "move", "form",
                 "shape", "move back", "reset position", "window", "open as window", "windowed", "minimise", "minimize",
-                "tear off", "normal app",
+                "tear off", "normal app", "sidebar",
             ]
         case .appearance:
             [
@@ -129,6 +129,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "cloud", "cloud agents", "codex cloud", "copilot", "coding agent", "agent task", "github", "gh",
                 "cursor", "background agent", "api key", "pull request", "pr", "ci", "checks", "codex apply",
                 "tmux", "iterm", "ghostty", "wezterm", "jump to terminal", "tab", "pane", "keyboard",
+                "history", "session history", "past sessions", "summary", "summaries", "clear history",
             ]
         case .phone:
             [

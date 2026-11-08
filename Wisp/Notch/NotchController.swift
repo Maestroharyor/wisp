@@ -387,7 +387,7 @@ final class NotchController {
             services.shelfWindow.activateShell()
             return
         }
-        services.shelfWindow.activateShell(view: pill.view, fromPill: true, session: pill.session)
+        services.shelfWindow.activateShell(view: pill.view, session: pill.session)
     }
 
     /// The press became a drag of the shell; hovering must not open the shelf mid-drag.
@@ -404,11 +404,8 @@ final class NotchController {
         return ShelfTearOff.mayStart(at: location, surface: model.surfaceRect, insets: insets)
     }
 
-    /// What the open shelf shows, for the window it's torn off into: the view, whether a pill
-    /// opened it, and the page it goes back to.
-    var shown: (view: ShelfView, fromPill: Bool, returnPage: ShelfPage?) {
-        (model.shownView, model.soloFromPill, model.returnPage)
-    }
+    /// What the open shelf shows, for the window it's torn off into.
+    var shown: ShelfView { model.shownView }
 
     /// A press on the closed island that only Wisp received, so dragging it may move it.
     func ownsIslandPress(at location: CGPoint) -> Bool {
@@ -487,7 +484,7 @@ final class NotchController {
             setForm: { [weak self] form in self?.model.onSetForm(form) },
             openAsWindow: { [weak self] in
                 guard let self else { return }
-                self.services.shelfWindow.openAsWindow(page: self.model.page)
+                self.services.shelfWindow.openAsWindow(view: self.model.shownView)
             },
             moveBack: layout.moved
                 ? NotchMenu.MoveBack(spot: layout.placement.title) { [weak self] in self?.moveIslandBack() } : nil,
