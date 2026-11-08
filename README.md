@@ -79,10 +79,11 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
 - **The ring:** a radial ring of eight actions with optional sub-rings. Hyper+R (or a shortcut you set) opens it at the pointer, clicking the idle orb opens it around the orb, and the middle, back or forward mouse button can too (hold, move, let go to pick). Actions: shelf pages, a widget, Agents (Allow and Deny for waiting requests, or jump to a session), media controls, Clipboard, the mini player, a timer, Quick add, quick toggles, Watch region, a Shortcut, and file actions (Tray, AirDrop, Transform, Zip, drop actions) that take files dragged onto the orb. Apps can have their own ring. Its wedges fly out in turn and fold back in on close. Set it up in Settings › Ring, by clicking segments on a picture of the ring.
 - **Appearance** (its own Settings pane)
   - **Presets:** Default, Calm, Arcade, Minimal and Neon each set the whole look at once. Save your own, give each profile a look, and share looks as `.wisplook` files.
-  - **Shell:** roundness, shadow, opacity, shelf size (compact, standard, roomy), glow strength and reach, grain, a slow shimmer, an outline, and the page switcher as a pill, dots or hidden.
-  - **Pills and motion:** a minimal pill (an icon and a dot), the font for numbers, and what the notch does when the pointer arrives: grow, glow, wobble or nothing.
-  - **Idle:** small "ears" beside the closed notch (time, date, battery, next meeting, weather or your own text), a breathing glow while something works and a glow that pulses with music (a steady beat; Wisp doesn't listen to the audio).
-  - **Fun:** sound packs built from macOS sounds or your own files, confetti when a Pomodoro, a long agent run or a charge finishes, and a small flame pet that peeks out from under the notch.
+  - **Theme:** the accent follows the theme, the desktop picture or the playing album, and can change colour through the day.
+  - **Shape and effects:** roundness, shadow, opacity, shelf size (compact, standard, roomy), an edge highlight on the Black surface, glow strength and reach, grain, a slow shimmer, an outline, and the page switcher as a pill, dots or hidden.
+  - **Pills and motion:** a minimal pill (an icon and a dot), the number style, and what the notch does when the pointer arrives: grow, glow, wobble or nothing.
+  - **Beside the closed notch:** small "ears" (time, date, battery, next meeting, weather or your own text), a breathing glow while something works and a glow that pulses with music (a steady beat; Wisp doesn't listen to the audio).
+  - **Sounds and fun:** sound packs built from macOS sounds or your own files (whether permission requests play one is set in Settings › Agents), one switch for confetti when a Pomodoro, a long agent run or a charge finishes, and a small flame pet that peeks out from under the notch.
 - **Live activities beside the camera**
   - Volume, brightness and Caps Lock overlays that replace the system ones, with a choice of how long they stay, how many volume steps there are, and whether the bars use the theme accent.
   - Headphones: when AirPods or other Bluetooth headphones take over the sound, a pill shows them with their battery and case levels.
@@ -112,7 +113,7 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
 - **Lock screen player**: while the screen is locked and music plays, a player shows where macOS allows it.
 - **Clipboard history**: a bottom panel with type tabs, search and pinning. Return pastes into the app in front; concealed (password) items are skipped.
 - **On-device AI** (off by default): Settings › AI picks Apple Intelligence (Apple's Foundation Models, macOS 26 or later with Apple Intelligence on) or [Ollama](https://ollama.com) running on your Mac, with a model picker for Ollama and a status line that says what's missing ("Apple Intelligence is off", "Ollama isn't running"). Long text is cut to fit the model's 4,096-token window, keeping its start and end. A small "Try it" box summarises, fixes grammar, rewrites, lists action items or explains code. Quick add uses it for requests its own reader can't follow; more features that use AI come in later releases.
-- **Settings**: a searchable sidebar with a live notch preview and a setup check that flags missing permissions. The menu bar icon can be hidden; open Wisp again to reach Settings.
+- **Settings**: a searchable sidebar with a live notch preview and a setup check that flags missing permissions. Fine-tuning options (volume steps, Widgets page rows, glow reach, pointer effect strength) sit under a closed Advanced row in their pane, which opens while you search. The menu bar icon can be hidden; open Wisp again to reach Settings.
 
 ## Requirements
 

@@ -135,6 +135,7 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 PaneHeader(pane: pane)
                 paneView(pane)
+                    .environment(\.settingsQuery, model.query)
             }
             .id(pane)
         } else {
