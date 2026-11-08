@@ -166,6 +166,8 @@ final class NotchModel {
     /// Lyrics instead of artwork on the Media page. Kept here so closing the shelf or
     /// changing page (which rebuilds the page) doesn't turn them off.
     var showsLyrics = false
+    /// The per-app volume list instead of the player on the Media page, kept for the same reason.
+    var showsAppVolume = false
     /// Prompt drafts in the Agents detail, per session, so closing the shelf keeps them and
     /// one session's draft never goes to another.
     var agentDrafts: [String: String] = [:]
