@@ -43,6 +43,17 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     /// The form to show as current for a display whose shell has `shell`'s form.
     func form(shell: FormFactor) -> FormFactor { state.form(shell: shell) }
 
+    /// Takes the window off screen for a screenshot or colour pick, so it isn't in the way; the
+    /// returned closure brings it back unless it was put away meanwhile.
+    func stepAside() -> @MainActor @Sendable () -> Void {
+        guard let window, window.isVisible, !hiding else { return {} }
+        window.orderOut(nil)
+        return { [weak self] in
+            guard let self, self.isOpen, !self.hiding, let window = self.window else { return }
+            window.orderFront(nil)
+        }
+    }
+
     /// "Open as Window" from the menu, on what the shelf shows.
     func openAsWindow(view: ShelfView) {
         prepare(view)

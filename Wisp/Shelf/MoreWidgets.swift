@@ -348,7 +348,8 @@ struct WorldClocksWidget: View {
     var body: some View {
         TimelineView(.everyMinute) { context in
             VStack(alignment: .leading, spacing: 6) {
-                let zones = preferences.worldClockZones.compactMap(TimeZone.init(identifier:)).prefix(3)
+                let zones = preferences.worldClockZones.compactMap(TimeZone.init(identifier:)).prefix(
+                    WorldClock.notchCities)
                 if zones.isEmpty {
                     Text("Add cities in Settings › Widgets")
                         .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
