@@ -5,6 +5,14 @@ public enum IslandSetting: String, CaseIterable, Sendable {
     case automatic
     case yes
     case no
+
+    public var title: String {
+        switch self {
+        case .automatic: "Automatic"
+        case .yes: "Has a Dynamic Island"
+        case .no: "No Dynamic Island"
+        }
+    }
 }
 
 /// The Dynamic Island on the OLED MacBook Pro sits where Wisp would draw its notch, so on
