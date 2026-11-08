@@ -83,6 +83,32 @@ final class SettingsModel {
     }
 }
 
+extension EnvironmentValues {
+    /// The Settings sidebar search, so panes can open what a search should show.
+    @Entry var settingsQuery = ""
+}
+
+/// A pane's fine-tuning options, folded away under a closed "Advanced" row. It opens while
+/// the Settings search has text, so a search never hides the control it found.
+struct AdvancedSection<Content: View>: View {
+    @ViewBuilder let content: Content
+    @Environment(\.settingsQuery) private var query
+    @State private var state = AdvancedDisclosureState()
+
+    var body: some View {
+        Section {
+            DisclosureGroup("Advanced", isExpanded: expanded) {
+                content
+            }
+        }
+        .onChange(of: query) { _, query in state.searchChanged(to: query) }
+    }
+
+    private var expanded: Binding<Bool> {
+        Binding(get: { state.isExpanded(query: query) }, set: { state.setExpanded($0, query: query) })
+    }
+}
+
 /// A coloured rounded square with a white symbol, as in System Settings.
 struct IconTile: View {
     let symbol: String
