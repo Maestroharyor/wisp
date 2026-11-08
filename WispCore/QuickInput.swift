@@ -392,7 +392,8 @@ struct Word: Equatable {
 
     static func split(_ text: String) -> [Word] {
         text.split(whereSeparator: \.isWhitespace).compactMap { part in
-            let text = String(part)
+            // Typed or autocorrected apostrophes ("o’clock") read the same as plain ones.
+            let text = String(part).replacingOccurrences(of: "\u{2019}", with: "'")
             let key = text.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".,!?;\"'()"))
             return key.isEmpty ? nil : Word(text: text, key: key)
         }
@@ -513,9 +514,9 @@ enum TimeMatcher {
     /// Words after "at <number>" that make it a price or a count, not a time.
     private static let countWords: Set<String> = ["each", "apiece", "per", "a", "an", "percent", "%"]
 
-    /// "By 2 seconds", "by 3 goals", "at 10 each": a bare number that counts things. After "by"
-    /// any word but a joining or timing word does it; after "at" only a unit or a word like
-    /// "each", since "tonight at 9 film" is a time.
+    /// "By 2 seconds", "by 3 goals", "at 10 each": a bare number that counts things. That takes a
+    /// unit or a word like "each", or after "by" a plural noun; "tonight at 9 film" and "by 5 at
+    /// the latest" are times.
     private static func countsSomething(
         _ keys: [String], lead: String, after index: Int, _ clock: (time: ClockTime, count: Int)
     ) -> Bool {
@@ -523,7 +524,9 @@ enum TimeMatcher {
         else { return false }
         let next = keys[index + 1]
         if QuickInputParser.timeUnits.contains(next) || countWords.contains(next) { return true }
-        return lead == "by" && !afterClock.contains(next) && weekday(next) == nil
+        // After "by", a plural noun counts ("win by 3 goals"); "by 5 or so" is still a time.
+        return lead == "by" && next.count > 2 && next.hasSuffix("s") && !afterClock.contains(next)
+            && weekday(next) == nil
     }
 
     private static func dayPart(_ key: String) -> DayPart? {

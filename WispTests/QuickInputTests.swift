@@ -405,6 +405,23 @@ final class QuickInputParserTests: XCTestCase {
         XCTAssertEqual(read("remind me to x in a half moon"), .unsure(.reminder(title: "X in a half moon", due: nil)))
     }
 
+    func testByAnHourWithWordsAfterItIsStillATime() {
+        let five = date(2025, 11, 5, 17, 0)
+        XCTAssertEqual(
+            parse("remind me to finish by 5 at the latest"), .reminder(title: "Finish at the latest", due: five))
+        XCTAssertEqual(parse("remind me to finish by 5 or so"), .reminder(title: "Finish or so", due: five))
+        XCTAssertEqual(
+            parse("remind me to finish by 9 if possible"),
+            .reminder(title: "Finish if possible", due: date(2025, 11, 5, 21, 0)))
+        XCTAssertEqual(
+            parse("remind me to finish by 6 latest"), .reminder(title: "Finish latest", due: date(2025, 11, 5, 18, 0)))
+    }
+
+    func testCurlyApostropheInOClock() {
+        XCTAssertEqual(
+            parse("remind me at 5 o\u{2019}clock to call"), .reminder(title: "Call", due: date(2025, 11, 5, 17, 0)))
+    }
+
     func testANumberBeforeANounIsNotATime() {
         XCTAssertEqual(
             read("remind me to beat the record by 2 seconds"),
