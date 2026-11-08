@@ -6,7 +6,8 @@ import WispCore
 /// Copies text out of things that only show it: a part of the screen (the Capture text ring
 /// action), an image in the clipboard history, and a PDF in the tray as an AI summary.
 /// Reading happens on this Mac. Frames and images are dropped once read, and the text is never
-/// logged; it only goes to the clipboard.
+/// logged; it only goes to the clipboard. A PDF's text goes to the AI engine chosen in
+/// Settings › AI for its summary.
 @MainActor
 final class TextCaptureController {
     private let services: AppServices
@@ -97,7 +98,9 @@ final class TextCaptureController {
         guard !summarising else { return notice("Still summarising the last one", symbol: Self.pdfSymbol) }
         summarising = true
         let name = url.lastPathComponent
-        notice("Summarising \(name)…", symbol: Self.pdfSymbol, duration: 30)
+        // Stays up until the run ends; every outcome below replaces it in the same slot.
+        services.activities.post(
+            .notice(symbol: Self.pdfSymbol, text: PDFText.progress(fileName: name)), slot: .notice, duration: nil)
         Task {
             defer { summarising = false }
             let pages = Self.pdfPageLimit
@@ -113,7 +116,8 @@ final class TextCaptureController {
                 do throws(AIError) {
                     let answer = try await services.ai.run(.summarise, on: text)
                     copy(answer.text)
-                    notice(PDFText.notice(fileName: name), symbol: Self.pdfSymbol, duration: 4)
+                    let text = answer.truncated ? PDFText.partialNotice(fileName: name) : PDFText.notice(fileName: name)
+                    notice(text, symbol: Self.pdfSymbol, duration: 4)
                 } catch {
                     notice(error.message, symbol: Self.pdfSymbol)
                 }

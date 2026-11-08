@@ -135,6 +135,15 @@ final class TextCaptureTests: XCTestCase {
         XCTAssertEqual(PDFText.notice(fileName: "Report.pdf"), "Copied a summary of Report.pdf")
     }
 
+    func testProgressAndPartialNoticesShareTheShownName() {
+        let long = String(repeating: "b", count: 50) + ".pdf"
+        let shown = String(repeating: "b", count: 39) + "…"
+        XCTAssertEqual(PDFText.shownName(long), shown)
+        XCTAssertEqual(PDFText.shownName("My  report.pdf"), "My report.pdf")
+        XCTAssertEqual(PDFText.progress(fileName: long), "Summarising \(shown)…")
+        XCTAssertEqual(PDFText.partialNotice(fileName: "A.pdf"), "Copied a partial summary of A.pdf")
+    }
+
     func testSummaryNoticeCutsALongName() {
         let notice = PDFText.notice(fileName: String(repeating: "a", count: 60) + ".pdf")
         XCTAssertEqual(notice, "Copied a summary of " + String(repeating: "a", count: 39) + "…")

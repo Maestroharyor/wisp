@@ -243,10 +243,24 @@ public enum PDFText {
     /// The longest file name the notice shows before cutting it with an ellipsis.
     public static let noticeNameLimit = 40
 
+    /// The file name on one line, cut with an ellipsis past `noticeNameLimit`.
+    public static func shownName(_ fileName: String) -> String {
+        let name = fileName.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        return name.count > noticeNameLimit ? name.prefix(noticeNameLimit - 1) + "…" : name
+    }
+
+    /// Shown while the PDF is read and summarised.
+    public static func progress(fileName: String) -> String {
+        "Summarising \(shownName(fileName))…"
+    }
+
     /// Confirms the copy; the summary itself is on the clipboard, since a notice holds one line.
     public static func notice(fileName: String) -> String {
-        let name = fileName.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-        let shown = name.count > noticeNameLimit ? name.prefix(noticeNameLimit - 1) + "…" : name
-        return "Copied a summary of \(shown)"
+        "Copied a summary of \(shownName(fileName))"
+    }
+
+    /// The answer stopped part way or the PDF was cut to fit the model.
+    public static func partialNotice(fileName: String) -> String {
+        "Copied a partial summary of \(shownName(fileName))"
     }
 }
