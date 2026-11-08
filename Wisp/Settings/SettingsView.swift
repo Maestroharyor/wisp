@@ -108,6 +108,12 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(minWidth: 700, minHeight: 480)
+        // A "Settings for …" button elsewhere picks the pane while this window is already open.
+        .onChange(of: model.preferences.lastSettingsPane) { _, pane in
+            guard model.selection != pane else { return }
+            if !model.visiblePanes.contains(pane) { model.query = "" }
+            model.selection = pane
+        }
         .task {
             // Grants happen in System Settings: keep the badge current and come forward for the
             // grant that answers Allow. The loop keeps its own snapshot so a Refresh click in the

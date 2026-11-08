@@ -400,6 +400,17 @@ public enum RegionGeometry {
         return CGSize(width: (points.width * fitted).rounded(), height: (points.height * fitted).rounded())
     }
 
+    /// The index of the display holding most of the selection, for a capture of the screen
+    /// rather than one window. Nil when it touches none.
+    public static func displayIndex(for selection: CGRect, in displays: [CGRect]) -> Int? {
+        let areas = displays.map { frame -> CGFloat in
+            let overlap = frame.intersection(selection)
+            return overlap.isNull ? 0 : overlap.width * overlap.height
+        }
+        guard let best = areas.indices.max(by: { areas[$0] < areas[$1] }), areas[best] > 0 else { return nil }
+        return best
+    }
+
     /// The frontmost ordinary window under a point, skipping Wisp's own windows.
     public static func topWindow(at point: CGPoint, in windows: [WindowCandidate], excluding pid: Int32)
         -> WindowCandidate?
