@@ -23,6 +23,19 @@ struct ActivitySettings: View {
                     "Find missing album art on iTunes (sends the song title and artist)",
                     isOn: $preferences.artworkLookup)
                 Toggle("Player on the lock screen, where macOS allows it", isOn: $preferences.lockScreenPlayer)
+                Toggle("Per-app volume: turn single apps down from the Media page", isOn: $preferences.appVolume)
+                    .disabled(!Self.processTapsAvailable)
+                Text(
+                    Self.processTapsAvailable
+                        ? "Needs System Audio Recording, which macOS asks for the first time you turn an app down. Wisp reads only the apps you turn down and plays them back at your level; their sound is never saved or sent. Quitting Wisp gives every app its own volume back."
+                        : "Needs macOS 14.2 or later."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                Toggle("Up Next: the rest of Music's playlist under the player", isOn: $preferences.upNext)
+                Text(
+                    "Reads Music through Automation. Music doesn't share its Up Next queue and Spotify doesn't share one at all, so this is the playlist order, hidden while shuffle is on."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 Toggle(
                     "Calls and recordings: a pill while the microphone is on, and a Join card before calls",
                     isOn: $preferences.meetingActivity)
@@ -110,6 +123,11 @@ struct ActivitySettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private static var processTapsAvailable: Bool {
+        if #available(macOS 14.2, *) { return true }
+        return false
     }
 
     private func addDownloadFolder() {

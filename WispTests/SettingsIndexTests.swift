@@ -237,6 +237,16 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertEqual(
             SetupHealth.needed(notifications: true, calendarWidgets: true, mirror: true, dictation: true),
             ["accessibility", "fullDiskAccess", "calendars", "camera", "microphone", "speechRecognition"])
+        XCTAssertEqual(
+            SetupHealth.needed(
+                notifications: false, calendarWidgets: false, mirror: false, dictation: false, appVolume: true),
+            ["accessibility", "systemAudio"])
+    }
+
+    func testFindsAppVolumeAndUpNext() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "app volume").first, .activities)
+        XCTAssertEqual(SettingsIndex.panes(matching: "up next").first, .activities)
+        XCTAssertEqual(SettingsIndex.panes(matching: "system audio recording").first, .activities)
     }
 
     func testFindsTheNewAppearanceAndHUDOptions() {

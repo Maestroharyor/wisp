@@ -97,7 +97,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "duration", "low battery", "threshold",
                 "left", "right", "airpods", "headphones", "bluetooth", "downloads", "download progress", "safari",
                 "chrome", "firefox", "folder", "finder", "mouse", "keyboard", "trackpad", "magic mouse", "accessory",
-                "accessories", "low battery warning",
+                "accessories", "low battery warning", "app volume", "per-app volume", "per app volume", "mixer",
+                "up next", "queue", "next tracks", "playlist", "system audio recording",
                 // Current control names, then the older ones so searches for those still land. Focus
                 // changes moved here from Notifications, whose name stays a keyword.
                 "use wisp for these pop-ups", "pop-ups", "popups", "show more than one activity at once",

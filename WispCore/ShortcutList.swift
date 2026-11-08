@@ -14,4 +14,13 @@ public enum ShortcutList {
         let names = Set(available)
         return favourites.filter(names.contains)
     }
+
+    /// Names containing every word of `query`, ignoring case and accents; all of them when it's blank.
+    public static func matching(_ names: [String], query: String) -> [String] {
+        let words = query.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return names }
+        return names.filter { name in
+            words.allSatisfy { name.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+        }
+    }
 }

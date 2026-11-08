@@ -479,6 +479,9 @@ struct ApprovalButtons: View {
             }
             .buttonStyle(ApprovalButtonStyle(fill: .wispGreen, text: .black))
         }
+        // The buttons keep their full width; the request text beside them truncates instead,
+        // so a narrow card never squeezes a label (Allow All) down to an empty pill.
+        .fixedSize()
         .disabled(!ready)
         .opacity(ready ? 1 : 0.6)
         .task(id: approval.id) {
