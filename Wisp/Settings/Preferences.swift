@@ -25,13 +25,10 @@ extension Placement {
     }
 }
 
-/// Shape on displays without a camera housing.
-enum ExternalStyle: String, CaseIterable, Identifiable {
+/// Shape on displays without a camera housing. Settings shows it through `NotchlessDisplayChoice`.
+enum ExternalStyle: String {
     case notch
     case island
-
-    var id: Self { self }
-    var title: String { self == .notch ? "Notch" : "Floating island" }
 }
 
 /// How long the volume, brightness and Caps Lock overlays stay up.
@@ -371,6 +368,16 @@ final class Preferences {
 
     var externalStyle: ExternalStyle {
         didSet { defaults.set(externalStyle.rawValue, forKey: Key.externalStyle) }
+    }
+
+    /// "On displays without a notch", one choice over `showOnExternalDisplays` and `externalStyle`.
+    var notchlessDisplays: NotchlessDisplayChoice {
+        get { NotchlessDisplayChoice(showOnExternal: showOnExternalDisplays, externalIsland: externalStyle == .island) }
+        set {
+            let stored = newValue.stored(externalIsland: externalStyle == .island)
+            showOnExternalDisplays = stored.showOnExternal
+            externalStyle = stored.externalIsland ? .island : .notch
+        }
     }
 
     var glassEdge: GlassEdge {
@@ -1054,8 +1061,7 @@ final class Preferences {
             })
         externalStyle = defaults.string(forKey: Key.externalStyle).flatMap(ExternalStyle.init(rawValue:)) ?? .notch
         contextAware = defaults.bool(forKey: Key.contextAware)
-        lastSettingsPane =
-            defaults.string(forKey: Key.lastSettingsPane).flatMap(SettingsPaneID.init(rawValue:)) ?? .general
+        lastSettingsPane = SettingsPaneID.restoring(defaults.string(forKey: Key.lastSettingsPane))
         contextRules =
             defaults.data(forKey: Key.contextRules).flatMap { try? JSONDecoder().decode([ContextRule].self, from: $0) }
             ?? ContextRules.defaults

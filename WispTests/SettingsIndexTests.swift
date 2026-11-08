@@ -29,12 +29,12 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "rules").contains(.agents))
         XCTAssertTrue(SettingsIndex.panes(matching: "stay on screen").contains(.notifications))
         XCTAssertEqual(SettingsIndex.panes(matching: "dynamic island"), [.notch])
-        XCTAssertEqual(SettingsIndex.panes(matching: "radial"), [.ring])
+        XCTAssertEqual(SettingsIndex.panes(matching: "radial"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "form"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "open as window"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "minimise"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "check for updates"), [.about])
-        XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.ring])
+        XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.notch])
     }
 
     func testAppearanceControlsAreFoundByNewAndOldNames() {
@@ -47,6 +47,55 @@ final class SettingsIndexTests: XCTestCase {
         }
         XCTAssertTrue(SettingsIndex.panes(matching: "shape").contains(.appearance))
         XCTAssertTrue(SettingsIndex.panes(matching: "shape").contains(.notch))
+    }
+
+    func testRingControlsAreFoundInNotch() {
+        for query in ["ring", "edit ring", "per app", "segments", "middle click"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .notch, query)
+        }
+        XCTAssertTrue(SettingsIndex.panes(matching: "hyper r").contains(.notch))
+    }
+
+    func testNotchControlsAreFoundByNewAndOldNames() {
+        for query in [
+            "displays without a notch", "floating island", "don't show", "show on external displays",
+            "dynamic island detection", "this mac has a dynamic island", "displays", "each display", "move back",
+            "copy display info", "advanced",
+        ] {
+            XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.notch), query)
+        }
+        XCTAssertEqual(SettingsIndex.panes(matching: "dynamic island detection"), [.notch])
+        XCTAssertEqual(SettingsIndex.panes(matching: "each display"), [.notch])
+    }
+
+    func testApostrophesAreOptional() {
+        for query in ["don't show", "dont show", "don\u{2019}t show", "DONT SHOW"] {
+            XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.notch), query)
+        }
+    }
+
+    func testTheRingPaneIsGone() {
+        XCTAssertNil(SettingsPaneID(rawValue: "ring"))
+        XCTAssertFalse(SettingsPaneID.allCases.map(\.title).contains("Ring"))
+    }
+
+    func testAStoredPaneReopens() {
+        XCTAssertEqual(SettingsPaneID.restoring("notch"), .notch)
+        XCTAssertEqual(SettingsPaneID.restoring("agents"), .agents)
+        for pane in SettingsPaneID.allCases {
+            XCTAssertEqual(SettingsPaneID.restoring(pane.rawValue), pane)
+        }
+    }
+
+    func testTheRingPaneReopensAsNotch() {
+        XCTAssertEqual(SettingsPaneID.restoring("ring"), .notch)
+    }
+
+    func testAMissingOrUnknownPaneOpensGeneral() {
+        XCTAssertEqual(SettingsPaneID.restoring(nil), .general)
+        XCTAssertEqual(SettingsPaneID.restoring(""), .general)
+        XCTAssertEqual(SettingsPaneID.restoring("Ring"), .general)
+        XCTAssertEqual(SettingsPaneID.restoring("nonsense"), .general)
     }
 
     func testPermissionSoundLandsOnAgents() {

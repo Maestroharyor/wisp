@@ -77,7 +77,7 @@ final class AdvancedKeywordTests: XCTestCase {
 
     func testAdvancedFindsEveryPaneWithAnAdvancedSection() {
         let withAdvanced = SettingsPaneID.allCases.filter { !$0.advancedKeywords.isEmpty }
-        XCTAssertEqual(withAdvanced, [.appearance, .activities, .widgets])
+        XCTAssertEqual(withAdvanced, [.notch, .appearance, .activities, .widgets])
         XCTAssertEqual(SettingsIndex.panes(matching: "advanced"), withAdvanced)
     }
 

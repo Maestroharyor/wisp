@@ -4,7 +4,6 @@ import Foundation
 public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     case general
     case notch
-    case ring
     case appearance
     case activities
     case widgets
@@ -23,7 +22,6 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .general: "General"
         case .notch: "Notch"
-        case .ring: "Ring"
         case .appearance: "Appearance"
         case .activities: "Live Activities"
         case .widgets: "Widgets"
@@ -41,8 +39,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     public var subtitle: String {
         switch self {
         case .general: "Shortcuts, startup and setup"
-        case .notch: "Where the notch sits and how it opens"
-        case .ring: "The radial ring of actions, and how it opens"
+        case .notch: "Where the notch sits, how it opens, and the ring"
         case .appearance: "Theme, shape, motion and the fun extras"
         case .activities: "What shows beside the notch while it's closed"
         case .widgets: "The widgets on Home and the Widgets page"
@@ -72,9 +69,12 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "hover", "click", "open", "delay", "stay open", "auto close", "swipe", "gesture", "trackpad",
                 "hidden", "drop actions", "command", "script", "island", "external", "display", "pocket", "drag",
                 "shake", "position", "placement", "bottom", "left", "right", "corner", "edge", "side", "dock",
-                "dynamic island", "camera", "hole punch", "display info", "orb", "float", "detach", "move", "form",
-                "shape", "move back", "reset position", "window", "open as window", "windowed", "minimise", "minimize",
-                "tear off", "normal app",
+                "orb", "float", "detach", "move", "form", "shape", "window", "open as window", "windowed",
+                "minimise", "minimize", "tear off", "normal app", "displays without a notch", "floating island",
+                "don't show", "external displays", "show on external displays",
+                // The ring, which had its own pane before; its name stays a keyword.
+                "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "hyper r",
+                "per app", "edit ring", "ring shortcut",
             ]
         case .appearance:
             [
@@ -107,11 +107,6 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "home", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
                 "timer length", "script", "command", "output", "do not disturb", "dnd", "workday",
-            ]
-        case .ring:
-            [
-                "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "orb",
-                "hyper r", "per app",
             ]
         case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
         case .clipboard: ["history", "copy", "paste", "limit", "pinned"]
@@ -163,10 +158,27 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     /// for "advanced", finds the pane, and any search opens the disclosure.
     public var advancedKeywords: [String] {
         switch self {
+        case .notch:
+            [
+                "dynamic island detection", "dynamic island", "camera", "hole punch", "copy display info",
+                "display info", "displays", "each display", "per display", "move back", "reset position",
+                "this mac has a dynamic island",
+            ]
         case .appearance: ["glow reach", "reach", "spread", "pointer effect", "hover strength", "strength"]
         case .activities: ["volume steps", "steps", "finer"]
         case .widgets: ["widget rows", "rows", "grid", "one row", "two rows"]
         default: []
+        }
+    }
+
+    /// The pane to show for a stored `lastSettingsPane` value. Panes that were folded into
+    /// another open that one; anything unknown opens General.
+    public static func restoring(_ rawValue: String?) -> SettingsPaneID {
+        guard let rawValue else { return .general }
+        if let pane = SettingsPaneID(rawValue: rawValue) { return pane }
+        switch rawValue {
+        case "ring": return .notch
+        default: return .general
         }
     }
 
@@ -195,7 +207,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
 
     public var panes: [SettingsPaneID] {
         switch self {
-        case .wisp: [.general, .notch, .ring, .appearance, .activities]
+        case .wisp: [.general, .notch, .appearance, .activities]
         case .shelf: [.widgets, .profiles, .clipboard]
         case .connections: [.notifications, .agents, .phone, .ai]
         case .system: [.permissions, .about]
@@ -218,8 +230,11 @@ public enum SettingsIndex {
         return byTitle + byKeyword
     }
 
+    /// Apostrophes are dropped, straight or curly, so "dont show" finds "don't show".
     private static func normalise(_ text: String) -> String {
         text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .replacingOccurrences(of: "'", with: "")
+            .replacingOccurrences(of: "\u{2019}", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
