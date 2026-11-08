@@ -49,6 +49,25 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "shape").contains(.notch))
     }
 
+    func testLiveActivitiesControlsAreFoundByNewAndOldNames() {
+        for query in [
+            "use wisp for these pop-ups", "pop-ups", "replace system overlays", "show more than one activity at once",
+            "split extra activities", "focus changes", "show focus changes", "battery warning level",
+            "first bubble", "level bars", "google meet",
+        ] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .activities, query)
+        }
+        // Focus changes moved from Notifications, so that name still finds them.
+        XCTAssertTrue(SettingsIndex.panes(matching: "notifications focus").contains(.activities))
+        XCTAssertFalse(SettingsIndex.panes(matching: "focus").contains(.notifications))
+    }
+
+    func testTheFocusButtonShortcutIsFoundByNewAndOldNames() {
+        for query in ["focus button runs this shortcut", "focus button", "do not disturb toggle runs"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query), [.widgets], query)
+        }
+    }
+
     func testRingControlsAreFoundInNotch() {
         for query in ["ring", "edit ring", "per app", "segments", "middle click"] {
             XCTAssertEqual(SettingsIndex.panes(matching: query).first, .notch, query)

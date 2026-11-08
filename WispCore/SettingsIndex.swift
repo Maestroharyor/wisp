@@ -101,18 +101,25 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "left", "right", "airpods", "headphones", "bluetooth", "downloads", "download progress", "safari",
                 "chrome", "firefox", "folder", "finder", "mouse", "keyboard", "trackpad", "magic mouse", "accessory",
                 "accessories", "low battery warning",
+                // Current control names, then the older ones so searches for those still land. Focus
+                // changes moved here from Notifications, whose name stays a keyword.
+                "use wisp for these pop-ups", "pop-ups", "popups", "show more than one activity at once",
+                "more than one activity", "focus changes", "battery warning level", "batteries",
+                "replace system overlays", "system overlays", "split extra activities", "show focus changes",
+                "notifications",
             ]
         case .widgets:
             [
                 "home", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
                 "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
                 "timer length", "script", "command", "output", "do not disturb", "dnd", "workday",
+                "focus button runs this shortcut", "focus button", "do not disturb toggle runs",
             ]
         case .profiles: ["profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus"]
         case .clipboard: ["history", "copy", "paste", "limit", "pinned"]
         case .notifications:
             [
-                "messages", "imessage", "whatsapp", "telegram", "reply", "banner", "apps", "focus", "dismiss",
+                "messages", "imessage", "whatsapp", "telegram", "reply", "banner", "apps", "dismiss",
                 "close", "stay on screen", "duration", "swipe",
             ]
         case .agents:
@@ -165,7 +172,12 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "this mac has a dynamic island",
             ]
         case .appearance: ["glow reach", "reach", "spread", "pointer effect", "hover strength", "strength"]
-        case .activities: ["volume steps", "steps", "finer"]
+        case .activities:
+            [
+                "volume steps", "steps", "finer", "pop-ups stay on screen", "level bars",
+                "theme accent", "teams", "google meet", "chromium", "first bubble", "show on",
+                "display under the pointer", "macbook display", "all displays",
+            ]
         case .widgets: ["widget rows", "rows", "grid", "one row", "two rows"]
         default: []
         }
