@@ -28,7 +28,7 @@ struct WidgetSettings: View {
                     ForEach(shortcuts.available, id: \.self) { name in
                         Toggle(name, isOn: favourite(name))
                     }
-                    Picker("Do Not Disturb toggle runs", selection: $preferences.doNotDisturbShortcut) {
+                    Picker("Focus button runs this Shortcut", selection: $preferences.doNotDisturbShortcut) {
                         Text("Nothing").tag("")
                         ForEach(shortcuts.available, id: \.self) { Text($0).tag($0) }
                     }

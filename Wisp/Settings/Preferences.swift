@@ -618,7 +618,7 @@ final class Preferences {
         didSet { defaults.set(favouriteShortcuts, forKey: Key.favouriteShortcuts) }
     }
 
-    /// The Shortcut the Do Not Disturb toggle runs (macOS has no public Focus API).
+    /// The Shortcut the Quick Toggles Focus button runs (macOS has no public Focus API).
     var doNotDisturbShortcut: String {
         didSet { defaults.set(doNotDisturbShortcut, forKey: Key.doNotDisturbShortcut) }
     }
@@ -686,7 +686,8 @@ final class Preferences {
     var batteryHUD: Bool { didSet { defaults.set(batteryHUD, forKey: Key.batteryHUD) } }
     /// A pill when Bluetooth headphones connect, with their battery.
     var deviceActivity: Bool { didSet { defaults.set(deviceActivity, forKey: Key.deviceActivity) } }
-    /// Mouse, keyboard and trackpad batteries in the Battery widget, with a warning at 20%.
+    /// Mouse, keyboard and trackpad batteries in the Battery widget, with a warning at the battery
+    /// warning level (`batteryLowThreshold`).
     var accessoryBatteries: Bool { didSet { defaults.set(accessoryBatteries, forKey: Key.accessoryBatteries) } }
     /// A progress pill while a browser downloads into Downloads or a chosen folder. Off by
     /// default: turning it on can make macOS ask for access to the Downloads folder.
