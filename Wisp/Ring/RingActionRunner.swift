@@ -32,6 +32,7 @@ enum RingActionRunner {
         case .pickColour: quick.pickColor()
         case .lockScreen: quick.lockScreen()
         case .watchRegion: services.regionWatch.toggle()
+        case .captureText: services.textCapture.begin()
         case .shortcut: if let name = action.value { services.shortcuts.run(name) }
         case .transform: services.openTransform([])
         case .dropAction, .airDrop, .zip:
