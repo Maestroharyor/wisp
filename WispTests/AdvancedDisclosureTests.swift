@@ -73,11 +73,12 @@ final class AdvancedKeywordTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "widget rows"), [.shelf])
         XCTAssertEqual(SettingsIndex.panes(matching: "glow reach"), [.appearance])
         XCTAssertEqual(SettingsIndex.panes(matching: "pointer effect strength"), [.appearance])
+        XCTAssertEqual(SettingsIndex.panes(matching: "your own ntfy server"), [.agents])
     }
 
     func testAdvancedFindsEveryPaneWithAnAdvancedSection() {
         let withAdvanced = SettingsPaneID.allCases.filter { !$0.advancedKeywords.isEmpty }
-        XCTAssertEqual(withAdvanced, [.notch, .appearance, .activities, .shelf])
+        XCTAssertEqual(withAdvanced, [.notch, .appearance, .activities, .shelf, .agents])
         XCTAssertEqual(SettingsIndex.panes(matching: "advanced"), withAdvanced)
     }
 

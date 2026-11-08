@@ -145,7 +145,7 @@ final class SettingsIndexTests: XCTestCase {
 
     func testTheSidebarHasWispFeaturesAndSystem() {
         XCTAssertEqual(SettingsSection.allCases.map(\.title), ["Wisp", "Features", "System"])
-        XCTAssertEqual(SettingsSection.features.panes, [.activities, .shelf, .notifications, .agents, .phone, .ai])
+        XCTAssertEqual(SettingsSection.features.panes, [.activities, .shelf, .notifications, .agents, .ai])
     }
 
     func testAMissingOrUnknownPaneOpensGeneral() {
@@ -220,10 +220,36 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "keyboard").contains(.activities))
     }
 
-    func testPhonePaneIsFound() {
-        XCTAssertEqual(SettingsIndex.panes(matching: "ntfy"), [.phone])
-        XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.phone])
-        XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.phone))
+    func testPhoneAlertsAreFoundInAgents() {
+        XCTAssertEqual(SettingsIndex.panes(matching: "ntfy"), [.agents])
+        XCTAssertEqual(SettingsIndex.panes(matching: "apple watch"), [.agents])
+        XCTAssertTrue(SettingsIndex.panes(matching: "push").contains(.agents))
+        // Phone had its own pane; its name stays a keyword. Headphones and microphone match it too.
+        XCTAssertTrue(SettingsIndex.panes(matching: "phone").contains(.agents))
+        XCTAssertEqual(SettingsIndex.panes(matching: "phone alerts"), [.agents])
+    }
+
+    func testThePhonePaneIsGone() {
+        XCTAssertNil(SettingsPaneID(rawValue: "phone"))
+        XCTAssertFalse(SettingsPaneID.allCases.map(\.title).contains("Phone"))
+    }
+
+    func testThePhonePaneReopensAsAgents() {
+        XCTAssertEqual(SettingsPaneID.restoring("phone"), .agents)
+    }
+
+    func testAgentsControlsAreFoundByNewAndOldNames() {
+        for query in [
+            "status line under claude code's prompt", "status line", "keep mine", "terminal bar",
+            "show what agents are doing", "tool activity", "your own ntfy server", "protected server",
+            "add the command or file name", "include details", "away after", "access token", "reply token",
+            "wait for an answer", "send agent alerts to my phone", "keep session history",
+            "summarise finished sessions", "last 7 days", "command-line tool",
+        ] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .agents, query)
+        }
+        // The clipboard has a Clear history button too.
+        XCTAssertTrue(SettingsIndex.panes(matching: "clear history").contains(.agents))
     }
 
     func testCloudAgentsAreFound() {
