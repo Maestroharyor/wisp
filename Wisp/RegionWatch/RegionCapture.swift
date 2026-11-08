@@ -1,7 +1,6 @@
 import CoreGraphics
 import Foundation
 import ScreenCaptureKit
-import Vision
 import WispCore
 
 /// The window and the part of it being watched.
@@ -112,17 +111,9 @@ actor RegionCaptureSession {
         return drawn ? LuminanceFrame(width: width, height: height, pixels: pixels) : nil
     }
 
-    /// On-device Vision OCR, top candidate per line.
-    private static func recognizedText(in image: CGImage) -> String? {
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        // Literal strings (build output, status words) read better without autocorrect.
-        request.usesLanguageCorrection = false
-        do {
-            try VNImageRequestHandler(cgImage: image).perform([request])
-        } catch {
-            return nil
-        }
-        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
+    /// On-device Vision OCR, top candidate per line, without autocorrect. A failed read gives
+    /// "", which a text rule treats as the region not showing its text yet.
+    private static func recognizedText(in image: CGImage) -> String {
+        ImageReader.literalLines(in: image).map(\.text).joined(separator: "\n")
     }
 }

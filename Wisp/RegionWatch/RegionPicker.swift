@@ -11,12 +11,17 @@ final class RegionPicker {
     var isPicking: Bool { !panels.isEmpty }
 
     /// Calls back with the rectangle in AppKit global coordinates, or nil when cancelled.
-    func pick(_ completion: @escaping (CGRect?) -> Void) {
+    /// `hint` is the line shown at the top of each screen.
+    func pick(
+        hint: String = "Drag over the part of a window to watch. Esc cancels.",
+        _ completion: @escaping (CGRect?) -> Void
+    ) {
         finish(nil)
         self.completion = completion
         panels = NSScreen.screens.map { screen in
             let panel = RegionPickerPanel(frame: screen.frame)
             let view = RegionSelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
+            view.hint = hint
             view.onFinish = { [weak self, weak panel] rect in
                 guard let panel else { return }
                 self?.finish(rect.map { panel.convertToScreen($0) })
@@ -60,6 +65,7 @@ private final class RegionPickerPanel: NSPanel {
 /// Draws the dim layer with the selection cut out of it and reports the finished drag.
 private final class RegionSelectionView: NSView {
     var onFinish: (CGRect?) -> Void = { _ in }
+    var hint = ""
     private var origin: CGPoint?
     private var selection: CGRect?
 
@@ -117,7 +123,7 @@ private final class RegionSelectionView: NSView {
 
     private func drawHint() {
         let text = NSAttributedString(
-            string: "Drag over the part of a window to watch. Esc cancels.",
+            string: hint,
             attributes: [.font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: NSColor.white])
         let size = text.size()
         let box = CGRect(
