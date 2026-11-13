@@ -533,7 +533,7 @@ final class AppServices {
                 ),
                 (
                     bar: preferences.terminalBarMode,
-                    threshold: preferences.contextAlert ? Double(preferences.contextThreshold) : nil,
+                    contextAlert: preferences.contextAlert, thresholds: preferences.contextThresholds,
                     privacy: preferences.agentPrivacy, tools: preferences.agentToolActivity,
                     rules: AgentAlertRules(
                         toolMinutes: preferences.toolAlertMinutes, tools: preferences.toolAlert,
@@ -556,7 +556,8 @@ final class AppServices {
             Task { @MainActor in self?.syncPreferenceEffects() }
         }
         agents.terminalBarMode = agentPrefs.bar
-        agents.contextThreshold = agentPrefs.threshold
+        agents.contextAlert = agentPrefs.contextAlert
+        agents.contextThresholds = agentPrefs.thresholds
         agents.privacyMode = agentPrefs.privacy
         agents.toolActivity = agentPrefs.tools
         agents.alertRules = agentPrefs.rules

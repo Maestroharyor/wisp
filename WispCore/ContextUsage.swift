@@ -8,13 +8,44 @@ public enum ContextUsage {
         case critical
     }
 
-    public static let warningPercent = 70.0
-    public static let criticalPercent = 90.0
-    public static let defaultThreshold = 80.0
+    /// Where the gauge turns amber (`warn`, which is also when the alert fires) and red. Critical
+    /// is always above warn, so the two colours never swap.
+    public struct Thresholds: Equatable, Sendable {
+        public static let warnRange: ClosedRange<Double> = 50...95
+        /// The smallest step between warn and critical.
+        public static let gap = 5.0
+        public static let standard = Thresholds(warn: 70, critical: 90)
 
-    public static func level(_ percent: Double) -> Level {
-        if percent >= criticalPercent { return .critical }
-        if percent >= warningPercent { return .warning }
+        public let warn: Double
+        public let critical: Double
+
+        public init(warn: Double, critical: Double) {
+            let warn = min(max(warn, Self.warnRange.lowerBound), Self.warnRange.upperBound)
+            self.warn = warn
+            self.critical = min(max(critical, warn + Self.gap), 100)
+        }
+
+        /// Settings keys, shared by Wisp and the helper's terminal bar.
+        public static let warnKey = "contextWarnPercent"
+        public static let criticalKey = "contextCriticalPercent"
+        /// Earlier versions' alert percentage, read as warn until warn is set.
+        public static let legacyAlertKey = "contextThreshold"
+
+        /// The stored settings, with the alert's own percentage from earlier versions read as
+        /// warn until warn is set.
+        public static func migrated(alertAt: Double?, warn: Double?, critical: Double?) -> Thresholds {
+            Thresholds(warn: warn ?? alertAt ?? standard.warn, critical: critical ?? standard.critical)
+        }
+
+        /// From settings, where `read` gives a key's number or nil when it isn't set.
+        public static func stored(_ read: (String) -> Double?) -> Thresholds {
+            migrated(alertAt: read(legacyAlertKey), warn: read(warnKey), critical: read(criticalKey))
+        }
+    }
+
+    public static func level(_ percent: Double, thresholds: Thresholds = .standard) -> Level {
+        if percent >= thresholds.critical { return .critical }
+        if percent >= thresholds.warn { return .warning }
         return .normal
     }
 

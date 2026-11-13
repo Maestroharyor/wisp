@@ -7,9 +7,10 @@ import WispCore
 /// the user's displaced bar for when Wisp's is turned off. The bar never depends on Wisp
 /// running, and every path exits 0.
 enum StatusLineCommand {
-    static func run(arguments: [String], socketPath: String, terminal: String?, environment: [String: String])
-        -> Never
-    {
+    /// `appID` is the app this helper ships in, whose settings colour the context bar.
+    static func run(
+        arguments: [String], socketPath: String, terminal: String?, environment: [String: String], appID: String?
+    ) -> Never {
         let input = FileHandle.standardInput.readDataToEndOfFile()
         let process = AgentProcess.ownerOfThisProcess()
         let context = TerminalContext(
@@ -23,17 +24,31 @@ enum StatusLineCommand {
         if let chained = value(after: "--chain", in: arguments) {
             FileHandle.standardOutput.write(runShell(chained, input: input))
         } else if !arguments.contains("--quiet") {
-            FileHandle.standardOutput.write(Data((bar(for: input, environment: environment) + "\n").utf8))
+            let thresholds = contextThresholds(appID: appID)
+            FileHandle.standardOutput.write(
+                Data((bar(for: input, environment: environment, thresholds: thresholds) + "\n").utf8))
         }
         exit(0)
     }
 
-    static func bar(for input: Data, environment: [String: String]) -> String {
+    static func bar(
+        for input: Data, environment: [String: String], thresholds: ContextUsage.Thresholds = .standard
+    ) -> String {
         let snapshot = StatusLineSnapshot.decode(input)
         let branch =
             snapshot.branch == nil
             ? GitHead.branch(cwd: snapshot.cwd, read: { try? String(contentsOfFile: $0, encoding: .utf8) }) : nil
-        return StatusBarRenderer.bar(for: snapshot, branch: branch, environment: environment)
+        return StatusBarRenderer.bar(for: snapshot, branch: branch, environment: environment, thresholds: thresholds)
+    }
+
+    /// Wisp's Warn at and Critical at, read from its settings; the defaults when it has none.
+    private static func contextThresholds(appID: String?) -> ContextUsage.Thresholds {
+        guard let appID else { return .standard }
+        return .stored { key in
+            var valid: DarwinBoolean = false
+            let value = CFPreferencesGetAppIntegerValue(key as CFString, appID as CFString, &valid)
+            return valid.boolValue ? Double(value) : nil
+        }
     }
 
     private static func value(after flag: String, in arguments: [String]) -> String? {

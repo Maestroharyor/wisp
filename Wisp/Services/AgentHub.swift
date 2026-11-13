@@ -107,8 +107,10 @@ final class AgentHub {
     private(set) var statusLine: StatusLineState = .none
     /// What Claude Code's status bar becomes when hooks are added. Set from Preferences.
     var terminalBarMode: TerminalBarMode = .wisp
-    /// Context percentage that triggers an alert; nil turns the alert off. Set from Preferences.
-    var contextThreshold: Double? = ContextUsage.defaultThreshold
+    /// Where context turns amber (and alerts) and red. Set from Preferences.
+    var contextThresholds = ContextUsage.Thresholds.standard
+    /// Whether passing the warn level alerts. Set from Preferences.
+    var contextAlert = true
     /// Whether Claude Code's tool hooks are wanted. Set from Preferences.
     var toolActivity = false
     /// Long tool and reminder limits. Set from Preferences.
@@ -484,8 +486,7 @@ final class AgentHub {
     /// Tracked even while the alert is off, so turning it on doesn't fire for a session that
     /// was already past the level.
     private func checkContext(session id: String) {
-        let threshold = contextThreshold ?? ContextUsage.defaultThreshold
-        if let percent = sessions.contextAlert(session: id, threshold: threshold), contextThreshold != nil,
+        if let percent = sessions.contextAlert(session: id, threshold: contextThresholds.warn), contextAlert,
             let project = sessions.session(id)?.project
         {
             onContextAlert(ContextUsage.notice(percent: percent, project: project))

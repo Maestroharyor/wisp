@@ -28,7 +28,8 @@ let terminal = AgentTerminal.bundleID(
 // The bar prints even when Wisp isn't running, so this comes before the socket check.
 if arguments.dropFirst().first == StatusLineChain.subcommand {
     StatusLineCommand.run(
-        arguments: Array(arguments.dropFirst(2)), socketPath: socketPath, terminal: terminal, environment: environment)
+        arguments: Array(arguments.dropFirst(2)), socketPath: socketPath, terminal: terminal, environment: environment,
+        appID: appBundleID)
 }
 // Commands come before reading stdin, which only hooks send.
 if let command = AgentCLI.parse(arguments: arguments) {

@@ -32,6 +32,11 @@ extension ContextUsage.Level {
     }
 }
 
+extension EnvironmentValues {
+    /// Where context gauges turn amber and red (Settings › Agents).
+    @Entry var contextThresholds: ContextUsage.Thresholds = .standard
+}
+
 extension Color {
     /// The project's own colour, stable across launches.
     static func project(_ name: String) -> Color {
@@ -92,13 +97,17 @@ struct AgentGlyph: View {
 struct ContextRing: View {
     let percent: Double
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.contextThresholds) private var thresholds
 
     var body: some View {
         ZStack {
             Circle().stroke(.ink.opacity(0.14), lineWidth: 1.5)
             Circle()
                 .trim(from: 0, to: min(max(percent, 0), 100) / 100)
-                .stroke(ContextUsage.level(percent).tint, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                .stroke(
+                    ContextUsage.level(percent, thresholds: thresholds).tint,
+                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round)
+                )
                 .rotationEffect(.degrees(-90))
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: percent)
@@ -108,16 +117,18 @@ struct ContextRing: View {
 /// A short bar for the context window, with its percentage.
 struct ContextBar: View {
     let percent: Double
+    @Environment(\.contextThresholds) private var thresholds
 
     var body: some View {
-        HStack(spacing: 4) {
+        let tint = ContextUsage.level(percent, thresholds: thresholds).tint
+        return HStack(spacing: 4) {
             Capsule().fill(.ink.opacity(0.14)).frame(width: 36, height: 4)
                 .overlay(alignment: .leading) {
-                    Capsule().fill(ContextUsage.level(percent).tint)
+                    Capsule().fill(tint)
                         .frame(width: 36 * min(max(percent, 0), 100) / 100, height: 4)
                 }
             Text("\(Int(percent.rounded()))%").font(.system(size: 10)).monospacedDigit()
-                .foregroundStyle(ContextUsage.level(percent).tint)
+                .foregroundStyle(tint)
                 .lineLimit(1).fixedSize()
         }
         .help("Context window used")

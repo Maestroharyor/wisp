@@ -12,10 +12,13 @@ public enum StatusBarRenderer {
         public var cost: Double?
         public var linesAdded: Int
         public var linesRemoved: Int
+        /// Where the context bar turns amber and red, from Wisp's settings.
+        public var thresholds: ContextUsage.Thresholds
 
         public init(
             project: String, branch: String? = nil, contextPercent: Double? = nil, model: String? = nil,
-            cost: Double? = nil, linesAdded: Int = 0, linesRemoved: Int = 0
+            cost: Double? = nil, linesAdded: Int = 0, linesRemoved: Int = 0,
+            thresholds: ContextUsage.Thresholds = .standard
         ) {
             self.project = project
             self.branch = branch
@@ -24,13 +27,14 @@ public enum StatusBarRenderer {
             self.cost = cost
             self.linesAdded = linesAdded
             self.linesRemoved = linesRemoved
+            self.thresholds = thresholds
         }
 
-        public init(snapshot: StatusLineSnapshot, branch: String?) {
+        public init(snapshot: StatusLineSnapshot, branch: String?, thresholds: ContextUsage.Thresholds = .standard) {
             self.init(
                 project: snapshot.project, branch: snapshot.branch ?? branch, contextPercent: snapshot.contextPercent,
                 model: snapshot.model, cost: snapshot.cost, linesAdded: snapshot.linesAdded ?? 0,
-                linesRemoved: snapshot.linesRemoved ?? 0)
+                linesRemoved: snapshot.linesRemoved ?? 0, thresholds: thresholds)
         }
     }
 
@@ -46,10 +50,14 @@ public enum StatusBarRenderer {
     /// The bar `wisp-agent statusline` prints for a snapshot, honouring the terminal's
     /// `COLUMNS` and `NO_COLOR` (set and not empty means plain text, per no-color.org).
     /// `branch` is the one read from `.git/HEAD`; a worktree branch in the snapshot wins.
-    public static func bar(for snapshot: StatusLineSnapshot, branch: String?, environment: [String: String]) -> String {
+    public static func bar(
+        for snapshot: StatusLineSnapshot, branch: String?, environment: [String: String],
+        thresholds: ContextUsage.Thresholds = .standard
+    ) -> String {
         let noColor = environment["NO_COLOR"].map { !$0.isEmpty } ?? false
         return render(
-            Input(snapshot: snapshot, branch: branch), columns: environment["COLUMNS"].flatMap(Int.init),
+            Input(snapshot: snapshot, branch: branch, thresholds: thresholds),
+            columns: environment["COLUMNS"].flatMap(Int.init),
             color: !noColor)
     }
 
@@ -88,7 +96,11 @@ public enum StatusBarRenderer {
         if let percent = input.contextPercent {
             let filled = min(barCells, max(0, Int((percent / 100 * Double(barCells)).rounded())))
             let bar = String(repeating: "█", count: filled) + String(repeating: "░", count: barCells - filled)
-            result.append([Span(text: "▕\(bar)▏ \(Int(percent.rounded()))%", color: contextColor(percent))])
+            result.append([
+                Span(
+                    text: "▕\(bar)▏ \(Int(percent.rounded()))%",
+                    color: contextColor(percent, thresholds: input.thresholds))
+            ])
         }
         if let model = input.model, !model.isEmpty { result.append([Span(text: model, color: nil)]) }
         if let cost = input.cost { result.append([Span(text: costText(cost), color: nil)]) }
@@ -105,9 +117,9 @@ public enum StatusBarRenderer {
         cost >= 100 ? "$\(Int(cost.rounded()))" : String(format: "$%.2f", cost)
     }
 
-    /// Wisp violet below 70%, amber to 89%, red from 90%.
-    static func contextColor(_ percent: Double) -> Int {
-        switch ContextUsage.level(percent) {
+    /// Wisp violet below warn, amber from warn, red from critical (70% and 90% by default).
+    static func contextColor(_ percent: Double, thresholds: ContextUsage.Thresholds = .standard) -> Int {
+        switch ContextUsage.level(percent, thresholds: thresholds) {
         case .normal: 105
         case .warning: 214
         case .critical: 203
