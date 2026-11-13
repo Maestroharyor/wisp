@@ -50,14 +50,8 @@ struct QuickIntentButtons: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button("Cancel") { store.cancel() }
-                .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
-                .padding(.horizontal, 12).frame(height: 28)
-                .background(Capsule().fill(.ink.opacity(0.14)))
-            Button(QuickIntentText.action(intent)) { store.confirm() }
-                .buttonStyle(.plain).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                .padding(.horizontal, 14).frame(height: 28)
-                .background(Capsule().fill(Color.wispViolet))
+            CapsuleButton("Cancel") { store.cancel() }
+            CapsuleButton(QuickIntentText.action(intent), prominent: true) { store.confirm() }
         }
     }
 }

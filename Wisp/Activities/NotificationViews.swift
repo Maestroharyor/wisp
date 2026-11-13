@@ -83,6 +83,7 @@ struct NotificationCardView: View {
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(Color.accentColor))
                     .foregroundStyle(.white)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .hoverHint(sending ? "Sending" : "Send reply")
