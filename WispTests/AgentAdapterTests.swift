@@ -51,8 +51,21 @@ final class AgentAdapterTests: XCTestCase {
     func testCodexToolHooksRunInTheBackground() {
         let codex = AgentSource.codex
         XCTAssertEqual(codex.toolHookEvents, ["PreToolUse", "PostToolUse", "SubagentStop"])
-        XCTAssertEqual(codex.backgroundHookEvents, Set(codex.toolHookEvents))
+        XCTAssertEqual(codex.backgroundHookEvents, Set(codex.toolHookEvents + ["Interrupt"]))
         XCTAssertFalse(codex.hookEvents.contains("Notification"))
+    }
+
+    func testCodexInterruptHookRunsInTheBackgroundWithinCodexsLimit() throws {
+        XCTAssertTrue(AgentSource.codex.hookEvents.contains("Interrupt"))
+        XCTAssertFalse(AgentSource.claude.hookEvents.contains("Interrupt"))
+        let data = try HookInstaller.install(
+            into: Data("{}".utf8), command: "'/x/wisp-agent' --source codex", file: AgentSource.codex.adapter.hookFile)
+        let json = try JSONDecoder().decode(JSONValue.self, from: data)
+        let handler = json["hooks"]?["Interrupt"]?[0]?["hooks"]?[0]
+        // Codex allows Interrupt hooks three seconds at most.
+        XCTAssertEqual(handler?["timeout"], .number(3))
+        XCTAssertEqual(handler?["async"], .bool(true))
+        XCTAssertEqual(json["hooks"]?["Stop"]?[0]?["hooks"]?[0]?["timeout"], .number(5))
     }
 
     func testHelperArgumentsTagEveryAgentButTheDefault() {

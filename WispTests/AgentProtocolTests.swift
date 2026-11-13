@@ -14,6 +14,36 @@ final class AgentProtocolTests: XCTestCase {
         XCTAssertEqual(event.project, "wisp")
     }
 
+    func testHookPIDRoundTrips() throws {
+        let payload = Data(#"{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Bash"}"#.utf8)
+        let data = try XCTUnwrap(
+            AgentProtocol.envelope(kind: .hook, source: .claude, terminal: nil, hookPID: 4242, payload: payload))
+        guard case .hook(let event) = try AgentProtocol.decode(data) else { return XCTFail("not a hook") }
+        XCTAssertEqual(event.hookPID, 4242)
+    }
+
+    func testOldEnvelopesWithoutHookPIDStillDecode() throws {
+        let data = Data(
+            #"{"v":1,"kind":"hook","source":"claude","payload":{"session_id":"s","hook_event_name":"Stop"}}"#.utf8)
+        guard case .hook(let event) = try AgentProtocol.decode(data) else { return XCTFail("not a hook") }
+        XCTAssertEqual(event.kind, .stop)
+        XCTAssertNil(event.hookPID)
+        // The original tagged format has no envelope, so no pid either.
+        let tagged = Data(#"{"session_id":"s","hook_event_name":"Stop"}"#.utf8)
+        guard case .hook(let old) = try AgentProtocol.decode(tagged) else { return XCTFail("not a hook") }
+        XCTAssertNil(old.hookPID)
+    }
+
+    func testHookPIDThatCantBeAProcessIsIgnored() throws {
+        for value in ["1", "0", "-5", "1.5", "99999999999", "\"12\""] {
+            let data = Data(
+                #"{"v":1,"kind":"hook","hookPID":\#(value),"payload":{"session_id":"s","hook_event_name":"Stop"}}"#
+                    .utf8)
+            guard case .hook(let event) = try AgentProtocol.decode(data) else { return XCTFail("not a hook") }
+            XCTAssertNil(event.hookPID, value)
+        }
+    }
+
     func testStatuslineEnvelope() throws {
         let payload = Data(#"{"session_id":"s","cost":{"total_cost_usd":1.5}}"#.utf8)
         let data = try XCTUnwrap(

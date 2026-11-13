@@ -342,6 +342,11 @@ public struct AgentSessions: Sendable {
             if session.state == .waiting { session.state = .running }
         case .subagentStop:
             session.subagents = max(0, session.subagents - 1)
+        case .interrupt:
+            // Codex's interrupted turn sends no Stop; the agent waits for the next prompt.
+            session.state = .idle
+            session.clearTools()
+            session.subagents = 0
         case .sessionEnd, .other: break
         }
     }
@@ -399,6 +404,17 @@ public struct AgentSessions: Sendable {
             hidden: ToolLabel.describe(tool: name, input: event.toolInput, hidden: true), started: date)
         session.toolEnded = date
         session.toolCount += 1
+    }
+
+    /// Whether `snapshot` shows a session that waits on the user (a request or a question) called
+    /// the model again, so whatever it waited on was answered in the terminal. Read before the
+    /// snapshot is applied. Not while a subagent works, since it spends while the main agent waits.
+    public func movedOn(_ snapshot: StatusLineSnapshot) -> Bool {
+        guard let id = snapshot.sessionID, let session = sessions[id],
+            [.needsApproval, .waiting].contains(session.state), session.subagents == 0, session.costIsReal,
+            let before = session.cost, let cost = snapshot.cost
+        else { return false }
+        return cost > before
     }
 
     /// Live figures from Claude Code's status bar. Creates the session when Wisp started

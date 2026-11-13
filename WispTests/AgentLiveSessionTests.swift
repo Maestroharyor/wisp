@@ -37,6 +37,44 @@ final class AgentLiveSessionTests: XCTestCase {
         XCTAssertEqual(sessions.session("s1")?.state, .running)
     }
 
+    private func permission(tool: String) throws -> AgentEvent {
+        try AgentEvent.decode(
+            Data(
+                #"{"session_id":"s1","cwd":"/a/wisp","hook_event_name":"PermissionRequest","tool_name":"\#(tool)"}"#
+                    .utf8))
+    }
+
+    func testNewSpendWhileARequestWaitsMeansItWasAnswered() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(snapshot(cost: 0.5), source: .claude, terminal: nil, branch: nil, at: start)
+        sessions.apply(try permission(tool: "Bash"), at: start)
+        XCTAssertFalse(sessions.movedOn(snapshot(cost: 0.5)))
+        XCTAssertTrue(sessions.movedOn(snapshot(cost: 0.6)))
+        // A question waits too.
+        sessions.apply(try permission(tool: "AskUserQuestion"), at: start)
+        XCTAssertEqual(sessions.session("s1")?.state, .waiting)
+        XCTAssertTrue(sessions.movedOn(snapshot(cost: 0.6)))
+    }
+
+    func testSpendOnlyCountsWhileWaitingAndWithoutSubagents() throws {
+        var sessions = AgentSessions()
+        // Nothing known yet, or no real cost to compare with.
+        XCTAssertFalse(sessions.movedOn(snapshot(cost: 0.6)))
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(snapshot(cost: 0.5), source: .claude, terminal: nil, branch: nil, at: start)
+        XCTAssertFalse(sessions.movedOn(snapshot(cost: 0.6)), "working, not waiting")
+        // A subagent still working spends while the main agent waits.
+        let task = try AgentEvent.decode(
+            Data(
+                #"{"session_id":"s1","cwd":"/a","hook_event_name":"PreToolUse","tool_name":"Task","tool_use_id":"t"}"#
+                    .utf8))
+        sessions.apply(task, at: start)
+        sessions.apply(try permission(tool: "Bash"), at: start)
+        XCTAssertFalse(sessions.movedOn(snapshot(cost: 0.6)))
+        XCTAssertFalse(sessions.movedOn(snapshot(cost: nil)))
+    }
+
     func testSnapshotWithoutSessionIsIgnored() {
         var sessions = AgentSessions()
         sessions.apply(StatusLineSnapshot(cwd: "/a"), source: .claude, terminal: nil, branch: nil, at: start)

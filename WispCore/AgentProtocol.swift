@@ -20,6 +20,7 @@ public enum AgentMessage: Equatable, Sendable {
 /// Messages without `v` are the original format, a hook's JSON tagged with `wisp_source`.
 public enum AgentProtocol {
     public static let version = 1
+    static let hookPIDKey = "hookPID"
 
     public enum Kind: String, Sendable {
         case hook
@@ -58,9 +59,11 @@ public enum AgentProtocol {
     /// The envelope around `payload`, or nil when the payload isn't a JSON object.
     /// `process` is the agent the helper runs under, so Wisp can tell when it has quit, and
     /// `context` is where in the terminal it runs, so Wisp can bring that pane forward.
+    /// `hookPID` is the helper's own pid: when the agent stops waiting on a request and the
+    /// helper exits, Wisp takes the card down.
     public static func envelope(
         kind: Kind, source: AgentSource, terminal: String?, process: AgentProcess? = nil,
-        context: TerminalContext? = nil, payload: Data
+        context: TerminalContext? = nil, hookPID: Int32? = nil, payload: Data
     ) -> Data? {
         guard let payloadJSON = try? JSONDecoder().decode(JSONValue.self, from: payload),
             case .object = payloadJSON
@@ -72,6 +75,7 @@ public enum AgentProtocol {
         if let terminal, !terminal.isEmpty { fields["terminal"] = .string(terminal) }
         if let process { fields["process"] = process.json }
         if let context, !context.isEmpty { fields[TerminalContext.envelopeKey] = context.json }
+        if let hookPID { fields[hookPIDKey] = .number(Double(hookPID)) }
         return try? JSONEncoder().encode(JSONValue.object(fields))
     }
 
@@ -120,6 +124,8 @@ public enum AgentProtocol {
             }
             event.process = process
             event.terminalContext = context
+            // Older helpers don't send it. Only a real process (not launchd or the kernel) counts.
+            event.hookPID = json[hookPIDKey]?.intValue.flatMap { Int32(exactly: $0) }.flatMap { $0 > 1 ? $0 : nil }
             return .hook(event)
         case .statusline:
             var snapshot = StatusLineSnapshot(json: payload)

@@ -72,8 +72,35 @@ if AgentProtocol.kind(forHook: hookJSON, source: source) == .tool {
 let input =
     AgentProtocol.envelope(
         kind: .hook, source: source, terminal: terminal, process: agentProcess, context: terminalContext,
-        payload: hookJSON)
+        hookPID: getpid(), payload: hookJSON)
     ?? AgentTerminal.tag(hookJSON, source: source, terminal: terminal)
+
+// While a request waits, Wisp watches this process: once the agent stops waiting on it (the
+// prompt was answered in the terminal), it exits, and the card goes. So it exits as soon as
+// the agent kills it, quits, or stops reading its answer.
+for signalNumber in [SIGTERM, SIGHUP] { signal(signalNumber, SIG_IGN) }
+let stopSignals = [SIGTERM, SIGHUP].map { signalNumber in
+    let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .main)
+    source.setEventHandler { exit(0) }
+    source.resume()
+    return source
+}
+// Re-parented to launchd: the agent that ran this hook has gone.
+let parentID = getppid()
+if parentID == 1 { exit(0) }
+let parentWatch = DispatchSource.makeProcessSource(identifier: parentID, eventMask: .exit, queue: .main)
+parentWatch.setEventHandler { exit(0) }
+parentWatch.resume()
+if getppid() != parentID { exit(0) }
+/// The agent closed its end of stdout: nobody will read an answer now.
+func agentStoppedReading() -> Bool {
+    var output = pollfd(fd: STDOUT_FILENO, events: Int16(POLLOUT), revents: 0)
+    return poll(&output, 1, 0) > 0 && output.revents & Int16(POLLHUP | POLLERR) != 0
+}
+let readerWatch = DispatchSource.makeTimerSource(queue: .main)
+readerWatch.schedule(deadline: .now() + .seconds(1), repeating: .seconds(1))
+readerWatch.setEventHandler { if agentStoppedReading() { exit(0) } }
+readerWatch.resume()
 let connection = NWConnection(to: .unix(path: socketPath), using: .tcp)
 
 @Sendable func receive(_ received: Data) {
