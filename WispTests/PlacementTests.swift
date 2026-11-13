@@ -203,8 +203,8 @@ final class PlacementTests: XCTestCase {
         let pill = CGRect(x: 500, y: 100, width: 200, height: 32)
         for placement in [Placement.top, .bottom] {
             let rects = SurfaceSizing.bubbleRects(beside: pill, count: 2, placement: placement)
-            XCTAssertEqual(rects[0].minX, pill.maxX + SurfaceSizing.bubbleGap)
-            XCTAssertEqual(rects[1].maxX, pill.minX - SurfaceSizing.bubbleGap)
+            XCTAssertEqual(rects[0].minX, pill.maxX + SurfaceSizing.bubbleGap(flare: 0))
+            XCTAssertEqual(rects[1].maxX, pill.minX - SurfaceSizing.bubbleGap(flare: 0))
         }
     }
 
@@ -222,8 +222,8 @@ final class PlacementTests: XCTestCase {
     func testSideBubblesStackAlongTheEdge() {
         let pill = CGRect(x: 0, y: 500, width: 50, height: 92)
         let left = SurfaceSizing.bubbleRects(beside: pill, count: 2, placement: .left)
-        XCTAssertEqual(left[0].maxY, pill.minY - SurfaceSizing.bubbleGap)
-        XCTAssertEqual(left[1].minY, pill.maxY + SurfaceSizing.bubbleGap)
+        XCTAssertEqual(left[0].maxY, pill.minY - SurfaceSizing.bubbleGap(flare: 0))
+        XCTAssertEqual(left[1].minY, pill.maxY + SurfaceSizing.bubbleGap(flare: 0))
         XCTAssertTrue(left.allSatisfy { $0.minX == pill.minX && $0.width == pill.width && $0.height == pill.width })
 
         let right = SurfaceSizing.bubbleRects(beside: pill, count: 1, placement: .right)

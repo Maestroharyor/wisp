@@ -131,17 +131,21 @@ public enum SurfaceSizing {
     /// the shelf's height. Tall enough for the media player.
     public static let shelfContentHeight: CGFloat = ShellMetrics.mediaWidgetContentHeight
 
-    /// Space between the main pill and a bubble beside it.
-    public static let bubbleGap: CGFloat = 6
+    /// Space between the main pill and a bubble beside it. A notch's flare reaches past the
+    /// pill along its edge, so the bubble clears the flare too; a thinner gap leaves a sliver
+    /// of menu bar between them that reads as a stray line.
+    public static func bubbleGap(flare: CGFloat) -> CGFloat { max(6, flare + 4) }
 
     /// Round bubbles for extra live activities, as tall as the pill. Centred pills get one
     /// on each side (the first on the right unless `firstOnLeft`); corner pills put both on
     /// the inward side; side-edge pills stack them below and above, against the edge.
+    /// `flare` is the closed shell's flare along its edge, 0 for an island.
     public static func bubbleRects(
-        beside pill: CGRect, count: Int, firstOnLeft: Bool = false, placement: Placement = .top
+        beside pill: CGRect, count: Int, firstOnLeft: Bool = false, placement: Placement = .top, flare: CGFloat = 0
     ) -> [CGRect] {
         // As thick as the pill: its height on the top and bottom, its width on the sides.
         let size = placement.edge.isSide ? pill.width : pill.height
+        let bubbleGap = bubbleGap(flare: flare)
         let step = size + bubbleGap
         func bubble(x: CGFloat, y: CGFloat) -> CGRect { CGRect(x: x, y: y, width: size, height: size) }
         let rects: [CGRect]

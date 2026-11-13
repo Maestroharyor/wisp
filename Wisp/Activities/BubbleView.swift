@@ -7,13 +7,16 @@ import WispCore
 struct BubbleLayer: View {
     let model: NotchModel
 
-    /// How far each side has split off: 0 tucked inside the pill, 1 at rest beside it.
-    @State private var split = Sides(right: 0, left: 0)
-    /// What each side last showed, kept while it merges back after the activity ended.
+    /// How far each side has split off.
+    @State private var split = BubbleSides.tucked
+    /// What each side last showed, kept while it merges back after the activity ended and
+    /// cleared once it has.
     @State private var shown: [ActivityBubble?] = [nil, nil]
     /// The compact pill the bubbles hang off (global coordinates), kept while the shell opens
     /// so they merge into where the pill was rather than jumping to the shelf's edge.
     @State private var pill: CGRect = .zero
+    /// Bumped by every new split or merge, so a completion that a newer one overtook does nothing.
+    @State private var generation = 0
 
     var body: some View {
         GooBubbles(
@@ -28,35 +31,59 @@ struct BubbleLayer: View {
 
     private func sync(animated: Bool) {
         let bubbles = model.bubbles
-        if !bubbles.isEmpty { pill = model.surfaceRect }
-        let target = Sides(right: bubbles.count > 0 ? 1 : 0, left: bubbles.count > 1 ? 1 : 0)
-        // A bubble showing something else (a swap with the pill) merges back in first,
-        // then splits out again with its new glyph.
-        let swapped = (0..<min(bubbles.count, 2)).contains { index in
-            shown[index].map { $0.slot != bubbles[index].slot } ?? false
-        }
+        if !bubbles.isEmpty { follow(model.surfaceRect, animated: animated) }
+        let target = BubbleSides.target(count: bubbles.count)
         guard animated, !model.reduceMotion else {
-            show(bubbles)
+            generation += 1
             split = target
+            shown = BubbleMotion.settled(shown: shown, live: bubbles, split: split)
             return
         }
-        if swapped, split.right + split.left > 0 {
-            withAnimation(merge) {
-                split = Sides(right: 0, left: 0)
-            } completion: {
-                show(model.bubbles)
-                withAnimation(pinch) { split = target }
-            }
+        if BubbleMotion.swapped(shown: shown.map { $0?.slot }, live: bubbles.map(\.slot)), split.total > 0 {
+            run(merge, to: .tucked) { swapIn() }
             return
         }
-        show(bubbles)
+        shown = BubbleMotion.showing(shown: shown, live: bubbles)
+        // Nothing new to animate: a split or merge already on its way settles the glyphs.
         guard target != split else { return }
-        withAnimation(target.right + target.left > split.right + split.left ? pinch : merge) { split = target }
+        run(target.total > split.total ? pinch : merge, to: target) { settle() }
     }
 
-    /// Keeps the last glyph on a side that is merging away.
-    private func show(_ bubbles: [ActivityBubble]) {
-        for index in 0..<2 where index < bubbles.count { shown[index] = bubbles[index] }
+    /// Animates the split, then runs `done` unless a newer split or merge has started since.
+    private func run(_ animation: Animation, to target: BubbleSides, then done: @escaping () -> Void) {
+        generation += 1
+        let current = generation
+        withAnimation(animation) {
+            split = target
+        } completion: {
+            guard current == generation else { return }
+            done()
+        }
+    }
+
+    /// After a swap's merge: the sides come out again with what's live now, which is nothing
+    /// if the shelf opened or a card took over meanwhile.
+    private func swapIn() {
+        let live = model.bubbles
+        shown = BubbleMotion.settled(shown: shown, live: live, split: split)
+        let target = BubbleSides.target(count: live.count)
+        guard target != split else { return }
+        run(pinch, to: target) { settle() }
+    }
+
+    /// Forgets the glyph of a side that has merged back in, so it can't come back as an empty circle.
+    private func settle() {
+        shown = BubbleMotion.settled(shown: shown, live: model.bubbles, split: split)
+    }
+
+    /// Moves the bubbles with the shell on its own spring, rather than jumping ahead of it.
+    private func follow(_ rect: CGRect, animated: Bool) {
+        guard rect != pill else { return }
+        guard animated, pill != .zero else {
+            pill = rect
+            return
+        }
+        withAnimation(model.surfaceAnimation) { pill = rect }
     }
 
     private var pinch: Animation {
@@ -68,27 +95,20 @@ struct BubbleLayer: View {
     }
 }
 
-/// Split progress for the first bubble (`right`, unless Settings put it on the left)
-/// and the second.
-struct Sides: Equatable, Sendable {
-    var right: Double
-    var left: Double
-}
-
 /// Draws the bubbles at a given split progress. Animatable, so the goo is recomputed on
 /// every frame of the spring.
 private struct GooBubbles: View, Animatable {
     var pill: CGRect
-    var split: Sides
+    var split: BubbleSides
     let bubbles: [ActivityBubble?]
     let firstOnLeft: Bool
     let reduceMotion: Bool
     let model: NotchModel
 
     nonisolated var animatableData: AnimatablePair<AnimatablePair<Double, Double>, CGRect.AnimatableData> {
-        get { AnimatablePair(AnimatablePair(split.right, split.left), pill.animatableData) }
+        get { AnimatablePair(AnimatablePair(split.first, split.second), pill.animatableData) }
         set {
-            split = Sides(right: newValue.first.first, left: newValue.first.second)
+            split = BubbleSides(first: newValue.first.first, second: newValue.first.second)
             pill.animatableData = newValue.second
         }
     }
@@ -96,30 +116,31 @@ private struct GooBubbles: View, Animatable {
     var body: some View {
         let local = model.local(pill)
         let rests = SurfaceSizing.bubbleRects(
-            beside: pill, count: 2, firstOnLeft: firstOnLeft, placement: model.layout.anchor
+            beside: pill, count: 2, firstOnLeft: firstOnLeft, placement: model.layout.anchor, flare: model.bubbleFlare
         ).map(model.local)
-        let drops = zip(rests, [split.right, split.left]).map { drop(pill: local, rest: $0.0, progress: $0.1) }
+        // A side with nothing to show draws nothing, not even its circle or its part of the goo.
+        let drops = (0..<2).compactMap { index in
+            bubbles[index].flatMap {
+                drop(side: index, pill: local, rest: rests[index], progress: split[index], bubble: $0)
+            }
+        }
         ZStack(alignment: .topLeading) {
             if !reduceMotion {
                 goo(drops)
             }
-            ForEach(0..<2, id: \.self) { index in
-                let drop = drops[index]
-                if drop.progress > 0.001 {
-                    Circle()
-                        .fill(.black)
-                        .frame(width: drop.radius * 2, height: drop.radius * 2)
-                        .shadow(color: .black.opacity(0.5 * drop.progress), radius: 6, y: 2)
-                        .overlay {
-                            if let bubble = bubbles[index] {
-                                BubbleGlyph(bubble: bubble, size: min(local.width, local.height), model: model)
-                                    .opacity(max(0, (drop.progress - 0.6) / 0.4))
-                                    .blur(radius: 4 * (1 - min(drop.progress, 1)))
-                            }
-                        }
-                        .opacity(reduceMotion ? drop.progress : 1)
-                        .position(drop.center)
-                }
+            ForEach(drops, id: \.side) { drop in
+                // Flat black like the closed shell, which casts no shadow either.
+                Circle()
+                    .fill(.black)
+                    .frame(width: drop.radius * 2, height: drop.radius * 2)
+                    .overlay {
+                        BubbleGlyph(bubble: drop.bubble, size: min(local.width, local.height), model: model)
+                            .opacity(max(0, (drop.progress - 0.6) / 0.4))
+                            .blur(radius: 4 * (1 - min(drop.progress, 1)))
+                    }
+                    .overlay { RimGlow(model: model, shape: Circle()).opacity(min(max(drop.progress, 0), 1)) }
+                    .opacity(reduceMotion ? drop.progress : 1)
+                    .position(drop.center)
             }
         }
     }
@@ -131,7 +152,7 @@ private struct GooBubbles: View, Animatable {
             context.addFilter(.alphaThreshold(min: 0.5, color: .black))
             context.addFilter(.blur(radius: 3.5))
             context.drawLayer { layer in
-                for drop in drops where drop.progress > 0.001 {
+                for drop in drops {
                     layer.fill(Path(ellipseIn: drop.stub), with: .color(.black))
                     layer.fill(
                         Path(
@@ -145,6 +166,8 @@ private struct GooBubbles: View, Animatable {
     }
 
     private struct Drop {
+        let side: Int
+        let bubble: ActivityBubble
         let center: CGPoint
         let radius: CGFloat
         let progress: Double
@@ -154,7 +177,8 @@ private struct GooBubbles: View, Animatable {
 
     /// A bubble travelling from inside the pill's nearest end (`pill` and `rest` in panel
     /// coordinates) out to its resting place.
-    private func drop(pill: CGRect, rest: CGRect, progress: Double) -> Drop {
+    private func drop(side: Int, pill: CGRect, rest: CGRect, progress: Double, bubble: ActivityBubble) -> Drop? {
+        guard progress > 0.001 else { return nil }
         // As thick as the pill, so side-edge bubbles match the upright pill's width.
         let size = min(pill.width, pill.height)
         let radius = size / 2
@@ -169,6 +193,8 @@ private struct GooBubbles: View, Animatable {
             : CGPoint(x: tucked.x + (target.x - tucked.x) * amount, y: tucked.y + (target.y - tucked.y) * amount)
         let stub = CGRect(x: tucked.x - radius, y: tucked.y - radius, width: size, height: size)
         return Drop(
+            side: side,
+            bubble: bubble,
             center: center,
             radius: radius * (reduceMotion ? 1 : 0.55 + 0.45 * min(amount, 1)),
             progress: progress,

@@ -300,8 +300,11 @@ final class NotchModel {
     var bubbleRects: [CGRect] {
         SurfaceSizing.bubbleRects(
             beside: surfaceRect, count: bubbles.count, firstOnLeft: preferences.firstBubbleOnLeft,
-            placement: layout.anchor)
+            placement: layout.anchor, flare: bubbleFlare)
     }
+
+    /// The compact shell's flare along its edge, which bubbles keep clear of.
+    var bubbleFlare: CGFloat { drawsNotch ? ShellMetrics.closedTopRadius(height: notchHeight) : 0 }
 
     /// The bubble under a click, if any. Bubbles take clicks but don't open the shelf on hover.
     func bubble(at point: CGPoint) -> ActivityBubble? {
