@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import WispCore
 
 @MainActor
@@ -11,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let clipboardPanel: ClipboardPanelController
     private let onboarding: OnboardingWindowController
     private var terminationSignal: DispatchSourceSignal?
+    /// Another copy was already running, so this one quits without starting anything.
+    private var handedOver = false
 
     override init() {
         services = AppServices(preferences: Preferences.shared)
@@ -23,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if handOverToRunningCopy() { return }
         // Writing to a helper (media bridge, zip) that just exited must fail with an
         // error, not kill Wisp with SIGPIPE.
         signal(SIGPIPE, SIG_IGN)
@@ -115,6 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Nothing started, and the Caps Lock remap belongs to the copy that keeps running.
+        guard !handedOver else { return }
         services.stop()
         // Caps Lock must work again after Wisp quits.
         hotkeys.shutdown()
@@ -122,6 +128,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func toggleShelf() {
         coordinator.toggleShelf()
+    }
+
+    /// Two copies of the same app draw two shells, each with its own bubbles. A second launch
+    /// brings the running copy forward and quits. Wisp Dev has its own bundle ID, so it can
+    /// still run beside Wisp.
+    private func handOverToRunningCopy() -> Bool {
+        let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "launch")
+        #if DEBUG
+            let release = "com.ayomideodewale.wisp"
+            if Bundle.main.bundleIdentifier != release,
+                !NSRunningApplication.runningApplications(withBundleIdentifier: release).isEmpty
+            {
+                log.warning("Wisp is also running, so the notch shows two sets of shells and bubbles")
+            }
+        #endif
+        guard let bundleID = Bundle.main.bundleIdentifier else { return false }
+        let me = NSRunningApplication.current
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).filter {
+            $0.processIdentifier != me.processIdentifier && !$0.isTerminated
+        }
+        let instance = { (app: NSRunningApplication) in
+            InstanceGuard.Instance(pid: app.processIdentifier, launched: app.launchDate)
+        }
+        guard InstanceGuard.yields(instance(me), to: others.map(instance)) else { return false }
+        log.notice("another copy is running; handing over to it")
+        handedOver = true
+        others.first?.activate()
+        NSApp.terminate(nil)
+        return true
     }
 
     #if DEBUG

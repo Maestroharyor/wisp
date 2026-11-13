@@ -3,40 +3,20 @@ import SwiftUI
 import WispCore
 
 /// While the screen is locked and music plays, shows a player above the lock screen.
-/// Public APIs only: the lock and unlock distributed notifications and the shielding
+/// Public APIs only: `SessionMonitor` reports the lock, and the panel uses the shielding
 /// window level. If macOS keeps third-party windows off the lock screen, it simply
-/// doesn't appear.
+/// doesn't appear. Switching to another account isn't a lock, so it never shows then.
 @MainActor
 final class LockScreenPlayer {
     private var panel: NSPanel?
-    private var observers: [NSObjectProtocol] = []
     private let services: AppServices
 
     init(services: AppServices) {
         self.services = services
     }
 
-    func start() {
-        let center = DistributedNotificationCenter.default()
-        observers.append(
-            center.addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main) {
-                [weak self] _ in
-                MainActor.assumeIsolated { self?.locked() }
-            })
-        observers.append(
-            center.addObserver(forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main) {
-                [weak self] _ in
-                MainActor.assumeIsolated { self?.panel?.orderOut(nil) }
-            })
-    }
-
-    func stop() {
-        observers.forEach(DistributedNotificationCenter.default().removeObserver)
-        observers = []
-        panel?.orderOut(nil)
-    }
-
-    private func locked() {
+    /// A confirmed lock in this session, on the console.
+    func show() {
         guard services.preferences.lockScreenPlayer, services.nowPlaying.info != nil,
             let screen = NSScreen.main
         else { return }
@@ -46,6 +26,10 @@ final class LockScreenPlayer {
         let frame = screen.frame
         panel.setFrameOrigin(CGPoint(x: frame.midX - size.width / 2, y: frame.minY + frame.height * 0.16))
         panel.orderFrontRegardless()
+    }
+
+    func hide() {
+        panel?.orderOut(nil)
     }
 
     private func makePanel() -> NSPanel {

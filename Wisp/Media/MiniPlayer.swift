@@ -13,6 +13,8 @@ final class MiniPlayerController {
     private let services: AppServices
     /// Fading out; a show() meanwhile cancels the pending orderOut.
     private var hiding = false
+    /// Put away while another account is in front, to come back with this one.
+    private var suspended = false
 
     private static let size = CGSize(width: 320, height: 118)
 
@@ -30,6 +32,7 @@ final class MiniPlayerController {
         let panel = panel ?? makePanel()
         self.panel = panel
         hiding = false
+        suspended = false
         panel.setFrameOrigin(savedOrigin() ?? defaultOrigin())
         panel.alphaValue = 0
         panel.orderFrontRegardless()
@@ -40,6 +43,7 @@ final class MiniPlayerController {
     }
 
     func hide() {
+        suspended = false
         guard let panel, panel.isVisible, !hiding else { return }
         hiding = true
         NSAnimationContext.runAnimationGroup { context in
@@ -52,6 +56,21 @@ final class MiniPlayerController {
                 panel.orderOut(nil)
             }
         }
+    }
+
+    /// Another account came to the front: put the player away until this one is back.
+    func suspend() {
+        guard let panel, isVisible else { return }
+        suspended = true
+        panel.orderOut(nil)
+    }
+
+    /// This account is back: the player returns if it was showing.
+    func resume() {
+        guard suspended else { return }
+        suspended = false
+        panel?.alphaValue = 1
+        panel?.orderFrontRegardless()
     }
 
     private func makePanel() -> NSPanel {

@@ -113,9 +113,22 @@ final class SurfaceSizingTests: XCTestCase {
         XCTAssertEqual(bubbles.count, 2)
         XCTAssertEqual(bubbles[0].width, pill.height)
         XCTAssertEqual(bubbles[0].height, pill.height)
-        XCTAssertEqual(bubbles[0].minX, pill.maxX + SurfaceSizing.bubbleGap)
-        XCTAssertEqual(bubbles[1].maxX, pill.minX - SurfaceSizing.bubbleGap)
+        XCTAssertEqual(bubbles[0].minX, pill.maxX + SurfaceSizing.bubbleGap(flare: 0))
+        XCTAssertEqual(bubbles[1].maxX, pill.minX - SurfaceSizing.bubbleGap(flare: 0))
         XCTAssertEqual(bubbles[0].midY, pill.midY)
+    }
+
+    func testBubblesClearTheNotchFlare() {
+        let pill = CGRect(x: 100, y: 0, width: 200, height: 32)
+        let flare = ShellMetrics.closedTopRadius(height: 32)
+        let rects = SurfaceSizing.bubbleRects(beside: pill, count: 2, flare: flare)
+        XCTAssertEqual(rects[0].minX, pill.maxX + flare + 4)
+        XCTAssertEqual(rects[1].maxX, pill.minX - flare - 4)
+    }
+
+    func testIslandBubblesKeepTheirSmallGap() {
+        XCTAssertEqual(SurfaceSizing.bubbleGap(flare: 0), 6)
+        XCTAssertEqual(SurfaceSizing.bubbleGap(flare: 10), 14)
     }
 
     func testNoBubblesAndAtMostTwo() {
@@ -127,8 +140,8 @@ final class SurfaceSizingTests: XCTestCase {
     func testFirstBubbleCanSitOnTheLeft() {
         let pill = CGRect(x: 100, y: 0, width: 200, height: 32)
         let rects = SurfaceSizing.bubbleRects(beside: pill, count: 2, firstOnLeft: true)
-        XCTAssertEqual(rects.first?.maxX, pill.minX - SurfaceSizing.bubbleGap)
-        XCTAssertEqual(rects.last?.minX, pill.maxX + SurfaceSizing.bubbleGap)
+        XCTAssertEqual(rects.first?.maxX, pill.minX - SurfaceSizing.bubbleGap(flare: 0))
+        XCTAssertEqual(rects.last?.minX, pill.maxX + SurfaceSizing.bubbleGap(flare: 0))
     }
 
     func testDropActionTilesWidenTheShelfUpToTwo() {
