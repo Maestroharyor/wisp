@@ -185,6 +185,27 @@ final class NotchModel {
     var onKeyDone: () -> Void = {}
     /// The approval card opened to show its preview.
     var expandedApproval: UUID?
+    /// Requests folded into the agent pill. A new request isn't in it, so it shows full size.
+    var minimisedApprovals: Set<UUID> = []
+    /// The question card's answers height, measured once per request: `spec` is read on every
+    /// pointer move.
+    @ObservationIgnored private var questionHeight: (id: UUID, hyper: Bool, height: CGFloat)?
+
+    private func questionAnswersHeight(_ approval: AgentApproval) -> CGFloat {
+        let hyper = services.agents.keysUseHyper()
+        if let questionHeight, questionHeight.id == approval.id, questionHeight.hyper == hyper {
+            return questionHeight.height
+        }
+        let height = QuestionChipMetrics.answersHeight(approval, hyper: hyper)
+        questionHeight = (approval.id, hyper, height)
+        return height
+    }
+
+    /// The request in front is folded into the pill.
+    var approvalMinimised: Bool {
+        guard case .agentApproval(let approval) = activity else { return false }
+        return minimisedApprovals.contains(approval.id)
+    }
     /// The meeting pill was clicked open into its call controls.
     var meetingControlsOpen = false
     /// The controls card shows while it's open and the call app has controls to drive.
@@ -254,7 +275,8 @@ final class NotchModel {
                     return .notification(extra: replyingTo != nil ? SurfaceSizing.replyBarHeight : 0)
                 }
                 if case .agentApproval(let approval) = activity {
-                    if approval.prompt == .question { return .notification(extra: SurfaceSizing.questionRowHeight) }
+                    if minimisedApprovals.contains(approval.id) { return .compact(wide: true) }
+                    if approval.prompt == .question { return .notification(extra: questionAnswersHeight(approval)) }
                     // Private mode hides the preview, so the card doesn't keep its room either.
                     let hidden = services.agents.detailsHidden
                     if expandedApproval == approval.id, !hidden {

@@ -43,6 +43,40 @@ public enum SurfaceSizing {
     public static let replyBarHeight: CGFloat = 48
     /// The row of answers under a question from an agent.
     public static let questionRowHeight: CGFloat = 40
+    /// One answer chip, and the space between chips across and down.
+    public static let questionChipHeight: CGFloat = 28
+    public static let questionChipSpacing: CGFloat = 6
+    /// Rows of answers the card grows to; more scroll.
+    public static let questionMaxRows = 3
+
+    /// How many rows answer chips of these widths wrap onto in `width`, filling each row in
+    /// order. A chip wider than the row gets a row of its own.
+    public static func questionRows(options: [CGFloat], width: CGFloat) -> Int {
+        max(flowRows(options, width: width, spacing: questionChipSpacing).count, 1)
+    }
+
+    /// Items of these widths laid out left to right and wrapped to `width`: the indices on each
+    /// row. An item wider than the row gets a row of its own.
+    public static func flowRows(_ widths: [CGFloat], width: CGFloat, spacing: CGFloat) -> [[Int]] {
+        var rows: [[Int]] = []
+        var used: CGFloat = 0
+        for (index, item) in widths.enumerated() {
+            if let last = rows.indices.last, used + spacing + item <= width {
+                rows[last].append(index)
+                used += spacing + item
+            } else {
+                rows.append([index])
+                used = item
+            }
+        }
+        return rows
+    }
+
+    /// The answers' height for `rows` of chips, at most `questionMaxRows`.
+    public static func questionRowHeight(rows: Int) -> CGFloat {
+        let shown = CGFloat(min(max(rows, 1), questionMaxRows) - 1)
+        return questionRowHeight + shown * (questionChipHeight + questionChipSpacing)
+    }
     /// An approval card opened to show its diff, command or plan, with a reason row.
     public static let approvalPreviewHeight: CGFloat = 220
     /// An edit's first changed lines (`InlineDiff.maxLines`) under an approval card's summary.

@@ -223,6 +223,16 @@ struct AgentApprovalCard: View {
                             .fixedSize()
                             .help(approval.prompt == .plan ? "Read the plan" : "See what it will change")
                         }
+                        Button {
+                            hub.answer(approval.id, allow: nil)
+                        } label: {
+                            Text("Terminal").font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.wispViolet).lineLimit(1)
+                        }
+                        .buttonStyle(.plain)
+                        .fixedSize()
+                        .help("Answer in the terminal instead")
+                        MinimiseApprovalButton(approval: approval, model: model)
                     }
                     ApprovalSummary(
                         approval: approval, hidden: hub.detailsHidden,
@@ -260,6 +270,73 @@ struct AgentApprovalCard: View {
     }
 
     private var expanded: Bool { model.expandedApproval == approval.id }
+}
+
+/// Folds a request card into the agent pill; the pill (or an approval key) brings it back.
+struct MinimiseApprovalButton: View {
+    let approval: AgentApproval
+    let model: NotchModel
+
+    var body: some View {
+        Button {
+            model.minimisedApprovals.insert(approval.id)
+        } label: {
+            Image(systemName: "chevron.compact.up")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.ink.opacity(0.6))
+                .frame(width: 22, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help("Minimise into the pill")
+        .accessibilityLabel("Minimise")
+    }
+}
+
+/// A minimised request in the pill: the agent's mark with a violet ring pulsing out of it.
+struct MinimisedApprovalGlyph: View {
+    let approval: AgentApproval
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    var body: some View {
+        Image(systemName: approval.source.symbol)
+            .foregroundStyle(Color.project(approval.project))
+            .frame(width: 16)
+            .background {
+                Circle().stroke(Color.wispViolet, lineWidth: 1.5)
+                    .frame(width: 20, height: 20)
+                    .scaleEffect(pulsing ? 1.3 : 1)
+                    .opacity(pulsing ? 0 : 0.9)
+            }
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) { pulsing = true }
+            }
+            .onChange(of: reduceMotion) { _, reduce in
+                if reduce {
+                    withAnimation(nil) { pulsing = false }
+                }
+            }
+            .accessibilityLabel(approval.prompt == .question ? "Question waiting" : "Request waiting")
+    }
+}
+
+/// How many requests wait, in Wisp violet.
+struct PendingBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text("\(count)")
+            .font(.system(size: 10, weight: .bold)).monospacedDigit()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .frame(minWidth: 16, minHeight: 16)
+            .background(Capsule().fill(Color.wispViolet))
+            .fixedSize()
+            .accessibilityLabel(count == 1 ? "1 request waiting" : "\(count) requests waiting")
+    }
 }
 
 /// The diff, command, new file or plan behind a request, scrolled inside the card.

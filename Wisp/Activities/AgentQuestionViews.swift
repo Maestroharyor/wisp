@@ -35,6 +35,8 @@ struct AgentQuestionCard: View {
                             }
                             .buttonStyle(.plain)
                             .help("Show the terminal")
+                            Spacer(minLength: 0)
+                            MinimiseApprovalButton(approval: approval, model: model)
                         }
                         Text(step.text)
                             .font(.system(size: 12))
@@ -92,7 +94,8 @@ struct QuestionAnswers<Header: View>: View {
                 header(step(for: question))
                 answerRow(for: question)
                     .padding(.horizontal, 18)
-                    .frame(height: SurfaceSizing.questionRowHeight)
+                    .padding(.vertical, (SurfaceSizing.questionRowHeight - SurfaceSizing.questionChipHeight) / 2)
+                    .frame(height: QuestionChipMetrics.answersHeight(approval, hyper: hyper), alignment: .top)
             }
         }
         .task(id: approval.id) {
@@ -136,7 +139,7 @@ struct QuestionAnswers<Header: View>: View {
     }
 
     @ViewBuilder private func answerRow(for question: AgentQuestion) -> some View {
-        HStack(spacing: 6) {
+        HStack(alignment: .top, spacing: 6) {
             if listening {
                 Label("Listening…", systemImage: "mic.fill")
                     .font(.system(size: 12, weight: .semibold))
@@ -160,26 +163,7 @@ struct QuestionAnswers<Header: View>: View {
                 }
                 .buttonStyle(QuestionChipStyle(selected: false))
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(Array(question.options.enumerated()), id: \.element.label) { index, option in
-                            let hint = ApprovalKeys.hint(.pick(index), hyper: hyper)
-                            Button {
-                                pick(option.label, in: question)
-                            } label: {
-                                HStack(spacing: 5) {
-                                    // Only options 1 to 9 have a key.
-                                    if hint != nil { OptionNumber(number: index + 1) }
-                                    Text(option.label)
-                                }
-                            }
-                            .buttonStyle(QuestionChipStyle(selected: picked.contains(option.label)))
-                            .help([option.detail ?? option.label, hint].compactMap { $0 }.joined(separator: " · "))
-                        }
-                        Button("Other…") { typing = true }
-                            .buttonStyle(QuestionChipStyle(selected: false))
-                    }
-                }
+                options(for: question)
             }
             Spacer(minLength: 4)
             if typing || (question.multiSelect && !picked.isEmpty) {
@@ -201,6 +185,41 @@ struct QuestionAnswers<Header: View>: View {
         }
         .disabled(!ready)
         .opacity(ready ? 1 : 0.6)
+    }
+
+    /// The options and Other…, wrapped onto rows. Past `questionMaxRows` they scroll, with
+    /// the last row fading out.
+    private func options(for question: AgentQuestion) -> some View {
+        let overflows = QuestionChipMetrics.rows(for: question, hyper: hyper) > SurfaceSizing.questionMaxRows
+        return ScrollView(.vertical, showsIndicators: false) {
+            QuestionFlow(spacing: SurfaceSizing.questionChipSpacing) {
+                ForEach(Array(question.options.enumerated()), id: \.element.label) { index, option in
+                    let hint = ApprovalKeys.hint(.pick(index), hyper: hyper)
+                    Button {
+                        pick(option.label, in: question)
+                    } label: {
+                        HStack(spacing: 5) {
+                            // Only options 1 to 9 have a key.
+                            if hint != nil { OptionNumber(number: index + 1) }
+                            Text(option.label)
+                        }
+                    }
+                    .buttonStyle(QuestionChipStyle(selected: picked.contains(option.label)))
+                    .help([option.detail ?? option.label, hint].compactMap { $0 }.joined(separator: " · "))
+                }
+                Button("Other…") { typing = true }
+                    .buttonStyle(QuestionChipStyle(selected: false))
+            }
+            // Room under the last row, so it can scroll clear of the fade.
+            .padding(.bottom, overflows ? SurfaceSizing.questionChipSpacing * 2 : 0)
+        }
+        .mask {
+            LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0), .init(color: .black, location: overflows ? 0.82 : 1),
+                    .init(color: overflows ? .clear : .black, location: 1),
+                ], startPoint: .top, endPoint: .bottom)
+        }
     }
 
     /// A shortcut does what clicking the matching chip would, once the card is ready and shown.
@@ -270,5 +289,78 @@ private struct QuestionChipStyle: ButtonStyle {
             .frame(height: 28)
             .background(Capsule().fill(selected ? Color.wispViolet : .ink.opacity(0.14)))
             .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
+/// Chips laid out left to right, wrapping onto new rows (`SurfaceSizing.flowRows`). A chip wider
+/// than the row is narrowed to it, so its label truncates.
+private struct QuestionFlow: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.replacingUnspecifiedDimensions().width
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let rows = SurfaceSizing.flowRows(sizes.map { min($0.width, width) }, width: width, spacing: spacing)
+        let heights = rows.map { row in row.map { sizes[$0].height }.max() ?? 0 }
+        return CGSize(width: width, height: heights.reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let widths = sizes.map { min($0.width, bounds.width) }
+        var y = bounds.minY
+        for row in SurfaceSizing.flowRows(widths, width: bounds.width, spacing: spacing) {
+            var x = bounds.minX
+            for index in row {
+                subviews[index].place(
+                    at: CGPoint(x: x, y: y),
+                    proposal: ProposedViewSize(width: widths[index], height: sizes[index].height))
+                x += widths[index] + spacing
+            }
+            y += (row.map { sizes[$0].height }.max() ?? 0) + spacing
+        }
+    }
+}
+
+/// Chip widths, measured the way `QuestionChipStyle` draws them, so the card under the notch
+/// can grow to fit the rows its answers wrap onto.
+@MainActor
+enum QuestionChipMetrics {
+    private static let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+    private static let hintFont = NSFont.systemFont(ofSize: 10, weight: .semibold)
+    /// The chip's horizontal padding on both sides.
+    private static let padding: CGFloat = 22
+    ///  and the space after it.
+    private static let number: CGFloat = 19
+    /// The answers' width in the card under the notch.
+    private static let rowWidth = SurfaceSizing.notificationWidth - 36
+
+    private static func width(_ text: String, font: NSFont) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    private static func chip(_ label: String, numbered: Bool) -> CGFloat {
+        width(label, font: font) + padding + (numbered ? number : 0)
+    }
+
+    /// Rows the question's options and Other… wrap onto, beside Terminal (and Send, for
+    /// multiple choice).
+    static func rows(for question: AgentQuestion, hyper: Bool) -> Int {
+        var trailing = chip("Terminal", numbered: false) + SurfaceSizing.questionChipSpacing * 2
+        if question.multiSelect {
+            let hint = ApprovalKeys.hint(.send, hyper: hyper).map { width($0, font: hintFont) + 5 } ?? 0
+            trailing += chip("Send", numbered: false) + hint + SurfaceSizing.questionChipSpacing
+        }
+        let chips =
+            question.options.enumerated().map { index, option in
+                chip(option.label, numbered: ApprovalKeys.hint(.pick(index), hyper: hyper) != nil)
+            } + [chip("Other…", numbered: false)]
+        return SurfaceSizing.questionRows(options: chips, width: rowWidth - trailing)
+    }
+
+    /// The answers' height under the notch: the most rows any question in the request needs,
+    /// so the card keeps one size while it steps through them.
+    static func answersHeight(_ approval: AgentApproval, hyper: Bool) -> CGFloat {
+        SurfaceSizing.questionRowHeight(rows: approval.questions.map { rows(for: $0, hyper: hyper) }.max() ?? 1)
     }
 }

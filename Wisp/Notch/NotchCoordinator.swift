@@ -112,6 +112,12 @@ final class NotchCoordinator {
 
     var hasOpenShelf: Bool { controllers.values.contains { $0.phase == .open } }
 
+    /// Brings minimised approval cards back on every display. True when one in front was minimised.
+    @discardableResult
+    func restoreApprovals() -> Bool {
+        controllers.values.map { $0.restoreApprovals() }.contains(true)
+    }
+
     /// Hands the keyboard back to the app in front from any closed notch that took it.
     func releaseKey() {
         for controller in controllers.values { controller.releaseKey() }

@@ -49,12 +49,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Out of sight (a HUD over the card): swallowed and ignored, so it neither answers
             // nor types into the front app.
             guard services.approvalOnScreen else { return services.agents.keyHasAction(keyCode) }
+            // A minimised card comes back first, so nothing is answered unseen.
+            if services.restoreApprovals() { return true }
             return services.agents.answerKey(keyCode)
         }
         hotkeys.onApprovalKeyUp = { [weak self] keyCode in self?.services.agents.releaseKey(keyCode) }
         services.approvalCardChanged = { [weak self] prompt in self?.hotkeys.setApprovalCard(prompt) }
         services.agents.keysUseHyper = { [weak self] in self?.hotkeys.approvalKeysUseHyper ?? false }
         services.isShelfOpen = { [weak self] in self?.coordinator.hasOpenShelf ?? false }
+        services.restoreApprovals = { [weak self] in self?.coordinator.restoreApprovals() ?? false }
         services.releaseNotchKey = { [weak self] in self?.coordinator.releaseKey() }
         hotkeys.onDictation = { [weak self] event in self?.services.dictation.handle(event) }
         services.dictation.onTap = { [weak self] in self?.toggleShelf() }

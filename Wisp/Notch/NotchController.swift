@@ -87,6 +87,7 @@ final class NotchController {
             _ = services.microphone.inUse
         } onChange: { [weak self] in
             Task { @MainActor in
+                self?.forgetAnsweredApprovals()
                 self?.closeMeetingControlsAfterCall()
                 self?.releaseKeyAfterCard()
                 self?.updateCardHover()
@@ -164,6 +165,21 @@ final class NotchController {
     func releaseKey() {
         guard machine.phase != .open, !isReplying, panel.isKeyWindow else { return }
         panel.resignKey()
+    }
+
+    /// Brings minimised requests back full size. True when the one in front was minimised.
+    @discardableResult
+    func restoreApprovals() -> Bool {
+        // An open shelf shows the request as a bar, whatever the pill would do.
+        let wasMinimised = machine.phase != .open && model.approvalMinimised
+        model.minimisedApprovals = []
+        return wasMinimised
+    }
+
+    /// Answered requests leave the minimised set, so it only holds ones still waiting.
+    private func forgetAnsweredApprovals() {
+        guard !model.minimisedApprovals.isEmpty else { return }
+        model.minimisedApprovals.formIntersection(services.agents.approvals.map(\.id))
     }
 
     /// Closes the card or alert on show, when it can be closed.
@@ -324,6 +340,11 @@ final class NotchController {
             return
         }
         if handleNotificationClick(at: location) { return }
+        // A request minimised into the pill opens back into its card.
+        if machine.phase != .open, model.approvalMinimised, model.contains(location) {
+            restoreApprovals()
+            return
+        }
         // The approval card's own buttons take the click.
         if machine.phase != .open, showsApproval, model.contains(location) { return }
         // A bubble swaps into the main pill.
