@@ -75,6 +75,7 @@ final class AppServices {
     private(set) lazy var ring = RingController(services: self)
     private(set) lazy var ringTrigger = RingTrigger(services: self)
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
+    private(set) lazy var session = SessionMonitor()
     private(set) lazy var push = PushService(preferences: preferences, hub: agents)
     private(set) lazy var automation = Automation(services: self)
     private(set) lazy var regionWatch = RegionWatchController(services: self)
@@ -225,6 +226,30 @@ final class AppServices {
     /// Set by the notch coordinator: closes every open shelf.
     var closeShelves: @MainActor () -> Void = {}
 
+    /// Set by the notch coordinator: hides every shell while another account is in front.
+    var suspendShells: @MainActor () -> Void = {}
+    /// Set by the notch coordinator: shows the shells again once this account is back.
+    var resumeShells: @MainActor () -> Void = {}
+
+    /// Locks, unlocks and switches between accounts, as `SessionMonitor` tells them apart.
+    private func sessionChanged(_ change: SessionMonitor.Change) {
+        switch change {
+        case .locked:
+            lockScreenPlayer.show()
+            push.setLocked(true)
+        case .unlocked:
+            lockScreenPlayer.hide()
+            push.setLocked(false)
+        case .resigned:
+            lockScreenPlayer.hide()
+            miniPlayer.suspend()
+            suspendShells()
+        case .resumed:
+            miniPlayer.resume()
+            resumeShells()
+        }
+    }
+
     /// The sound and tap for something an agent needs from the user.
     private func needsYouFeedback() {
         sounds.play(.alert, fallback: "Tink")
@@ -371,7 +396,8 @@ final class AppServices {
         nowPlaying.looksUpArtwork = { [weak self] in self?.preferences.artworkLookup ?? false }
         nowPlaying.start()
 
-        lockScreenPlayer.start()
+        session.onChange = { [weak self] change in self?.sessionChanged(change) }
+        session.start()
         microphone.onChange = { [weak self] _ in
             self?.updateMeeting()
             self?.updateOnCall()
@@ -432,7 +458,6 @@ final class AppServices {
         }
         agents.onMoment = { [weak self] moment in self?.push.moment(moment) }
         agents.onRecord = { [weak self] record, ended in self?.agentRecorded(record, ended: ended) }
-        push.start()
         // Features read `ai.isReady` to decide whether to offer AI, so check at launch and on wake.
         ai.start()
         activities.onRemove = { [weak self] slot in
@@ -647,7 +672,8 @@ final class AppServices {
         accessories.stop()
         downloads.stop()
         appVolume.stop()
-        lockScreenPlayer.stop()
+        session.stop()
+        lockScreenPlayer.hide()
         push.stop()
         cloud.stop()
         automation.stop()

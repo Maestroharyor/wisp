@@ -621,6 +621,15 @@ final class NotchController {
         if machine.phase != .open { send(.hotkey) }
     }
 
+    /// Another account is in front: the panel goes until this one is back.
+    func suspend() {
+        panel.orderOut(nil)
+    }
+
+    func resume() {
+        panel.orderFrontRegardless()
+    }
+
     func tearDown() {
         // A display unplugged mid-reply must not leave notifications held back forever.
         if isReplying { services.endReply(sentText: nil) }
