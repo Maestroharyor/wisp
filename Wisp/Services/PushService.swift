@@ -35,7 +35,6 @@ final class PushService {
     @ObservationIgnored private var streamTask: Task<Void, Never>?
     @ObservationIgnored private var awayTask: Task<Void, Never>?
     @ObservationIgnored private var locked = false
-    @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "push")
 
     /// Seconds between checks for the user leaving while an approval hasn't gone out.
@@ -52,19 +51,7 @@ final class PushService {
 
     // MARK: Lifecycle
 
-    func start() {
-        let center = DistributedNotificationCenter.default()
-        for (name, value) in [("com.apple.screenIsLocked", true), ("com.apple.screenIsUnlocked", false)] {
-            observers.append(
-                center.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.setLocked(value) }
-                })
-        }
-    }
-
     func stop() {
-        observers.forEach(DistributedNotificationCenter.default().removeObserver)
-        observers = []
         reset()
     }
 
@@ -85,7 +72,9 @@ final class PushService {
         awayTask = nil
     }
 
-    private func setLocked(_ value: Bool) {
+    /// From `SessionMonitor`, which only reports a real lock: switching to another account
+    /// sends the same lock notification but isn't the user stepping away from this session.
+    func setLocked(_ value: Bool) {
         locked = value
         // Locking is the clearest "I'm away"; anything waiting can go now.
         if value { approvalsChanged() }

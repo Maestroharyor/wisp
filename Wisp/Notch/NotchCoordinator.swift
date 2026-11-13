@@ -18,6 +18,8 @@ final class NotchCoordinator {
     private var shake = ShakeDetector()
     private var dragStarted = Date.now
     private var shellDrag: ShellDrag?
+    /// Shells are put away while another account is in front.
+    private var suspended = false
     private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "notch")
 
     private var preferences: Preferences { services.preferences }
@@ -34,6 +36,8 @@ final class NotchCoordinator {
             self?.controllers.values.filter { $0.phase == .open }.forEach { $0.dismiss() }
         }
         services.shelfWindow.shellRect = { [weak self] frame in self?.shellRect(near: frame) }
+        services.suspendShells = { [weak self] in self?.suspend() }
+        services.resumeShells = { [weak self] in self?.resume() }
         rebuild()
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -186,6 +190,22 @@ final class NotchCoordinator {
         }
         pointerDisplay = displayUUID(at: NSEvent.mouseLocation)
         assignActivityDisplays()
+        // A display change can leave a panel idle on what it last drew, so an activity that
+        // arrived meanwhile stays hidden until something else redraws it. Redraw them all.
+        for controller in controllers.values {
+            if suspended { controller.suspend() } else { controller.redraw() }
+        }
+    }
+
+    /// Another account is in front: every shell goes until this one is back.
+    private func suspend() {
+        suspended = true
+        controllers.values.forEach { $0.suspend() }
+    }
+
+    private func resume() {
+        suspended = false
+        controllers.values.forEach { $0.resume() }
     }
 
     /// Shows live activities on the display(s) chosen in Settings.
