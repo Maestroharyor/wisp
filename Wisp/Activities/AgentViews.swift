@@ -194,6 +194,7 @@ struct AgentApprovalCard: View {
                             Label(approval.project, systemImage: "arrow.up.forward.app")
                                 .font(.system(size: 11)).foregroundStyle(Color.project(approval.project))
                                 .lineLimit(1).truncationMode(.tail)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .help("Show the terminal")
@@ -207,6 +208,7 @@ struct AgentApprovalCard: View {
                                 )
                                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.wispViolet)
                                 .lineLimit(1)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .fixedSize()
@@ -382,10 +384,7 @@ private struct DenyReasonRow: View {
                 Button("Cancel", action: stopTyping)
                     .buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.ink.opacity(0.7))
-                Button("Deny", action: deny)
-                    .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
-                    .padding(.horizontal, 12).frame(height: 28)
-                    .background(Capsule().fill(.ink.opacity(0.14)))
+                CapsuleButton("Deny", action: deny)
             } else {
                 Button("Deny with a reason…") {
                     typing = true
@@ -581,6 +580,7 @@ private struct ApprovalButtonStyle: ButtonStyle {
             .padding(.horizontal, 12)
             .frame(height: 28)
             .background(Capsule().fill(fill))
+            .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
@@ -684,7 +684,7 @@ private struct SessionGlanceLines: View {
                     .lineLimit(1).truncationMode(.tail)
             }
             if glance.activity == .done, let jump {
-                Button(action: jump) { activity }
+                Button(action: jump) { activity.contentShape(Rectangle()) }
                     .buttonStyle(.plain)
                     .help("Show the terminal")
             } else {
@@ -1158,15 +1158,19 @@ private struct SessionDetail: View {
                 .frame(height: 24)
                 .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.ink.opacity(0.08)))
                 .onSubmit(send)
-            Button("Paste in \(TerminalApps.name(for: session.terminal) ?? "Terminal")", action: send)
-                .font(.system(size: 11, weight: .semibold))
-                .buttonStyle(.plain)
-                .padding(.horizontal, 8)
-                .frame(height: 24)
-                .background(Capsule().fill(pasteFill))
-                .foregroundStyle(pasteText)
-                .disabled(draft.isEmpty)
-                .help("Pastes into the session's terminal without sending; press Return there")
+            Button(action: send) {
+                Text("Paste in \(TerminalApps.name(for: session.terminal) ?? "Terminal")")
+                    .font(.system(size: 11, weight: .semibold))
+                    .padding(.horizontal, 8)
+                    .frame(height: 24)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            // Outside the label, so being disabled dims only the title, as before.
+            .background(Capsule().fill(pasteFill))
+            .foregroundStyle(pasteText)
+            .disabled(draft.isEmpty)
+            .help("Pastes into the session's terminal without sending; press Return there")
         }
     }
 
@@ -1202,6 +1206,7 @@ private struct SessionDetail: View {
         Button(action: perform) {
             Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold))
                 .lineLimit(1).fixedSize()
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(Color.project(session.project))
