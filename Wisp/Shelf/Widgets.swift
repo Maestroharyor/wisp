@@ -300,6 +300,7 @@ private struct EventRow: View {
         .padding(.leading, 3)
         .frame(height: 36)
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(event.color.opacity(0.16)))
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 
     private var timeText: String {
@@ -359,6 +360,7 @@ struct CircleButton: View {
                 .foregroundStyle(filled ? tint : .ink.opacity(0.85))
                 .frame(width: size, height: size)
                 .background(Circle().fill(filled ? tint.opacity(0.28) : .ink.opacity(0.14)))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .hoverHint(label ?? SymbolLabel.label(for: symbol))
@@ -420,6 +422,7 @@ struct PomodoroWidget: View {
                 .padding(.vertical, 3)
                 .background(Capsule().fill(store.phase == phase ? Color.wispAmber.opacity(0.28) : .ink.opacity(0.1)))
                 .foregroundStyle(store.phase == phase ? Color.wispAmber : Color.secondaryText)
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }

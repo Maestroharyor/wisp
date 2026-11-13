@@ -98,12 +98,53 @@ struct AdvancedSection<Content: View>: View {
             DisclosureGroup("Advanced", isExpanded: expanded) {
                 content
             }
+            .disclosureGroupStyle(WispDisclosureStyle())
         }
         .onChange(of: query) { _, query in state.searchChanged(to: query) }
     }
 
     private var expanded: Binding<Bool> {
         Binding(get: { state.isExpanded(query: query) }, set: { state.setExpanded($0, query: query) })
+    }
+}
+
+/// A disclosure whose whole title row opens it, not only the chevron. It looks like the
+/// system one: a chevron that turns down when open, then the title.
+struct WispDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        WispDisclosure(configuration: configuration)
+    }
+}
+
+private struct WispDisclosure: View {
+    let configuration: DisclosureGroupStyleConfiguration
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let expanded = configuration.isExpanded
+        VStack(alignment: .leading) {
+            Button {
+                withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
+                    configuration.isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                        .frame(width: 12)
+                        .accessibilityHidden(true)
+                    configuration.label
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            if expanded {
+                configuration.content
+            }
+        }
     }
 }
 

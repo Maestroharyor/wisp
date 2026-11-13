@@ -32,6 +32,7 @@ struct AgentQuestionCard: View {
                             } label: {
                                 Label(approval.project, systemImage: "arrow.up.forward.app")
                                     .font(.system(size: 11)).foregroundStyle(Color.project(approval.project))
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .help("Show the terminal")
@@ -288,6 +289,7 @@ private struct QuestionChipStyle: ButtonStyle {
             .padding(.horizontal, 11)
             .frame(height: 28)
             .background(Capsule().fill(selected ? Color.wispViolet : .ink.opacity(0.14)))
+            .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }

@@ -161,10 +161,7 @@ private struct DetailButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(title, action: action)
-            .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
-            .padding(.horizontal, 12).frame(height: 28)
-            .background(Capsule().fill(.ink.opacity(0.14)))
+        CapsuleButton(title, action: action)
             .help(help)
     }
 }

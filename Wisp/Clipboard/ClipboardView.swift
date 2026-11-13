@@ -79,6 +79,7 @@ struct ClipboardView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Capsule().fill(.white.opacity(model.kind == kind ? 0.18 : 0)))
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }

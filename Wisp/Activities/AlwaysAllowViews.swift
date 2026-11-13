@@ -17,6 +17,7 @@ struct AlwaysAllowMenu: View {
                 .foregroundStyle(.ink)
                 .frame(width: 28, height: 28)
                 .background(Circle().fill(.ink.opacity(0.14)))
+                .contentShape(Circle())
         }
         .menuStyle(.button)
         .buttonStyle(.plain)

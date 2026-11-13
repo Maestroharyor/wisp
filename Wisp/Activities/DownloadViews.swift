@@ -57,20 +57,14 @@ struct DownloadDoneCard: View {
                         .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                 }
                 Spacer(minLength: 8)
-                Button("Show in Finder") {
+                CapsuleButton("Show in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([url])
                     model.services.activities.remove(.downloadDone)
                 }
-                .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
-                .padding(.horizontal, 12).frame(height: 28)
-                .background(Capsule().fill(.ink.opacity(0.14)))
-                Button("Open") {
+                CapsuleButton("Open", prominent: true) {
                     NSWorkspace.shared.open(url)
                     model.services.activities.remove(.downloadDone)
                 }
-                .buttonStyle(.plain).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                .padding(.horizontal, 14).frame(height: 28)
-                .background(Capsule().fill(Color.wispViolet))
             }
             .padding(.horizontal, 18)
             .frame(height: SurfaceSizing.notificationCardHeight - 8)
