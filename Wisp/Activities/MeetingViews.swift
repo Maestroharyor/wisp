@@ -46,17 +46,11 @@ struct MeetingSoonCard: View {
     }
 
     @ViewBuilder private var joinButtons: some View {
-        Button("Later") { model.services.activities.remove(.meetingSoon) }
-            .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
-            .padding(.horizontal, 12).frame(height: 28)
-            .background(Capsule().fill(.ink.opacity(0.14)))
-        Button("Join") {
+        CapsuleButton("Later") { model.services.activities.remove(.meetingSoon) }
+        CapsuleButton("Join", prominent: true) {
             NSWorkspace.shared.open(invite.link)
             model.services.activities.remove(.meetingSoon)
         }
-        .buttonStyle(.plain).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-        .padding(.horizontal, 14).frame(height: 28)
-        .background(Capsule().fill(Color.wispViolet))
     }
 
     private static func startText(_ start: Date, now: Date) -> String {
@@ -89,6 +83,7 @@ struct MeetingControlsCard: View {
                 } label: {
                     Image(systemName: "chevron.up").font(.system(size: 11, weight: .bold))
                         .frame(width: 24, height: 30)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).foregroundStyle(Color.secondaryText)
                 .hoverHint("Hide call controls")
@@ -123,6 +118,7 @@ struct MeetingControlsRow: View {
                             .font(.system(size: 13, weight: .semibold))
                             .frame(width: 30, height: 30)
                             .background(Circle().fill(state.engaged == true ? Color.wispViolet : .ink.opacity(0.14)))
+                            .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(state.engaged == true ? Color.white : Color.ink)
@@ -155,6 +151,7 @@ struct MeetingControlsRow: View {
             }
             .frame(height: 30)
             .background(Capsule().fill(.red))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)

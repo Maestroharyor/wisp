@@ -127,7 +127,9 @@ private struct ShortcutChip: View {
             .padding(.horizontal, 8)
             .frame(height: 28)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.ink.opacity(hovering ? 0.16 : 0.09)))
+                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.ink.opacity(hovering ? 0.16 : 0.09))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -189,7 +191,9 @@ private struct ClipRow: View {
             .padding(.horizontal, 7)
             .frame(height: 24)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.ink.opacity(hovering ? 0.14 : 0.07)))
+                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.ink.opacity(hovering ? 0.14 : 0.07))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }

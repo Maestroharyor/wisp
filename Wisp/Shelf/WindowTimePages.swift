@@ -160,6 +160,7 @@ private struct DayTimeline: View {
                                     RoundedRectangle(cornerRadius: 6, style: .continuous).fill(
                                         event.color.opacity(0.18))
                                 )
+                                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                                 .opacity(event.end < now ? 0.55 : 1)
                         }
                         .buttonStyle(.plain)
@@ -676,6 +677,7 @@ struct ChipLabel: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .background(Capsule().fill(selected ? AnyShapeStyle(Color.wispViolet) : AnyShapeStyle(.ink.opacity(0.08))))
+            .contentShape(Capsule())
             .foregroundStyle(selected ? Color.white : .ink.opacity(0.85))
             .accessibilityAddTraits(selected ? .isSelected : [])
     }

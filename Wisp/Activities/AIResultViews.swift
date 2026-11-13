@@ -65,10 +65,6 @@ struct AIResultCardView: View {
     }
 
     private func resultButton(_ button: AIResultButton, primary: Bool) -> some View {
-        Button(button.title) { model.services.aiActions.perform(button, on: card) }
-            .buttonStyle(.plain).font(.system(size: 12, weight: .bold))
-            .foregroundStyle(primary ? Color.white : Color.ink)
-            .padding(.horizontal, primary ? 14 : 12).frame(height: 28)
-            .background(Capsule().fill(primary ? Color.wispViolet : Color.ink.opacity(0.14)))
+        CapsuleButton(button.title, prominent: primary) { model.services.aiActions.perform(button, on: card) }
     }
 }
