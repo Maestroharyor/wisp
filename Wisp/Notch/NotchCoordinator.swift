@@ -190,8 +190,11 @@ final class NotchCoordinator {
         }
         pointerDisplay = displayUUID(at: NSEvent.mouseLocation)
         assignActivityDisplays()
-        // A display added while another account is in front stays hidden with the rest.
-        if suspended { controllers.values.forEach { $0.suspend() } }
+        // A display change can leave a panel idle on what it last drew, so an activity that
+        // arrived meanwhile stays hidden until something else redraws it. Redraw them all.
+        for controller in controllers.values {
+            if suspended { controller.suspend() } else { controller.redraw() }
+        }
     }
 
     /// Another account is in front: every shell goes until this one is back.

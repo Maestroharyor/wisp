@@ -630,6 +630,15 @@ final class NotchController {
         panel.orderFrontRegardless()
     }
 
+    /// Brings the panel back in front and has it draw again. `update(layout:)` skips a display
+    /// change that left this display's layout as it was, and then the panel could sit on what
+    /// it drew before, missing an activity that arrived meanwhile.
+    func redraw() {
+        panel.orderFrontRegardless()
+        panel.contentView?.needsLayout = true
+        panel.contentView?.needsDisplay = true
+    }
+
     func tearDown() {
         // A display unplugged mid-reply must not leave notifications held back forever.
         if isReplying { services.endReply(sentText: nil) }
