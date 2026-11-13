@@ -151,6 +151,7 @@ struct HomePage: View {
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(.ink.opacity(0.18)))
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .padding(.trailing, 10)
@@ -175,6 +176,7 @@ struct HomePage: View {
             } label: {
                 Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
                     .frame(width: 28, height: 28).background(Circle().fill(.ink.opacity(0.14)))
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Cancel")
@@ -183,6 +185,7 @@ struct HomePage: View {
                 Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
                     .frame(width: 28, height: 28).background(Circle().fill(Color.accentColor))
                     .foregroundStyle(.white)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Done")
@@ -208,6 +211,7 @@ struct HomePage: View {
             }
             .frame(width: 74, height: 54)
             .card(highlighted: onHome)
+            .contentShape(RoundedRectangle(cornerRadius: ShellMetrics.widgetCornerRadius, style: .continuous))
             .opacity(!onHome && full ? 0.45 : 1)
             .overlay(alignment: .topTrailing) {
                 if onHome {
@@ -433,6 +437,7 @@ private struct SoloBackButton: View {
                 .font(.system(size: 10, weight: .bold))
                 .frame(width: 20, height: 20)
                 .background(Circle().fill(.ink.opacity(0.12)))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .hoverHint(label)

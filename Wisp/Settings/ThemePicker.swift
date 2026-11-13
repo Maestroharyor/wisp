@@ -30,6 +30,7 @@ struct ThemePicker: View {
                             .font(.caption)
                             .foregroundStyle(selected ? .primary : .secondary)
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(ThemeCatalog.title(for: id))
