@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.4](https://github.com/Maestroharyor/wisp/compare/v0.2.3...v0.2.4) (2026-11-14)
+
+
+### Features
+
+* away and focus controls for agents ([#92](https://github.com/Maestroharyor/wisp/issues/92)) ([ddf68df](https://github.com/Maestroharyor/wisp/commit/ddf68dfab39cbc8b93f2b39fc0c01c6f0c5ff36e))
+
+
+### Bug fixes
+
+* cards close when a prompt is answered in the terminal ([#91](https://github.com/Maestroharyor/wisp/issues/91)) ([97deb28](https://github.com/Maestroharyor/wisp/commit/97deb2815654ef2e1014488618603a1385c3c8de))
+
 ## [0.2.3](https://github.com/Maestroharyor/wisp/compare/v0.2.2...v0.2.3) (2026-11-14)
 
 
