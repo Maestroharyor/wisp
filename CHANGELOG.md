@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.2](https://github.com/Maestroharyor/wisp/compare/v0.2.1...v0.2.2) (2026-11-14)
+
+
+### Bug fixes
+
+* agent cards close when answered in the terminal ([#86](https://github.com/Maestroharyor/wisp/issues/86)) ([bbba22f](https://github.com/Maestroharyor/wisp/commit/bbba22f1b9383af1a5d5a9597f4ffb2b0a8b08fe))
+* no empty bubbles beside the notch ([#84](https://github.com/Maestroharyor/wisp/issues/84)) ([50b4ef1](https://github.com/Maestroharyor/wisp/commit/50b4ef14847e338e9f13142e7744146d9a6bb087))
+* small agent hub fixes ([#87](https://github.com/Maestroharyor/wisp/issues/87)) ([c30f731](https://github.com/Maestroharyor/wisp/commit/c30f7315cd8cf372a1635c653d591ff90b05087c))
+* whole rows and labels are clickable ([#83](https://github.com/Maestroharyor/wisp/issues/83)) ([2026ffb](https://github.com/Maestroharyor/wisp/commit/2026ffb0eaf908a45521d64d5cd366431d7198ad))
+
 ## [0.2.1](https://github.com/Maestroharyor/wisp/compare/v0.2.0...v0.2.1) (2026-11-08)
 
 
