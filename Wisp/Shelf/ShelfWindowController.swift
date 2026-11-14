@@ -19,6 +19,7 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     private var tearAnchor: CGVector?
     /// The window's ⌘ keys, installed while it's on screen.
     private var keyMonitor: Any?
+    private var motionObserver: NSObjectProtocol?
     /// Set by the notch coordinator: the closed shell nearest a frame, which the window
     /// leaves toward and comes back out of.
     var shellRect: @MainActor (CGRect) -> CGRect? = { _ in nil }
@@ -29,6 +30,16 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     init(services: AppServices) {
         self.services = services
         navigation = WindowNavigation(preferences: services.preferences)
+        super.init()
+        // Reduce Motion switched on while the window shows takes effect on its pages right away,
+        // as it does on the notch, rather than at the next open.
+        motionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.model?.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            }
+        }
     }
 
     private var preferences: Preferences { services.preferences }

@@ -100,13 +100,24 @@ final class NotchController {
 
     /// Setting ignoresMouseEvents to false makes the whole transparent panel catch clicks
     /// (AppKit passes clicks through transparent areas only while the property is untouched),
-    /// so a closed panel takes the mouse only while the pointer is over something it handles.
-    private func updateClickThrough() {
-        // The orb floats over windows; a press on it must not reach the window underneath.
-        let overControls =
-            pointerInside && (isReplying || showsApproval || showsPillButton || showsCard || isOrb)
-        panel.ignoresMouseEvents =
-            machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble && !pointerOverIsland
+    /// so the panel takes the mouse only while the pointer is over something it handles.
+    private func updateClickThrough(at location: CGPoint = NSEvent.mouseLocation) {
+        let ignores: Bool
+        if machine.phase == .closed {
+            // The orb floats over windows; a press on it must not reach the window underneath.
+            let overControls =
+                pointerInside && (isReplying || showsApproval || showsPillButton || showsCard || isOrb)
+            ignores = !model.dragging && !overControls && !pointerOverBubble && !pointerOverIsland
+        } else if NSEvent.pressedMouseButtons & 1 != 0, !panel.ignoresMouseEvents {
+            // Mid-press (selecting text, dragging a card), the window that took the press keeps it.
+            return
+        } else {
+            // The panel reaches past the shelf (room for the tallest one), so only the shell, its
+            // hover margin and the nav pill take clicks. A click below passes through to the app
+            // there, and the pointer monitor still closes the shelf on it.
+            ignores = !model.dragging && !model.contains(location) && !pointerOverBubble && !pointerOverIsland
+        }
+        if panel.ignoresMouseEvents != ignores { panel.ignoresMouseEvents = ignores }
     }
 
     /// Notification and two-line cards take their own clicks (close, reply), so they don't
@@ -251,7 +262,9 @@ final class NotchController {
     func update(layout: NotchLayout) {
         let from = settleFrom
         settleFrom = nil
-        guard layout != model.layout || panelMoved else { return }
+        // A display change that kept this layout can still have left the panel elsewhere (the
+        // system moving windows as displays come and go), so the frame counts too.
+        guard layout != model.layout || panelMoved || panel.frame != layout.panelFrame else { return }
         panelMoved = false
         // The shell may have moved out from under a still pointer (a drop, Move back).
         defer { resyncPointer() }
@@ -324,7 +337,10 @@ final class NotchController {
         if overBubble != pointerOverBubble || overIsland != pointerOverIsland {
             pointerOverBubble = overBubble
             pointerOverIsland = overIsland
-            updateClickThrough()
+            updateClickThrough(at: location)
+        } else if machine.phase != .closed {
+            // An open shelf follows the pointer on and off its shape.
+            updateClickThrough(at: location)
         }
         let inside = model.contains(location)
         guard inside != pointerInside else { return }
@@ -391,6 +407,8 @@ final class NotchController {
 
     /// A press on the closed shell that didn't turn into a drag opens it.
     func leftMouseUp(at location: CGPoint) {
+        // A press that ended off the open shelf leaves the panel click-through again.
+        if machine.phase != .closed { updateClickThrough(at: location) }
         guard pendingPress else { return }
         pendingPress = false
         guard model.contains(location) else { return }
@@ -685,9 +703,9 @@ final class NotchController {
         panel.orderFrontRegardless()
     }
 
-    /// Brings the panel back in front and has it draw again. `update(layout:)` skips a display
-    /// change that left this display's layout as it was, and then the panel could sit on what
-    /// it drew before, missing an activity that arrived meanwhile.
+    /// Brings the panel back in front and has it draw again after a display change.
+    /// `update(layout:)` now puts a moved panel back on its frame; this stays as a cheap guard
+    /// because the idle panel seen after an unplug hasn't been reproduced since.
     func redraw() {
         panel.orderFrontRegardless()
         panel.contentView?.needsLayout = true

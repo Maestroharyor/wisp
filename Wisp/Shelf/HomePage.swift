@@ -50,7 +50,8 @@ struct HomePage: View {
             }
             .padding(20)
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: preferences.homeLayout)
+        .animation(
+            model.reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85), value: preferences.homeLayout)
     }
 
     private static let windowCardHeight: CGFloat = 200
@@ -106,7 +107,8 @@ struct HomePage: View {
                 pickerRow.transition(model.motion.expands ? .opacity.combined(with: .move(edge: .bottom)) : .opacity)
             }
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: preferences.homeLayout)
+        .animation(
+            model.reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85), value: preferences.homeLayout)
     }
 
     private var emptyHint: some View {
@@ -332,13 +334,14 @@ private struct WidgetIconCell: View {
     let zoom: Namespace.ID?
     let open: () -> Void
     @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: open) {
             VStack(spacing: metrics.captionGap) {
                 WidgetIconTile(kind: kind, size: metrics.tileSize)
                     .zoomSource(id: kind, in: zoom)
-                    .scaleEffect(hovering ? 1.05 : 1)
+                    .scaleEffect(hovering && !reduceMotion ? 1.05 : 1)
                 Text(kind.title)
                     .font(.system(size: metrics.captionSize, weight: .semibold))
                     .foregroundStyle(.ink.opacity(hovering ? 0.9 : 0.7))
@@ -350,7 +353,7 @@ private struct WidgetIconCell: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hovering)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: hovering)
         .help(kind.title)
     }
 }

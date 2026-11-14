@@ -16,7 +16,6 @@ struct ShelfResizeHandle: View {
 
     @State private var hovering = false
     @State private var dragStart: CGFloat?
-    @State private var cursorPushed = false
 
     var body: some View {
         let active = hovering || dragStart != nil
@@ -26,26 +25,20 @@ struct ShelfResizeHandle: View {
             .animation(.easeOut(duration: 0.15), value: active)
             .frame(width: Self.size.width, height: Self.size.height)
             .contentShape(Rectangle())
-            .onHover { inside in
-                hovering = inside
-                updateCursor()
-            }
+            .background(ResizeCursorArea(dragging: dragStart != nil).allowsHitTesting(false))
+            .onHover { hovering = $0 }
             .gesture(
                 // Window coordinates: the panel never moves, while this view rides the edge. A few
                 // points before it starts, so a double-click's jitter doesn't count as a drag.
                 DragGesture(minimumDistance: 3, coordinateSpace: .global)
                     .onChanged { value in
                         let start = dragStart ?? model.shelfExtra
-                        if dragStart == nil {
-                            dragStart = start
-                            updateCursor()
-                        }
+                        if dragStart == nil { dragStart = start }
                         model.resizeShelf(from: start, by: value.translation.height)
                     }
                     .onEnded { _ in
                         dragStart = nil
                         model.endShelfResize()
-                        updateCursor()
                     }
             )
             .simultaneousGesture(TapGesture(count: 2).onEnded { model.resetShelfHeight() })
@@ -53,7 +46,6 @@ struct ShelfResizeHandle: View {
                 if dragStart != nil { model.endShelfResize() }
                 dragStart = nil
                 hovering = false
-                updateCursor()
             }
             .help("Drag to resize, double-click to reset")
             .accessibilityElement()
@@ -69,17 +61,67 @@ struct ShelfResizeHandle: View {
     }
 
     private static let accessibilityStep: CGFloat = 40
+}
 
-    /// The up-down cursor while the pointer is on the handle or dragging it, pushed once and
-    /// popped once so other cursors stay balanced.
-    private func updateCursor() {
-        let wanted = hovering || dragStart != nil
-        guard wanted != cursorPushed else { return }
-        if wanted {
-            NSCursor.resizeUpDown.push()
-        } else {
-            NSCursor.pop()
+/// The up-down cursor over the handle and through a drag of it. The panel doesn't activate
+/// Wisp, and with another app in front a cursor pushed from SwiftUI's hover doesn't reliably
+/// show, so an always-active tracking area sets it on every enter, move and cursor update.
+private struct ResizeCursorArea: NSViewRepresentable {
+    let dragging: Bool
+
+    func makeNSView(context: Context) -> ResizeCursorView { ResizeCursorView() }
+
+    func updateNSView(_ view: ResizeCursorView, context: Context) {
+        view.dragging = dragging
+    }
+}
+
+private final class ResizeCursorView: NSView {
+    private var inside = false
+
+    var dragging = false {
+        didSet {
+            guard dragging != oldValue else { return }
+            if dragging || inside { NSCursor.resizeUpDown.set() } else { NSCursor.arrow.set() }
         }
-        cursorPushed = wanted
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.cursorUpdate, .mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+                owner: self))
+    }
+
+    /// Clicks go to the SwiftUI handle underneath; tracking doesn't need them.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.resizeUpDown.set()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        inside = true
+        NSCursor.resizeUpDown.set()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        if inside || dragging { NSCursor.resizeUpDown.set() }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        inside = false
+        if !dragging { NSCursor.arrow.set() }
+    }
+
+    /// The shelf closing under the pointer mustn't leave the up-down cursor behind.
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        guard newWindow == nil, inside || dragging else { return }
+        inside = false
+        NSCursor.arrow.set()
     }
 }

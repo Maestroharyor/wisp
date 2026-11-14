@@ -20,6 +20,10 @@ final class ClipboardStore {
     @ObservationIgnored private var storing: Task<Void, Never>?
     /// Counts stores, so only the latest one clears `storing` when it finishes.
     @ObservationIgnored private var storeCount = 0
+    /// History saves run one at a time off the main thread; changes made meanwhile share the next.
+    @ObservationIgnored private var saves = SaveCoalescer()
+    /// Saves run here in order, so an older snapshot never lands after a newer one.
+    @ObservationIgnored private let saveQueue = DispatchQueue(label: "com.ayomideodewale.wisp.clipboard", qos: .utility)
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "clipboard")
 
     init(preferences: Preferences) {
@@ -50,6 +54,7 @@ final class ClipboardStore {
     func stop() {
         pollTask?.cancel()
         pollTask = nil
+        saveNow()
     }
 
     func imageURL(for item: ClipItem) -> URL? {
@@ -192,9 +197,45 @@ final class ClipboardStore {
     }
 
     private func save() {
+        guard saves.changed() else { return }
+        startSave()
+    }
+
+    /// Encodes and writes a snapshot of the history on the save queue, then starts one more
+    /// save if the history changed while it ran.
+    private func startSave() {
+        guard saves.begin() else { return }
+        let snapshot = history
+        let url = historyURL
+        let queue = saveQueue
+        let log = log
+        Task { [weak self] in
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                queue.async {
+                    Self.write(snapshot, to: url, log: log)
+                    continuation.resume()
+                }
+            }
+            guard let self, self.saves.finish() else { return }
+            self.startSave()
+        }
+    }
+
+    /// On quit: waits for a save that's running and writes what came after it, so the last
+    /// change isn't lost with the process.
+    private func saveNow() {
+        let pending = saves.dirty ? history : nil
+        saves = SaveCoalescer()
+        let url = historyURL
+        saveQueue.sync {
+            if let pending { Self.write(pending, to: url, log: log) }
+        }
+    }
+
+    private nonisolated static func write(_ history: ClipboardHistory, to url: URL, log: Logger) {
         do {
-            try FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
-            try JSONEncoder().encode(history).write(to: historyURL, options: .atomic)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try JSONEncoder().encode(history).write(to: url, options: .atomic)
         } catch {
             log.error("could not save clipboard history: \(error.localizedDescription, privacy: .public)")
         }

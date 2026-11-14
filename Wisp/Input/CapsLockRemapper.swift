@@ -4,8 +4,10 @@ import WispCore
 /// Remaps Caps Lock to F18 system-wide via `/usr/bin/hidutil`, so it can act as a
 /// Hyper modifier. Merges with the user's existing mappings and removes only its own.
 /// The mapping is lost on reboot and must be re-applied when a keyboard connects.
-@MainActor
-final class CapsLockRemapper {
+///
+/// Each change waits for `hidutil` to exit, so changes run on a serial queue of their own, in
+/// the order they were asked for, and report back on the main actor.
+final class CapsLockRemapper: Sendable {
     enum RemapError: Error, CustomStringConvertible {
         case hidutilFailed(status: Int32, output: String)
 
@@ -17,18 +19,51 @@ final class CapsLockRemapper {
     }
 
     private let hidutil = URL(fileURLWithPath: "/usr/bin/hidutil")
+    private let queue = DispatchQueue(label: "com.ayomideodewale.wisp.hidutil", qos: .userInitiated)
 
-    func enable() throws {
+    /// Adds the remap; `done` gets the error, if any.
+    func enable(then done: @escaping @MainActor @Sendable ((any Error)?) -> Void) {
+        perform({ try $0.enableNow() }, then: done)
+    }
+
+    /// Removes the remap; `done` gets the error, if any.
+    func disable(then done: @escaping @MainActor @Sendable ((any Error)?) -> Void) {
+        perform({ try $0.disableNow() }, then: done)
+    }
+
+    /// Removes the remap before returning, after any change still queued. For quitting, when
+    /// Caps Lock has to work again before the process ends.
+    func disableAndWait() throws {
+        try queue.sync { try disableNow() }
+    }
+
+    private func perform(
+        _ change: @escaping @Sendable (CapsLockRemapper) throws -> Void,
+        then done: @escaping @MainActor @Sendable ((any Error)?) -> Void
+    ) {
+        queue.async {
+            let error: (any Error)?
+            do {
+                try change(self)
+                error = nil
+            } catch let failure {
+                error = failure
+            }
+            Task { @MainActor in done(error) }
+        }
+    }
+
+    private func enableNow() throws {
         try write(KeyMappingCodec.adding(.capsLockToF18, to: currentMappings()))
     }
 
-    func disable() throws {
+    private func disableNow() throws {
         let current = try currentMappings()
         guard current.contains(.capsLockToF18) else { return }
         try write(KeyMappingCodec.removing(.capsLockToF18, from: current))
     }
 
-    func currentMappings() throws -> [KeyMapping] {
+    private func currentMappings() throws -> [KeyMapping] {
         KeyMappingCodec.parse(try run(["property", "--get", "UserKeyMapping"]))
     }
 

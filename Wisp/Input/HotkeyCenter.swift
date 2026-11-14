@@ -67,6 +67,11 @@ final class HotkeyCenter {
     /// The user switched Accessibility off while Hyper was on: don't prompt again for a choice
     /// they just made. Settings still shows the status, and turning it back on resumes.
     @ObservationIgnored private var accessRevoked = false
+    /// The system prompt for Accessibility was shown this launch. It isn't shown again for
+    /// each shortcut change; Settings and the setup window still offer it on request.
+    @ObservationIgnored private var askedForAccess = false
+    /// Counts configurations, so a remap that finishes after a newer one started is ignored.
+    @ObservationIgnored private var configuration = 0
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "hotkey")
 
     init(preferences: Preferences) {
@@ -90,6 +95,8 @@ final class HotkeyCenter {
 
     /// Restores Caps Lock. Call on quit.
     func shutdown() {
+        // A remap still finishing must not start the tap again after this.
+        configuration += 1
         tap.finishHoldEvents()
         accessWaiter?.cancel()
         trustWatcher?.cancel()
@@ -101,13 +108,14 @@ final class HotkeyCenter {
         unregisterApprovalFallback()
         keyboardWatcher?.stop()
         do {
-            try remapper.disable()
+            try remapper.disableAndWait()
         } catch {
             log.error("could not restore Caps Lock: \(String(describing: error), privacy: .public)")
         }
     }
 
     private func configure() {
+        configuration += 1
         accessWaiter?.cancel()
         trustWatcher?.cancel()
         tap.stop()
@@ -145,7 +153,10 @@ final class HotkeyCenter {
             disableRemap()
             status = .needsAccessibility
             // During first-launch setup, the setup window asks, with an explanation.
-            if preferences.onboarded, !accessRevoked { AccessibilityPermission.requestAccess() }
+            if preferences.onboarded, !accessRevoked, !askedForAccess {
+                askedForAccess = true
+                AccessibilityPermission.requestAccess()
+            }
             accessWaiter = Task { [weak self] in
                 await AccessibilityPermission.waitUntilTrusted()
                 guard !Task.isCancelled else { return }
@@ -154,13 +165,23 @@ final class HotkeyCenter {
             return
         }
 
-        do {
-            try remapper.enable()
-        } catch {
-            status = .unavailable("Could not remap Caps Lock")
-            log.error("remap failed: \(String(describing: error), privacy: .public)")
-            return
+        let current = configuration
+        remapper.enable { [weak self] error in
+            // A newer configuration took over while hidutil ran; it sets things up itself.
+            guard let self, self.configuration == current else { return }
+            // The approval fallback depends on whether Hyper ended up active.
+            defer { self.updateApprovalFallback() }
+            if let error {
+                self.status = .unavailable("Could not remap Caps Lock")
+                self.log.error("remap failed: \(String(describing: error), privacy: .public)")
+                return
+            }
+            self.startHyper(hotkey)
         }
+    }
+
+    /// The remap is in place: watch for keyboards and start the tap that reads Caps Lock.
+    private func startHyper(_ hotkey: Hotkey) {
         if keyboardWatcher == nil {
             keyboardWatcher = HIDDeviceWatcher(matching: HIDDeviceWatcher.keyboards) { [weak self] in
                 self?.reapplyRemap()
@@ -249,19 +270,17 @@ final class HotkeyCenter {
 
     private func reapplyRemap() {
         guard preferences.hotkey.usesHyper, status == .active else { return }
-        do {
-            try remapper.enable()
-        } catch {
-            log.error("re-applying remap failed: \(String(describing: error), privacy: .public)")
+        remapper.enable { [weak self] error in
+            guard let error else { return }
+            self?.log.error("re-applying remap failed: \(String(describing: error), privacy: .public)")
         }
     }
 
     private func disableRemap() {
         keyboardWatcher?.stop()
-        do {
-            try remapper.disable()
-        } catch {
-            log.error("removing remap failed: \(String(describing: error), privacy: .public)")
+        remapper.disable { [weak self] error in
+            guard let error else { return }
+            self?.log.error("removing remap failed: \(String(describing: error), privacy: .public)")
         }
     }
 

@@ -36,7 +36,7 @@ enum SystemVolume {
 
     /// Calls `handler` on the main queue whenever the output volume or mute changes,
     /// including from other apps or the system keys. Re-attaches when the default
-    /// output device changes. Returns an object that stops listening when released.
+    /// output device changes. Returns an object that stops listening on `stop()` or when released.
     @MainActor static func observe(_ handler: @escaping @MainActor () -> Void) -> VolumeObserver {
         VolumeObserver(handler: handler)
     }
@@ -89,13 +89,17 @@ enum SystemVolume {
     }
 }
 
-/// Listens to the default output device's volume and mute.
+/// Listens to the default output device's volume and mute until stopped or released.
 @MainActor
 final class VolumeObserver {
     private let handler: @MainActor () -> Void
     private var device: AudioObjectID?
-    private let block: AudioObjectPropertyListenerBlock
-    private let deviceBlock: AudioObjectPropertyListenerBlock
+    /// Still registered for default-device changes.
+    private var listening = true
+    // nonisolated(unsafe): read only by deinit, to remove the listeners. Both are set once in
+    // init and never change, and CoreAudio only calls them on the main queue.
+    nonisolated(unsafe) private let block: AudioObjectPropertyListenerBlock
+    nonisolated(unsafe) private let deviceBlock: AudioObjectPropertyListenerBlock
     private var defaultDeviceAddress = AudioObjectPropertyAddress(
         mSelector: kAudioHardwarePropertyDefaultOutputDevice,
         mScope: kAudioObjectPropertyScopeGlobal,
@@ -115,8 +119,25 @@ final class VolumeObserver {
 
     func stop() {
         detach()
+        guard listening else { return }
+        listening = false
         AudioObjectRemovePropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject), &defaultDeviceAddress, .main, deviceBlock)
+    }
+
+    /// CoreAudio holds the listener blocks, not this object, and the volume block holds the
+    /// handler, so without this a released observer would keep calling it.
+    deinit {
+        if let device {
+            for address in [SystemVolume.volumeAddress, SystemVolume.muteAddress] {
+                var address = address
+                AudioObjectRemovePropertyListenerBlock(device, &address, .main, block)
+            }
+        }
+        if listening {
+            AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject), &defaultDeviceAddress, .main, deviceBlock)
+        }
     }
 
     private func attach() {

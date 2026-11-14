@@ -27,6 +27,10 @@ final class NotchPanel: NSPanel {
         ignoresMouseEvents = true
     }
 
+    /// The controller places the panel exactly, partly over the menu bar; AppKit mustn't nudge it
+    /// on screen when displays change, which would leave it off its layout's frame.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }

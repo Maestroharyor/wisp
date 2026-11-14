@@ -12,19 +12,25 @@ final class TrayStore {
     private(set) var thumbnails: [URL: NSImage] = [:]
     /// File sizes, read once when a file arrives. Folders have none.
     private(set) var sizes: [URL: Int64] = [:]
+    /// Which files are folders, read with their sizes.
+    private(set) var folders: Set<URL> = []
 
     @ObservationIgnored var onAdd: (Int) -> Void = { _ in }
     @ObservationIgnored var onNotice: (String, String) -> Void = { _, _ in }
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let key = "trayPaths"
     @ObservationIgnored private var lastPrune = Date.distantPast
+    @ObservationIgnored private var pruning = false
+    /// The last add still checking its files; later adds wait for it, so the tray keeps the
+    /// order files were added in.
+    @ObservationIgnored private var adding: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         let paths = defaults.stringArray(forKey: key) ?? []
         list = TrayList(urls: paths.map { URL(fileURLWithPath: $0) }.reversed())
-        list.prune(keeping: Self.isKept)
         list.urls.forEach(loadThumbnail)
+        pruneMissing()
     }
 
     var count: Int { list.urls.count }
@@ -39,13 +45,23 @@ final class TrayStore {
 
     /// "PNG · 1.2 MB", or "Folder".
     func detail(for url: URL) -> String {
-        if sizes[url] == nil, Self.isFolder(url) { return "Folder" }
+        if folders.contains(url) { return "Folder" }
         return TraySummary.detail(pathExtension: url.pathExtension, size: sizes[url])
     }
 
+    /// Checks the files exist off the main thread (a network volume can take a while), then
+    /// adds the ones that do.
     func add(_ urls: [URL]) {
+        let previous = adding
+        adding = Task { [weak self] in
+            let existing = await Task.detached(priority: .userInitiated) { urls.filter(Self.exists) }.value
+            await previous?.value
+            self?.insert(existing)
+        }
+    }
+
+    private func insert(_ existing: [URL]) {
         let before = count
-        let existing = urls.filter(Self.exists)
         list.add(existing)
         existing.forEach(loadThumbnail)
         save()
@@ -53,24 +69,33 @@ final class TrayStore {
     }
 
     /// Drops cards for files that were moved or deleted since they were added. At most once
-    /// a minute, since checking files on a slow network volume would hitch the shelf.
+    /// a minute, and the files are checked off the main thread, since a slow network volume
+    /// would otherwise hitch the shelf.
     func pruneMissing() {
-        guard Date.now.timeIntervalSince(lastPrune) > 60 else { return }
+        guard !pruning, Date.now.timeIntervalSince(lastPrune) > 60 else { return }
         lastPrune = .now
-        let before = list.urls
-        list.prune(keeping: Self.isKept)
-        guard list.urls != before else { return }
-        for url in before where !list.urls.contains(url) {
-            thumbnails[url] = nil
-            sizes[url] = nil
+        pruning = true
+        let urls = list.urls
+        Task { [weak self] in
+            let missing = await Task.detached(priority: .utility) { Set(urls.filter { !Self.isKept($0) }) }.value
+            guard let self else { return }
+            self.pruning = false
+            guard !missing.isEmpty else { return }
+            self.list.prune { !missing.contains($0) }
+            for url in missing {
+                self.thumbnails[url] = nil
+                self.sizes[url] = nil
+                self.folders.remove(url)
+            }
+            self.save()
         }
-        save()
     }
 
     func remove(_ url: URL) {
         list.remove(url)
         thumbnails[url] = nil
         sizes[url] = nil
+        folders.remove(url)
         save()
     }
 
@@ -78,6 +103,7 @@ final class TrayStore {
         if list.selected.isEmpty { list.removeAll() } else { list.removeSelected() }
         thumbnails = thumbnails.filter { list.urls.contains($0.key) }
         sizes = sizes.filter { list.urls.contains($0.key) }
+        folders = folders.filter(list.urls.contains)
         save()
     }
 
@@ -99,22 +125,23 @@ final class TrayStore {
     func zip(_ urls: [URL]) {
         guard let first = urls.first else { return }
         let folder = first.deletingLastPathComponent()
-        let existing = Set((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
-        let output = folder.appendingPathComponent(ArchiveNaming.name(for: urls, existing: existing))
-
         let names = ArchiveNaming.stagedNames(for: urls)
         Task { [weak self] in
-            let ok = await Self.archive(urls, names: names, to: output)
-            if ok { self?.add([output]) }
+            let output = await Self.archive(urls, names: names, in: folder)
+            if let output { self?.add([output]) }
+            let ok = output != nil
             self?.onNotice(ok ? "doc.zipper" : "xmark.circle.fill", ok ? "Zipped" : "Zip failed")
         }
     }
 
-    /// Off the main thread: copying gigabytes into the staging folder takes a while.
-    /// ditto archives one source, so several files are cloned into a temporary folder first
-    /// (cheap on APFS), which is removed afterwards.
-    private nonisolated static func archive(_ urls: [URL], names: [String], to output: URL) async -> Bool {
+    /// Off the main thread: listing the folder for a free name, and copying gigabytes into the
+    /// staging folder, both take a while. ditto archives one source, so several files are cloned
+    /// into a temporary folder first (cheap on APFS), which is removed afterwards. Returns the
+    /// archive, or nil when it failed.
+    private nonisolated static func archive(_ urls: [URL], names: [String], in parent: URL) async -> URL? {
         let files = FileManager.default
+        let existing = Set((try? files.contentsOfDirectory(atPath: parent.path)) ?? [])
+        let output = parent.appendingPathComponent(ArchiveNaming.name(for: urls, existing: existing))
         var arguments = ["-c", "-k", "--sequesterRsrc"]
         var staging: URL?
         if urls.count == 1, let only = urls.first {
@@ -129,7 +156,7 @@ final class TrayStore {
                 }
             } catch {
                 try? files.removeItem(at: folder)
-                return false
+                return nil
             }
             arguments += [folder.path, output.path]
         }
@@ -138,7 +165,7 @@ final class TrayStore {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
         process.arguments = arguments
-        return await withCheckedContinuation { continuation in
+        let ok = await withCheckedContinuation { continuation in
             process.terminationHandler = { finished in continuation.resume(returning: finished.terminationStatus == 0) }
             do {
                 try process.run()
@@ -147,6 +174,7 @@ final class TrayStore {
                 continuation.resume(returning: false)
             }
         }
+        return ok ? output : nil
     }
 
     private func save() {
@@ -156,7 +184,12 @@ final class TrayStore {
     private func loadThumbnail(_ url: URL) {
         guard thumbnails[url] == nil else { return }
         thumbnails[url] = NSWorkspace.shared.icon(forFile: url.path)
-        if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize { sizes[url] = Int64(size) }
+        Task { [weak self] in
+            let facts = await Task.detached(priority: .utility) { Self.facts(of: url) }.value
+            guard let self, self.list.urls.contains(url) else { return }
+            if let size = facts.size { self.sizes[url] = size }
+            if facts.isFolder { self.folders.insert(url) }
+        }
         let request = QLThumbnailGenerator.Request(
             fileAt: url, size: CGSize(width: 168, height: 168), scale: 2, representationTypes: .thumbnail)
         QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { [weak self] representation, _ in
@@ -169,8 +202,14 @@ final class TrayStore {
         }
     }
 
-    private static func isFolder(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+    private struct FileFacts: Sendable {
+        var size: Int64?
+        var isFolder: Bool
+    }
+
+    private nonisolated static func facts(of url: URL) -> FileFacts {
+        let values = try? url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey])
+        return FileFacts(size: values?.fileSize.map(Int64.init), isFolder: values?.isDirectory == true)
     }
 
     private nonisolated static func exists(_ url: URL) -> Bool {
