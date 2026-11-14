@@ -109,6 +109,38 @@ final class HookTOMLTests: XCTestCase {
         XCTAssertTrue(try HookTOML.commands(in: Data(config.utf8)).isEmpty)
     }
 
+    func testNestedArrayLinesAreNotTableHeaders() throws {
+        let command = HookInstaller.command(helper: helper, file: kimi)
+        let config = """
+            [mcp]
+            servers = [
+                ["fs", "--root", "/tmp"],  # a ] in a comment
+                [ "git" ],
+                "]",
+            ]
+            matrix = [[1, 2],
+              [3, 4]]
+            [[hooks]]
+            event = "Stop"
+            command = "say done"
+            """
+        XCTAssertEqual(HookTOML.split(config).map { $0.first ?? "" }, ["", "[mcp]", "[[hooks]]"])
+        let once = try HookInstaller.install(into: Data(config.utf8), command: command, file: kimi)
+        XCTAssertEqual(try HookTOML.commands(in: once).count, kimi.events.count)
+        XCTAssertEqual(once, try HookInstaller.install(into: once, command: command, file: kimi))
+        XCTAssertEqual(text(try HookInstaller.remove(from: once, file: kimi)), config + "\n")
+    }
+
+    func testAMultilineHooksArrayIsRefused() {
+        let inline = """
+            hooks = [
+                { event = "Stop", command = "say hi" },
+            ]
+            """
+        XCTAssertThrowsError(
+            try HookInstaller.install(into: Data(inline.utf8), command: "'/A/wisp-agent' --source kimi", file: kimi))
+    }
+
     func testVibeTablesHaveNamesAndMatches() throws {
         let command = HookInstaller.command(helper: helper, file: vibe)
         let data = try HookInstaller.install(into: Data(), command: command, file: vibe)
