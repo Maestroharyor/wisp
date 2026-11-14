@@ -337,4 +337,12 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "selected text").contains(.ai))
         XCTAssertTrue(SettingsIndex.panes(matching: "ai action").contains(.notch))
     }
+
+    func testLabelsOnScreenAreFound() {
+        XCTAssertTrue(SettingsIndex.panes(matching: "now playing").contains(.activities))
+        XCTAssertTrue(SettingsIndex.panes(matching: "reduce motion").contains(.appearance))
+        XCTAssertTrue(SettingsIndex.panes(matching: "page switcher").contains(.appearance))
+        XCTAssertTrue(SettingsIndex.panes(matching: "full disk access").contains(.notifications))
+        XCTAssertTrue(SettingsIndex.panes(matching: "engine").contains(.ai))
+    }
 }

@@ -88,7 +88,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "shape", "effects", "edge highlight", "number style", "accent follows", "playing album",
                 "change colour through the day", "change color through the day", "beside the closed notch",
                 "sounds", "shell", "finish", "glass edge", "numbers in", "through the day", "while idle",
-                "match the desktop picture", "tint with the playing album",
+                "match the desktop picture", "tint with the playing album", "motion", "reduce motion",
+                "page switcher",
             ]
         case .activities:
             [
@@ -106,7 +107,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "use wisp for these pop-ups", "pop-ups", "popups", "show more than one activity at once",
                 "more than one activity", "focus changes", "battery warning level", "batteries",
                 "replace system overlays", "system overlays", "split extra activities", "show focus changes",
-                "notifications",
+                "notifications", "now playing",
             ]
         case .shelf:
             [
@@ -125,7 +126,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .notifications:
             [
                 "messages", "imessage", "whatsapp", "telegram", "reply", "banner", "apps", "dismiss",
-                "close", "stay on screen", "duration", "swipe",
+                "close", "stay on screen", "duration", "swipe", "full disk access",
             ]
         case .agents:
             [
@@ -170,6 +171,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "apple intelligence", "foundation models", "ollama", "llm", "language model", "on-device", "local",
                 "localhost", "summarise", "summarize", "translate", "grammar", "rewrite", "action items", "explain",
                 "try it", "translate to", "language", "selection", "selected text", "clipboard actions", "replace",
+                "engine",
             ]
         case .permissions:
             [
