@@ -913,7 +913,8 @@ struct AgentsWidget: View {
             let sessions = SessionOrder.arrange(
                 hub.sessions.list, rules: preferences.sessionOrderRules, now: context.date)
             let hasCloud = !CloudLane.visible(cloud.tasks, now: context.date).isEmpty
-            if sessions.isEmpty && !hasCloud {
+            let monitored = hub.monitor.sessions
+            if sessions.isEmpty && !hasCloud && monitored.isEmpty {
                 if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
@@ -927,6 +928,11 @@ struct AgentsWidget: View {
                             .help("Show the terminal")
                             .modifier(SessionRowMenu(session: session, preferences: preferences))
                         }
+                        ForEach(monitored) { session in
+                            MonitoredSessionRow(session: session, hidden: hub.detailsHidden, size: 13) {
+                                hub.focus(monitored: session)
+                            }
+                        }
                         CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                     }
                 }
@@ -935,7 +941,54 @@ struct AgentsWidget: View {
         .onAppear {
             hub.refreshInstalledIfStale()
             cloud.refreshNow()
+            hub.monitor.viewAppeared()
         }
+        .onDisappear { hub.monitor.viewDisappeared() }
+    }
+}
+
+/// An agent found by its process (`AgentMonitor`): its mark, folder and Running. Wisp knows
+/// nothing more about it, so tapping brings its terminal forward.
+private struct MonitoredSessionRow: View {
+    let session: MonitoredSession
+    let hidden: Bool
+    let size: CGFloat
+    let open: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        // Folder names are session names, which private mode hides.
+        let title = hidden ? session.agent.name : session.project
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 7) {
+                Image(systemName: session.agent.symbol)
+                    .foregroundStyle(Color.project(session.project))
+                    .frame(width: 16)
+                    .font(.system(size: size - 1))
+                TerminalIcon(bundleID: session.terminal, size: size + 1)
+                Text(title).font(.system(size: size, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 4)
+            }
+            Text("\(session.agent.name) · Running")
+                .font(.system(size: size - 2))
+                .foregroundStyle(Color.secondaryText)
+                .lineLimit(1)
+                .padding(.leading, 23)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.project(session.project).opacity(hovering ? 0.18 : 0.08))
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onHover { hovering = $0 }
+        .onTapGesture(perform: open)
+        .help("Show the terminal")
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -944,7 +997,7 @@ private struct ConnectAgentsHint: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Text("See \(ListFormatter.localizedString(byJoining: AgentAdapters.all.map(\.displayName))) sessions here")
+            Text("See your coding agents' sessions here")
                 .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
             // The first adapter is the main one; Settings connects the rest.
             if let main = AgentAdapters.all.first {
@@ -1310,7 +1363,8 @@ struct AgentsDetail: View {
                 }
                 AgentFocusBar(services: model.services, showingHistory: $showingHistory)
                 LimitsHeader(readings: hub.limitReadings)
-                if sessions.isEmpty && CloudLane.visible(cloud.tasks, now: .now).isEmpty {
+                if sessions.isEmpty && CloudLane.visible(cloud.tasks, now: .now).isEmpty && hub.monitor.sessions.isEmpty
+                {
                     if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
@@ -1325,6 +1379,11 @@ struct AgentsDetail: View {
                                     showingHistory = false
                                 }
                                 .modifier(SessionRowMenu(session: session, preferences: preferences))
+                            }
+                            ForEach(hub.monitor.sessions) { session in
+                                MonitoredSessionRow(session: session, hidden: hub.detailsHidden, size: 12) {
+                                    hub.focus(monitored: session)
+                                }
                             }
                             CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                         }
@@ -1357,7 +1416,9 @@ struct AgentsDetail: View {
         .onAppear {
             hub.refreshInstalledIfStale()
             cloud.refreshNow()
+            hub.monitor.viewAppeared()
         }
+        .onDisappear { hub.monitor.viewDisappeared() }
         .onChange(of: selected?.id) { note = nil }
         // Dictation types into the draft box on screen; it's hidden while details are private.
         .onChange(of: hub.detailsHidden ? nil : selected?.id, initial: true) { _, session in

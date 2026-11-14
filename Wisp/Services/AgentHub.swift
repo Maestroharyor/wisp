@@ -126,6 +126,8 @@ final class AgentHub {
     private(set) var queue = ApprovalQueue<UUID>()
     private var pending: [UUID: AgentApproval] = [:]
     @ObservationIgnored private let focuser = TerminalFocuser()
+    /// Agents seen only by their process (`KnownAgents`), shown as Running sessions.
+    let monitor = AgentMonitor()
     @ObservationIgnored private var frontID: UUID?
     /// Keeps one key press to one answer (see `ApprovalKeys.Gate`).
     @ObservationIgnored private var keyGate = ApprovalKeys.Gate()
@@ -1510,6 +1512,13 @@ final class AgentHub {
         focuser.focus(TerminalTarget(context: session.terminalContext, bundleID: session.terminal, cwd: session.cwd))
     }
 
+    /// Brings forward the terminal tab a monitored agent runs in, by its tty, or the app it runs
+    /// in. Without either, opens its folder in Terminal.
+    func focus(monitored session: MonitoredSession) {
+        let context = session.tty.map { TerminalContext(environment: [:], tty: $0) }
+        focuser.focus(TerminalTarget(context: context, bundleID: session.terminal, cwd: session.cwd))
+    }
+
     /// Opens the session's working folder in Finder.
     func openFolder(session id: String) {
         guard let cwd = sessions.session(id)?.cwd, !cwd.isEmpty else { return }
@@ -1660,6 +1669,7 @@ final class AgentHub {
         let tools = hooks.withTools.intersection(hooks.here)
         if tools != toolHooks { toolHooks = tools }
         if hooks.here != connected { connected = hooks.here }
+        monitor.connected = Set(hooks.here.map(\.rawValue))
         if hooks.elsewhere != connectedElsewhere { connectedElsewhere = hooks.elsewhere }
         if hooks.old != outdated { outdated = hooks.old }
     }
@@ -1676,7 +1686,11 @@ final class AgentHub {
         let file = adapter.hookFile
         let url = Self.settingsURL(source)
         let path = file.displayPath
-        let original = (try? Data(contentsOf: url)) ?? Data()
+        let existing = (try? Data(contentsOf: url)) ?? Data()
+        // Droid reads settings.json's hooks only while hooks.json is missing, so creating it
+        // starts from those hooks rather than hiding them.
+        let seed = Self.seed(for: file, at: url)
+        let original = seed ?? existing
         let command = HookInstaller.command(helper: helper.path, file: file, timeout: approvalTimeout)
         let withTools = toolActivity && !file.toolEvents.isEmpty
         guard
@@ -1685,7 +1699,7 @@ final class AgentHub {
                     into: original, command: command, file: file, tools: withTools, timeout: approvalTimeout),
                 file: file, helper: helper.path)
         else {
-            alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
+            alert("Couldn't read \(path)", detail: "Fix the file's \(file.format.syntax), then try again.")
             return false
         }
         let events = file.events.joined(separator: ", ")
@@ -1703,6 +1717,14 @@ final class AgentHub {
         let link =
             (try? HookInstaller.link(in: original, helper: helper.path, file: file, timeout: approvalTimeout))
             ?? HookLink.none
+        let rewrite =
+            file.format.isTOML
+            ? "Wisp's entries go at the end and the rest of the file stays as it is."
+            : "Your other settings and hooks stay as they are, though the file is rewritten with sorted keys."
+        let copied =
+            seed != nil && file.seedPath != nil
+            ? " Your hooks in ~/\(file.seedPath ?? "") are copied in, since \(source.displayName) reads them only while \(path) is missing."
+            : ""
         let confirmed: Bool
         switch link {
         case .none where file.format.isPlugin:
@@ -1718,9 +1740,8 @@ final class AgentHub {
             confirmed = confirm(
                 "Add Wisp's hooks to \(source.displayName)?",
                 detail: """
-                    Wisp adds a command hook for \(events) to \(path).\(tools)\(bar) Your other settings and hooks stay as \
-                    they are, though the file is rewritten with sorted keys. A backup is saved next to it with \
-                    .wisp-backup on the end.\(fallBack)\(trust)
+                    Wisp adds a command hook for \(events) to \(path).\(tools)\(bar) \(rewrite)\(copied) A backup \
+                    is saved next to it with .wisp-backup on the end.\(fallBack)\(trust)
                     """,
                 action: "Add Hooks")
         case .outdated, .this:
@@ -1745,8 +1766,7 @@ final class AgentHub {
                 "Point \(source.displayName)'s hooks at this Wisp?",
                 detail: """
                     Wisp's hooks in \(path) call another copy of Wisp, so this one doesn't see your sessions. \
-                    They'll call this copy instead.\(bar) Your other settings and hooks stay as they are, though \
-                    the file is rewritten with sorted keys.\(trust)
+                    They'll call this copy instead.\(bar) \(rewrite)\(trust)
                     """,
                 action: "Use This Wisp")
         }
@@ -1756,14 +1776,24 @@ final class AgentHub {
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             // The first backup keeps the user's file from before Wisp; later ones would replace it
             // with a copy that already has Wisp's hooks, so `write` keeps those separately.
-            if !original.isEmpty, link == .none {
-                try original.write(to: url.appendingPathExtension("wisp-backup"), options: .atomic)
+            if !existing.isEmpty, link == .none {
+                try existing.write(to: url.appendingPathExtension("wisp-backup"), options: .atomic)
             }
         } catch {
             alert("Couldn't write \(path)", detail: error.localizedDescription)
             return false
         }
         return write(updated, to: url)
+    }
+
+    /// The hooks of the settings file `file` replaces (`HookFile.seedPath`), while `file` doesn't
+    /// exist yet; nil otherwise.
+    private nonisolated static func seed(for file: HookFile, at url: URL) -> Data? {
+        guard let seedPath = file.seedPath, !FileManager.default.fileExists(atPath: url.path),
+            let settings = try? Data(
+                contentsOf: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(seedPath))
+        else { return nil }
+        return HookInstaller.seed(fromSettings: settings)
     }
 
     /// A file that holds the agent's status line (Claude Code's settings) also gets the status
@@ -1780,7 +1810,7 @@ final class AgentHub {
         }
         let statusLine = source.adapter.hookFile.statusLine
         guard let original = try? Data(contentsOf: url),
-            let removed = try? HookInstaller.remove(from: original),
+            let removed = try? HookInstaller.remove(from: original, file: source.adapter.hookFile),
             let updated = statusLine ? try? StatusLineChain.restore(from: removed) : removed
         else { return }
         let detail =
@@ -1881,7 +1911,9 @@ final class AgentHub {
                         into: original, command: command, file: file, tools: tools, timeout: approvalTimeout),
                     file: file, helper: helper.path)
             else {
-                alert("Couldn't read \(file.displayPath)", detail: "Fix the file's JSON, then try again.")
+                alert(
+                    "Couldn't read \(file.displayPath)", detail: "Fix the file's \(file.format.syntax), then try again."
+                )
                 return
             }
             if updated != original { changes.append((url, updated, adapter)) }
@@ -1935,7 +1967,9 @@ final class AgentHub {
                 let updated = try? HookInstaller.install(
                     into: original, command: command, file: file, tools: on, timeout: approvalTimeout)
             else {
-                alert("Couldn't read \(file.displayPath)", detail: "Fix the file's JSON, then try again.")
+                alert(
+                    "Couldn't read \(file.displayPath)", detail: "Fix the file's \(file.format.syntax), then try again."
+                )
                 return false
             }
             if updated != original { changes.append((url, updated, adapter)) }

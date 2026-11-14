@@ -134,8 +134,8 @@ private struct OnboardingView: View {
         case .accessibility: "Your notch, for people who build. Three quick steps and you're set."
         case .opening: "You can change this any time in Settings."
         case .agents:
-            "Watch Claude Code, Codex, Gemini CLI, Copilot CLI, Cursor and OpenCode work. Approve Claude Code, "
-                + "Codex and OpenCode requests from the notch."
+            "Watch your coding agents work. Approve Claude Code, Codex, OpenCode, Qwen Code and Qoder CLI "
+                + "requests from the notch."
         }
     }
 

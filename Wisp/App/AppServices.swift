@@ -695,6 +695,7 @@ final class AppServices {
                     bar: preferences.terminalBarMode,
                     contextAlert: preferences.contextAlert, thresholds: preferences.contextThresholds,
                     privacy: preferences.agentPrivacy, tools: preferences.agentToolActivity,
+                    monitor: preferences.agentMonitor,
                     rules: AgentAlertRules(
                         toolMinutes: preferences.toolAlertMinutes, tools: preferences.toolAlert,
                         nudgeMinutes: preferences.nudgeMinutes, nudges: preferences.nudgeAlert),
@@ -725,6 +726,7 @@ final class AppServices {
         agents.contextThresholds = agentPrefs.thresholds
         agents.privacyMode = agentPrefs.privacy
         agents.toolActivity = agentPrefs.tools
+        agents.monitor.enabled = agentPrefs.monitor
         agents.alertRules = agentPrefs.rules
         agents.dailyBudget = agentPrefs.budget
         agents.spendCap = agentPrefs.spendCap
