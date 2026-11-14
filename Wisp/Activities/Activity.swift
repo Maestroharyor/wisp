@@ -80,6 +80,8 @@ enum Activity: Sendable, Equatable {
     case aiResult(AIResultCard)
     /// An agent session needs a decision: compact a full context, or carry on past the spend cap.
     case agentCallout(AgentCallout)
+    /// What agents did while the user was away, shown once they're back.
+    case agentAway(AwaySummary)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -129,6 +131,7 @@ enum Activity: Sendable, Equatable {
         case .quickIntent: "quickIntent"
         case .aiResult(let card): "aiResult-\(card.id)"
         case .agentCallout(let callout): "agentCallout-\(callout.id)"
+        case .agentAway: "agentAway"
         }
     }
 }

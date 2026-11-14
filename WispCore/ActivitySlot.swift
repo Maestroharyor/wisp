@@ -31,6 +31,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     /// An agent session needs a decision that isn't a request: compact a full context, or
     /// carry on past the spend cap.
     case agentCallout
+    /// What agents did while the user was away, once they're back.
+    case agentAway
 
     /// Ongoing activities sit below every short alert, so a battery or device alert still
     /// shows during a call and then hands the pill back.
@@ -58,6 +60,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         // The user just asked for it, so it shows over a notification; an agent's request still
         // comes first.
         case .quickInput: 51
+        // A summary, so under an agent's callouts and requests.
+        case .agentAway: 52
         // About an agent the user is running, so over notifications; its requests still come first.
         case .agentCallout: 53
         case .agentApproval: 55
@@ -81,7 +85,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     public var isDismissable: Bool {
         switch self {
         case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone,
-            .aiResult, .quickInput, .agentCallout:
+            .aiResult, .quickInput, .agentCallout, .agentAway:
             true
         default: false
         }

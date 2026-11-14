@@ -1308,6 +1308,7 @@ struct AgentsDetail: View {
                     AgentHistoryButton(showing: $showingHistory)
                     PrivacyButton(hub: hub)
                 }
+                AgentFocusBar(services: model.services, showingHistory: $showingHistory)
                 LimitsHeader(readings: hub.limitReadings)
                 if sessions.isEmpty && CloudLane.visible(cloud.tasks, now: .now).isEmpty {
                     if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }

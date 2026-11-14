@@ -49,6 +49,12 @@ enum AutomationPermission {
         }.value
     }
 
+    /// Whether Wisp may already script `bundleID`. Never prompts, so a check can't put macOS's
+    /// question in front of the user.
+    static func isAllowed(_ bundleID: String) async -> Bool {
+        await Task.detached { determine(bundleID, askUserIfNeeded: false) == noErr }.value
+    }
+
     /// `noErr` once allowed; macOS shows its prompt first if it hasn't asked about `bundleID`.
     private nonisolated static func ask(_ bundleID: String) -> OSStatus {
         determine(bundleID, askUserIfNeeded: true)

@@ -151,6 +151,9 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "ready", "monitor only", "capabilities", "keep done sessions for", "done sessions", "pin",
                 "pinned", "unpin all", "hide session", "hidden", "show hidden", "bypass",
                 "line numbers",
+                "quiet hours", "quiet", "schedule", "night", "overnight", "silent",
+                "needs you", "limits", "while you were away",
+                "away summary", "show what happened while i was away", "away card",
                 // Phone alerts, which had their own pane; its name stays a keyword.
                 "phone", "phone alerts", "send agent alerts to my phone", "ntfy", "push", "iphone", "android",
                 "apple watch", "watch", "mobile", "remote", "away", "idle", "locked", "topic", "qr", "send test",

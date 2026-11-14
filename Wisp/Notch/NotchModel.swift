@@ -295,6 +295,7 @@ final class NotchModel {
                 }
                 if case .quickIntent = activity { return .notification(extra: 0) }
                 if case .agentCallout = activity { return .notification(extra: 0) }
+                if case .agentAway = activity { return .notification(extra: 0) }
                 if showsMeetingControls { return .notification(extra: 0) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }
@@ -392,6 +393,7 @@ final class NotchModel {
         if case .notification = activity { return true }
         if case .aiResult = activity { return true }
         if case .agentCallout = activity { return true }
+        if case .agentAway = activity { return true }
         return activity.isMedium
     }
 
