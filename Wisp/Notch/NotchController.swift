@@ -612,6 +612,8 @@ final class NotchController {
     /// rather than closing the shelf.
     func leaveSoloWidget() -> Bool {
         guard machine.phase == .open, model.soloWidget != nil || model.activityDetail != nil else { return false }
+        // The switcher is a quick pick: Esc closes the shelf instead of stepping back to a page.
+        guard model.activityDetail != .sessionSwitcher else { return false }
         model.leaveSolo()
         return true
     }
@@ -640,6 +642,34 @@ final class NotchController {
         model.page = .widgets
         model.soloWidget = widget
         if machine.phase != .open { send(.hotkey) }
+    }
+
+    /// Hyper+G or ⌃⌥⌘G: the session switcher, or closes it when it's already open here. The
+    /// panel takes the keyboard so Up, Down, Return and Esc reach it.
+    func toggleSessionSwitcher() {
+        if machine.phase == .open, model.activityDetail == .sessionSwitcher {
+            dismiss()
+            return
+        }
+        model.switcher.reset()
+        model.show(.detail(.sessionSwitcher), fromPill: true)
+        if machine.phase != .open { send(.hotkey) }
+        panel.makeKey()
+    }
+
+    /// Up, Down and Return while the switcher shows; false leaves the key alone.
+    func handleSwitcherKey(_ keyCode: UInt16) -> Bool {
+        guard machine.phase == .open, model.activityDetail == .sessionSwitcher,
+            let key = SessionSwitcher.key(keyCode)
+        else { return false }
+        let ids = model.switcherSessions.map(\.id)
+        switch key {
+        case .up: model.switcher.move(-1, in: ids)
+        case .down: model.switcher.move(1, in: ids)
+        case .jump:
+            if let id = model.switcher.selected(in: ids) { model.jumpFromSwitcher(to: id) }
+        }
+        return true
     }
 
     /// Another account is in front: the panel goes until this one is back.

@@ -109,6 +109,9 @@ final class QuietHoursTests: XCTestCase {
         XCTAssertEqual(AgentSoundEvent.contextWarning.group, .limits)
         XCTAssertEqual(AgentSoundEvent.contextCritical.group, .limits)
         XCTAssertEqual(AgentSoundEvent.spendCap.group, .limits)
+        XCTAssertEqual(AgentSoundEvent.limitWarning.group, .limits)
+        XCTAssertEqual(AgentSoundEvent.limitReached.group, .limits)
+        XCTAssertEqual(AgentSoundEvent.limitReset.group, .limits)
     }
 
     func testEveryPushKindBelongsToAGroup() {

@@ -701,7 +701,11 @@ final class AppServices {
                         nudgeMinutes: preferences.nudgeMinutes, nudges: preferences.nudgeAlert),
                     budget: preferences.budgetAlert ? preferences.dailyBudget : nil,
                     spendCap: preferences.spendCap ? preferences.spendCapAmount : nil,
-                    limits: preferences.limitAlert, awake: preferences.agentKeepAwake,
+                    limits: (
+                        level: preferences.limitAlert, threshold: preferences.limitThreshold,
+                        exhausted: preferences.limitExhaustedAlert, reset: preferences.limitResetAlert
+                    ),
+                    awake: preferences.agentKeepAwake,
                     approvalTimeout: preferences.approvalTimeout,
                     push: (
                         enabled: preferences.pushEnabled, kinds: preferences.pushKinds, mode: preferences.pushMode,
@@ -726,7 +730,10 @@ final class AppServices {
         agents.alertRules = agentPrefs.rules
         agents.dailyBudget = agentPrefs.budget
         agents.spendCap = agentPrefs.spendCap
-        agents.limitAlerts = agentPrefs.limits
+        agents.limitAlerts = agentPrefs.limits.level
+        agents.limitThreshold = Double(agentPrefs.limits.threshold)
+        agents.limitExhaustedAlerts = agentPrefs.limits.exhausted
+        agents.limitResetAlerts = agentPrefs.limits.reset
         agents.approvalTimeout = agentPrefs.approvalTimeout
         push.apply(
             kinds: agentPrefs.push.kinds, mode: agentPrefs.push.mode, idleMinutes: agentPrefs.push.idle,

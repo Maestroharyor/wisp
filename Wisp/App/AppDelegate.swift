@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onProfileDigit = { [weak self] digit in self?.services.context.choose(digit: digit) }
         hotkeys.onRing = { [weak self] in self?.services.ring.toggle(at: NSEvent.mouseLocation) }
         hotkeys.onCycleForm = { [weak self] in self?.services.cycleForm() }
+        hotkeys.onSessionSwitcher = { [weak self] in self?.coordinator.toggleSessionSwitcher() }
         hotkeys.onApprovalKey = { [weak self] keyCode in
             guard let services = self?.services else { return false }
             // Out of sight (a HUD over the card): swallowed and ignored, so it neither answers
