@@ -7,12 +7,17 @@ import WispCore
 @MainActor
 final class OnboardingWindowController {
     private var window: NSWindow?
+    private var closeObserver: NSObjectProtocol?
     private let services: AppServices
     /// Long enough for the setup window to go before the shelf opens.
     private static let shelfDelay = Duration.milliseconds(400)
 
     init(services: AppServices) {
         self.services = services
+    }
+
+    isolated deinit {
+        if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
     }
 
     func show() {
@@ -35,7 +40,8 @@ final class OnboardingWindowController {
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         // The close button counts as finishing; otherwise setup would return on every launch.
-        NotificationCenter.default.addObserver(
+        if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+        closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.finish() }
