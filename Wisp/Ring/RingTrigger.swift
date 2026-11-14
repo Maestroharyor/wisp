@@ -11,12 +11,15 @@ final class RingTrigger {
         case off
         case active
         case needsAccessibility
+        /// Accessibility is granted but macOS refused the mouse tap.
+        case unavailable
 
         var message: String {
             switch self {
             case .off: "Off"
             case .active: "Active"
             case .needsAccessibility: "Waiting for Accessibility access"
+            case .unavailable: "Could not watch the mouse button"
             }
         }
     }
@@ -34,6 +37,7 @@ final class RingTrigger {
         }
         tap.onMove = { [weak self] point in self?.services.ring.pointerMoved(to: point) }
         tap.onRelease = { [weak self] point in self?.services.ring.released(at: point) }
+        tap.onCancel = { [weak self] in self?.services.ring.cancelHold() }
     }
 
     func start() {
@@ -48,17 +52,19 @@ final class RingTrigger {
             status = .off
             return
         }
-        if tap.start(button: number) {
-            status = .active
+        // The tap needs Accessibility; start once it's granted rather than failing silently.
+        // Checking trust first matters: waiting returns at once when trusted, so a tap that
+        // fails anyway would retry in a tight loop.
+        guard AccessibilityPermission.isTrusted else {
+            status = .needsAccessibility
+            accessWaiter = Task { [weak self] in
+                await AccessibilityPermission.waitUntilTrusted()
+                guard !Task.isCancelled else { return }
+                self?.configure()
+            }
             return
         }
-        // The tap needs Accessibility; start once it's granted rather than failing silently.
-        status = .needsAccessibility
-        accessWaiter = Task { [weak self] in
-            await AccessibilityPermission.waitUntilTrusted()
-            guard !Task.isCancelled else { return }
-            self?.configure()
-        }
+        status = tap.start(button: number) ? .active : .unavailable
     }
 
     private func observe() {

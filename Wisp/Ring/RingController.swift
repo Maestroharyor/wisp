@@ -127,6 +127,12 @@ final class RingController {
         if isVisible { hide() } else { show(at: point) }
     }
 
+    /// The button's release was lost (its tap was switched off mid-hold): the ring stays open
+    /// for clicking, and a click elsewhere puts it away again.
+    func cancelHold() {
+        holding = false
+    }
+
     /// The mouse button that opened the ring went up: a hold picks, a quick press stays open.
     func released(at point: CGPoint) {
         guard holding, isVisible else { return }
@@ -286,7 +292,6 @@ final class RingController {
         }
         let view = RingView(
             model: model,
-            reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
             onHover: { [weak self] hit, distance in self?.hovered(hit, distance: distance) },
             onPick: { [weak self] hit, files in self?.pick(hit, files: files) })
         panel.contentView = NSHostingView(rootView: view)

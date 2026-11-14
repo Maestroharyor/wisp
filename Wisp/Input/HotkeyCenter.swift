@@ -115,8 +115,12 @@ final class HotkeyCenter {
         clipboardCarbon.unregister()
         ringCarbon.unregister()
         switcherCarbon.unregister()
+        // Carbon gives a shortcut to whoever registers it first, so one Wisp already uses
+        // counts as taken rather than stealing it from the shelf or a fallback.
         if let ringHotkey = preferences.ringHotkey {
-            ringHotkeyTaken = !ringCarbon.register(ringHotkey) { [weak self] in self?.onRing() }
+            ringHotkeyTaken =
+                Hotkey.reservedByWisp(shelf: preferences.hotkey).contains(ringHotkey)
+                || !ringCarbon.register(ringHotkey) { [weak self] in self?.onRing() }
         } else {
             ringHotkeyTaken = false
         }

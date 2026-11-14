@@ -6,7 +6,8 @@ import WispCore
 /// Opening, the disc springs up and the wedges fly out in turn; closing runs it backwards.
 struct RingView: View {
     let model: RingModel
-    let reduceMotion: Bool
+    /// Read live, since the panel is built once and kept.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onHover: @MainActor (RingHit, CGFloat) -> Void
     let onPick: @MainActor (RingHit, [URL]) -> Void
 

@@ -58,4 +58,16 @@ final class HotkeyTests: XCTestCase {
         XCTAssertEqual(Hotkey.clipboardFallback.description, "⌥⇧⌘V")
         XCTAssertFalse(Hotkey.clipboardFallback.usesHyper)
     }
+
+    func testWispReservesItsOwnShortcuts() {
+        let shelf = Hotkey(keyCode: KeyCodes.space, modifiers: [.control, .option])
+        let reserved = Hotkey.reservedByWisp(shelf: shelf)
+        XCTAssertTrue(reserved.contains(shelf))
+        XCTAssertTrue(reserved.contains(Hotkey.clipboardFallback))
+        XCTAssertTrue(reserved.contains(Hotkey.switcherFallback))
+        XCTAssertTrue(reserved.contains(Hotkey(keyCode: ApprovalKeys.yes, modifiers: ApprovalKeys.fallbackModifiers)))
+        XCTAssertTrue(
+            reserved.contains(Hotkey(keyCode: ApprovalKeys.digits[8], modifiers: [.control, .option, .command])))
+        XCTAssertFalse(reserved.contains(Hotkey(keyCode: KeyCodes.r, modifiers: [.control, .option])))
+    }
 }

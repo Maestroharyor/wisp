@@ -165,6 +165,9 @@ final class RingConfigTests: XCTestCase {
         XCTAssertEqual(RingAction(.timer, value: "10").minutes, 10)
         XCTAssertEqual(RingAction(.timer).minutes, 25)
         XCTAssertEqual(RingAction(.timer, value: "abc").minutes, 25)
+        // A hand-edited setting can't start a timer longer than a link could, or overflow.
+        XCTAssertEqual(RingAction(.timer, value: "999999999999999999").minutes, 180)
+        XCTAssertEqual(RingAction(.timer, value: "-4").minutes, 1)
         XCTAssertEqual(RingAction(.timer, value: "10").title, "10 min timer")
     }
 }
