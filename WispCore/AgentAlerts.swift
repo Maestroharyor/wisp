@@ -1,10 +1,23 @@
 import Foundation
 
+/// The idle nudge: once a request or a Needs you has waited this long, Wisp nudges once more
+/// (a sound, a pulse of the minimised pill, a quiet line beside the notch, the phone with push
+/// on). `AgentAlerts` times it, once per wait.
+public enum IdleNudge {
+    public static let defaultMinutes = 5
+    public static let minutesRange = 1...30
+
+    /// "Claude Code has waited 5 min".
+    public static func text(agent: String, minutes: Int) -> String {
+        "\(agent) has waited \(minutes) min"
+    }
+}
+
 /// The timed alerts' limits and which are on. A limit is kept while its alert is off, so
 /// what's already past it can be told apart from what isn't when the alert is turned on.
 public struct AgentAlertRules: Equatable, Sendable {
     public static let defaultToolMinutes = 5
-    public static let defaultNudgeMinutes = 3
+    public static let defaultNudgeMinutes = IdleNudge.defaultMinutes
 
     /// A single tool call running longer than this.
     public var toolMinutes: Int

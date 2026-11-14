@@ -97,7 +97,7 @@ public enum PermissionRule {
 
     // MARK: Bash
 
-    private struct Word {
+    struct Word {
         /// The word as the shell sees it, quotes removed.
         var text = ""
         /// The word as written.
@@ -105,12 +105,12 @@ public enum PermissionRule {
         var quoted = false
     }
 
-    private struct Part {
+    struct Part {
         var words: [Word] = []
         var redirects = false
     }
 
-    private enum Outcome: Equatable {
+    enum Outcome: Equatable {
         case skip
         case rule(String)
         /// No safe rule, so nothing can cover the whole call.
@@ -163,11 +163,17 @@ public enum PermissionRule {
         "select", "in", "{", "}", "[[", "]]", "!",
     ]
 
-    private static func rule(for part: Part) -> Outcome {
+    /// The part's words after the wrappers Claude Code strips before matching (`time`, `nohup`).
+    static func strippedWords(_ part: Part) -> [Word] {
         var words = part.words
         while let first = words.first, !first.quoted, isStrippedWrapper(first.text, next: words.dropFirst().first) {
             words.removeFirst()
         }
+        return words
+    }
+
+    static func rule(for part: Part) -> Outcome {
+        let words = strippedWords(part)
         guard let first = words.first else { return .none }
         if !first.quoted, keywords.contains(first.text) { return .none }
         // `cd` within the project needs no approval, and a rule for it would cover nothing.
@@ -224,7 +230,7 @@ public enum PermissionRule {
     /// Splits a command into its parts the way Claude Code's separators do. Nil for anything
     /// Wisp can't read with confidence: substitutions, subshells, heredocs, comments,
     /// unclosed quotes and separators with nothing after them.
-    private static func parts(_ command: String) -> [Part]? {
+    static func parts(_ command: String) -> [Part]? {
         let chars = Array(command)
         var parts: [Part] = []
         var part = Part()

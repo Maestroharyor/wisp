@@ -64,3 +64,14 @@ public enum ContextUsage {
         "\(Int(percent.rounded()))% · \(project)"
     }
 }
+
+/// The slash command that compacts an agent's conversation, which "Compact now" pastes into
+/// its terminal. Claude Code and Codex both have `/compact` (Codex's slash command list,
+/// checked 2026-11-14; it runs only between turns, so it waits in the composer until then).
+public enum CompactCommand {
+    public static let text = "/compact"
+
+    public static func supported(_ source: AgentSource) -> Bool {
+        source == .claude || source == .codex
+    }
+}

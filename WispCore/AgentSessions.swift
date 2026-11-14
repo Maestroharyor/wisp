@@ -78,6 +78,8 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     public var contextSize: Int?
     /// The context alert fired and hasn't re-armed yet.
     public var contextAlerted = false
+    /// The same for the critical level, which offers Compact now.
+    public var contextCriticalAlerted = false
     public var compacting = false
     public var linesAdded = 0
     public var linesRemoved = 0
@@ -503,6 +505,16 @@ public struct AgentSessions: Sendable {
         let result = ContextUsage.alert(
             percent: session.contextPercent, threshold: threshold, alerted: session.contextAlerted)
         session.contextAlerted = result.alerted
+        sessions[id] = session
+        return result.fire ? session.contextPercent : nil
+    }
+
+    /// The context percentage to offer compacting at, once per climb past the critical `threshold`.
+    public mutating func contextCriticalAlert(session id: String, threshold: Double) -> Double? {
+        guard var session = sessions[id] else { return nil }
+        let result = ContextUsage.alert(
+            percent: session.contextPercent, threshold: threshold, alerted: session.contextCriticalAlerted)
+        session.contextCriticalAlerted = result.alerted
         sessions[id] = session
         return result.fire ? session.contextPercent : nil
     }

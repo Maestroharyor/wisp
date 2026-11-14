@@ -7,11 +7,14 @@ import os
 /// Finished agent sessions, kept in Application Support so the history survives relaunches, and
 /// their on-device summaries. Records hold figures, tool counts, masked commands and file names,
 /// never prompts, messages, file contents or command output (see `SessionRecord`). The file is
-/// read and written off the main actor; writes are gathered for a second.
+/// read and written off the main actor; writes are gathered for a second. Approvals and how they
+/// ended are kept beside it, in their own file (see `ApprovalRecord`).
 @MainActor
 @Observable
 final class AgentHistoryStore {
     private(set) var history = SessionHistory()
+    /// The last week of permission requests and how each ended.
+    private(set) var approvals = ApprovalLog()
 
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let ai: AIService
@@ -25,14 +28,24 @@ final class AgentHistoryStore {
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var writeTask: Task<Void, Never>?
     private static let writeDelay: Duration = .seconds(1)
+    @ObservationIgnored private let approvalFile: HistoryFile<ApprovalLog>
+    @ObservationIgnored private var approvalsLoaded = false
+    @ObservationIgnored private var approvalsClearedBeforeLoad = false
+    @ObservationIgnored private var approvalGeneration = 0
+    @ObservationIgnored private var approvalWriteTask: Task<Void, Never>?
 
     init(preferences: Preferences, ai: AIService, folder: URL = AgentHistoryStore.folder) {
         self.preferences = preferences
         self.ai = ai
-        file = AgentHistoryFile(folder: folder)
+        file = AgentHistoryFile(folder: folder, name: "history.json")
+        approvalFile = HistoryFile(folder: folder, name: "approvals.json")
         Task { [weak self, file] in
             let saved = await file.load(now: .now)
             self?.finishLoading(saved)
+        }
+        Task { [weak self, approvalFile] in
+            let saved = await approvalFile.load(now: .now)
+            self?.finishLoadingApprovals(saved)
         }
     }
 
@@ -81,6 +94,16 @@ final class AgentHistoryStore {
         removed.formUnion(history.records.map(\.id))
         history.clear()
         scheduleWrite()
+        if !approvalsLoaded { approvalsClearedBeforeLoad = true }
+        approvals.clear()
+        scheduleApprovalWrite()
+    }
+
+    /// Keeps how a request ended, while history is on.
+    func record(_ approval: ApprovalRecord) {
+        guard preferences.agentHistory else { return }
+        approvals.add(approval, now: .now)
+        scheduleApprovalWrite()
     }
 
     /// Writes the latest history now, on this thread, unless a write of it already finished, so
@@ -88,6 +111,7 @@ final class AgentHistoryStore {
     /// Before the launch read has finished, the file is read here and the changes merged onto it,
     /// so neither is lost.
     func flush() {
+        flushApprovals()
         guard generation > 0 else { return }
         writeTask?.cancel()
         writeTask = nil
@@ -133,12 +157,76 @@ final class AgentHistoryStore {
             self.file.write(self.encoded(), generation: self.generation)
         }
     }
+
+    // MARK: Approvals
+
+    private func flushApprovals() {
+        guard approvalGeneration > 0 else { return }
+        approvalWriteTask?.cancel()
+        approvalWriteTask = nil
+        if !approvalsLoaded {
+            approvals = mergedApprovals(onto: approvalFile.readNow(now: .now))
+            approvalsLoaded = true
+        }
+        approvalFile.writeNow(encodedApprovals(), generation: approvalGeneration)
+    }
+
+    private func encodedApprovals() -> Data? {
+        approvals.records.isEmpty ? nil : try? JSONEncoder().encode(approvals)
+    }
+
+    /// Requests recorded before the file was read go on top of it.
+    private func mergedApprovals(onto saved: ApprovalLog) -> ApprovalLog {
+        var merged = approvalsClearedBeforeLoad ? ApprovalLog() : saved
+        let known = Set(merged.records.map(\.id))
+        for record in approvals.records where !known.contains(record.id) { merged.add(record, now: .now) }
+        return merged
+    }
+
+    private func finishLoadingApprovals(_ saved: ApprovalLog) {
+        guard !approvalsLoaded else { return }
+        approvals = mergedApprovals(onto: saved)
+        approvalsLoaded = true
+        if approvalWriteTask != nil {
+            approvalWriteTask?.cancel()
+            approvalWriteTask = nil
+            scheduleApprovalWrite()
+        }
+    }
+
+    private func scheduleApprovalWrite() {
+        approvalGeneration += 1
+        guard approvalWriteTask == nil else { return }
+        approvalWriteTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.writeDelay)
+            guard let self, !Task.isCancelled, self.approvalsLoaded else { return }
+            self.approvalWriteTask = nil
+            self.approvalFile.write(self.encodedApprovals(), generation: self.approvalGeneration)
+        }
+    }
 }
 
-/// The history file, read and written on a serial queue away from the main actor. Each write
+/// A history kept in a file: the session history or the approval log.
+protocol StoredHistory: Codable, Sendable {
+    static var empty: Self { get }
+    /// The saved file, pruned; throws only when the file as a whole can't be read.
+    static func decode(_ data: Data, now: Date) throws -> Self
+}
+
+extension SessionHistory: StoredHistory {
+    static var empty: SessionHistory { SessionHistory() }
+}
+
+extension ApprovalLog: StoredHistory {
+    static var empty: ApprovalLog { ApprovalLog() }
+}
+
+typealias AgentHistoryFile = HistoryFile<SessionHistory>
+
+/// A history file, read and written on a serial queue away from the main actor. Each write
 /// carries the history's generation, and one older than the last written is dropped, so a
 /// queued write can't replace what `writeNow` saved at quit.
-final class AgentHistoryFile: Sendable {
+final class HistoryFile<Value: StoredHistory>: Sendable {
     let folder: URL
     let url: URL
     private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "agent-history")
@@ -146,12 +234,12 @@ final class AgentHistoryFile: Sendable {
     /// Held while writing, so writes never interleave and an older one never lands last.
     private let gate = OSAllocatedUnfairLock(initialState: WriteGate())
 
-    init(folder: URL) {
+    init(folder: URL, name: String) {
         self.folder = folder
-        url = folder.appendingPathComponent("history.json")
+        url = folder.appendingPathComponent(name)
     }
 
-    func load(now: Date) async -> SessionHistory {
+    func load(now: Date) async -> Value {
         await withCheckedContinuation { continuation in
             queue.async { continuation.resume(returning: self.read(now: now)) }
         }
@@ -167,7 +255,7 @@ final class AgentHistoryFile: Sendable {
     }
 
     /// Reads on the caller's thread; for quitting before the launch read finished.
-    func readNow(now: Date) -> SessionHistory {
+    func readNow(now: Date) -> Value {
         read(now: now)
     }
 
@@ -178,19 +266,20 @@ final class AgentHistoryFile: Sendable {
         }
     }
 
-    /// The saved history, or an empty one. A file that can't be read at all is moved to
-    /// `history.json.bak`, so the next write doesn't replace it.
-    private func read(now: Date) -> SessionHistory {
-        guard let data = try? Data(contentsOf: url) else { return SessionHistory() }
+    /// The saved history, or an empty one. A file that can't be read at all is moved aside with
+    /// `.bak` on the end, so the next write doesn't replace it.
+    private func read(now: Date) -> Value {
+        guard let data = try? Data(contentsOf: url) else { return Value.empty }
         do {
-            return try SessionHistory.decode(data, now: now)
+            return try Value.decode(data, now: now)
         } catch {
+            let name = url.lastPathComponent
             log.error(
-                "agent history unreadable, kept as history.json.bak: \(error.localizedDescription, privacy: .public)")
-            let backup = folder.appendingPathComponent("history.json.bak")
+                "\(name, privacy: .public) unreadable, kept as .bak: \(error.localizedDescription, privacy: .public)")
+            let backup = url.appendingPathExtension("bak")
             try? FileManager.default.removeItem(at: backup)
             try? FileManager.default.moveItem(at: url, to: backup)
-            return SessionHistory()
+            return Value.empty
         }
     }
 
@@ -207,7 +296,8 @@ final class AgentHistoryFile: Sendable {
             try data.write(to: url, options: .atomic)
             try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         } catch {
-            log.error("could not save agent history: \(error.localizedDescription, privacy: .public)")
+            let name = url.lastPathComponent
+            log.error("could not save \(name, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 }

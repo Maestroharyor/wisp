@@ -175,6 +175,7 @@ struct SettingsView: View {
         case .agents:
             AgentSettings(
                 hub: services.agents, cloud: services.cloud, history: services.agentHistory, push: services.push,
+                sounds: services.sounds,
                 preferences: preferences)
         case .ai: AISettings(ai: services.ai, preferences: preferences)
         case .permissions: PermissionSettings(model: model)

@@ -104,6 +104,14 @@ final class AppServices {
     /// time limit comes first sends it.
     @ObservationIgnored private var donePending: Set<UUID> = []
     private static let summaryWait: Duration = .seconds(20)
+    /// Seconds a Compact now card stays, long enough to reach for its button.
+    private static let calloutDuration: TimeInterval = 12
+    /// The callout slot holds the spend cap card, which waits for a choice.
+    @ObservationIgnored private var showsSpendCap = false
+    /// Keeps a burst of agent moments to one sound each.
+    @ObservationIgnored private var soundRule = SoundRule()
+    /// A Focus is on, as read from the Focus database (needs Full Disk Access, as notifications do).
+    @ObservationIgnored private var focusOn = false
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -253,10 +261,47 @@ final class AppServices {
         }
     }
 
-    /// The sound and tap for something an agent needs from the user.
-    private func needsYouFeedback() {
-        sounds.play(.alert, fallback: "Tink")
-        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+    /// Shows the session at the spend cap, or takes the card away once every one has a choice.
+    /// It stays until answered, since that session's requests wait on it.
+    private func spendCapChanged(_ prompt: SpendCapPrompt?) {
+        guard let prompt else {
+            guard showsSpendCap else { return }
+            showsSpendCap = false
+            activities.remove(.agentCallout)
+            return
+        }
+        showsSpendCap = true
+        let callout = AgentCallout(
+            sessionID: prompt.sessionID, project: prompt.project, source: prompt.source,
+            kind: .spendCap(prompt.crossing, estimated: prompt.estimated))
+        activities.post(.agentCallout(callout), slot: .agentCallout, duration: nil)
+    }
+
+    /// A session still waiting after the nudge limit: its sound again, a quiet line beside the
+    /// notch for a prompt in the terminal (a request's pill says it instead, see `ApprovalNudge`),
+    /// and the phone with push on.
+    private func idleNudge(_ moment: IdleNudgeMoment) {
+        agentSound(moment.request?.prompt == .question ? .question : .needsApproval, session: moment.sessionID)
+        if moment.request == nil {
+            let text = IdleNudge.text(agent: moment.source.displayName, minutes: moment.minutes)
+            activities.post(.notice(symbol: "hourglass", text: text), slot: .notice, duration: 3)
+        }
+        push.moment(
+            .waited(session: moment.sessionID, project: moment.project, source: moment.source, minutes: moment.minutes))
+    }
+
+    /// An agent moment's sound from Settings › Agents › Sounds, once per burst (`SoundRule`), and
+    /// quiet during a call or Focus when that's on. Requests and questions also tap the trackpad.
+    private func agentSound(_ event: AgentSoundEvent, session: String?) {
+        let settings = preferences.agentSounds
+        guard
+            let source = soundRule.sound(
+                for: event, session: session, settings: settings, muted: agents.onCall || focusOn, now: .now)
+        else { return }
+        sounds.play(source, volume: settings.volume)
+        if event == .needsApproval || event == .question {
+            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+        }
     }
 
     /// Holds off system sleep while an agent works, when that's on. While held it looks again
@@ -341,8 +386,8 @@ final class AppServices {
         case .running, .needsApproval: activities.post(.agent(status), slot: .agent, duration: nil)
         case .finished:
             if changed {
+                // Its sound is the Finished agent sound, from the hub.
                 finishes += 1
-                sounds.play(.done)
                 celebrate(.agentDone(duration: Date.now.timeIntervalSince(status.started)))
             }
             activities.post(.agent(status), slot: .agent, duration: 4)
@@ -461,20 +506,27 @@ final class AppServices {
         }
         agents.onMoment = { [weak self] moment in self?.push.moment(moment) }
         agents.onRecord = { [weak self] record, ended in self?.agentRecorded(record, ended: ended) }
+        agents.onApprovalRecord = { [weak self] record in self?.agentHistory.record(record) }
+        agents.recentRequests = { [weak self] in
+            self?.agentHistory.approvals.recentToolRequests(RuleSuggestion.window) ?? []
+        }
         // Features read `ai.isReady` to decide whether to offer AI, so check at launch and on wake.
         ai.start()
         activities.onRemove = { [weak self] slot in
             // Closing the AI card stops the request it was waiting on.
             if slot == .aiResult { self?.aiActions.cancel() }
+            // Closing the spend cap card without a choice lets the session keep going.
+            if slot == .agentCallout, self?.showsSpendCap == true {
+                self?.showsSpendCap = false
+                self?.agents.dismissSpendCap()
+            }
         }
         agents.onNewRequest = { [weak self] in
             // A new request always shows full size, even behind a minimised one.
             _ = self?.restoreApprovals()
-            guard self?.preferences.approvalSound == true else { return }
-            self?.needsYouFeedback()
         }
-        // The reminder has its own switch, so it doesn't depend on the request sound.
-        agents.onReminder = { [weak self] in self?.needsYouFeedback() }
+        agents.onSound = { [weak self] event, session in self?.agentSound(event, session: session) }
+        agents.onNudge = { [weak self] moment in self?.idleNudge(moment) }
         agents.onAlert = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 3)
         }
@@ -485,6 +537,15 @@ final class AppServices {
             self?.activities.post(
                 .notice(symbol: "gauge.with.dots.needle.67percent", text: text), slot: .notice, duration: 3)
         }
+        agents.onContextCritical = { [weak self] session, percent in
+            // The spend cap card waits on a choice; it isn't replaced.
+            guard let self, !self.showsSpendCap else { return }
+            let callout = AgentCallout(
+                sessionID: session.id, project: session.project, source: session.source,
+                kind: .compact(percent: percent, canCompact: CompactCommand.supported(session.source)))
+            self.activities.post(.agentCallout(callout), slot: .agentCallout, duration: Self.calloutDuration)
+        }
+        agents.onSpendCap = { [weak self] prompt in self?.spendCapChanged(prompt) }
         automation.start()
         agents.start()
 
@@ -538,6 +599,7 @@ final class AppServices {
         notifications.onNotification = { [weak self] item in self?.showNotification(item) }
         notifications.onFocusState = { [weak self] state in
             self?.context.update { $0.focus = state.isOn ? state.name : nil }
+            self?.focusOn = state.isOn
         }
         notifications.onFocusChange = { [weak self] state in
             self?.activities.post(.focus(state), slot: .focus, duration: 2.2)
@@ -569,6 +631,7 @@ final class AppServices {
                         toolMinutes: preferences.toolAlertMinutes, tools: preferences.toolAlert,
                         nudgeMinutes: preferences.nudgeMinutes, nudges: preferences.nudgeAlert),
                     budget: preferences.budgetAlert ? preferences.dailyBudget : nil,
+                    spendCap: preferences.spendCap ? preferences.spendCapAmount : nil,
                     limits: preferences.limitAlert, awake: preferences.agentKeepAwake,
                     approvalTimeout: preferences.approvalTimeout,
                     push: (
@@ -592,6 +655,7 @@ final class AppServices {
         agents.toolActivity = agentPrefs.tools
         agents.alertRules = agentPrefs.rules
         agents.dailyBudget = agentPrefs.budget
+        agents.spendCap = agentPrefs.spendCap
         agents.limitAlerts = agentPrefs.limits
         agents.approvalTimeout = agentPrefs.approvalTimeout
         push.apply(

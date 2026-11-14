@@ -32,6 +32,12 @@ extension AgentHub {
         return PermissionRule.suggest(tool: tool, input: event.rawToolInput, cwd: event.cwd)
     }
 
+    /// The rule choices for a tool request's card menu, narrowest first (`RuleSuggestion`).
+    static func ruleChoices(_ event: AgentEvent) -> [[String]] {
+        guard writesRules(event.source), event.prompt == .tool, let tool = event.toolName else { return [] }
+        return RuleSuggestion.choices(tool: tool, input: event.rawToolInput, cwd: event.cwd)
+    }
+
     /// The settings file for `scope`; nil for a project whose folder isn't known.
     static func rulesPath(_ scope: RuleScope, cwd: String) -> String? {
         PermissionRulesFile.path(
@@ -58,6 +64,14 @@ extension AgentHub {
     func removeRule(_ rule: String, from file: RulesFile) throws {
         let url = URL(fileURLWithPath: file.path)
         try Self.save(try PermissionRulesFile.removing(rule, from: try Self.existing(url)), to: url, scope: file.scope)
+    }
+
+    /// Swaps an allow rule for its edited form in one write. The edited rule goes at the end of
+    /// the list; Claude Code doesn't depend on the order of allow rules.
+    func replaceRule(_ rule: String, with edited: String, in file: RulesFile) throws {
+        let url = URL(fileURLWithPath: file.path)
+        let without = try PermissionRulesFile.removing(rule, from: try Self.existing(url))
+        try Self.save(try PermissionRulesFile.adding([edited], to: without), to: url, scope: file.scope)
     }
 
     /// User settings keep Wisp's copies beside them; a project's local file is replaced

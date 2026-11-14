@@ -114,6 +114,8 @@ public enum DonePush {
 /// through the hub's queue instead, since they need a reply.
 public enum AgentMoment: Equatable, Sendable {
     case needsYou(session: String, project: String, source: AgentSource)
+    /// The idle nudge: still waiting after `minutes`. Sent under Needs you.
+    case waited(session: String, project: String, source: AgentSource, minutes: Int)
     /// `summary` is the on-device AI's summary of the session, when there is one.
     case done(session: String, project: String, source: AgentSource, summary: String? = nil)
     /// Wisp's own notice text for a usage window or the daily budget.
@@ -123,7 +125,7 @@ public enum AgentMoment: Equatable, Sendable {
 
     public var kind: PushKind {
         switch self {
-        case .needsYou: .needsYou
+        case .needsYou, .waited: .needsYou
         case .done: .done
         case .limit: .limit
         case .budget: .budget
@@ -135,6 +137,8 @@ public enum AgentMoment: Equatable, Sendable {
     public var key: String {
         switch self {
         case .needsYou(let session, _, _), .done(let session, _, _, _): session
+        // Not the Needs you key, so a nudge minutes later isn't taken for a repeat of it.
+        case .waited(let session, _, _, _): "waited|" + session
         case .limit(let text), .budget(let text): text
         case .cloud(let event): event.kind.rawValue + "|" + event.task.id
         }
@@ -146,6 +150,8 @@ public enum AgentMoment: Equatable, Sendable {
         switch self {
         case .needsYou(_, let project, let source):
             PushMessage.needsYou(agent: source.displayName, project: project, hidden: hidden)
+        case .waited(_, let project, let source, let minutes):
+            PushMessage.waited(agent: source.displayName, project: project, minutes: minutes, hidden: hidden)
         case .done(_, let project, let source, let summary):
             PushMessage.done(
                 agent: source.displayName, project: project, hidden: hidden, summary: summary,
