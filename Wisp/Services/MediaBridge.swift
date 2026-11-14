@@ -107,6 +107,8 @@ final class MediaBridge {
         process?.terminate()
         process = nil
         detachPipes()
+        // Half a line left from this bridge would be glued onto the next one's first line.
+        buffer.removeAll()
     }
 
     private func detachPipes() {

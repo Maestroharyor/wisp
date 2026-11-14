@@ -922,6 +922,8 @@ final class AppServices {
 
     private func mediaChanged(_ info: NowPlayingInfo?) {
         context.update { $0.mediaPlaying = info?.isPlaying ?? false }
+        // Nothing left to control: an empty card shouldn't sit on the lock screen until unlock.
+        if info == nil { lockScreenPlayer.hide() }
         if preferences.mediaActivity, info?.isPlaying == true {
             activities.post(.media, slot: .media, duration: nil)
         } else {
