@@ -106,6 +106,8 @@ final class AppServices {
     private static let summaryWait: Duration = .seconds(20)
     /// Seconds a Compact now card stays, long enough to reach for its button.
     private static let calloutDuration: TimeInterval = 12
+    /// The callout slot holds the spend cap card, which waits for a choice.
+    @ObservationIgnored private var showsSpendCap = false
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -253,6 +255,22 @@ final class AppServices {
             miniPlayer.resume()
             resumeShells()
         }
+    }
+
+    /// Shows the session at the spend cap, or takes the card away once every one has a choice.
+    /// It stays until answered, since that session's requests wait on it.
+    private func spendCapChanged(_ prompt: SpendCapPrompt?) {
+        guard let prompt else {
+            guard showsSpendCap else { return }
+            showsSpendCap = false
+            activities.remove(.agentCallout)
+            return
+        }
+        showsSpendCap = true
+        let callout = AgentCallout(
+            sessionID: prompt.sessionID, project: prompt.project, source: prompt.source,
+            kind: .spendCap(prompt.crossing, estimated: prompt.estimated))
+        activities.post(.agentCallout(callout), slot: .agentCallout, duration: nil)
     }
 
     /// The sound and tap for something an agent needs from the user.
@@ -472,6 +490,11 @@ final class AppServices {
         activities.onRemove = { [weak self] slot in
             // Closing the AI card stops the request it was waiting on.
             if slot == .aiResult { self?.aiActions.cancel() }
+            // Closing the spend cap card without a choice lets the session keep going.
+            if slot == .agentCallout, self?.showsSpendCap == true {
+                self?.showsSpendCap = false
+                self?.agents.dismissSpendCap()
+            }
         }
         agents.onNewRequest = { [weak self] in
             // A new request always shows full size, even behind a minimised one.
@@ -492,11 +515,14 @@ final class AppServices {
                 .notice(symbol: "gauge.with.dots.needle.67percent", text: text), slot: .notice, duration: 3)
         }
         agents.onContextCritical = { [weak self] session, percent in
+            // The spend cap card waits on a choice; it isn't replaced.
+            guard let self, !self.showsSpendCap else { return }
             let callout = AgentCallout(
                 sessionID: session.id, project: session.project, source: session.source,
                 kind: .compact(percent: percent, canCompact: CompactCommand.supported(session.source)))
-            self?.activities.post(.agentCallout(callout), slot: .agentCallout, duration: Self.calloutDuration)
+            self.activities.post(.agentCallout(callout), slot: .agentCallout, duration: Self.calloutDuration)
         }
+        agents.onSpendCap = { [weak self] prompt in self?.spendCapChanged(prompt) }
         automation.start()
         agents.start()
 
@@ -581,6 +607,7 @@ final class AppServices {
                         toolMinutes: preferences.toolAlertMinutes, tools: preferences.toolAlert,
                         nudgeMinutes: preferences.nudgeMinutes, nudges: preferences.nudgeAlert),
                     budget: preferences.budgetAlert ? preferences.dailyBudget : nil,
+                    spendCap: preferences.spendCap ? preferences.spendCapAmount : nil,
                     limits: preferences.limitAlert, awake: preferences.agentKeepAwake,
                     approvalTimeout: preferences.approvalTimeout,
                     push: (
@@ -604,6 +631,7 @@ final class AppServices {
         agents.toolActivity = agentPrefs.tools
         agents.alertRules = agentPrefs.rules
         agents.dailyBudget = agentPrefs.budget
+        agents.spendCap = agentPrefs.spendCap
         agents.limitAlerts = agentPrefs.limits
         agents.approvalTimeout = agentPrefs.approvalTimeout
         push.apply(

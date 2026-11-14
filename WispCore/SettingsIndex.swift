@@ -143,6 +143,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "keep session history", "summarise finished sessions", "summarize finished sessions",
                 "alerts", "estimated spend today", "last 7 days",
                 "warn", "warn at", "critical", "critical at", "context colour", "context color", "context ring",
+                "compact now", "approval history", "approvals", "spend cap", "pause at", "per session", "keep going",
+                "edit rule",
                 // Phone alerts, which had their own pane; its name stays a keyword.
                 "phone", "phone alerts", "send agent alerts to my phone", "ntfy", "push", "iphone", "android",
                 "apple watch", "watch", "mobile", "remote", "away", "idle", "locked", "topic", "qr", "send test",

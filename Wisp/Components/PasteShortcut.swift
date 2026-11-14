@@ -7,12 +7,19 @@ enum PasteShortcut {
     typealias Snapshot = [[NSPasteboard.PasteboardType: Data]]
 
     static func send() {
+        press(9, flags: .maskCommand)
+    }
+
+    /// Esc, which interrupts a coding agent's turn in its terminal.
+    static let escapeKey: CGKeyCode = 53
+
+    /// Presses and lets go of one key in the app in front.
+    static func press(_ key: CGKeyCode, flags: CGEventFlags = []) {
         let source = CGEventSource(stateID: .combinedSessionState)
-        let vKey: CGKeyCode = 9
-        let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true)
-        let up = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false)
-        down?.flags = .maskCommand
-        up?.flags = .maskCommand
+        let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
+        let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
+        down?.flags = flags
+        up?.flags = flags
         down?.post(tap: .cgAnnotatedSessionEventTap)
         up?.post(tap: .cgAnnotatedSessionEventTap)
     }

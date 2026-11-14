@@ -2,7 +2,7 @@ import SwiftUI
 import WispCore
 
 /// A decision about an agent session under the notch: Compact now when its context is nearly
-/// full. Shaped like the finished download card.
+/// full, or what to do at the spend cap. Shaped like the finished download card.
 struct AgentCalloutCard: View {
     let callout: AgentCallout
     let model: NotchModel
@@ -49,24 +49,37 @@ struct AgentCalloutCard: View {
                 }
             }
             .fixedSize()
+        case .spendCap(let crossing, _):
+            // The hub takes the card away once it has the choice.
+            HStack(spacing: 8) {
+                CapsuleButton("Stop") { hub.stopAtCap(session: callout.sessionID) }
+                CapsuleButton(SpendCap.raiseTitle(crossing.raise)) {
+                    hub.raiseCap(session: callout.sessionID, to: crossing.raise)
+                }
+                CapsuleButton("Keep going", prominent: true) { hub.keepGoing(session: callout.sessionID) }
+            }
+            .fixedSize()
         }
     }
 
     private var symbol: String {
         switch callout.kind {
         case .compact: "gauge.with.dots.needle.100percent"
+        case .spendCap: "dollarsign.circle"
         }
     }
 
     private var tint: Color {
         switch callout.kind {
         case .compact: .red
+        case .spendCap: .wispViolet
         }
     }
 
     private var title: String {
         switch callout.kind {
         case .compact(let percent, _): "Context \(percent)% full"
+        case .spendCap(let crossing, let estimated): SpendCap.title(limit: crossing.limit, estimated: estimated)
         }
     }
 
@@ -76,6 +89,10 @@ struct AgentCalloutCard: View {
         switch callout.kind {
         case .compact(_, let canCompact):
             return canCompact ? "\(place) · compact to keep going" : "\(place) · start a new session soon"
+        case .spendCap(_, let estimated):
+            // Requests are what Wisp can hold; the agent keeps working until its next one.
+            return estimated
+                ? "\(place) · estimated · its next request waits" : "\(place) · its next request waits for you"
         }
     }
 

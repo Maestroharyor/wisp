@@ -138,6 +138,8 @@ struct AgentCallout: Sendable, Equatable, Identifiable {
     enum Kind: Sendable, Equatable {
         /// The context passed Critical at; offers Compact now where the agent has `/compact`.
         case compact(percent: Int, canCompact: Bool)
+        /// The session reached the spend cap: Keep going, Raise or Stop.
+        case spendCap(SpendCap.Crossing, estimated: Bool)
     }
 
     let id = UUID()

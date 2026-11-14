@@ -71,6 +71,16 @@ struct AgentStatus: Sendable, Equatable {
     var terminal: String? = nil
 }
 
+/// A session that reached the spend cap, waiting for Keep going, Raise or Stop.
+struct SpendCapPrompt: Sendable, Equatable {
+    let sessionID: String
+    let project: String
+    let source: AgentSource
+    let crossing: SpendCap.Crossing
+    /// Wisp estimated the cost from tokens (Codex, or Claude Code without its status line).
+    let estimated: Bool
+}
+
 /// A shortcut pressed for the question card on screen.
 struct KeyAnswer: Equatable {
     let approval: UUID
@@ -96,6 +106,17 @@ final class AgentHub {
     /// The latest key answer for a question card; `serial` makes a repeat count as a change.
     private(set) var keyAnswer: KeyAnswer?
     var approvals: [AgentApproval] { queue.items.compactMap { pending[$0] } }
+    /// Requests on screen and ones held back by the spend cap: what the terminal could still answer.
+    private var waitingApprovals: [AgentApproval] { (queue.items + held).compactMap { pending[$0] } }
+    /// Requests from sessions at the spend cap, held off screen until the user chooses.
+    @ObservationIgnored private var held: [UUID] = []
+    /// Dollars a session may spend before Wisp asks; nil is off. Set from Preferences.
+    var spendCap: Double?
+    @ObservationIgnored private var capState = SpendCap()
+    /// Sessions at the cap waiting for a choice, oldest first; the front one is on screen.
+    @ObservationIgnored private var capPrompts: [SpendCapPrompt] = []
+    /// The spend cap card to show, or nil to take it away.
+    var onSpendCap: (SpendCapPrompt?) -> Void = { _ in }
     /// Sources whose hooks call this copy's helper.
     private(set) var connected: Set<AgentSource> = []
     /// Sources whose hooks call another copy's helper (a dev build, a moved app), which
@@ -407,7 +428,7 @@ final class AgentHub {
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
         // So does the requested call finishing, or an interrupted turn.
-        let keys = queue.items.compactMap { settleKeys[$0] }
+        let keys = (queue.items + held).compactMap { settleKeys[$0] }
         for id in ApprovalSettle.settled(keys, by: event) { settle(id) }
         let previous = sessions.session(event.sessionID)
         let before = previous?.state
@@ -429,7 +450,11 @@ final class AgentHub {
         }
         if event.kind == .stop { refreshUsage(for: event.sessionID) }
         followRollout(event)
-        if event.kind == .sessionEnd { transcripts[event.sessionID] = nil }
+        if event.kind == .sessionEnd {
+            transcripts[event.sessionID] = nil
+            forgetSpendCap(event.sessionID)
+        }
+        if event.kind == .userPromptSubmit { capState.newTurn(event.sessionID) }
 
         let capabilities = event.source.adapter.capabilities
         if event.kind == .permissionRequest, !capabilities.contains(.approve) {
@@ -463,7 +488,9 @@ final class AgentHub {
                     ? InlineDiff.make(tool: event.toolName ?? "", input: event.rawToolInput) : nil,
                 cwd: event.cwd, rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event))
             pending[approval.id] = approval
-            queue.enqueue(approval.id)
+            // Held off screen while the spend cap waits for a choice; the timeout still hands it back.
+            let isHeld = capState.isHeld(event.sessionID)
+            if isHeld { held.append(approval.id) } else { queue.enqueue(approval.id) }
             waiting[approval.id] = connection
             settleKeys[approval.id] = ApprovalSettle.Request(id: approval.id, event: event)
             if let pid = event.hookPID { watchHook(pid, for: approval.id) }
@@ -473,8 +500,10 @@ final class AgentHub {
                 guard !Task.isCancelled else { return }
                 self?.handBack(approval.id)
             }
-            approvalsChanged()
-            onNewRequest()
+            if !isHeld {
+                approvalsChanged()
+                onNewRequest()
+            }
         } else {
             reply(connection, nil)
         }
@@ -502,7 +531,7 @@ final class AgentHub {
             // New spend while it waited: the request or question was answered in the terminal.
             // Only with tool hooks, which count subagents; a subagent spends while the main agent waits.
             if toolHooks.contains(item.source), sessions.movedOn(item.snapshot) {
-                for approval in approvals where approval.sessionID == id { settle(approval.id) }
+                for approval in waitingApprovals where approval.sessionID == id { settle(approval.id) }
             }
             let branch = item.snapshot.branch == nil ? Self.branch(cwd: item.snapshot.cwd) : nil
             let pillChanged = sessions.apply(
@@ -513,6 +542,7 @@ final class AgentHub {
                     total: cost, session: id, transcript: item.snapshot.transcriptPath, at: .now)
                 saveSpend(adding: increase, project: sessions.session(id)?.project)
             }
+            checkSpendCap(session: id)
             checkContext(session: id)
             checkLimits(UsageLimits.readings(item.snapshot.extras))
             if pillChanged { publishStatus() }
@@ -700,6 +730,77 @@ final class AgentHub {
         onApproval(approvals.first)
     }
 
+    // MARK: Spend cap
+
+    /// Asks once a session's spend crosses the cap, holding its next requests until answered.
+    private func checkSpendCap(session id: String) {
+        guard let session = sessions.session(id),
+            let crossing = capState.check(session: id, cost: session.cost, cap: spendCap)
+        else { return }
+        capPrompts.append(
+            SpendCapPrompt(
+                sessionID: id, project: session.project, source: session.source, crossing: crossing,
+                estimated: !session.costIsReal))
+        if capPrompts.count == 1 { onSpendCap(capPrompts.first) }
+    }
+
+    /// Keep going: no more asking for this session, and its held requests show.
+    func keepGoing(session id: String) {
+        capState.keepGoing(id)
+        capAnswered(id)
+    }
+
+    /// Asks again when the session reaches `limit`.
+    func raiseCap(session id: String, to limit: Double) {
+        capState.raise(id, to: limit)
+        capAnswered(id)
+    }
+
+    /// Interrupts the session with Esc in its terminal (Accessibility, as paste needs) and denies
+    /// what it held, so it stops at the cap. Asks again after the next prompt.
+    func stopAtCap(session id: String) {
+        capState.stop(id)
+        for approval in waitingApprovals where approval.sessionID == id && held.contains(approval.id) {
+            deny(approval.id, reason: "Stopped at the spend cap set in Wisp.")
+        }
+        capAnswered(id)
+        guard AccessibilityPermission.isTrusted else {
+            onNotice("Allow Accessibility in Settings to stop it from Wisp")
+            return
+        }
+        focus(session: id)
+        Task {
+            // Give the terminal time to come forward before the keystroke lands.
+            try? await Task.sleep(for: .milliseconds(350))
+            PasteShortcut.press(PasteShortcut.escapeKey)
+        }
+    }
+
+    /// The card closed without a choice (its ×, Esc): the session keeps going.
+    func dismissSpendCap() {
+        guard let front = capPrompts.first else { return }
+        keepGoing(session: front.sessionID)
+    }
+
+    private func capAnswered(_ id: String) {
+        capPrompts.removeAll { $0.sessionID == id }
+        onSpendCap(capPrompts.first)
+        let released = held.filter { pending[$0]?.sessionID == id }
+        guard !released.isEmpty else { return }
+        held.removeAll { released.contains($0) }
+        for request in released { queue.enqueue(request) }
+        approvalsChanged()
+        onNewRequest()
+        publishStatus()
+    }
+
+    private func forgetSpendCap(_ id: String) {
+        capState.forget(id)
+        guard capPrompts.contains(where: { $0.sessionID == id }) else { return }
+        capPrompts.removeAll { $0.sessionID == id }
+        onSpendCap(capPrompts.first)
+    }
+
     // MARK: Keyboard answers
 
     /// Answers the card on screen from a fresh key press (Hyper+Y, N or a digit, or the ⌃⌥⌘
@@ -740,8 +841,9 @@ final class AgentHub {
 
     /// Takes a request off the queue, with the hook call still waiting for its reply.
     private func take(_ id: UUID) -> (approval: AgentApproval, connection: NWConnection?)? {
-        guard let approval = approvals.first(where: { $0.id == id }) else { return nil }
+        guard let approval = pending[id] else { return nil }
         queue.remove(id)
+        held.removeAll { $0 == id }
         pending[id] = nil
         timeouts.removeValue(forKey: id)?.cancel()
         // Cancelled before the reply goes, since the helper exits once it has it.
@@ -790,7 +892,7 @@ final class AgentHub {
     }
 
     private func settleApprovals(for session: String) {
-        for approval in approvals where approval.sessionID == session {
+        for approval in waitingApprovals where approval.sessionID == session {
             answer(approval.id, allow: nil)
         }
     }
@@ -847,6 +949,7 @@ final class AgentHub {
             settleApprovals(for: id)
             transcripts[id] = nil
             stopRolloutWatch(id)
+            forgetSpendCap(id)
         }
         publishStatus()
     }
@@ -914,6 +1017,7 @@ final class AgentHub {
                     adding: ledger.record(total: cost, for: path, at: .now), project: sessions.session(id)?.project)
             }
             sessions.setUsage(next.usage.total, cost: cost, session: id)
+            checkSpendCap(session: id)
             if let session = sessions.session(id) { recorder.figuresChanged(session) }
             sessions.setModelID(next.usage.lastModel, session: id)
             // Codex has no status line; its rollout carries the context and plan limits instead.

@@ -23,6 +23,27 @@ struct AgentSettings: View {
             set: { if $0 > 0 { preferences.dailyBudget = $0 } })
     }
 
+    private var spendCapAmount: Binding<Double> {
+        Binding(
+            get: { preferences.spendCapAmount },
+            set: { if $0 > 0 { preferences.spendCapAmount = $0 } })
+    }
+
+    /// A dollar amount field, as spend shows in dollars whatever the region's currency.
+    private func dollars(_ title: String, value: Binding<Double>, unit: String? = nil) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 2) {
+                Text("$")
+                TextField(title, value: value, format: .number.precision(.fractionLength(0...2)))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 64)
+                if let unit { Text(unit).foregroundStyle(.secondary).padding(.leading, 4) }
+            }
+        }
+    }
+
     var body: some View {
         Form {
             if !hub.listening {
@@ -135,17 +156,15 @@ struct AgentSettings: View {
             Toggle("Alert at 80% and 95% of a Claude usage limit", isOn: $preferences.limitAlert)
             Toggle("Alert at 80% and 100% of a daily budget", isOn: $preferences.budgetAlert)
             if preferences.budgetAlert {
-                // Spend is shown in dollars everywhere, whatever the region's currency.
-                LabeledContent("Daily budget") {
-                    HStack(spacing: 2) {
-                        Text("$")
-                        TextField("Daily budget", value: budget, format: .number.precision(.fractionLength(0...2)))
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 64)
-                    }
-                }
+                dollars("Daily budget", value: budget)
+            }
+            Toggle("Pause a session at a spend cap", isOn: $preferences.spendCap)
+            if preferences.spendCap {
+                dollars("Pause at", value: spendCapAmount, unit: "per session")
+                Text(
+                    "Asks Keep going, Raise or Stop, and holds the session's next request until you choose. Stop presses Esc in its terminal (needs Accessibility). Codex spend is estimated from tokens."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
     }

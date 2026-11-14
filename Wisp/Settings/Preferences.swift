@@ -239,6 +239,8 @@ final class Preferences {
         static let budgetAlert = "budgetAlert"
         static let limitAlert = "limitAlert"
         static let dailyBudget = "dailyBudget"
+        static let spendCap = "agentSpendCap"
+        static let spendCapAmount = "agentSpendCapAmount"
         static let pushEnabled = "pushEnabled"
         static let pushServer = "pushServer"
         static let pushTopic = "pushTopic"
@@ -748,6 +750,9 @@ final class Preferences {
     /// Notices at 80% and 95% of Claude's five-hour and weekly usage limits.
     var limitAlert: Bool { didSet { defaults.set(limitAlert, forKey: Key.limitAlert) } }
     var dailyBudget: Double { didSet { defaults.set(dailyBudget, forKey: Key.dailyBudget) } }
+    /// Asks Keep going, Raise or Stop when one session spends `spendCapAmount` dollars. Off by default.
+    var spendCap: Bool { didSet { defaults.set(spendCap, forKey: Key.spendCap) } }
+    var spendCapAmount: Double { didSet { defaults.set(spendCapAmount, forKey: Key.spendCapAmount) } }
     /// Phone push through ntfy. Off by default: it sends to a server.
     var pushEnabled: Bool { didSet { defaults.set(pushEnabled, forKey: Key.pushEnabled) } }
     /// The ntfy server, `https://ntfy.sh` unless self-hosted.
@@ -1018,6 +1023,8 @@ final class Preferences {
             Key.budgetAlert: false,
             Key.limitAlert: true,
             Key.dailyBudget: 20.0,
+            Key.spendCap: false,
+            Key.spendCapAmount: 5.0,
             Key.pushEnabled: false,
             Key.pushServer: PushTopic.defaultServer,
             Key.pushKinds: PushKind.defaults.map(\.rawValue).sorted(),
@@ -1155,6 +1162,9 @@ final class Preferences {
         limitAlert = defaults.bool(forKey: Key.limitAlert)
         let budget = defaults.double(forKey: Key.dailyBudget)
         dailyBudget = budget > 0 ? budget : 20
+        spendCap = defaults.bool(forKey: Key.spendCap)
+        let cap = defaults.double(forKey: Key.spendCapAmount)
+        spendCapAmount = cap > 0 ? cap : 5
         pushEnabled = defaults.bool(forKey: Key.pushEnabled)
         pushServer = defaults.string(forKey: Key.pushServer) ?? PushTopic.defaultServer
         pushTopic = defaults.string(forKey: Key.pushTopic) ?? ""
