@@ -194,6 +194,8 @@ final class AgentHub {
 
     @ObservationIgnored private var listener: NWListener?
     @ObservationIgnored private var lastListenerRestart = Date.distantPast
+    /// `start()` cleared the path for its listener, so `stop()` may remove the file.
+    @ObservationIgnored private var ownsSocket = false
     @ObservationIgnored private var restartTask: Task<Void, Never>?
     @ObservationIgnored private var waiting: [UUID: NWConnection] = [:]
     @ObservationIgnored private var timeouts: [UUID: Task<Void, Never>] = [:]
@@ -294,6 +296,7 @@ final class AgentHub {
         try? FileManager.default.createDirectory(
             at: Self.socketURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         unlink(path)
+        ownsSocket = true
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .unix(path: path)
         do {
@@ -313,6 +316,21 @@ final class AgentHub {
         } catch {
             log.error("agent socket failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// On quit: closes the socket, removes its file and writes any spend not saved yet.
+    func stop() {
+        restartTask?.cancel()
+        restartTask = nil
+        // A late state change must not restart the listener after quit.
+        listener?.stateUpdateHandler = nil
+        listener?.cancel()
+        listener = nil
+        listening = false
+        // Only a socket this hub made; another copy of Wisp may be listening on the same path.
+        if ownsSocket { unlink(Self.socketURL.path) }
+        ownsSocket = false
+        flushSpend()
     }
 
     private static let maximumMessage = 1 << 20
