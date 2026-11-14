@@ -107,8 +107,10 @@ final class AgentHub {
     private(set) var statusLine: StatusLineState = .none
     /// What Claude Code's status bar becomes when hooks are added. Set from Preferences.
     var terminalBarMode: TerminalBarMode = .wisp
-    /// Context percentage that triggers an alert; nil turns the alert off. Set from Preferences.
-    var contextThreshold: Double? = ContextUsage.defaultThreshold
+    /// Where context turns amber (and alerts) and red. Set from Preferences.
+    var contextThresholds = ContextUsage.Thresholds.standard
+    /// Whether passing the warn level alerts. Set from Preferences.
+    var contextAlert = true
     /// Whether Claude Code's tool hooks are wanted. Set from Preferences.
     var toolActivity = false
     /// Long tool and reminder limits. Set from Preferences.
@@ -189,6 +191,11 @@ final class AgentHub {
     @ObservationIgnored private var restartTask: Task<Void, Never>?
     @ObservationIgnored private var waiting: [UUID: NWConnection] = [:]
     @ObservationIgnored private var timeouts: [UUID: Task<Void, Never>] = [:]
+    /// Per waiting request, a watch on the helper process the agent waits on. It exits once the
+    /// agent stops waiting (the prompt was answered in the terminal), and the card goes.
+    @ObservationIgnored private var hookWatches: [UUID: any DispatchSourceProcess] = [:]
+    /// What each waiting request is matched on when later events show it was answered elsewhere.
+    @ObservationIgnored private var settleKeys: [UUID: ApprovalSettle.Request<UUID>] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "agents")
     /// Per session: how far into the transcript Wisp has read, and the totals so far.
     @ObservationIgnored private var transcripts: [String: (offset: UInt64, usage: TranscriptUsage)] = [:]
@@ -385,6 +392,9 @@ final class AgentHub {
         // A new prompt or the end of a turn means a pending request was answered in the
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
+        // So does the requested call finishing, or an interrupted turn.
+        let keys = queue.items.compactMap { settleKeys[$0] }
+        for id in ApprovalSettle.settled(keys, by: event) { settle(id) }
         let previous = sessions.session(event.sessionID)
         let before = previous?.state
         recorder.observe(event, at: .now, keepDetails: !detailsHidden, session: previous)
@@ -434,6 +444,8 @@ final class AgentHub {
             pending[approval.id] = approval
             queue.enqueue(approval.id)
             waiting[approval.id] = connection
+            settleKeys[approval.id] = ApprovalSettle.Request(id: approval.id, event: event)
+            if let pid = event.hookPID { watchHook(pid, for: approval.id) }
             let wait = approvalWait(event.source)
             timeouts[approval.id] = Task { [weak self] in
                 try? await Task.sleep(for: wait)
@@ -466,6 +478,11 @@ final class AgentHub {
         let batch = pendingSnapshots
         pendingSnapshots = [:]
         for (id, item) in batch {
+            // New spend while it waited: the request or question was answered in the terminal.
+            // Only with tool hooks, which count subagents; a subagent spends while the main agent waits.
+            if toolHooks.contains(item.source), sessions.movedOn(item.snapshot) {
+                for approval in approvals where approval.sessionID == id { settle(approval.id) }
+            }
             let branch = item.snapshot.branch == nil ? Self.branch(cwd: item.snapshot.cwd) : nil
             let pillChanged = sessions.apply(
                 item.snapshot, source: item.source, terminal: item.terminal, branch: branch, at: .now)
@@ -484,8 +501,7 @@ final class AgentHub {
     /// Tracked even while the alert is off, so turning it on doesn't fire for a session that
     /// was already past the level.
     private func checkContext(session id: String) {
-        let threshold = contextThreshold ?? ContextUsage.defaultThreshold
-        if let percent = sessions.contextAlert(session: id, threshold: threshold), contextThreshold != nil,
+        if let percent = sessions.contextAlert(session: id, threshold: contextThresholds.warn), contextAlert,
             let project = sessions.session(id)?.project
         {
             onContextAlert(ContextUsage.notice(percent: percent, project: project))
@@ -690,7 +706,32 @@ final class AgentHub {
         queue.remove(id)
         pending[id] = nil
         timeouts.removeValue(forKey: id)?.cancel()
+        // Cancelled before the reply goes, since the helper exits once it has it.
+        hookWatches.removeValue(forKey: id)?.cancel()
+        settleKeys[id] = nil
         return (approval, waiting.removeValue(forKey: id))
+    }
+
+    /// Settles `id` when the helper process `pid` exits before Wisp answers.
+    private func watchHook(_ pid: Int32, for id: UUID) {
+        let watch = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
+        watch.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.settle(id) }
+        }
+        hookWatches[id] = watch
+        watch.resume()
+        // Gone before the watch started: nothing will report its exit.
+        if kill(pid, 0) != 0, errno == ESRCH {
+            Task { @MainActor [weak self] in self?.settle(id) }
+        }
+    }
+
+    /// A request answered somewhere else (the terminal): its card goes, nothing is sent, and the
+    /// session carries on. A question answered there counts as answered.
+    private func settle(_ id: UUID) {
+        guard let approval = pending[id] else { return }
+        if approval.prompt == .question { sessions.answeredQuestion(session: approval.sessionID, at: .now) }
+        answer(id, allow: nil)
     }
 
     /// Allows this request and every later one from the same session, until it ends.

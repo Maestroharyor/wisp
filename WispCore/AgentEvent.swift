@@ -14,6 +14,8 @@ public struct AgentEvent: Equatable, Sendable {
         case preToolUse = "PreToolUse"
         case postToolUse = "PostToolUse"
         case subagentStop = "SubagentStop"
+        /// Codex: the user interrupted the running turn.
+        case interrupt = "Interrupt"
         case other
 
         /// Tool activity: frequent, and only about the tool, not the session's state.
@@ -45,6 +47,10 @@ public struct AgentEvent: Equatable, Sendable {
     public var process: AgentProcess?
     /// Where in the terminal the agent runs, when the helper sent it.
     public var terminalContext: TerminalContext?
+    /// The helper process that sent this hook, so Wisp can tell when the agent stops waiting on it.
+    public var hookPID: Int32?
+    /// Set when a subagent made the call (Claude Code's `agent_id`); nil for the main agent.
+    public let agentID: String?
     /// For SessionStart: how the session began ("startup", "resume", "clear", "compact", ...).
     public let startSource: String?
     /// For a prompt event: what the user typed, trimmed to one line (`PromptText`). Kept in
@@ -87,6 +93,7 @@ public struct AgentEvent: Equatable, Sendable {
         self.cwd = cwd
         self.transcriptPath = json["transcript_path"]?.stringValue
         self.startSource = json["source"]?.stringValue
+        self.agentID = json["agent_id"]?.stringValue
         // Every adapter sends `prompt` with its prompt event (Gemini CLI's BeforeAgent, Copilot CLI's
         // userPromptSubmitted included).
         self.promptText = kind == .userPromptSubmit ? PromptText.trimmed(json["prompt"]?.stringValue) : nil

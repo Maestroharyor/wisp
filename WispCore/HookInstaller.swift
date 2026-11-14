@@ -56,7 +56,8 @@ public enum HookInstaller {
         var root = try object(settings)
         var hooks = stripped(root["hooks"])
         for event in file.events + (tools ? file.toolEvents : []) {
-            let seconds = event == "PermissionRequest" ? timeout : 5
+            // Codex allows Interrupt hooks three seconds at most.
+            let seconds = event == "PermissionRequest" ? timeout : event == "Interrupt" ? 3 : 5
             let scaled = seconds * file.format.timeoutScale
             var handler: [String: JSONValue] = [
                 "type": .string("command"), "command": .string(command),

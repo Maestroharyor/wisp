@@ -100,12 +100,21 @@ struct AgentSettings: View {
     private var alerts: some View {
         Section("Alerts") {
             Toggle("Play a sound when an agent asks for permission", isOn: $preferences.approvalSound)
-            Toggle("Alert when a session's context is nearly full", isOn: $preferences.contextAlert)
-            if preferences.contextAlert {
-                Stepper(value: $preferences.contextThreshold, in: 50...95, step: 5) {
-                    LabeledContent("Alert at", value: "\(preferences.contextThreshold)%")
-                }
+            Toggle("Alert when a session's context reaches the warn level", isOn: $preferences.contextAlert)
+            ContextThresholdSlider(
+                title: "Warn at", tint: .wispAmber, percent: $preferences.contextWarnPercent,
+                range: ContextUsage.Thresholds.warnRange
+            ) { warn in
+                // Critical stays above warn.
+                let lowest = Int(ContextUsage.Thresholds(warn: Double(warn), critical: 0).critical)
+                if preferences.contextCriticalPercent < lowest { preferences.contextCriticalPercent = lowest }
             }
+            ContextThresholdSlider(
+                title: "Critical at", tint: .red, percent: $preferences.contextCriticalPercent,
+                range: min(Double(preferences.contextWarnPercent) + ContextUsage.Thresholds.gap, 95)...100
+            ) { _ in }
+            Text("The context ring turns amber at Warn at and red at Critical at.")
+                .font(.caption).foregroundStyle(.secondary)
             Toggle("Alert when a tool runs long", isOn: $preferences.toolAlert)
                 .disabled(!preferences.agentToolActivity)
             if preferences.toolAlert {
@@ -280,7 +289,9 @@ private struct StatusLineSettings: View {
     }
 
     private var preview: some View {
-        StatusBarRenderer.line(Self.sample, columns: nil).reduce(Text("")) { line, span in
+        var sample = Self.sample
+        sample.thresholds = preferences.contextThresholds
+        return StatusBarRenderer.line(sample, columns: nil).reduce(Text("")) { line, span in
             let piece = Text(span.text)
             guard let code = span.color else { return line + piece }
             let rgb = StatusBarRenderer.rgb(code: code)
@@ -396,5 +407,33 @@ private struct CommandLineSettings: View {
         let app = AppSupport.appBundle(containingHelper: URL(fileURLWithPath: helper))
         guard let id = Bundle(url: app)?.bundleIdentifier else { return app.path }
         return id.hasSuffix(".dev") ? "Wisp Dev" : "Wisp"
+    }
+}
+
+/// A percentage slider in steps of 5 for one context level, with a dot in that level's colour.
+private struct ContextThresholdSlider: View {
+    let title: String
+    let tint: Color
+    @Binding var percent: Int
+    let range: ClosedRange<Double>
+    let changed: (Int) -> Void
+
+    var body: some View {
+        LabeledContent {
+            HStack {
+                Slider(
+                    value: Binding(get: { Double(percent) }, set: { percent = Int($0.rounded()) }), in: range, step: 5
+                )
+                .frame(width: 160)
+                .onChange(of: percent) { _, new in changed(new) }
+                Text("\(percent)%").monospacedDigit().frame(width: 40, alignment: .trailing)
+            }
+        } label: {
+            Label {
+                Text(title)
+            } icon: {
+                Circle().fill(tint).frame(width: 8, height: 8)
+            }
+        }
     }
 }

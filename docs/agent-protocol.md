@@ -33,6 +33,7 @@ Every message is a JSON object:
 | `source` | `claude`, `codex`, `gemini`, `copilot`, `cursor` or `opencode` (an agent in `AgentAdapters`). Defaults to `claude` when missing. Any other value is ignored and logged once, and a hook from it gets an empty reply. |
 | `terminal` | Optional bundle id of the app the agent runs in, so Wisp can bring it forward. |
 | `terminalContext` | Optional object saying where in the terminal the agent runs, so Wisp can bring forward the exact pane or tab (below). Sent with `hook`, `tool` and `statusline`. |
+| `hookPID` | Optional, sent with `hook`: the helper's own process id. While a PermissionRequest waits, Wisp watches that process; when it exits before Wisp answers (the agent stopped waiting because the prompt was answered in the terminal), the card goes. The helper exits on SIGTERM or SIGHUP, when the agent that ran it quits, and when the agent closes the helper's stdout. Older helpers don't send it. |
 | `payload` | The agent's own JSON, unchanged. |
 
 ## Terminal context
@@ -157,7 +158,8 @@ Checked on 2026-11-07 against Codex's hooks documentation (developers.openai.com
 | Cost | Status line `cost.total_cost_usd` (real); transcript estimate otherwise | Estimate from rollout `info.total_token_usage` (cached input split out) at OpenAI list prices | Not read |
 | Plan limits | Status line `rate_limits.five_hour` / `seven_day` | Rollout `token_count.rate_limits.primary` / `secondary` with `used_percent`, `window_minutes` (300 and 10080 are shown) and `resets_at` (epoch seconds), or `resets_in_seconds` in older rollouts | Not read (quotas aren't in the hook payloads or a documented file) |
 | Always-allow rules | `permissions.allow` (roadmap phase 2) | Not yet | No |
-| Not used by Wisp | | `Interrupt`, `SubagentStart`, `PreModelRequest`, `PostModelRequest` | `BeforeModel`, `AfterModel`, `BeforeToolSelection` |
+| Interrupt | No such event | Yes (`session_id`, `turn_id`; no matcher, 3 s at most). Installed in the background; settles that session's waiting requests | No |
+| Not used by Wisp | | `SubagentStart`, `PreModelRequest`, `PostModelRequest` | `BeforeModel`, `AfterModel`, `BeforeToolSelection` |
 
 ### Cursor
 

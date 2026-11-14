@@ -107,8 +107,13 @@ struct CompactActivityView: View {
                 Image(systemName: "mic.fill").foregroundStyle(.red).frame(width: 16)
                 Text("Listening").lineLimit(1)
             }
-        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone,
-            .aiResult, .quickIntent:
+        case .agentApproval(let approval):
+            // Only drawn while the request is minimised into the pill.
+            HStack(spacing: ActivityMetrics.contentSpacing) {
+                MinimisedApprovalGlyph(approval: approval)
+                Text(approval.project).lineLimit(1)
+            }
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
             EmptyView()
         }
     }
@@ -200,8 +205,13 @@ struct CompactActivityView: View {
                     .foregroundStyle(.ink.opacity(0.8))
                     .help("Stop watching")
             }
-        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone,
-            .aiResult, .quickIntent:
+        case .agentApproval(let approval):
+            HStack(spacing: 5) {
+                Text(approval.prompt == .question ? "Needs you" : "Approve?").lineLimit(1)
+                    .foregroundStyle(Color.wispAmber)
+                PendingBadge(count: model.services.agents.approvals.count)
+            }
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
             EmptyView()
         }
     }
@@ -295,8 +305,9 @@ struct SideActivityView: View {
             caption("Sent").foregroundStyle(Color.accentColor)
         case .regionWatch(let status):
             caption(status.paused ? "Paused" : "Watching")
-        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone,
-            .aiResult, .quickIntent:
+        case .agentApproval:
+            PendingBadge(count: model.services.agents.approvals.count)
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
             EmptyView()
         }
     }
@@ -361,8 +372,9 @@ struct ActivityGlyph: View {
             RegionWatchGlyph(paused: status.paused)
         case .dictation:
             Image(systemName: "mic.fill").foregroundStyle(.red)
-        case .batteryFull, .timerDone, .notification, .agentApproval, .meetingSoon, .downloadDone,
-            .aiResult, .quickIntent:
+        case .agentApproval(let approval):
+            MinimisedApprovalGlyph(approval: approval)
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
             EmptyView()
         }
     }
@@ -383,7 +395,8 @@ extension Activity {
     /// pill keeps their values.
     var keepsValueWhenMinimal: Bool {
         switch self {
-        case .level, .timer: true
+        // A minimised request keeps its count: it's what says something waits.
+        case .level, .timer, .agentApproval: true
         default: false
         }
     }

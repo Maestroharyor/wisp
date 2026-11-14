@@ -61,6 +61,7 @@ struct NotchView: View {
         .animation(model.surfaceAnimation, value: model.spec)
         .environment(\.colorScheme, .dark)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
+        .environment(\.contextThresholds, model.preferences.contextThresholds)
     }
 
     /// How far the nav pill travels on close to fold back into the closed shape, in panel

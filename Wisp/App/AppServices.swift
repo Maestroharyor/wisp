@@ -121,6 +121,9 @@ final class AppServices {
     var formUnderPointer: @MainActor () -> (form: FormFactor, systemIsland: Bool) = { (.notch, false) }
     var setForm: @MainActor (FormFactor) -> Void = { _ in }
     var cycleForm: @MainActor () -> Void = {}
+    /// Brings minimised approval cards back full size; true when the one in front was minimised.
+    /// Set by AppDelegate.
+    var restoreApprovals: @MainActor () -> Bool = { false }
     /// The kind of approval or question card now in front, or nil when the last one went.
     var approvalCardChanged: @MainActor (PermissionPrompt?) -> Void = { _ in }
     /// Whether any display's shelf is open, where the approval shows as a bar.
@@ -465,6 +468,8 @@ final class AppServices {
             if slot == .aiResult { self?.aiActions.cancel() }
         }
         agents.onNewRequest = { [weak self] in
+            // A new request always shows full size, even behind a minimised one.
+            _ = self?.restoreApprovals()
             guard self?.preferences.approvalSound == true else { return }
             self?.needsYouFeedback()
         }
@@ -558,7 +563,7 @@ final class AppServices {
                 ),
                 (
                     bar: preferences.terminalBarMode,
-                    threshold: preferences.contextAlert ? Double(preferences.contextThreshold) : nil,
+                    contextAlert: preferences.contextAlert, thresholds: preferences.contextThresholds,
                     privacy: preferences.agentPrivacy, tools: preferences.agentToolActivity,
                     rules: AgentAlertRules(
                         toolMinutes: preferences.toolAlertMinutes, tools: preferences.toolAlert,
@@ -581,7 +586,8 @@ final class AppServices {
             Task { @MainActor in self?.syncPreferenceEffects() }
         }
         agents.terminalBarMode = agentPrefs.bar
-        agents.contextThreshold = agentPrefs.threshold
+        agents.contextAlert = agentPrefs.contextAlert
+        agents.contextThresholds = agentPrefs.thresholds
         agents.privacyMode = agentPrefs.privacy
         agents.toolActivity = agentPrefs.tools
         agents.alertRules = agentPrefs.rules

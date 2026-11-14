@@ -120,6 +120,7 @@ struct ShelfWindowView: View {
         }
         .tint(Color.wispViolet)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
+        .environment(\.contextThresholds, model.preferences.contextThresholds)
         .onChange(of: selection, initial: true) { _, row in
             // A row that went away (a widget switched off, an activity ended) fell back to Home;
             // save that, so the window doesn't jump back if the row returns.

@@ -226,14 +226,15 @@ public enum AgentAdapters {
         fallbackProject: "Codex",
         hookFile: HookFile(
             path: ".codex/hooks.json", format: .codexHooks,
-            // No Notification event in Codex.
+            // No Notification event in Codex. Interrupt (an interrupted turn) sends no Stop, so
+            // it's how a request answered by interrupting leaves the notch.
             events: [
                 "SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "SessionEnd", "PreCompact",
-                "PostCompact",
+                "PostCompact", "Interrupt",
             ],
             // Compaction hooks stay synchronous, as before Codex documented `async`, so hooks
             // users already trusted in /hooks keep their hash.
-            backgroundEvents: Set(toolEvents), toolEvents: toolEvents, statusLine: false,
+            backgroundEvents: Set(toolEvents + ["Interrupt"]), toolEvents: toolEvents, statusLine: false,
             helperArguments: " --source codex"),
         capabilities: [.approve, .limits, .compaction, .toolActivity],
         setupNote: "Codex asks you to trust new hooks once: run /hooks in Codex.",

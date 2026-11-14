@@ -225,7 +225,8 @@ final class Preferences {
         static let approvalSound = "approvalSound"
         static let terminalBarMode = "terminalBarMode"
         static let contextAlert = "contextAlert"
-        static let contextThreshold = "contextThreshold"
+        static let contextWarnPercent = ContextUsage.Thresholds.warnKey
+        static let contextCriticalPercent = ContextUsage.Thresholds.criticalKey
         static let agentPrivacy = "agentPrivacy"
         static let agentToolActivity = "agentToolActivity"
         static let agentKeepAwake = "agentKeepAwake"
@@ -713,9 +714,17 @@ final class Preferences {
     var terminalBarMode: TerminalBarMode {
         didSet { defaults.set(terminalBarMode.rawValue, forKey: Key.terminalBarMode) }
     }
-    /// A notice when a session's context window passes `contextThreshold` percent.
+    /// A notice when a session's context window passes `contextWarnPercent`.
     var contextAlert: Bool { didSet { defaults.set(contextAlert, forKey: Key.contextAlert) } }
-    var contextThreshold: Int { didSet { defaults.set(contextThreshold, forKey: Key.contextThreshold) } }
+    /// Where the context gauge turns amber (and the alert fires) and red. The terminal bar reads
+    /// them too, so they're stored under keys the helper knows.
+    var contextWarnPercent: Int { didSet { defaults.set(contextWarnPercent, forKey: Key.contextWarnPercent) } }
+    var contextCriticalPercent: Int {
+        didSet { defaults.set(contextCriticalPercent, forKey: Key.contextCriticalPercent) }
+    }
+    var contextThresholds: ContextUsage.Thresholds {
+        ContextUsage.Thresholds(warn: Double(contextWarnPercent), critical: Double(contextCriticalPercent))
+    }
     /// When agent commands, file paths and session names are hidden.
     var agentPrivacy: AgentPrivacy.Mode {
         didSet { defaults.set(agentPrivacy.rawValue, forKey: Key.agentPrivacy) }
@@ -997,7 +1006,6 @@ final class Preferences {
             Key.approvalSound: true,
             Key.terminalBarMode: TerminalBarMode.wisp.rawValue,
             Key.contextAlert: true,
-            Key.contextThreshold: Int(ContextUsage.defaultThreshold),
             Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
             Key.agentToolActivity: false,
             Key.agentKeepAwake: false,
@@ -1122,7 +1130,17 @@ final class Preferences {
         approvalSound = defaults.bool(forKey: Key.approvalSound)
         terminalBarMode = defaults.string(forKey: Key.terminalBarMode).flatMap(TerminalBarMode.init(rawValue:)) ?? .wisp
         contextAlert = defaults.bool(forKey: Key.contextAlert)
-        contextThreshold = min(max(defaults.integer(forKey: Key.contextThreshold), 50), 95)
+        let thresholds = ContextUsage.Thresholds.stored { key in
+            defaults.object(forKey: key) == nil ? nil : defaults.double(forKey: key)
+        }
+        contextWarnPercent = Int(thresholds.warn)
+        contextCriticalPercent = Int(thresholds.critical)
+        // The alert's own percentage became warn; store it where the terminal bar reads it.
+        if defaults.object(forKey: ContextUsage.Thresholds.legacyAlertKey) != nil {
+            defaults.set(Int(thresholds.warn), forKey: Key.contextWarnPercent)
+            defaults.set(Int(thresholds.critical), forKey: Key.contextCriticalPercent)
+            defaults.removeObject(forKey: ContextUsage.Thresholds.legacyAlertKey)
+        }
         agentPrivacy =
             defaults.string(forKey: Key.agentPrivacy).flatMap(AgentPrivacy.Mode.init(rawValue:)) ?? .default
         agentToolActivity = defaults.bool(forKey: Key.agentToolActivity)
