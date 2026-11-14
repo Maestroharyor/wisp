@@ -277,13 +277,14 @@ final class NotchModel {
                 if case .agentApproval(let approval) = activity {
                     if minimisedApprovals.contains(approval.id) { return .compact(wide: true) }
                     if approval.prompt == .question { return .notification(extra: questionAnswersHeight(approval)) }
-                    // Private mode hides the preview, so the card doesn't keep its room either.
+                    // Private mode hides the preview, so the card doesn't keep its room; the inline row stays,
+                    // with only the file's name.
                     let hidden = services.agents.detailsHidden
                     if expandedApproval == approval.id, !hidden {
                         return .notification(extra: SurfaceSizing.approvalPreviewHeight)
                     }
                     return .notification(
-                        extra: approval.inlineDiff != nil && !hidden ? SurfaceSizing.inlineDiffHeight : 0)
+                        extra: approval.inlineDiff != nil ? SurfaceSizing.inlineDiffHeight : 0)
                 }
                 if case .meetingSoon = activity { return .notification(extra: 0) }
                 if case .downloadDone = activity { return .notification(extra: 0) }

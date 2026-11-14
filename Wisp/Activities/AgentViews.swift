@@ -248,13 +248,19 @@ struct AgentApprovalCard: View {
             }
             .padding(.horizontal, 18)
             .frame(height: SurfaceSizing.notificationCardHeight - 8)
-            // The full preview replaces it when open; private mode shows neither.
-            if !expanded, let diff = approval.inlineDiff, !hub.detailsHidden {
-                InlineDiffView(diff: diff)
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 8)
-                    .frame(height: SurfaceSizing.inlineDiffHeight, alignment: .top)
-                    .transition(.opacity)
+            // The full preview replaces it when open; private mode shows only the file's name.
+            if !expanded, let diff = approval.inlineDiff {
+                Group {
+                    if hub.detailsHidden {
+                        PrivateDiffRow(fileName: approval.fileName, diff: diff)
+                    } else {
+                        InlineDiffView(diff: diff)
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 8)
+                .frame(height: SurfaceSizing.inlineDiffHeight, alignment: .top)
+                .transition(.opacity)
             }
             if expanded, let preview = approval.preview, !hub.detailsHidden {
                 VStack(spacing: 8) {
@@ -362,11 +368,13 @@ private struct ApprovalPreviewPane: View {
             VStack(alignment: .leading, spacing: 1) {
                 switch preview {
                 case .diff(let lines, let more):
-                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                    ForEach(Array(lines.enumerated()), id: \.offset) { offset, line in
                         Text(line.kind.marker + line.text)
+                            .fontWeight(line.kind == .hunk ? .semibold : .regular)
                             .foregroundStyle(line.kind.tint)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(line.kind.tint.opacity(line.kind == .context ? 0 : 0.12))
+                            .padding(.top, line.kind == .hunk && offset > 0 ? 4 : 0)
+                            .background(line.kind.tint.opacity(line.kind.isChange ? 0.12 : 0))
                     }
                     moreLines(more)
                 case .text(let text, let more):
@@ -403,6 +411,7 @@ extension DiffLine.Kind {
         case .context: "  "
         case .removed: "- "
         case .added: "+ "
+        case .hunk: ""
         }
     }
 
@@ -411,7 +420,32 @@ extension DiffLine.Kind {
         case .context: .ink.opacity(0.6)
         case .removed: .red
         case .added: .wispGreen
+        case .hunk: .wispViolet
         }
+    }
+
+    fileprivate var isChange: Bool { self == .removed || self == .added }
+}
+
+/// An edit in private mode: the file's name and the counts, never its lines.
+private struct PrivateDiffRow: View {
+    let fileName: String?
+    let diff: InlineDiff
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "eye.slash").foregroundStyle(Color.secondaryText)
+            Text(fileName ?? "Changes hidden").foregroundStyle(.ink.opacity(0.85)).lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
+            Text(diff.counts).foregroundStyle(Color.secondaryText).fixedSize()
+        }
+        .font(.system(size: 11, design: .monospaced))
+        .monospacedDigit()
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.ink.opacity(0.06)))
+        .accessibilityElement(children: .combine)
     }
 }
 

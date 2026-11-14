@@ -28,13 +28,17 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let rules: [String]
     /// The card menu's rule choices, narrowest first; each saves its rules.
     let ruleChoices: [[String]]
+    /// The changed file's name, all private mode shows of an edit besides its counts.
+    let fileName: String?
 
     init(
         id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
         prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil,
-        inlineDiff: InlineDiff? = nil, cwd: String = "", rules: [String] = [], ruleChoices: [[String]] = []
+        inlineDiff: InlineDiff? = nil, fileName: String? = nil, cwd: String = "", rules: [String] = [],
+        ruleChoices: [[String]] = []
     ) {
         self.ruleChoices = ruleChoices
+        self.fileName = fileName
         self.id = id
         self.sessionID = sessionID
         self.project = project
@@ -514,7 +518,8 @@ final class AgentHub {
                     tool: event.toolName ?? "", input: event.rawToolInput, limit: Self.previewLines),
                 inlineDiff: event.prompt == .tool
                     ? InlineDiff.make(tool: event.toolName ?? "", input: event.rawToolInput) : nil,
-                cwd: event.cwd, rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event))
+                fileName: InlineDiff.fileName(tool: event.toolName ?? "", input: event.rawToolInput), cwd: event.cwd,
+                rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event))
             pending[approval.id] = approval
             // Held off screen while the spend cap waits for a choice; the timeout still hands it back.
             let isHeld = capState.isHeld(event.sessionID)
@@ -733,7 +738,7 @@ final class AgentHub {
     }
 
     /// Lines of a diff or new file an approval card shows at most.
-    private static let previewLines = 60
+    private static let previewLines = 40
 
     /// Answers a question from the notch; `answers` maps each question's text to its answer.
     func answerQuestion(_ id: UUID, answers: [String: String]) {
