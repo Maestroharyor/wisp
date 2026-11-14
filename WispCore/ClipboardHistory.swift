@@ -124,6 +124,15 @@ public enum ClipClassifier {
         "com.agilebits.onepassword",
     ]
 
+    /// The largest copied text history keeps. Bigger copies (a whole log) would sit in memory
+    /// and be rewritten to disk with every later change.
+    public static let maxTextBytes = 1_000_000
+
+    /// Whether copied text belongs in history: not blank and not huge.
+    public static func keeps(text: String) -> Bool {
+        text.utf8.count <= maxTextBytes && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     public static func kind(for text: String) -> ClipKind {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if rgb(fromHex: trimmed) != nil { return .color }
