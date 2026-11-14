@@ -76,23 +76,54 @@ public enum HookTOML {
         return chunks
     }
 
-    /// Whether a `"""` or `'''` string is still open at the end of `line`.
+    /// Whether a `"""` or `'''` string is still open at the end of `line`. Triple quotes in a
+    /// comment or inside a one-line string open nothing, and an escaped quote in a `"""` string
+    /// doesn't close it.
     private static func multilineState(after line: String, open: String?) -> String? {
         var open = open
         var rest = Substring(line)
         while !rest.isEmpty {
             if let delimiter = open {
-                guard let end = rest.range(of: delimiter) else { return open }
-                rest = rest[end.upperBound...]
+                guard let after = closing(delimiter, in: rest) else { return open }
+                rest = after
                 open = nil
+            } else if rest.hasPrefix(basicMultiline) || rest.hasPrefix(literalMultiline) {
+                open = String(rest.prefix(3))
+                rest = rest.dropFirst(3)
             } else {
-                let starts = ["\"\"\"", "'''"].compactMap { mark in rest.range(of: mark).map { (mark, $0) } }
-                guard let first = starts.min(by: { $0.1.lowerBound < $1.1.lowerBound }) else { return nil }
-                open = first.0
-                rest = rest[first.1.upperBound...]
+                switch rest.first {
+                case "#": return nil
+                case "\"": rest = afterOneLine(rest.dropFirst(), quote: "\"", escapes: true)
+                case "'": rest = afterOneLine(rest.dropFirst(), quote: "'", escapes: false)
+                default: rest = rest.dropFirst()
+                }
             }
         }
         return open
+    }
+
+    private static let basicMultiline = "\"\"\""
+    private static let literalMultiline = "'''"
+
+    /// The text after the delimiter that closes an open multi-line string, or nil when it stays open.
+    private static func closing(_ delimiter: String, in text: Substring) -> Substring? {
+        var rest = text
+        while !rest.isEmpty {
+            if rest.hasPrefix(delimiter) { return rest.dropFirst(delimiter.count) }
+            // Only basic strings have escapes; `\"""` there is a quote and two more.
+            rest = delimiter == basicMultiline && rest.first == "\\" ? rest.dropFirst(2) : rest.dropFirst()
+        }
+        return nil
+    }
+
+    /// The text after a one-line string's closing quote; empty when the line ends first.
+    private static func afterOneLine(_ text: Substring, quote: Character, escapes: Bool) -> Substring {
+        var rest = text
+        while let character = rest.first {
+            if character == quote { return rest.dropFirst() }
+            rest = escapes && character == "\\" ? rest.dropFirst(2) : rest.dropFirst()
+        }
+        return rest
     }
 
     private static func isWisp(_ chunk: [String]) -> Bool {

@@ -32,13 +32,17 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let fileName: String?
     /// The changed file's path as the request names it; nil for anything but a file change.
     let filePath: String?
+    /// Details were hidden when it arrived, so its history record keeps no summary even if
+    /// they're shown again before it's answered.
+    let arrivedHidden: Bool
 
     init(
         id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
         prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil,
         inlineDiff: InlineDiff? = nil, fileName: String? = nil, filePath: String? = nil, cwd: String = "",
-        rules: [String] = [], ruleChoices: [[String]] = []
+        rules: [String] = [], ruleChoices: [[String]] = [], arrivedHidden: Bool = false
     ) {
+        self.arrivedHidden = arrivedHidden
         self.ruleChoices = ruleChoices
         self.fileName = fileName
         self.filePath = filePath
@@ -140,7 +144,14 @@ final class AgentHub {
     @ObservationIgnored private var held: [UUID] = []
     /// Dollars a session may spend before Wisp asks; nil is off. Set from Preferences.
     var spendCap: Double? {
-        didSet { if spendCap == nil { for prompt in capPrompts { keepGoing(session: prompt.sessionID) } } }
+        didSet {
+            guard spendCap == nil else { return }
+            // Not Keep going, which would leave these sessions uncapped if the cap comes back.
+            for prompt in capPrompts {
+                capState.release(prompt.sessionID)
+                capAnswered(prompt.sessionID)
+            }
+        }
     }
     @ObservationIgnored private var capState = SpendCap()
     /// Sessions at the cap waiting for a choice, oldest first; the front one is on screen.
@@ -585,7 +596,7 @@ final class AgentHub {
                     summary: ApprovalRecord.summary(event.summary, hidden: detailsHidden),
                     outcome: .rule, date: .now))
             sessions.record(.allowed, "Allowed (Allow All)", session: event.sessionID, at: .now)
-            sessions.resolveApproval(session: event.sessionID, at: .now)
+            resolveApproval(session: event.sessionID)
             onNotice(AgentPrivacy.allowedNotice(tool: event.toolName, summary: event.summary, hidden: detailsHidden))
         } else if event.kind == .permissionRequest {
             let approval = AgentApproval(
@@ -600,7 +611,8 @@ final class AgentHub {
                 fileName: InlineDiff.fileName(tool: event.toolName ?? "", input: event.rawToolInput),
                 filePath: event.prompt == .tool
                     ? InlineDiff.filePath(tool: event.toolName ?? "", input: event.rawToolInput) : nil,
-                cwd: event.cwd, rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event))
+                cwd: event.cwd, rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event),
+                arrivedHidden: detailsHidden)
             pending[approval.id] = approval
             readAnchor(for: approval, input: event.rawToolInput)
             // Held off screen while the spend cap waits for a choice; the timeout still hands it back.
@@ -830,9 +842,16 @@ final class AgentHub {
         }
         // Handed back to the terminal (timed out, or answered there) counts as resolved too,
         // so the session doesn't keep saying it waits on the notch.
-        sessions.resolveApproval(session: approval.sessionID, at: .now)
+        resolveApproval(session: approval.sessionID)
         approvalsChanged()
         publishStatus()
+    }
+
+    /// The session is back to work once nothing else of its waits in Wisp; a parallel request
+    /// still on screen keeps it at Needs approval.
+    private func resolveApproval(session id: String) {
+        guard !pending.values.contains(where: { $0.sessionID == id }) else { return }
+        sessions.resolveApproval(session: id, at: .now)
     }
 
     /// Nobody answered in the notch: the terminal asks instead, so the session waits on the
@@ -866,19 +885,20 @@ final class AgentHub {
         }
         sessions.record(.denied, "Denied", session: approval.sessionID, at: .now)
         recorder.denied(session: approval.sessionID, command: approval.summary)
-        sessions.resolveApproval(session: approval.sessionID, at: .now)
+        resolveApproval(session: approval.sessionID)
         approvalsChanged()
         publishStatus()
     }
 
     /// Tells the history how a request ended. Only a tool request keeps its summary (the command or
-    /// file), never a plan's title or a question, and none while details are hidden.
+    /// file), never a plan's title or a question, and none while details are hidden or were when
+    /// it arrived.
     private func logOutcome(_ approval: AgentApproval, _ outcome: ApprovalOutcome) {
         onApprovalRecord(
             ApprovalRecord(
                 sessionID: approval.sessionID, project: approval.project, source: approval.source, tool: approval.tool,
                 summary: approval.prompt == .tool
-                    ? ApprovalRecord.summary(approval.summary, hidden: detailsHidden) : nil,
+                    ? ApprovalRecord.summary(approval.summary, hidden: detailsHidden || approval.arrivedHidden) : nil,
                 outcome: outcome, date: .now))
     }
 
@@ -1034,11 +1054,9 @@ final class AgentHub {
         let released = held.filter { pending[$0]?.sessionID == id }
         guard !released.isEmpty else { return }
         held.removeAll { released.contains($0) }
-        for request in released {
-            queue.enqueue(request)
-            // Its wait starts now, so a slow choice on the cap card doesn't hand it straight back.
-            if let source = pending[request]?.source { startTimeout(request, source: source) }
-        }
+        // Their timeouts keep running from arrival: the agent's hook timed out from then too, so a
+        // later hand-back would come after the agent stopped waiting.
+        for request in released { queue.enqueue(request) }
         approvalsChanged()
         onNewRequest()
         if let first = released.first.flatMap({ pending[$0] }) {
@@ -1693,12 +1711,15 @@ final class AgentHub {
         let original = seed ?? existing
         let command = HookInstaller.command(helper: helper.path, file: file, timeout: approvalTimeout)
         let withTools = toolActivity && !file.toolEvents.isEmpty
-        guard
-            let updated = try? withStatusLine(
+        let timeout = approvalTimeout
+        let build: (Data) throws -> Data = { [self] data in
+            try withStatusLine(
                 HookInstaller.install(
-                    into: original, command: command, file: file, tools: withTools, timeout: approvalTimeout),
+                    into: Self.seed(for: file, at: url) ?? data, command: command, file: file, tools: withTools,
+                    timeout: timeout),
                 file: file, helper: helper.path)
-        else {
+        }
+        guard let updated = try? build(existing) else {
             alert("Couldn't read \(path)", detail: "Fix the file's \(file.format.syntax), then try again.")
             return false
         }
@@ -1771,19 +1792,24 @@ final class AgentHub {
                 action: "Use This Wisp")
         }
         guard confirmed else { return false }
+        let latest = (try? Data(contentsOf: url)) ?? Data()
+        guard let final = Self.reread(latest, was: existing, edited: updated, edit: build) else {
+            alert("Couldn't read \(path)", detail: "Fix the file's \(file.format.syntax), then try again.")
+            return false
+        }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             // The first backup keeps the user's file from before Wisp; later ones would replace it
             // with a copy that already has Wisp's hooks, so `write` keeps those separately.
-            if !existing.isEmpty, link == .none {
-                try existing.write(to: url.appendingPathExtension("wisp-backup"), options: .atomic)
+            if !latest.isEmpty, link == .none {
+                try latest.write(to: url.appendingPathExtension("wisp-backup"), options: .atomic)
             }
         } catch {
             alert("Couldn't write \(path)", detail: error.localizedDescription)
             return false
         }
-        return write(updated, to: url)
+        return write(final, to: url)
     }
 
     /// The hooks of the settings file `file` replaces (`HookFile.seedPath`), while `file` doesn't
@@ -1794,6 +1820,16 @@ final class AgentHub {
                 contentsOf: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(seedPath))
         else { return nil }
         return HookInstaller.seed(fromSettings: settings)
+    }
+
+    /// The edit to write once a confirm dialog closes. The file was read before the dialog went
+    /// up, and the agent or the user may have saved it meanwhile (Claude Code writes its own
+    /// settings), so a file that changed is edited again rather than written over. Nil when the
+    /// changed file can't be read.
+    private static func reread(_ latest: Data, was original: Data, edited: Data, edit: (Data) throws -> Data)
+        -> Data?
+    {
+        latest == original ? edited : try? edit(latest)
     }
 
     /// A file that holds the agent's status line (Claude Code's settings) also gets the status
@@ -1809,15 +1845,22 @@ final class AgentHub {
             return
         }
         let statusLine = source.adapter.hookFile.statusLine
-        guard let original = try? Data(contentsOf: url),
-            let removed = try? HookInstaller.remove(from: original, file: source.adapter.hookFile),
-            let updated = statusLine ? try? StatusLineChain.restore(from: removed) : removed
-        else { return }
+        let edit: (Data) throws -> Data = { data in
+            let removed = try HookInstaller.remove(from: data, file: source.adapter.hookFile)
+            return statusLine ? try StatusLineChain.restore(from: removed) : removed
+        }
+        guard let original = try? Data(contentsOf: url), let edited = try? edit(original) else { return }
         let detail =
             statusLine
             ? "Only Wisp's entries are removed, and your own status line, if you had one, comes back."
             : "Only Wisp's entries are removed."
         guard confirm("Remove Wisp's hooks from \(source.displayName)?", detail: detail, action: "Remove") else {
+            return
+        }
+        guard let latest = try? Data(contentsOf: url),
+            let updated = Self.reread(latest, was: original, edited: edited, edit: edit)
+        else {
+            refreshInstalled()
             return
         }
         // A hook file of Wisp's own (Copilot CLI's) goes rather than staying behind empty.
@@ -1888,8 +1931,14 @@ final class AgentHub {
                     "Wisp edits \(path).\(change) The current file is saved next to it with .wisp-previous on the end.",
                 action: "Change")
         else { return false }
+        let latest = (try? Data(contentsOf: url)) ?? Data()
+        let edit: (Data) throws -> Data = { try StatusLineChain.install(mode, into: $0, helper: helper.path) }
+        guard let final = Self.reread(latest, was: original, edited: updated, edit: edit) else {
+            alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
+            return false
+        }
         terminalBarMode = mode
-        write(updated, to: url)
+        write(final, to: url)
         return true
     }
 
@@ -1898,25 +1947,28 @@ final class AgentHub {
     /// are; they read as outdated, so Settings offers "Update hooks" later.
     func applyApprovalTimeout() {
         guard let helper = Self.helperURL else { return }
-        var changes: [(url: URL, data: Data, adapter: AgentAdapter)] = []
+        var changes: [FileChange] = []
         for adapter in AgentAdapters.all where waitMismatched.contains(adapter.source) {
             let file = adapter.hookFile
             let url = Self.settingsURL(adapter.source)
             let original = (try? Data(contentsOf: url)) ?? Data()
-            let command = HookInstaller.command(helper: helper.path, file: file, timeout: approvalTimeout)
+            let timeout = approvalTimeout
+            let command = HookInstaller.command(helper: helper.path, file: file, timeout: timeout)
             let tools = toolActivity && !file.toolEvents.isEmpty
-            guard
-                let updated = try? withStatusLine(
-                    HookInstaller.install(
-                        into: original, command: command, file: file, tools: tools, timeout: approvalTimeout),
+            let edit: (Data) throws -> Data = { [self] data in
+                try withStatusLine(
+                    HookInstaller.install(into: data, command: command, file: file, tools: tools, timeout: timeout),
                     file: file, helper: helper.path)
-            else {
+            }
+            guard let updated = try? edit(original) else {
                 alert(
                     "Couldn't read \(file.displayPath)", detail: "Fix the file's \(file.format.syntax), then try again."
                 )
                 return
             }
-            if updated != original { changes.append((url, updated, adapter)) }
+            if updated != original {
+                changes.append(FileChange(url: url, original: original, data: updated, adapter: adapter, edit: edit))
+            }
         }
         guard !changes.isEmpty else { return }
         let paths = ListFormatter.localizedString(byJoining: changes.map { $0.adapter.hookFile.displayPath })
@@ -1936,7 +1988,32 @@ final class AgentHub {
                     "\(why) Wisp edits \(paths); the current file is saved next to it with .wisp-previous on the end.\(notes)",
                 action: "Update Hooks")
         else { return }
-        for change in changes { write(change.data, to: change.url) }
+        writeAll(changes)
+    }
+
+    /// A hook file edit waiting on a confirm dialog, with what it was made from.
+    private struct FileChange {
+        let url: URL
+        let original: Data
+        let data: Data
+        let adapter: AgentAdapter
+        let edit: (Data) throws -> Data
+    }
+
+    /// Writes each change, edited again from the file as it is now when it changed while the
+    /// dialog was up (`reread`).
+    private func writeAll(_ changes: [FileChange]) {
+        for change in changes {
+            let latest = (try? Data(contentsOf: change.url)) ?? Data()
+            guard let data = Self.reread(latest, was: change.original, edited: change.data, edit: change.edit) else {
+                let file = change.adapter.hookFile
+                alert(
+                    "Couldn't read \(file.displayPath)", detail: "Fix the file's \(file.format.syntax), then try again."
+                )
+                continue
+            }
+            write(data, to: change.url)
+        }
     }
 
     /// Agents that load Wisp's plugin only at start pick up a changed file after a restart.
@@ -1956,23 +2033,26 @@ final class AgentHub {
             toolActivity = on
             return true
         }
-        var changes: [(url: URL, data: Data, adapter: AgentAdapter)] = []
+        var changes: [FileChange] = []
         for adapter in AgentAdapters.all
         where connected.contains(adapter.source) && !adapter.hookFile.toolEvents.isEmpty {
             let file = adapter.hookFile
             let url = Self.settingsURL(adapter.source)
             let original = (try? Data(contentsOf: url)) ?? Data()
-            let command = HookInstaller.command(helper: helper.path, file: file, timeout: approvalTimeout)
-            guard
-                let updated = try? HookInstaller.install(
-                    into: original, command: command, file: file, tools: on, timeout: approvalTimeout)
-            else {
+            let timeout = approvalTimeout
+            let command = HookInstaller.command(helper: helper.path, file: file, timeout: timeout)
+            let edit: (Data) throws -> Data = { data in
+                try HookInstaller.install(into: data, command: command, file: file, tools: on, timeout: timeout)
+            }
+            guard let updated = try? edit(original) else {
                 alert(
                     "Couldn't read \(file.displayPath)", detail: "Fix the file's \(file.format.syntax), then try again."
                 )
                 return false
             }
-            if updated != original { changes.append((url, updated, adapter)) }
+            if updated != original {
+                changes.append(FileChange(url: url, original: original, data: updated, adapter: adapter, edit: edit))
+            }
         }
         guard !changes.isEmpty else {
             toolActivity = on
@@ -2004,7 +2084,7 @@ final class AgentHub {
                 action: on ? "Add Hooks" : "Remove Hooks")
         else { return false }
         toolActivity = on
-        for change in changes { write(change.data, to: change.url) }
+        writeAll(changes)
         return true
     }
 

@@ -33,6 +33,8 @@ final class PushService {
     /// Answered from the phone, so no "Answered on the Mac" follows.
     @ObservationIgnored private var answeredByPhone: Set<UUID> = []
     @ObservationIgnored private var streamTask: Task<Void, Never>?
+    /// Bumped for each reply stream, so one that was stopped can't clear a newer one's state.
+    @ObservationIgnored private var streamGeneration = 0
     @ObservationIgnored private var awayTask: Task<Void, Never>?
     @ObservationIgnored private var locked = false
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "push")
@@ -268,24 +270,28 @@ final class PushService {
         var components = URLComponents(url: stream, resolvingAgainstBaseURL: false)
         components?.queryItems = [URLQueryItem(name: "since", value: String(since))]
         guard let url = components?.url else { return }
+        streamGeneration += 1
+        let generation = streamGeneration
         streamTask = Task { [weak self] in
             var delay = 1.0
             while !Task.isCancelled {
                 guard let self else { return }
                 // Back off on failures, so a dead network or a refusing server isn't hit every second.
-                if await self.listen(url) { delay = 1 }
+                if await self.listen(url, generation: generation) { delay = 1 }
                 guard !Task.isCancelled, !self.replies.isEmpty else { break }
                 try? await Task.sleep(for: .seconds(delay))
                 delay = min(delay * 2, self.maximumBackoff)
             }
-            self?.streamTask = nil
-            self?.listening = false
+            // A stream stopped and replaced while this one wound down belongs to the newer loop.
+            guard let self, self.streamGeneration == generation else { return }
+            self.streamTask = nil
+            self.listening = false
         }
     }
 
     /// Reads the stream until it closes or nothing waits. True only when the server accepted the
     /// connection.
-    private func listen(_ url: URL) async -> Bool {
+    private func listen(_ url: URL, generation: Int) async -> Bool {
         var connected = false
         // ntfy sends a keepalive every 45 s by default, so a minute and a half of silence is a
         // dead connection.
@@ -299,16 +305,18 @@ final class PushService {
                 log.error("push stream refused: status \(status, privacy: .public)")
                 return false
             }
-            listening = true
             connected = true
+            if streamGeneration == generation { listening = true }
             for try await line in bytes.lines {
+                // A stopped stream's lines are left to the loop that replaced it.
+                guard !Task.isCancelled else { break }
                 received(line)
-                if replies.isEmpty || Task.isCancelled { break }
+                if replies.isEmpty { break }
             }
         } catch {
             if !Task.isCancelled { log.notice("push stream closed: \(error.localizedDescription, privacy: .public)") }
         }
-        listening = false
+        if streamGeneration == generation { listening = false }
         return connected
     }
 
