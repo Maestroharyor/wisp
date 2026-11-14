@@ -57,6 +57,7 @@ final class NotchController {
                 self.services.preferences.setForm(shellForm, for: self.screenUUID)
             }
         }
+        model.onShelfResized = { [weak self] in self?.resyncPointer() }
         model.onKeyDone = { [weak self] in
             // An open shelf keeps its key status for its own fields.
             guard let self, self.machine.phase != .open else { return }
