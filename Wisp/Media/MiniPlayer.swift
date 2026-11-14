@@ -22,6 +22,10 @@ final class MiniPlayerController {
         self.services = services
     }
 
+    isolated deinit {
+        if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
+    }
+
     var isVisible: Bool { panel?.isVisible == true && !hiding }
 
     func toggle() {
@@ -90,6 +94,7 @@ final class MiniPlayerController {
                 dragMoved: { [weak self] in self?.dragMoved() },
                 dragEnded: { [weak self] in self?.dragEnded() }))
         // Moves by the system (a display change) still save; drags save once they end.
+        if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: panel, queue: .main
         ) { [weak self] _ in
