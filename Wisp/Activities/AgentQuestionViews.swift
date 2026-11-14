@@ -179,7 +179,7 @@ struct QuestionAnswers<Header: View>: View {
             }
             Button("Terminal") {
                 typing = false
-                hub.answer(approval.id, allow: nil)
+                hub.answerInTerminal(approval.id)
             }
             .buttonStyle(QuestionChipStyle(selected: false))
             .help("Answer in the terminal instead")

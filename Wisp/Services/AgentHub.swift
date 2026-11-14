@@ -668,6 +668,14 @@ final class AgentHub {
         publishStatus()
     }
 
+    /// Hands a request back to the terminal and brings that terminal forward, since the agent
+    /// asks there now.
+    func answerInTerminal(_ id: UUID) {
+        guard let session = approvals.first(where: { $0.id == id })?.sessionID else { return }
+        answer(id, allow: nil)
+        focus(session: session)
+    }
+
     /// Denies a request and tells Claude why, in the words typed on the card.
     func deny(_ id: UUID, reason: String) {
         guard let taken = take(id) else { return }
