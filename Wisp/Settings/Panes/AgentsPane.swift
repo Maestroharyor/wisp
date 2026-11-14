@@ -73,6 +73,7 @@ struct AgentSettings: View {
             }
             alerts
             AgentSoundsSection(preferences: preferences, player: sounds)
+            AgentQuietHoursSection(preferences: preferences)
             Section("Spend") {
                 LabeledContent("Estimated spend today") {
                     Text(spentToday).monospacedDigit()
