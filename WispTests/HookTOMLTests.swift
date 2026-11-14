@@ -80,6 +80,35 @@ final class HookTOMLTests: XCTestCase {
         XCTAssertEqual(text(removed), config + "\n")
     }
 
+    /// Triple quotes in a comment or inside a one-line string open nothing, so Wisp's tables after
+    /// them are still found and replaced rather than added again.
+    func testTripleQuotesInCommentsAndOneLineStringsOpenNothing() throws {
+        let command = HookInstaller.command(helper: helper, file: kimi)
+        let config = """
+            # Write long notes with \"\"\" like this
+            pattern = "'''"
+            literal = '\"\"\"'
+            escaped = "a \\" \"\"\" b"
+            """
+        let once = try HookInstaller.install(into: Data(config.utf8), command: command, file: kimi)
+        XCTAssertEqual(try HookTOML.commands(in: once).count, kimi.events.count)
+        let twice = try HookInstaller.install(into: once, command: command, file: kimi)
+        XCTAssertEqual(once, twice, "a second install replaces Wisp's tables")
+        XCTAssertEqual(text(try HookInstaller.remove(from: once, file: kimi)), config + "\n")
+    }
+
+    func testAnEscapedQuoteDoesNotCloseAMultilineString() throws {
+        let config = """
+            notes = \"\"\"
+            a \\\"\"\" still open
+            [[hooks]]
+            event = "Stop"
+            command = "wisp-agent"
+            \"\"\"
+            """
+        XCTAssertTrue(try HookTOML.commands(in: Data(config.utf8)).isEmpty)
+    }
+
     func testVibeTablesHaveNamesAndMatches() throws {
         let command = HookInstaller.command(helper: helper, file: vibe)
         let data = try HookInstaller.install(into: Data(), command: command, file: vibe)
