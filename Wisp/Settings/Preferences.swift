@@ -190,6 +190,21 @@ final class Preferences {
         defaults.set(true, forKey: LegacyDefaults.importedFlagKey)
     }
 
+    /// The saved agent sounds, or on first run of this version the old permission sound switch
+    /// and sound pack folded into them (saved, and the old key removed).
+    private static func agentSounds(_ defaults: UserDefaults, look: Appearance) -> AgentSounds {
+        if let data = defaults.data(forKey: Key.agentSounds),
+            let saved = try? JSONDecoder().decode(AgentSounds.self, from: data)
+        {
+            return saved
+        }
+        let old = defaults.object(forKey: Key.approvalSound) == nil ? nil : defaults.bool(forKey: Key.approvalSound)
+        let sounds = AgentSounds.migrated(approvalSound: old, pack: look.soundPack, custom: look.customSounds)
+        defaults.set(try? JSONEncoder().encode(sounds), forKey: Key.agentSounds)
+        defaults.removeObject(forKey: Key.approvalSound)
+        return sounds
+    }
+
     private enum Key {
         static let hotkey = "hotkey"
         static let quickPressTogglesCapsLock = "quickPressTogglesCapsLock"
@@ -222,7 +237,9 @@ final class Preferences {
         static let batteryHUD = "batteryHUD"
         static let capsLockHUD = "capsLockHUD"
         static let mediaActivity = "mediaActivity"
+        /// The old request sound switch, read once into `agentSounds` and then removed.
         static let approvalSound = "approvalSound"
+        static let agentSounds = "agentSounds"
         static let terminalBarMode = "terminalBarMode"
         static let contextAlert = "contextAlert"
         static let contextWarnPercent = ContextUsage.Thresholds.warnKey
@@ -710,8 +727,10 @@ final class Preferences {
     var downloadFolders: [String] { didSet { defaults.set(downloadFolders, forKey: Key.downloadFolders) } }
     var capsLockHUD: Bool { didSet { defaults.set(capsLockHUD, forKey: Key.capsLockHUD) } }
     var mediaActivity: Bool { didSet { defaults.set(mediaActivity, forKey: Key.mediaActivity) } }
-    /// A short sound when an agent asks for permission.
-    var approvalSound: Bool { didSet { defaults.set(approvalSound, forKey: Key.approvalSound) } }
+    /// Each agent moment's sound and switch, the volume, and muting during calls or Focus.
+    var agentSounds: AgentSounds {
+        didSet { defaults.set(try? JSONEncoder().encode(agentSounds), forKey: Key.agentSounds) }
+    }
     /// What Claude Code's status bar shows once connected: Wisp's, the user's own, or nothing new.
     var terminalBarMode: TerminalBarMode {
         didSet { defaults.set(terminalBarMode.rawValue, forKey: Key.terminalBarMode) }
@@ -1008,7 +1027,6 @@ final class Preferences {
             Key.batteryHUD: true,
             Key.capsLockHUD: true,
             Key.mediaActivity: true,
-            Key.approvalSound: true,
             Key.terminalBarMode: TerminalBarMode.wisp.rawValue,
             Key.contextAlert: true,
             Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
@@ -1090,7 +1108,7 @@ final class Preferences {
             legacyAutoClose: defaults.object(forKey: Key.shelfAutoCloses) == nil
                 ? nil : defaults.bool(forKey: Key.shelfAutoCloses))
         // Earlier builds kept each look setting under its own key; carry them over once.
-        appearance =
+        let look =
             defaults.data(forKey: Key.appearance).flatMap { try? JSONDecoder().decode(Appearance.self, from: $0) }
             ?? Appearance.migrated(
                 from: LegacyLook(
@@ -1103,6 +1121,7 @@ final class Preferences {
                     animationSpeed: defaults.string(forKey: Key.animationSpeed),
                     surface: defaults.string(forKey: Key.surfaceStyle),
                     glassEdge: defaults.string(forKey: Key.glassEdge)))
+        appearance = look
         lookPresets =
             defaults.data(forKey: Key.lookPresets).flatMap {
                 try? JSONDecoder().decode([AppearancePreset].self, from: $0)
@@ -1134,7 +1153,7 @@ final class Preferences {
         batteryHUD = defaults.bool(forKey: Key.batteryHUD)
         capsLockHUD = defaults.bool(forKey: Key.capsLockHUD)
         mediaActivity = defaults.bool(forKey: Key.mediaActivity)
-        approvalSound = defaults.bool(forKey: Key.approvalSound)
+        agentSounds = Self.agentSounds(defaults, look: look)
         terminalBarMode = defaults.string(forKey: Key.terminalBarMode).flatMap(TerminalBarMode.init(rawValue:)) ?? .wisp
         contextAlert = defaults.bool(forKey: Key.contextAlert)
         let thresholds = ContextUsage.Thresholds.stored { key in

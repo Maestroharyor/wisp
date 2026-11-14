@@ -36,7 +36,7 @@ public enum SoundEvent: String, CaseIterable, Identifiable, Sendable, Codable {
     }
 }
 
-public enum SoundSource: Equatable, Sendable {
+public enum SoundSource: Equatable, Sendable, Codable {
     /// A sound in /System/Library/Sounds, by name.
     case system(String)
     /// An audio file the user picked.

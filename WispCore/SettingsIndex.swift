@@ -144,7 +144,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "alerts", "estimated spend today", "last 7 days",
                 "warn", "warn at", "critical", "critical at", "context colour", "context color", "context ring",
                 "compact now", "approval history", "approvals", "spend cap", "pause at", "per session", "keep going",
-                "edit rule",
+                "edit rule", "sounds", "agent sounds", "mute", "mute during calls or focus", "needs approval",
+                "finished", "failed", "context warning", "context critical", "choose file", "chime",
                 // Phone alerts, which had their own pane; its name stays a keyword.
                 "phone", "phone alerts", "send agent alerts to my phone", "ntfy", "push", "iphone", "android",
                 "apple watch", "watch", "mobile", "remote", "away", "idle", "locked", "topic", "qr", "send test",
@@ -200,7 +201,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "your own ntfy server", "server", "self-hosted", "access token", "reply token",
                 "add the command or file name", "away after", "wait for an answer", "approval timeout",
                 "terminal bar", "claude code status bar", "tool activity", "show tool activity", "protected server",
-                "include details",
+                "include details", "agent sound volume", "volume",
             ]
         default: []
         }

@@ -108,6 +108,10 @@ final class AppServices {
     private static let calloutDuration: TimeInterval = 12
     /// The callout slot holds the spend cap card, which waits for a choice.
     @ObservationIgnored private var showsSpendCap = false
+    /// Keeps a burst of agent moments to one sound each.
+    @ObservationIgnored private var soundRule = SoundRule()
+    /// A Focus is on, as read from the Focus database (needs Full Disk Access, as notifications do).
+    @ObservationIgnored private var focusOn = false
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -273,10 +277,18 @@ final class AppServices {
         activities.post(.agentCallout(callout), slot: .agentCallout, duration: nil)
     }
 
-    /// The sound and tap for something an agent needs from the user.
-    private func needsYouFeedback() {
-        sounds.play(.alert, fallback: "Tink")
-        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+    /// An agent moment's sound from Settings › Agents › Sounds, once per burst (`SoundRule`), and
+    /// quiet during a call or Focus when that's on. Requests and questions also tap the trackpad.
+    private func agentSound(_ event: AgentSoundEvent, session: String?) {
+        let settings = preferences.agentSounds
+        guard
+            let source = soundRule.sound(
+                for: event, session: session, settings: settings, muted: agents.onCall || focusOn, now: .now)
+        else { return }
+        sounds.play(source, volume: settings.volume)
+        if event == .needsApproval || event == .question {
+            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+        }
     }
 
     /// Holds off system sleep while an agent works, when that's on. While held it looks again
@@ -361,8 +373,8 @@ final class AppServices {
         case .running, .needsApproval: activities.post(.agent(status), slot: .agent, duration: nil)
         case .finished:
             if changed {
+                // Its sound is the Finished agent sound, from the hub.
                 finishes += 1
-                sounds.play(.done)
                 celebrate(.agentDone(duration: Date.now.timeIntervalSince(status.started)))
             }
             activities.post(.agent(status), slot: .agent, duration: 4)
@@ -499,11 +511,9 @@ final class AppServices {
         agents.onNewRequest = { [weak self] in
             // A new request always shows full size, even behind a minimised one.
             _ = self?.restoreApprovals()
-            guard self?.preferences.approvalSound == true else { return }
-            self?.needsYouFeedback()
         }
-        // The reminder has its own switch, so it doesn't depend on the request sound.
-        agents.onReminder = { [weak self] in self?.needsYouFeedback() }
+        agents.onSound = { [weak self] event, session in self?.agentSound(event, session: session) }
+        agents.onReminder = { [weak self] in self?.agentSound(.needsApproval, session: nil) }
         agents.onAlert = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 3)
         }
@@ -576,6 +586,7 @@ final class AppServices {
         notifications.onNotification = { [weak self] item in self?.showNotification(item) }
         notifications.onFocusState = { [weak self] state in
             self?.context.update { $0.focus = state.isOn ? state.name : nil }
+            self?.focusOn = state.isOn
         }
         notifications.onFocusChange = { [weak self] state in
             self?.activities.post(.focus(state), slot: .focus, duration: 2.2)

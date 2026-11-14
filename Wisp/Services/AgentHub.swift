@@ -193,6 +193,8 @@ final class AgentHub {
     var onApproval: (AgentApproval?) -> Void = { _ in }
     /// A request that needs the user arrived (not one allowed by Allow All).
     var onNewRequest: () -> Void = {}
+    /// An agent moment that can make a sound, and its session; the receiver decides whether it does.
+    var onSound: (AgentSoundEvent, _ session: String?) -> Void = { _, _ in }
     /// A short message for the notch, such as a request allowed by Allow All.
     var onNotice: (String) -> Void = { _ in }
     /// A session's context window passed the alert threshold.
@@ -436,6 +438,12 @@ final class AgentHub {
         if event.kind == .sessionEnd, let previous { finishRecord(previous) }
         sessions.apply(event, at: .now)
         reportMoment(session: event.sessionID, before: before, stopped: event.kind == .stop)
+        if event.kind == .stop {
+            onSound(.finished, event.sessionID)
+        } else if sessions.session(event.sessionID)?.state == .waiting, before != .waiting {
+            // Waiting on a prompt in the terminal (Needs you), which Wisp can't answer.
+            onSound(.needsApproval, event.sessionID)
+        }
         // Tool activity comes several times a second; the branch and pruning can wait for the
         // next prompt, stop or status bar snapshot.
         if !event.kind.isToolActivity {
@@ -503,6 +511,7 @@ final class AgentHub {
             if !isHeld {
                 approvalsChanged()
                 onNewRequest()
+                onSound(approval.prompt == .question ? .question : .needsApproval, approval.sessionID)
             }
         } else {
             reply(connection, nil)
@@ -551,16 +560,19 @@ final class AgentHub {
 
     /// Tracked even while the alert is off, so turning it on doesn't fire for a session that
     /// was already past the level.
+    /// The sounds have their own switches, so they follow the climb whatever the alert says.
     private func checkContext(session id: String) {
-        if let percent = sessions.contextAlert(session: id, threshold: contextThresholds.warn), contextAlert,
+        if let percent = sessions.contextAlert(session: id, threshold: contextThresholds.warn),
             let project = sessions.session(id)?.project
         {
-            onContextAlert(ContextUsage.notice(percent: percent, project: project))
+            onSound(.contextWarning, id)
+            if contextAlert { onContextAlert(ContextUsage.notice(percent: percent, project: project)) }
         }
         if let percent = sessions.contextCriticalAlert(session: id, threshold: contextThresholds.critical),
-            contextAlert, let session = sessions.session(id)
+            let session = sessions.session(id)
         {
-            onContextCritical(session, Int(percent.rounded()))
+            onSound(.contextCritical, id)
+            if contextAlert { onContextCritical(session, Int(percent.rounded())) }
         }
     }
 
@@ -741,6 +753,7 @@ final class AgentHub {
             SpendCapPrompt(
                 sessionID: id, project: session.project, source: session.source, crossing: crossing,
                 estimated: !session.costIsReal))
+        onSound(.spendCap, id)
         if capPrompts.count == 1 { onSpendCap(capPrompts.first) }
     }
 
@@ -791,6 +804,9 @@ final class AgentHub {
         for request in released { queue.enqueue(request) }
         approvalsChanged()
         onNewRequest()
+        if let first = released.first.flatMap({ pending[$0] }) {
+            onSound(first.prompt == .question ? .question : .needsApproval, id)
+        }
         publishStatus()
     }
 
@@ -944,6 +960,8 @@ final class AgentHub {
         let ended = sessions.endExited(at: .now) { $0.isRunning(info: AgentProcess.systemInfo) }
         guard !ended.isEmpty else { return }
         for id in ended {
+            // Quitting without SessionEnd is a crash or a closed terminal: the Failed sound.
+            onSound(.failed, id)
             recorder.exited(session: id)
             if let session = live.first(where: { $0.id == id }) { finishRecord(session) }
             settleApprovals(for: id)

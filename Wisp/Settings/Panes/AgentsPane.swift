@@ -7,6 +7,7 @@ struct AgentSettings: View {
     let cloud: CloudAgentStore
     let history: AgentHistoryStore
     let push: PushService
+    let sounds: SoundPlayer
     @Bindable var preferences: Preferences
 
     /// "~$12.40", or "~$12.40 of $20" with the budget on.
@@ -71,6 +72,7 @@ struct AgentSettings: View {
                 AgentConnection(hub: hub, adapter: adapter)
             }
             alerts
+            AgentSoundsSection(preferences: preferences, player: sounds)
             Section("Spend") {
                 LabeledContent("Estimated spend today") {
                     Text(spentToday).monospacedDigit()
@@ -104,6 +106,7 @@ struct AgentSettings: View {
             AdvancedSection {
                 StatusLineSettings(hub: hub, preferences: preferences)
                 toolActivity
+                AgentSoundVolume(preferences: preferences)
                 CommandLineSettings()
                 if preferences.pushEnabled {
                     PhoneAlertsAdvanced(push: push, hub: hub, preferences: preferences)
@@ -120,7 +123,6 @@ struct AgentSettings: View {
 
     private var alerts: some View {
         Section("Alerts") {
-            Toggle("Play a sound when an agent asks for permission", isOn: $preferences.approvalSound)
             Toggle("Alert when a session's context reaches the warn level", isOn: $preferences.contextAlert)
             ContextThresholdSlider(
                 title: "Warn at", tint: .wispAmber, percent: $preferences.contextWarnPercent,
