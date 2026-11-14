@@ -64,7 +64,15 @@ final class AgentHistoryStore {
     func save(_ record: SessionRecord) {
         guard preferences.agentHistory, !record.isEmpty, !removed.contains(record.id) else { return }
         history.save(record, now: .now)
+        history.pruneActivity(keeping: preferences.activityRetention, now: .now)
         scheduleWrite()
+    }
+
+    /// Drops daily counts older than the retention setting now, for a shorter choice.
+    func applyRetention() {
+        let before = history.activity
+        history.pruneActivity(keeping: preferences.activityRetention, now: .now)
+        if history.activity != before { scheduleWrite() }
     }
 
     /// Summarises `record` on this Mac and stores the summary with it. Nil when summaries are
@@ -123,7 +131,7 @@ final class AgentHistoryStore {
     }
 
     private func encoded() -> Data? {
-        history.records.isEmpty ? nil : try? JSONEncoder().encode(history)
+        history.isEmpty ? nil : try? JSONEncoder().encode(history)
     }
 
     /// The changes made here (saves, removals, a clear) applied on top of the file's history.
@@ -138,6 +146,7 @@ final class AgentHistoryStore {
     private func finishLoading(_ saved: SessionHistory) {
         guard !loaded else { return }
         history = merged(onto: saved)
+        history.pruneActivity(keeping: preferences.activityRetention, now: .now)
         loaded = true
         if writeTask != nil {
             writeTask?.cancel()

@@ -189,9 +189,13 @@ struct AgentSettings: View {
             Toggle("Keep session history", isOn: $preferences.agentHistory)
             Toggle("Summarise finished sessions with AI", isOn: $preferences.agentSummaries)
                 .disabled(!preferences.aiEnabled)
+            Picker("Keep the activity map for", selection: $preferences.activityRetention) {
+                ForEach(ActivityRetention.allCases) { Text($0.title).tag($0) }
+            }
+            .onChange(of: preferences.activityRetention) { history.applyRetention() }
             LabeledContent {
                 Button("Clear history") { history.clear() }
-                    .disabled(history.history.records.isEmpty && history.approvals.records.isEmpty)
+                    .disabled(history.history.isEmpty && history.approvals.records.isEmpty)
             } label: {
                 let count = history.history.records.count
                 Text(count == 1 ? "1 session saved" : "\(count) sessions saved")
@@ -200,7 +204,7 @@ struct AgentSettings: View {
             Text("History")
         } footer: {
             Text(
-                "Keeps finished sessions on this Mac for 30 days (at most \(SessionHistory.limit)): project, agent, length, cost, tool counts, test results, file names and commands with secrets masked. Tools, files, commands and tests need Show what agents are doing, under Advanced (Copilot CLI sends finished tool calls anyway). Prompts, messages, file contents and command output are never saved. Requests from the last 7 days (at most \(ApprovalLog.limit)) are kept too: the tool, its masked command or file, and how it ended. Commands and file names aren't saved while agent details are hidden. Turning history off stops saving; what's saved stays until you clear it. Summaries need AI (Settings › AI), run on this Mac and appear after Done, and in the Done phone alert with Add the command or file name on. Open the history with the clock button in the Agents widget (Wide size)."
+                "Keeps finished sessions on this Mac for 30 days (at most \(SessionHistory.limit)): project, agent, length, cost, tool counts, test results, file names and commands with secrets masked. After that only the number of sessions and turns per agent per day stays, for the activity map, as long as you choose above. Tools, files, commands and tests need Show what agents are doing, under Advanced (Copilot CLI sends finished tool calls anyway). Prompts, messages, file contents and command output are never saved. Requests from the last 7 days (at most \(ApprovalLog.limit)) are kept too: the tool, its masked command or file, and how it ended. Commands and file names aren't saved while agent details are hidden. Turning history off stops saving; what's saved stays until you clear it. Summaries need AI (Settings › AI), run on this Mac and appear after Done, and in the Done phone alert with Add the command or file name on. Open the history with the clock button in the Agents widget (Wide size)."
             )
         }
     }

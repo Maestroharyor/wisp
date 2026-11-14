@@ -1104,6 +1104,13 @@ struct AgentsDetail: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .safeAreaInset(edge: .bottom, spacing: 12) {
+            // The window has room for a year of activity under the sessions; the notch keeps it in the history.
+            if host == .window {
+                let map = model.services.agentHistory.history.activityMap()
+                if !map.isEmpty { ActivityMapView(map: map).equatable() }
+            }
+        }
         .onAppear {
             hub.refreshInstalledIfStale()
             cloud.refreshNow()

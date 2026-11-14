@@ -762,6 +762,10 @@ final class Preferences {
     var agentKeepAwake: Bool { didSet { defaults.set(agentKeepAwake, forKey: Key.agentKeepAwake) } }
     /// Finished sessions are kept on this Mac (figures, tools, masked commands, no prompts).
     var agentHistory: Bool { didSet { defaults.set(agentHistory, forKey: Key.agentHistory) } }
+    /// How long the activity map's daily counts outlive the session records.
+    var activityRetention: ActivityRetention {
+        didSet { defaults.set(activityRetention.rawValue, forKey: Key.activityRetention) }
+    }
     /// A finished session is summarised by the on-device AI, when AI is on.
     var agentSummaries: Bool { didSet { defaults.set(agentSummaries, forKey: Key.agentSummaries) } }
     /// A notice when one tool call runs longer than `toolAlertMinutes`; needs tool activity.
@@ -1194,6 +1198,8 @@ final class Preferences {
         agentToolActivity = defaults.bool(forKey: Key.agentToolActivity)
         agentKeepAwake = defaults.bool(forKey: Key.agentKeepAwake)
         agentHistory = defaults.bool(forKey: Key.agentHistory)
+        activityRetention =
+            defaults.string(forKey: Key.activityRetention).flatMap(ActivityRetention.init(rawValue:)) ?? .standard
         agentSummaries = defaults.bool(forKey: Key.agentSummaries)
         toolAlert = defaults.bool(forKey: Key.toolAlert)
         toolAlertMinutes = min(max(defaults.integer(forKey: Key.toolAlertMinutes), 1), 60)
