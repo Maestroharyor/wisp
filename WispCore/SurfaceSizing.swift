@@ -81,6 +81,16 @@ public enum SurfaceSizing {
     public static let approvalPreviewHeight: CGFloat = 220
     /// An edit's first changed lines (`InlineDiff.maxLines`) under an approval card's summary.
     public static let inlineDiffHeight: CGFloat = 60
+    /// Terminal, Deny and Allow on their own row under an approval card's request. Beside the
+    /// title and summary they left the header too little width at `notificationWidth`.
+    public static let approvalActionRowHeight: CGFloat = 36
+
+    /// What a tool or plan approval card adds under the standard card: its action row, then
+    /// the open preview or else the inline diff.
+    public static func approvalCardExtra(previewOpen: Bool, inlineDiff: Bool) -> CGFloat {
+        let below = previewOpen ? approvalPreviewHeight : inlineDiff ? inlineDiffHeight : 0
+        return approvalActionRowHeight + below
+    }
     /// The answer under an AI result card's title; longer answers scroll.
     public static let aiResultHeight: CGFloat = 132
 

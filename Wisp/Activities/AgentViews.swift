@@ -182,72 +182,45 @@ struct AgentApprovalCard: View {
         let hub = model.services.agents
         return VStack(spacing: 0) {
             Color.clear.frame(height: model.isNotchStyle ? model.notchHeight : 8)
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: approval.source.symbol)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.project(approval.project))
-                    .frame(width: 38, height: 38)
-                    .background(Circle().fill(Color.project(approval.project).opacity(0.18)))
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        // One line each; the project name gives way first when the card is narrow.
-                        Text(approval.title).font(.system(size: 13, weight: .bold))
-                            .lineLimit(1).fixedSize()
-                        if let position = hub.queue.positionLabel {
-                            Text(position)
-                                .font(.system(size: 10, weight: .semibold)).monospacedDigit()
-                                .padding(.horizontal, 6).padding(.vertical, 1)
-                                .background(Capsule().fill(.ink.opacity(0.14)))
-                        }
-                        Button {
-                            hub.focus(session: approval.sessionID)
-                        } label: {
-                            Label(approval.project, systemImage: "arrow.up.forward.app")
-                                .font(.system(size: 11)).foregroundStyle(Color.project(approval.project))
-                                .lineLimit(1).truncationMode(.tail)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Show the terminal")
-                        // Private mode keeps the diff, command and plan out of sight too.
-                        if approval.preview != nil, !hub.detailsHidden {
-                            Button {
-                                model.expandedApproval = expanded ? nil : approval.id
-                            } label: {
-                                Label(
-                                    expanded ? "Less" : "Preview", systemImage: expanded ? "chevron.up" : "chevron.down"
-                                )
-                                .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.wispViolet)
-                                .lineLimit(1)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .fixedSize()
-                            .help(approval.prompt == .plan ? "Read the plan" : "See what it will change")
-                        }
-                        Button {
-                            hub.answer(approval.id, allow: nil)
-                        } label: {
-                            Text("Terminal").font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(Color.wispViolet).lineLimit(1)
-                        }
-                        .buttonStyle(.plain)
-                        .fixedSize()
-                        .help("Answer in the terminal instead")
-                        MinimiseApprovalButton(approval: approval, model: model)
+            // The answer buttons get a row of their own: beside the request they left the
+            // header less width than its controls need, so the row overflowed the card.
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 12) {
+                    Image(systemName: approval.source.symbol)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.project(approval.project))
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(Color.project(approval.project).opacity(0.18)))
+                    VStack(alignment: .leading, spacing: 3) {
+                        header(hub: hub)
+                        ApprovalSummary(
+                            approval: approval, hidden: hub.detailsHidden,
+                            fallback: approval.prompt == .plan
+                                ? "Plan ready for review" : "Wants to use \(approval.tool)",
+                            size: 12, lines: 2
+                        )
+                        .id(approval.id)
                     }
-                    ApprovalSummary(
-                        approval: approval, hidden: hub.detailsHidden,
-                        fallback: approval.prompt == .plan ? "Plan ready for review" : "Wants to use \(approval.tool)",
-                        size: 12, lines: 2
-                    )
-                    .id(approval.id)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Spacer(minLength: 8)
-                ApprovalButtons(approval: approval, hub: hub)
+                ApprovalButtons(approval: approval, hub: hub) {
+                    Button {
+                        hub.answerInTerminal(approval.id)
+                    } label: {
+                        Text("Terminal")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.ink.opacity(0.7))
+                            .padding(.horizontal, 8)
+                            .frame(height: 28)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Answer in the terminal instead")
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .padding(.horizontal, 18)
-            .frame(height: SurfaceSizing.notificationCardHeight - 8)
+            .frame(height: SurfaceSizing.notificationCardHeight - 8 + SurfaceSizing.approvalActionRowHeight)
             // The full preview replaces it when open; private mode shows only the file's name.
             if !expanded, let diff = approval.inlineDiff {
                 Group {
@@ -275,6 +248,50 @@ struct AgentApprovalCard: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.ink)
+    }
+
+    /// Title, queue position and project, then Preview and Minimise. Only the project and
+    /// then the title give way, so the row never runs past the card.
+    private func header(hub: AgentHub) -> some View {
+        HStack(spacing: 6) {
+            Text(approval.title).font(.system(size: 13, weight: .bold))
+                .lineLimit(1).truncationMode(.middle)
+                .layoutPriority(1)
+            if let position = hub.queue.positionLabel {
+                Text(position)
+                    .font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Capsule().fill(.ink.opacity(0.14)))
+                    .fixedSize()
+            }
+            Button {
+                hub.focus(session: approval.sessionID)
+            } label: {
+                Label(approval.project, systemImage: "arrow.up.forward.app")
+                    .font(.system(size: 11)).foregroundStyle(Color.project(approval.project))
+                    .lineLimit(1).truncationMode(.tail)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Show the terminal")
+            Spacer(minLength: 4)
+            // Private mode keeps the diff, command and plan out of sight too.
+            if approval.preview != nil, !hub.detailsHidden {
+                Button {
+                    model.expandedApproval = expanded ? nil : approval.id
+                } label: {
+                    Label(expanded ? "Less" : "Preview", systemImage: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.wispViolet)
+                        .lineLimit(1)
+                        .frame(height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .fixedSize()
+                .help(approval.prompt == .plan ? "Read the plan" : "See what it will change")
+            }
+            MinimiseApprovalButton(approval: approval, model: model)
+        }
     }
 
     private var expanded: Bool { model.expandedApproval == approval.id }
@@ -578,18 +595,26 @@ private struct ApprovalSummary: View {
     }
 }
 
-/// Deny and Allow, shared by the card under the notch and the bar in an open shelf.
-/// They wake a moment after a request appears, so a click aimed at the previous card
-/// can't answer the one that just replaced it.
-struct ApprovalButtons: View {
+/// Deny and Allow, shared by the card under the notch and the bar in an open shelf, after
+/// any `leading` controls (the card's Terminal). They wake a moment after a request appears,
+/// so a click aimed at the previous card can't answer the one that just replaced it.
+struct ApprovalButtons<Leading: View>: View {
     let approval: AgentApproval
     let hub: AgentHub
+    let leading: Leading
 
     @State private var ready = false
+
+    init(approval: AgentApproval, hub: AgentHub, @ViewBuilder leading: () -> Leading) {
+        self.approval = approval
+        self.hub = hub
+        self.leading = leading()
+    }
 
     var body: some View {
         let hyper = hub.keysUseHyper()
         HStack(spacing: 8) {
+            leading
             Button {
                 hub.answer(approval.id, allow: false)
             } label: {
@@ -622,6 +647,12 @@ struct ApprovalButtons: View {
             try? await Task.sleep(for: .milliseconds(400))
             ready = true
         }
+    }
+}
+
+extension ApprovalButtons where Leading == EmptyView {
+    init(approval: AgentApproval, hub: AgentHub) {
+        self.init(approval: approval, hub: hub) { EmptyView() }
     }
 }
 
