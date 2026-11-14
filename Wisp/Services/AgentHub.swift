@@ -144,7 +144,14 @@ final class AgentHub {
     @ObservationIgnored private var held: [UUID] = []
     /// Dollars a session may spend before Wisp asks; nil is off. Set from Preferences.
     var spendCap: Double? {
-        didSet { if spendCap == nil { for prompt in capPrompts { keepGoing(session: prompt.sessionID) } } }
+        didSet {
+            guard spendCap == nil else { return }
+            // Not Keep going, which would leave these sessions uncapped if the cap comes back.
+            for prompt in capPrompts {
+                capState.release(prompt.sessionID)
+                capAnswered(prompt.sessionID)
+            }
+        }
     }
     @ObservationIgnored private var capState = SpendCap()
     /// Sessions at the cap waiting for a choice, oldest first; the front one is on screen.

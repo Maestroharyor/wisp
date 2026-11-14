@@ -40,6 +40,12 @@ public struct SpendCap: Equatable, Sendable {
         unlimited.insert(id)
     }
 
+    /// The cap was turned off while the session waited: it goes on, and a cap turned on again
+    /// still covers it.
+    public mutating func release(_ id: String) {
+        held.remove(id)
+    }
+
     public mutating func raise(_ id: String, to limit: Double) {
         held.remove(id)
         raised[id] = limit

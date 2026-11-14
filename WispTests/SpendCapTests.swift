@@ -53,6 +53,16 @@ final class SpendCapTests: XCTestCase {
         XCTAssertNotNil(caps.check(session: "s", cost: 6, cap: 5))
     }
 
+    /// Turning the cap off lets held sessions go without marking them Keep going, so turning it
+    /// back on still covers them.
+    func testTurningTheCapOffReleasesWithoutKeepGoing() {
+        var caps = SpendCap()
+        _ = caps.check(session: "s", cost: 5, cap: 5)
+        caps.release("s")
+        XCTAssertFalse(caps.isHeld("s"))
+        XCTAssertNotNil(caps.check(session: "s", cost: 6, cap: 5))
+    }
+
     func testForgetClearsASession() {
         var caps = SpendCap()
         _ = caps.check(session: "s", cost: 5, cap: 5)
