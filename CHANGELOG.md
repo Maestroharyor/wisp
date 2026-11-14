@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.5](https://github.com/Maestroharyor/wisp/compare/v0.2.4...v0.2.5) (2026-11-14)
+
+
+### Features
+
+* agent activity map, limit alerts and a session switcher ([#96](https://github.com/Maestroharyor/wisp/issues/96)) ([5e00d18](https://github.com/Maestroharyor/wisp/commit/5e00d18dda9792dbf38c1bbb72e3565fe75bc564))
+* diff-first approval cards, richer session rows and an integrations list ([#93](https://github.com/Maestroharyor/wisp/issues/93)) ([ed28698](https://github.com/Maestroharyor/wisp/commit/ed28698265593643895bb79bbd98bd5f12816b7c))
+* drag the shelf taller ([#98](https://github.com/Maestroharyor/wisp/issues/98)) ([d632fbd](https://github.com/Maestroharyor/wisp/commit/d632fbd03c8fa73424b90dc067953ab61e3d97f4))
+* more coding agents ([#97](https://github.com/Maestroharyor/wisp/issues/97)) ([71fbc19](https://github.com/Maestroharyor/wisp/commit/71fbc19e39fbd684f10a5cc2813f62dba079fce7))
+
+
+### Bug fixes
+
+* agent hub bug sweep ([#100](https://github.com/Maestroharyor/wisp/issues/100)) ([dcec621](https://github.com/Maestroharyor/wisp/commit/dcec621570fd121c0aea7d468c166bf2b7fcbe54))
+* app bug sweep ([#99](https://github.com/Maestroharyor/wisp/issues/99)) ([e1fef04](https://github.com/Maestroharyor/wisp/commit/e1fef0422b7a4772978a02506e41598539aefe03))
+
 ## [0.2.4](https://github.com/Maestroharyor/wisp/compare/v0.2.3...v0.2.4) (2026-11-14)
 
 
