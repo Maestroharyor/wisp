@@ -138,6 +138,13 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     /// The user's last prompt on one line, when the agent sent it. In memory only: never
     /// logged, saved or sent, and hidden with the other details.
     public var lastPrompt: String?
+    /// The session's first prompt (since it started or was cleared), for its title. In memory
+    /// only, like `lastPrompt`.
+    public var firstPrompt: String?
+    /// Claude Code's permission mode, from its hooks ("bypassPermissions" skips every prompt).
+    public var permissionMode: String?
+    /// When the session began, as far as Wisp saw: its SessionStart, else the first report.
+    public var started: Date?
     /// When the current turn began, for the elapsed timer.
     public var turnStarted: Date
     /// When the last turn finished; nil while one runs.
@@ -188,6 +195,9 @@ extension AgentSession {
     }
 
     public var displayModel: String? { model ?? modelID.map(ModelName.display) }
+
+    /// Permission prompts are skipped (`--dangerously-skip-permissions`), so nothing will ask.
+    public var bypassesPermissions: Bool { permissionMode == "bypassPermissions" }
 
     /// How long the last finished turn took.
     public var lastTurnDuration: TimeInterval? {
@@ -267,6 +277,8 @@ public struct AgentSessions: Sendable {
                 id: event.sessionID, project: event.project, source: event.source, state: .idle, turnStarted: date,
                 updated: date)
         session.project = event.project
+        if session.started == nil { session.started = date }
+        if let mode = event.permissionMode { session.permissionMode = mode }
         if let terminal = event.terminal { session.terminal = terminal }
         if let context = event.terminalContext { session.terminalContext = context }
         session.report(event.process)
@@ -295,12 +307,16 @@ public struct AgentSessions: Sendable {
             session.state = .idle
             // A resumed or cleared session's old prompt isn't what it's working on now.
             session.lastPrompt = nil
+            // Compaction starts the session over in name only; its task and run time go on.
+            if event.startSource != "compact" { session.firstPrompt = nil }
+            if event.startSource == nil || ["startup", "clear"].contains(event.startSource) { session.started = date }
             Self.append(.started, "Session started", to: &session, at: date)
         case .userPromptSubmit:
             session.state = .running
             session.turnStarted = date
             session.turnEnded = nil
             session.lastPrompt = event.promptText
+            if session.firstPrompt == nil { session.firstPrompt = event.promptText }
             Self.append(.prompt, "Prompt sent", to: &session, at: date)
         case .permissionRequest where event.prompt == .question:
             // Needs you until answered, from the notch's card or in the terminal.
@@ -442,6 +458,7 @@ public struct AgentSessions: Sendable {
             session.cwd = snapshot.cwd
             session.project = snapshot.project
         }
+        if session.started == nil { session.started = date }
         if let terminal, !terminal.isEmpty { session.terminal = terminal }
         if let context = snapshot.terminalContext { session.terminalContext = context }
         session.report(snapshot.process)

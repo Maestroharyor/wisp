@@ -13,6 +13,17 @@ public struct DiffLine: Equatable, Sendable {
 
     public let kind: Kind
     public let text: String
+    /// The line's number on the old and new side, counted from 1 within the edit; nil on the
+    /// side that doesn't have it, and for headers and patches.
+    public let old: Int?
+    public let new: Int?
+
+    public init(kind: Kind, text: String, old: Int? = nil, new: Int? = nil) {
+        self.kind = kind
+        self.text = text
+        self.old = old
+        self.new = new
+    }
 }
 
 /// What an approval card can show before you allow a request: an edit's changed lines, the
@@ -148,10 +159,31 @@ public enum LineDiff {
         return result
     }
 
+    /// Every line of both sides in order, numbered on each side from 1 (see `ordered`).
+    static func operations(old: [String], new: [String], cap: Int) -> [DiffLine] {
+        var (oldNumber, newNumber) = (0, 0)
+        return ordered(old: old, new: new, cap: cap).map { line in
+            switch line.kind {
+            case .context:
+                oldNumber += 1
+                newNumber += 1
+                return DiffLine(kind: .context, text: line.text, old: oldNumber, new: newNumber)
+            case .removed:
+                oldNumber += 1
+                return DiffLine(kind: .removed, text: line.text, old: oldNumber)
+            case .added:
+                newNumber += 1
+                return DiffLine(kind: .added, text: line.text, new: newNumber)
+            case .hunk:
+                return line
+            }
+        }
+    }
+
     /// Every line of both sides in order: shared lines as context, then what's removed and
     /// added, from a longest-common-subsequence diff. Above `cap` the shared start and end are
     /// kept and the whole middle counts as removed and added.
-    static func operations(old: [String], new: [String], cap: Int) -> [DiffLine] {
+    private static func ordered(old: [String], new: [String], cap: Int) -> [DiffLine] {
         var head = 0
         while head < old.count, head < new.count, old[head] == new[head] { head += 1 }
         var tail = 0

@@ -219,8 +219,11 @@ final class NotchModel {
     var focusedSession: String?
     /// The session switcher's selection.
     var switcher = SessionSwitcher()
-    /// The sessions the switcher lists, in the Agents widget's order.
-    var switcherSessions: [AgentSession] { services.agents.sessions.list }
+    /// The sessions the switcher lists, in the Agents widget's order (needs you first, then pinned),
+    /// leaving out what it hides.
+    var switcherSessions: [AgentSession] {
+        SessionOrder.arrange(services.agents.sessions.list, rules: preferences.sessionOrderRules, now: .now)
+    }
 
     /// Closes the shelf and brings the session's terminal forward.
     func jumpFromSwitcher(to session: String) {
@@ -291,11 +294,14 @@ final class NotchModel {
                     if approval.prompt == .question { return .notification(extra: questionAnswersHeight(approval)) }
                     // Private mode hides the preview, so the card doesn't keep its room; the inline row stays,
                     // with only the file's name.
+                    // A card with a diff is wider, so its gutter and lines aren't cut short.
                     let hidden = services.agents.detailsHidden
+                    let rows = approval.inlineDiff.map { hidden ? 1 : $0.lines.count } ?? 0
                     return .notification(
                         extra: SurfaceSizing.approvalCardExtra(
                             previewOpen: expandedApproval == approval.id && approval.preview != nil && !hidden,
-                            inlineDiff: approval.inlineDiff != nil))
+                            inlineDiffRows: rows),
+                        wide: approval.inlineDiff != nil)
                 }
                 if case .meetingSoon = activity { return .notification(extra: 0) }
                 if case .downloadDone = activity { return .notification(extra: 0) }
