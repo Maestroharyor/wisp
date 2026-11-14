@@ -451,9 +451,12 @@ public enum TestCommand {
     }
 }
 
-/// Finished session runs, newest first, kept across launches. Capped by count and age.
+/// Finished session runs, newest first, kept across launches. Capped by count and age; a record
+/// that drops out leaves only its daily counts behind, in `activity`.
 public struct SessionHistory: Codable, Equatable, Sendable {
     public private(set) var records: [SessionRecord] = []
+    /// Daily counts of records no longer kept in full, for the activity map.
+    public private(set) var activity = ActivityMap()
 
     public static let limit = 200
     public static let maxAge: TimeInterval = 30 * 24 * 3600
@@ -465,7 +468,7 @@ public struct SessionHistory: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case version, records
+        case version, records, activity
     }
 
     /// One bad record (a field renamed, a value out of range) is skipped instead of losing the rest.
@@ -477,13 +480,19 @@ public struct SessionHistory: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         records = try container.decode([Lenient].self, forKey: .records).compactMap(\.record)
+        // Files from before the activity map have none.
+        activity = (try? container.decode(ActivityMap.self, forKey: .activity)) ?? ActivityMap()
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(Self.version, forKey: .version)
         try container.encode(records, forKey: .records)
+        if !activity.isEmpty { try container.encode(activity, forKey: .activity) }
     }
+
+    /// Nothing to keep: no records and no daily counts.
+    public var isEmpty: Bool { records.isEmpty && activity.isEmpty }
 
     /// The saved file, newest first and pruned. Throws only when the file as a whole can't be
     /// read (not JSON, no records list); bad records inside it are skipped.
@@ -515,10 +524,28 @@ public struct SessionHistory: Codable, Equatable, Sendable {
         records.removeAll { $0.id == id }
     }
 
-    public mutating func clear() { records = [] }
+    public mutating func clear() {
+        records = []
+        activity = ActivityMap()
+    }
 
-    public mutating func prune(now: Date) {
-        records = Array(records.filter { now.timeIntervalSince($0.ended) < Self.maxAge }.prefix(Self.limit))
+    /// Records past the age or count limit go, and their daily counts move into `activity`.
+    public mutating func prune(now: Date, calendar: Calendar = .current) {
+        let kept = Array(records.filter { now.timeIntervalSince($0.ended) < Self.maxAge }.prefix(Self.limit))
+        guard kept.count != records.count else { return }
+        let keptIDs = Set(kept.map(\.id))
+        for record in records where !keptIDs.contains(record.id) { activity.add(record, calendar: calendar) }
+        records = kept
+    }
+
+    /// Drops daily counts older than `retention` keeps.
+    public mutating func pruneActivity(keeping retention: ActivityRetention, now: Date, calendar: Calendar = .current) {
+        activity.prune(keeping: retention, now: now, calendar: calendar)
+    }
+
+    /// The daily counts with the records still kept in full, for the activity map.
+    public func activityMap(calendar: Calendar = .current) -> ActivityMap {
+        activity.adding(records, calendar: calendar)
     }
 
     public func search(_ query: String, hidden: Bool) -> [SessionRecord] {
