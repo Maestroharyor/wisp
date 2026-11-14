@@ -234,7 +234,7 @@ struct MirrorWidget: View {
 
     var body: some View {
         ZStack {
-            CameraPreview(session: camera.session)
+            CameraPreview(session: camera.session, running: camera.state == .running)
                 .opacity(camera.state == .running ? 1 : 0)
             switch camera.state {
             case .denied:
@@ -260,19 +260,43 @@ struct MirrorWidget: View {
 /// A mirrored live preview layer for the capture session.
 struct CameraPreview: NSViewRepresentable {
     let session: AVCaptureSession
+    /// The camera is running. Passed in so the view updates once it is.
+    let running: Bool
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        let layer = AVCaptureVideoPreviewLayer(session: session)
-        layer.videoGravity = .resizeAspectFill
-        layer.connection?.automaticallyAdjustsVideoMirroring = false
-        layer.connection?.isVideoMirrored = true
-        view.layer = layer
-        view.wantsLayer = true
-        return view
+    func makeNSView(context: Context) -> CameraPreviewView {
+        CameraPreviewView(session: session)
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ view: CameraPreviewView, context: Context) {
+        if running { view.mirror() }
+    }
+}
+
+/// Holds the preview layer. The layer's connection only exists once the session has a camera,
+/// which after launch is later than the first view is made, so mirroring is set again once the
+/// camera runs instead of only at creation.
+final class CameraPreviewView: NSView {
+    private let preview: AVCaptureVideoPreviewLayer
+
+    init(session: AVCaptureSession) {
+        preview = AVCaptureVideoPreviewLayer(session: session)
+        super.init(frame: .zero)
+        preview.videoGravity = .resizeAspectFill
+        layer = preview
+        wantsLayer = true
+        mirror()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    func mirror() {
+        guard let connection = preview.connection, connection.isVideoMirroringSupported,
+            !connection.isVideoMirrored || connection.automaticallyAdjustsVideoMirroring
+        else { return }
+        connection.automaticallyAdjustsVideoMirroring = false
+        connection.isVideoMirrored = true
+    }
 }
 
 // MARK: Day Progress
