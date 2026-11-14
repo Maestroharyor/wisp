@@ -354,8 +354,9 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
     private func fetch(latitude: Double, longitude: Double, location: CLLocation) async {
         var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")
         components?.queryItems = [
-            URLQueryItem(name: "latitude", value: String(format: "%.3f", latitude)),
-            URLQueryItem(name: "longitude", value: String(format: "%.3f", longitude)),
+            // About a kilometre, as precise as the location asked for and the forecast needs.
+            URLQueryItem(name: "latitude", value: String(format: "%.2f", latitude)),
+            URLQueryItem(name: "longitude", value: String(format: "%.2f", longitude)),
             URLQueryItem(name: "current", value: "temperature_2m,weather_code,is_day"),
             URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
             URLQueryItem(name: "hourly", value: "temperature_2m,weather_code,is_day"),
