@@ -994,12 +994,12 @@ final class AgentHub {
     /// be checked before pressing Return there. False when Accessibility is missing.
     func sendDraft(_ text: String, to id: String) -> Bool {
         guard AccessibilityPermission.isTrusted else { return false }
-        PasteShortcut.stage(text)
         focus(session: id)
         Task {
             // Give the terminal time to come forward before the keystroke lands.
             try? await Task.sleep(for: .milliseconds(350))
-            PasteShortcut.send()
+            // The user's clipboard comes back once the terminal has read the paste.
+            PasteShortcut.pasteRestoring(text, after: .milliseconds(1500))
         }
         return true
     }
