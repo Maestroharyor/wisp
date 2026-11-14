@@ -39,6 +39,31 @@ final class AgentSoundsTests: XCTestCase {
         XCTAssertTrue(decoded.muteDuringCallsOrFocus)
     }
 
+    func testOneUnreadableEventKeepsTheOthers() throws {
+        // A sound from a later version (or a damaged value) resets only its own event.
+        let json =
+            #"{"events":{"failed":{"on":true,"sound":{"system":{"_0":"Basso"}}},"#
+            + #""finished":{"on":"yes","sound":{"hologram":{}}},"#
+            + #""question":{"on":false,"sound":{"file":{"_0":"/Users/me/q.aiff"}}},"#
+            + #""someLaterEvent":{"on":true,"sound":{"system":{"_0":"Hero"}}}},"volume":0.7}"#
+        let decoded = try JSONDecoder().decode(AgentSounds.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded[.failed], AgentSoundSetting(on: true, sound: .system("Basso")))
+        XCTAssertEqual(decoded[.question], AgentSoundSetting(on: false, sound: .file("/Users/me/q.aiff")))
+        XCTAssertEqual(decoded[.finished], AgentSounds()[.finished])
+        XCTAssertEqual(decoded.volume, 0.7)
+    }
+
+    func testEventsThatAreNotAnObjectFallBackToDefaults() throws {
+        let decoded = try JSONDecoder().decode(AgentSounds.self, from: Data(#"{"events":[1,2],"volume":0.2}"#.utf8))
+        XCTAssertEqual(
+            decoded,
+            {
+                var sounds = AgentSounds()
+                sounds.volume = 0.2
+                return sounds
+            }())
+    }
+
     func testVolumeIsClamped() {
         var sounds = AgentSounds()
         sounds.volume = 3

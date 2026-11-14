@@ -87,9 +87,25 @@ public struct AgentSounds: Codable, Equatable, Sendable {
         case events, volume, muteDuringCallsOrFocus
     }
 
+    /// An event's name in the saved value, whichever events this version knows.
+    private struct EventKey: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+
+        init(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        events = (try? container.decode([String: AgentSoundSetting].self, forKey: .events)) ?? [:]
+        // Each event on its own, so one value this version can't read resets only that event.
+        if let saved = try? container.nestedContainer(keyedBy: EventKey.self, forKey: .events) {
+            for key in saved.allKeys {
+                if let setting = try? saved.decode(AgentSoundSetting.self, forKey: key) {
+                    events[key.stringValue] = setting
+                }
+            }
+        }
         volume = (try? container.decode(Double.self, forKey: .volume)) ?? 1
         muteDuringCallsOrFocus = (try? container.decode(Bool.self, forKey: .muteDuringCallsOrFocus)) ?? true
     }
