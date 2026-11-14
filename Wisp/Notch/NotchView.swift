@@ -477,7 +477,7 @@ private struct OrbFace: View {
             }
         }
         .scaleEffect(model.spec == .peek ? 1.06 : 1)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.spec == .peek)
+        .animation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: model.spec == .peek)
         .overlay(alignment: .topTrailing) {
             if waiting > 0 {
                 Text("\(waiting)")
@@ -490,7 +490,7 @@ private struct OrbFace: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.65), value: waiting)
+        .animation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.65), value: waiting)
         .accessibilityLabel(waiting > 0 ? "Wisp, \(waiting) waiting" : "Wisp")
     }
 }
