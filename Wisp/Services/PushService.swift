@@ -36,6 +36,8 @@ final class PushService {
     @ObservationIgnored private var awayTask: Task<Void, Never>?
     @ObservationIgnored private var locked = false
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "push")
+    /// Quiet hours or a mute for the group, set by `AppServices`; nothing in a quiet group goes out.
+    @ObservationIgnored var isQuiet: (AgentAlertGroup) -> Bool = { _ in false }
 
     /// Seconds between checks for the user leaving while an approval hasn't gone out.
     private let awayCheck: Duration = .seconds(15)
@@ -154,15 +156,16 @@ final class PushService {
     }
 
     func moment(_ moment: AgentMoment) {
-        guard preferences.pushEnabled, policy.allow(moment.kind, key: moment.key, away: isAway, now: .now) else {
-            return
-        }
+        guard preferences.pushEnabled, !isQuiet(moment.kind.group),
+            policy.allow(moment.kind, key: moment.key, away: isAway, now: .now)
+        else { return }
         let notice = moment.notice(hidden: hub.detailsHidden, includeDetails: preferences.pushDetails)
         Task { await publish(notice) }
     }
 
     private func push(_ approval: AgentApproval) {
-        guard let server, let replyURL = PushTopic.url(server: server, topic: preferences.pushReplyTopic),
+        guard !isQuiet(PushKind.approval.group), let server,
+            let replyURL = PushTopic.url(server: server, topic: preferences.pushReplyTopic),
             policy.allow(.approval, key: approval.id.uuidString, away: isAway, now: .now)
         else { return }
         let nonce = PushTopic.random()
@@ -188,7 +191,7 @@ final class PushService {
         PushPolicy.isAway(locked: locked, idleSeconds: Self.idleSeconds, idleMinutes: preferences.pushIdleMinutes)
     }
 
-    private static var idleSeconds: TimeInterval {
+    static var idleSeconds: TimeInterval {
         // kCGAnyInputEventType: any keyboard, mouse or trackpad input.
         guard let anyInput = CGEventType(rawValue: ~0) else { return 0 }
         return CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)

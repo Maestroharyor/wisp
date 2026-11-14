@@ -253,6 +253,8 @@ final class Preferences {
         static let toolAlertMinutes = "toolAlertMinutes"
         static let nudgeAlert = "nudgeAlert"
         static let nudgeMinutes = "nudgeMinutes"
+        static let quietHours = "agentQuietHours"
+        static let awaySummary = "agentAwaySummary"
         static let budgetAlert = "budgetAlert"
         static let limitAlert = "limitAlert"
         static let dailyBudget = "dailyBudget"
@@ -764,6 +766,12 @@ final class Preferences {
     /// The idle nudge (`IdleNudge`) once a session has waited for the user `nudgeMinutes`.
     var nudgeAlert: Bool { didSet { defaults.set(nudgeAlert, forKey: Key.nudgeAlert) } }
     var nudgeMinutes: Int { didSet { defaults.set(nudgeMinutes, forKey: Key.nudgeMinutes) } }
+    /// When the chosen agent alert groups stay silent (`QuietHours`).
+    var quietHours: QuietHours {
+        didSet { defaults.set(try? JSONEncoder().encode(quietHours), forKey: Key.quietHours) }
+    }
+    /// One card summing up what agents did while the Mac slept, was locked or sat idle.
+    var awaySummary: Bool { didSet { defaults.set(awaySummary, forKey: Key.awaySummary) } }
     /// Notices at 80% and 100% of `dailyBudget` dollars of spend in a day.
     var budgetAlert: Bool { didSet { defaults.set(budgetAlert, forKey: Key.budgetAlert) } }
     /// Notices at 80% and 95% of Claude's five-hour and weekly usage limits.
@@ -1038,6 +1046,7 @@ final class Preferences {
             Key.toolAlertMinutes: AgentAlertRules.defaultToolMinutes,
             Key.nudgeAlert: true,
             Key.nudgeMinutes: AgentAlertRules.defaultNudgeMinutes,
+            Key.awaySummary: true,
             Key.budgetAlert: false,
             Key.limitAlert: true,
             Key.dailyBudget: 20.0,
@@ -1177,6 +1186,10 @@ final class Preferences {
         toolAlertMinutes = min(max(defaults.integer(forKey: Key.toolAlertMinutes), 1), 60)
         nudgeAlert = defaults.bool(forKey: Key.nudgeAlert)
         nudgeMinutes = min(max(defaults.integer(forKey: Key.nudgeMinutes), 1), 30)
+        quietHours =
+            defaults.data(forKey: Key.quietHours).flatMap { try? JSONDecoder().decode(QuietHours.self, from: $0) }
+            ?? QuietHours()
+        awaySummary = defaults.bool(forKey: Key.awaySummary)
         budgetAlert = defaults.bool(forKey: Key.budgetAlert)
         limitAlert = defaults.bool(forKey: Key.limitAlert)
         let budget = defaults.double(forKey: Key.dailyBudget)

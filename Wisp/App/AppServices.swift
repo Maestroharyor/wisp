@@ -51,6 +51,9 @@ final class AppServices {
     /// the finish sound and confetti fire only when a session first becomes finished.
     @ObservationIgnored private var themeObserver: NSObjectProtocol?
     @ObservationIgnored private var agentStates: [String: AgentSession.State] = [:]
+    /// Sessions whose Done card showed for their latest finish; one skipped (quiet hours, or the
+    /// terminal was in front) stays hidden through the hub's republishes.
+    @ObservationIgnored private var doneShown: Set<String> = []
     @ObservationIgnored private var awakeCheck: Task<Void, Never>?
     @ObservationIgnored private let agentAwake = SleepAssertion(
         type: kIOPMAssertionTypePreventUserIdleSystemSleep, name: "Wisp: an agent is working")
@@ -77,6 +80,7 @@ final class AppServices {
     private(set) lazy var lockScreenPlayer = LockScreenPlayer(services: self)
     private(set) lazy var session = SessionMonitor()
     private(set) lazy var push = PushService(preferences: preferences, hub: agents)
+    private(set) lazy var attention = AgentAttention(preferences: preferences, hub: agents)
     private(set) lazy var automation = Automation(services: self)
     private(set) lazy var regionWatch = RegionWatchController(services: self)
     private(set) lazy var textCapture = TextCaptureController(services: self)
@@ -104,6 +108,8 @@ final class AppServices {
     /// time limit comes first sends it.
     @ObservationIgnored private var donePending: Set<UUID> = []
     private static let summaryWait: Duration = .seconds(20)
+    /// Seconds the "While you were away" card stays.
+    private static let awayCardDuration: TimeInterval = 20
     /// Seconds a Compact now card stays, long enough to reach for its button.
     private static let calloutDuration: TimeInterval = 12
     /// The callout slot holds the spend cap card, which waits for a choice.
@@ -248,16 +254,20 @@ final class AppServices {
         case .locked:
             lockScreenPlayer.show()
             push.setLocked(true)
+            attention.handle(.locked)
         case .unlocked:
             lockScreenPlayer.hide()
             push.setLocked(false)
+            attention.handle(.unlocked)
         case .resigned:
             lockScreenPlayer.hide()
             miniPlayer.suspend()
             suspendShells()
+            attention.handle(.locked)
         case .resumed:
             miniPlayer.resume()
             resumeShells()
+            attention.handle(.unlocked)
         }
     }
 
@@ -290,9 +300,19 @@ final class AppServices {
             .waited(session: moment.sessionID, project: moment.project, source: moment.source, minutes: moment.minutes))
     }
 
+    /// An agent moment's sound, unless its group is in quiet hours or muted, or the user is
+    /// looking at the session's terminal (`AgentAttention`).
+    private func agentSound(_ event: AgentSoundEvent, session: String?) {
+        guard !attention.isQuiet(event.group) else { return }
+        Task { [weak self] in
+            guard let self, !(await self.attention.isLooking(at: session, group: event.group)) else { return }
+            self.playAgentSound(event, session: session)
+        }
+    }
+
     /// An agent moment's sound from Settings › Agents › Sounds, once per burst (`SoundRule`), and
     /// quiet during a call or Focus when that's on. Requests and questions also tap the trackpad.
-    private func agentSound(_ event: AgentSoundEvent, session: String?) {
+    private func playAgentSound(_ event: AgentSoundEvent, session: String?) {
         let settings = preferences.agentSounds
         guard
             let source = soundRule.sound(
@@ -356,9 +376,11 @@ final class AppServices {
         Task { [weak self] in
             guard let self else { return }
             let summary = await self.agentHistory.summarise(record, hidden: self.agents.detailsHidden)
+            let quiet = self.attention.isQuiet(.done)
+            let looking = await self.attention.isLooking(at: record.sessionID, group: .done)
             // A new turn has begun since; its own Done will bring a fresh summary.
             let stillDone = self.agents.sessions.session(record.sessionID).map { $0.state == .finished } ?? true
-            if stillDone,
+            if stillDone, !quiet, !looking,
                 let text = SessionSummaryText.notice(
                     project: record.project, summary: summary, hidden: self.agents.detailsHidden)
             {
@@ -379,6 +401,7 @@ final class AppServices {
         }
         let live = Set(agents.sessions.list.map(\.id))
         agentStates = agentStates.filter { live.contains($0.key) }
+        doneShown.formIntersection(live)
         let changed = agentStates.updateValue(status.state, forKey: status.sessionID) != status.state
         switch status.state {
         // The approval card covers the pill while it shows; after that the pill says the
@@ -386,11 +409,10 @@ final class AppServices {
         case .running, .needsApproval: activities.post(.agent(status), slot: .agent, duration: nil)
         case .finished:
             if changed {
-                // Its sound is the Finished agent sound, from the hub.
-                finishes += 1
-                celebrate(.agentDone(duration: Date.now.timeIntervalSince(status.started)))
+                showDone(status)
+            } else if doneShown.contains(status.sessionID) {
+                activities.post(.agent(status), slot: .agent, duration: 4)
             }
-            activities.post(.agent(status), slot: .agent, duration: 4)
         case .waiting: activities.post(.agent(status), slot: .agent, duration: 4)
         case .idle:
             // A /compact between turns is the one thing an idle session shows. Limited, in case
@@ -401,6 +423,48 @@ final class AppServices {
                 activities.remove(.agent)
             }
         }
+    }
+
+    /// A session's Done card, glow and confetti, unless Done is in quiet hours or muted, or the
+    /// user is looking at its terminal; then the Working pill just goes. Its sound is the
+    /// Finished agent sound, from the hub.
+    private func showDone(_ status: AgentStatus) {
+        doneShown.remove(status.sessionID)
+        guard !attention.isQuiet(.done) else { return activities.remove(.agent) }
+        Task { [weak self] in
+            guard let self else { return }
+            let looking = await self.attention.isLooking(at: status.sessionID, group: .done)
+            // A new turn may have started during the tab check, or another session taken the pill.
+            guard self.agentStates[status.sessionID] == .finished, self.agentPillIsFree(for: status.sessionID)
+            else { return }
+            guard !looking else { return self.activities.remove(.agent) }
+            self.doneShown.insert(status.sessionID)
+            self.finishes += 1
+            self.celebrate(.agentDone(duration: Date.now.timeIntervalSince(status.started)))
+            self.activities.post(.agent(status), slot: .agent, duration: 4)
+        }
+    }
+
+    /// The agent pill shows this session, or nothing.
+    private func agentPillIsFree(for sessionID: String) -> Bool {
+        guard case .agent(let current) = activities.activity(in: .agent) else { return true }
+        return current.sessionID == sessionID
+    }
+
+    /// The "While you were away" card, when it's on and something happened: runs that ended
+    /// while away, sessions waiting on the user, timed-out requests and the spend since.
+    private func showAwaySummary(_ away: DateInterval, baseline: SpendBaseline?) {
+        guard preferences.awaySummary else { return }
+        var waiting: [String: Date] = [:]
+        for session in agents.sessions.list where session.state == .waiting || session.state == .needsApproval {
+            waiting[session.id] = session.stateSince ?? session.updated
+        }
+        let spent = baseline.map { AwaySummary.spent(agents.spend, since: $0, now: away.end) } ?? 0
+        let summary = AwaySummary.build(
+            records: agentHistory.history.records, approvals: agentHistory.approvals.records,
+            waiting: waiting, spend: spent, during: away)
+        guard !summary.isEmpty else { return }
+        activities.post(.agentAway(summary), slot: .agentAway, duration: Self.awayCardDuration)
     }
 
     /// Keeps the card on screen while the user types a reply.
@@ -546,6 +610,9 @@ final class AppServices {
             self.activities.post(.agentCallout(callout), slot: .agentCallout, duration: Self.calloutDuration)
         }
         agents.onSpendCap = { [weak self] prompt in self?.spendCapChanged(prompt) }
+        push.isQuiet = { [weak self] group in self?.attention.isQuiet(group) ?? false }
+        attention.onReturn = { [weak self] away, baseline in self?.showAwaySummary(away, baseline: baseline) }
+        attention.start()
         automation.start()
         agents.start()
 
@@ -743,6 +810,7 @@ final class AppServices {
         downloads.stop()
         appVolume.stop()
         session.stop()
+        attention.stop()
         lockScreenPlayer.hide()
         push.stop()
         cloud.stop()

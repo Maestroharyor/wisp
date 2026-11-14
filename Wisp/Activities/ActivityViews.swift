@@ -118,7 +118,7 @@ struct CompactActivityView: View {
                     .animation(model.reduceMotion ? nil : .easeInOut(duration: 0.25), value: nudge?.text)
             }
         case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
-            .agentCallout:
+            .agentCallout, .agentAway:
             EmptyView()
         }
     }
@@ -217,7 +217,7 @@ struct CompactActivityView: View {
                 PendingBadge(count: model.services.agents.approvals.count)
             }
         case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
-            .agentCallout:
+            .agentCallout, .agentAway:
             EmptyView()
         }
     }
@@ -314,7 +314,7 @@ struct SideActivityView: View {
         case .agentApproval:
             PendingBadge(count: model.services.agents.approvals.count)
         case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
-            .agentCallout:
+            .agentCallout, .agentAway:
             EmptyView()
         }
     }
@@ -382,7 +382,7 @@ struct ActivityGlyph: View {
         case .agentApproval(let approval):
             MinimisedApprovalGlyph(approval: approval)
         case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
-            .agentCallout:
+            .agentCallout, .agentAway:
             EmptyView()
         }
     }

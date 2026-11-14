@@ -114,6 +114,18 @@ final class TimerStore {
         breakMinutes = rest
     }
 
+    /// A fresh focus session of `focus` minutes, running now, with `rest` minutes of break to
+    /// follow; replaces a Pomodoro already going. For the Focus chips in the Agents view.
+    func startFocus(minutes focus: Int, rest: Int) {
+        pomodoro.reset()
+        focusMinutes = focus
+        breakMinutes = rest
+        phase = .focus
+        pomodoro = Countdown(duration: minutes(focus))
+        pomodoro.start(now: .now)
+        update()
+    }
+
     // MARK: Ticking
 
     private func update() {
