@@ -97,6 +97,12 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "each display"), [.notch])
     }
 
+    func testShelfHeightIsFoundInNotch() {
+        for query in ["shelf height", "taller", "resize", "grabber", "reset height"] {
+            XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.notch), query)
+        }
+    }
+
     func testKeyboardShortcutsAreFoundInGeneral() {
         for query in [
             "keyboard shortcuts", "shortcuts", "allow or deny", "hyper y", "switch profile", "right-click the notch",

@@ -316,6 +316,7 @@ final class Preferences {
         static let orbCentres = "orbCentres"
         static let orbReturnPlacements = "orbReturnPlacements"
         static let islandSpots = "islandSpots"
+        static let shelfHeights = "shelfHeights"
         static let displayPlacements = "displayPlacements"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let windowForm = "windowForm"
@@ -1001,6 +1002,11 @@ final class Preferences {
         updateOrbPlacements { $0.set(form, for: uuid) }
     }
 
+    /// How far each shelf page was dragged taller, in points, by `NotchModel.shelfHeightKey`. Missing is
+    /// the usual height. Per page, since a list (Agents, Clipboard) wants far more room than
+    /// a widget with a fixed layout.
+    var shelfHeights: [String: Double] { didSet { defaults.set(shelfHeights, forKey: Key.shelfHeights) } }
+
     /// Where each display's dragged island rests, as "placement@x,y" by display UUID.
     var islandSpots: [String: String] { didSet { defaults.set(islandSpots, forKey: Key.islandSpots) } }
 
@@ -1342,6 +1348,7 @@ final class Preferences {
         orbReturnPlacements =
             (defaults.dictionary(forKey: Key.orbReturnPlacements) ?? [:]).compactMapValues { "\($0)" }
         islandSpots = (defaults.dictionary(forKey: Key.islandSpots) ?? [:]).compactMapValues { "\($0)" }
+        shelfHeights = (defaults.dictionary(forKey: Key.shelfHeights) ?? [:]).compactMapValues { Double("\($0)") }
         displayPlacements = (defaults.dictionary(forKey: Key.displayPlacements) ?? [:]).compactMapValues { "\($0)" }
         hudDuration = defaults.string(forKey: Key.hudDuration).flatMap(HUDDuration.init(rawValue:)) ?? .standard
         volumeSteps = defaults.integer(forKey: Key.volumeSteps)

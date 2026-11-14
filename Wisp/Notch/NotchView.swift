@@ -44,6 +44,14 @@ struct NotchView: View {
                     .modifier(FormChange(model: model))
             }
 
+            if model.showsShelfHandle {
+                let size = ShelfResizeHandle.size
+                ShelfResizeHandle(model: model)
+                    .frame(width: size.width, height: size.height)
+                    .position(x: surface.midX, y: surface.maxY - ShelfResizeHandle.inset)
+                    .transition(.opacity)
+            }
+
             if let pill = model.navPillRect.map(model.local) {
                 NavPill(model: model)
                     .frame(width: pill.width, height: pill.height)
