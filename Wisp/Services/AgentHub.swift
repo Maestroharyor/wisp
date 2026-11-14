@@ -396,6 +396,7 @@ final class AgentHub {
         if ownsSocket { unlink(Self.socketURL.path) }
         ownsSocket = false
         flushSpend()
+        for id in rolloutWatches.keys { stopRolloutWatch(id) }
     }
 
     private static let maximumMessage = 1 << 20
