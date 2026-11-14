@@ -1,7 +1,7 @@
 import Foundation
 
 /// The coding agent a hook call came from, by its wire id (`"claude"`, `"codex"`, `"gemini"`, `"cursor"`,
-/// `"copilot"`, `"opencode"`). Only ids in `AgentAdapters` can be made, so every source has an adapter.
+/// `"copilot"`, `"opencode"`, `"qwen"`, `"qoder"`, `"droid"`, `"codebuddy"`, `"kimi"`, `"grok"`, `"vibe"`). Only ids in `AgentAdapters` can be made, so every source has an adapter.
 public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public let rawValue: String
 
@@ -20,6 +20,13 @@ public struct AgentSource: RawRepresentable, Hashable, Codable, Sendable {
     public static let cursor = AgentSource(registered: "cursor")
     public static let copilot = AgentSource(registered: "copilot")
     public static let opencode = AgentSource(registered: "opencode")
+    public static let qwen = AgentSource(registered: "qwen")
+    public static let qoder = AgentSource(registered: "qoder")
+    public static let droid = AgentSource(registered: "droid")
+    public static let codebuddy = AgentSource(registered: "codebuddy")
+    public static let kimi = AgentSource(registered: "kimi")
+    public static let grok = AgentSource(registered: "grok")
+    public static let vibe = AgentSource(registered: "vibe")
 
     public init(from decoder: Decoder) throws {
         let id = try decoder.singleValueContainer().decode(String.self)
@@ -69,7 +76,7 @@ public struct AgentCapabilities: OptionSet, Sendable {
 public struct HookFile: Equatable, Sendable {
     public enum Format: Equatable, Sendable {
         /// A `hooks` object of matcher groups inside Claude Code's settings.json, next to the
-        /// user's other settings (and the status line).
+        /// user's other settings (and the status line). Qoder CLI and CodeBuddy use the same shape.
         case claudeSettings
         /// Codex's hooks.json: the same `hooks` groups, in a file of their own.
         case codexHooks
@@ -85,9 +92,24 @@ public struct HookFile: Equatable, Sendable {
         /// A JavaScript plugin of Wisp's own in OpenCode's plugin folder (`OpenCodePlugin`),
         /// written whole and deleted to disconnect.
         case opencodePlugin
+        /// Qwen Code's settings.json: Claude Code's `hooks` groups, with timeouts in milliseconds.
+        /// Qwen reads seconds, but a value of 1000 or more as milliseconds, so a long approval wait
+        /// in seconds would be cut short; milliseconds read the same at every length.
+        case qwenSettings
+        /// Droid's hooks.json: Claude Code's matcher groups with the event names at the top
+        /// level, not under `hooks`.
+        case factoryHooks
+        /// A file of Wisp's own in Grok's hooks folder: a `hooks` object of matcher groups.
+        case grokHooks
+        /// `[[hooks]]` tables (`event`, `command`, `timeout`) in Kimi Code's config.toml
+        /// (`HookTOML`).
+        case kimiConfig
+        /// `[[hooks]]` tables (`name`, `type`, `match`, `command`, `timeout`) in Mistral Vibe's
+        /// hooks.toml (`HookTOML`).
+        case vibeHooks
 
         /// What a timeout in seconds is multiplied by in this file.
-        public var timeoutScale: Int { self == .geminiSettings ? 1000 : 1 }
+        public var timeoutScale: Int { self == .geminiSettings || self == .qwenSettings ? 1000 : 1 }
         /// The handler's timeout field.
         public var timeoutKey: String { self == .copilotHooks ? "timeoutSec" : "timeout" }
         /// The `version` the file must carry, if any; the user's own stays.
@@ -96,7 +118,14 @@ public struct HookFile: Equatable, Sendable {
         /// groups. No matcher means every call.
         public var flatHandlers: Bool { self == .copilotHooks || self == .cursorHooks }
         /// The file is Wisp's alone, so it goes once Wisp's hooks are taken out.
-        public var ownedByWisp: Bool { self == .copilotHooks }
+        public var ownedByWisp: Bool { self == .copilotHooks || self == .grokHooks }
+        /// TOML rather than JSON: Wisp's `[[hooks]]` tables go at the end and the rest of the
+        /// file stays as written.
+        public var isTOML: Bool { self == .kimiConfig || self == .vibeHooks }
+        /// Event names are the file's top-level keys (Droid's hooks.json).
+        public var eventsAtTopLevel: Bool { self == .factoryHooks }
+        /// What the file is written in, for "Fix the file's JSON" messages.
+        public var syntax: String { isTOML ? "TOML" : isPlugin ? "JavaScript" : "JSON" }
         /// The agent blocks the tool call when a hook command fails (Copilot CLI's preToolUse), so
         /// the command ends in `|| true`: a helper that's gone (Wisp moved or deleted) can't stop
         /// the agent's work. Cursor fails open on a failed command unless a hook sets `failClosed`.
@@ -127,15 +156,25 @@ public struct HookFile: Equatable, Sendable {
     public let statusLine: Bool
     /// What follows the helper's path in the hook command, so Wisp knows the agent.
     public let helperArguments: String
+    /// The agent's PermissionRequest hook only reports a prompt and can't answer it (Kimi
+    /// Code's), so Wisp shows Needs you instead of holding the hook for a card.
+    public var permissionRequestObservesOnly = false
+    /// A settings file, relative to the home folder, whose `hooks` object the agent reads only
+    /// while this file is missing (Droid's settings.json beside its hooks.json). Its hooks seed
+    /// this file on the first install, so creating it doesn't hide them.
+    public var seedPath: String?
 
     /// Wisp holds a hook open for the user's answer, so the command carries the approval wait.
     public var waitsForApproval: Bool {
-        events.contains(AgentEvent.Kind.permissionRequest.rawValue) || events.contains(OpenCodeHooks.permissionAsked)
+        guard !permissionRequestObservesOnly else { return false }
+        return events.contains(AgentEvent.Kind.permissionRequest.rawValue)
+            || events.contains(OpenCodeHooks.permissionAsked)
     }
-    /// The agent says when it waits on the user (a Notification hook, or OpenCode's question
-    /// event), so a session can show Needs you.
+    /// The agent says when it waits on the user (a Notification hook, an observe-only
+    /// PermissionRequest, or OpenCode's question event), so a session can show Needs you.
     public var reportsWaiting: Bool {
         events.contains(AgentEvent.Kind.notification.rawValue) || events.contains(OpenCodeHooks.questionAsked)
+            || (permissionRequestObservesOnly && events.contains(AgentEvent.Kind.permissionRequest.rawValue))
     }
 
     public var displayPath: String { "~/" + path }
@@ -189,7 +228,9 @@ public struct AgentAdapter: Sendable {
 
 /// Every agent Wisp knows, in the order Settings and onboarding list them.
 public enum AgentAdapters {
-    public static let all: [AgentAdapter] = [claude, codex, gemini, copilot, cursor, opencode]
+    public static let all: [AgentAdapter] = [
+        claude, codex, gemini, copilot, cursor, opencode, qwen, qoder, droid, codebuddy, kimi, grok, vibe,
+    ]
 
     public static func adapter(id: String) -> AgentAdapter? { all.first { $0.source.rawValue == id } }
 
@@ -328,7 +369,7 @@ public enum AgentAdapters {
         promptFor: { _ in .tool },
         write: { _ in nil })
 
-    private static let toolEvents = AgentEvent.Kind.toolActivity.map(\.rawValue)
+    static let toolEvents = AgentEvent.Kind.toolActivity.map(\.rawValue)
 }
 
 /// Cursor's hook input: camelCase event names, `conversation_id` on every event (sessionStart's

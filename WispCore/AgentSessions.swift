@@ -235,11 +235,12 @@ public struct AgentSessions: Sendable {
         OpenCodeHooks.replyFailed,
     ]
 
-    /// Copilot CLI's permission prompt is Needs you too. Claude Code sends the same type, but its
-    /// prompts come to the notch as a PermissionRequest first, so its session keeps that state.
+    /// A permission prompt is Needs you too for agents Wisp can't answer (Copilot CLI, Droid,
+    /// CodeBuddy, Kimi Code). Claude Code and the others that approve send the same type, but their
+    /// prompts come to the notch as a PermissionRequest first, so their sessions keep that state.
     static func waits(on notification: String, source: AgentSource) -> Bool {
         waitingNotifications.contains(notification)
-            || (source == .copilot && notification == CopilotHooks.permissionPrompt)
+            || (!source.adapter.capabilities.contains(.approve) && notification == CopilotHooks.permissionPrompt)
     }
 
     public init() {}

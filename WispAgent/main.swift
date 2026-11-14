@@ -4,8 +4,8 @@ import WispCore
 
 // Coding agents' hook command: forwards the hook's JSON (stdin) to Wisp over a
 // Unix socket and prints Wisp's reply (a permission decision, or nothing). It wraps the
-// JSON in Wisp's envelope with the agent (`--source codex`, `--source gemini`, `--source copilot`,
-// `--source cursor`, `--source opencode`, otherwise Claude Code) and the terminal app it runs in;
+// JSON in Wisp's envelope with the agent (`--source codex`, `--source qwen` and so on, one per
+// adapter in `AgentAdapters`, otherwise Claude Code) and the terminal app it runs in;
 // OpenCode runs it from Wisp's plugin. Any failure exits 0 with no output (for Cursor, which reads
 // stdout as JSON, its "carry on" reply), so the agent carries on as if no hook ran. Tool activity
 // hooks are sent without waiting for a reply.
@@ -47,8 +47,10 @@ let silentReply = Data((AgentProtocol.silentReply(forHook: hookJSON, source: sou
     exit(0)
 }
 
-// A Claude Code hook Cursor ran: Cursor's own hooks report that session, if connected.
-if CursorHooks.isImported(hookJSON, source: source) { finish(Data()) }
+// A Claude Code hook Cursor or Grok ran: their own hooks report that session, if connected.
+if CursorHooks.isImported(hookJSON, source: source) || GrokHooks.isImported(environment: environment, source: source) {
+    finish(Data())
+}
 guard FileManager.default.fileExists(atPath: socketPath) else { finish(Data()) }
 
 // The agent that ran this hook, so Wisp can end its session if it quits without saying so.

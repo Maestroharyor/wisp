@@ -11,9 +11,10 @@ public enum HookLink: Equatable, Sendable {
 
 /// Adds and removes Wisp's hooks in an agent's hook file (`HookFile`): Claude Code's
 /// settings.json, Codex's hooks.json, Gemini CLI's settings.json, Copilot CLI's hooks folder or Cursor's
-/// hooks.json, which share the `hooks` shape (the last two list handlers without matcher groups). The user's
-/// own settings and hooks are left alone. Wisp's entries are recognised by the helper's name. OpenCode's
-/// plugin is a file of Wisp's own (`OpenCodePlugin`), written whole.
+/// hooks.json, which share the `hooks` shape (the last two list handlers without matcher groups), and the
+/// agents that copy it (Droid's hooks.json keeps the events at the top level). The user's own settings and
+/// hooks are left alone. Wisp's entries are recognised by the helper's name. OpenCode's plugin is a file
+/// of Wisp's own (`OpenCodePlugin`), written whole; Kimi Code and Mistral Vibe use TOML (`HookTOML`).
 public enum HookInstaller {
     public enum Failure: Error { case notAnObject }
 
@@ -53,11 +54,15 @@ public enum HookInstaller {
     ) throws -> Data {
         // A plugin is Wisp's own file, written whole.
         if file.format.isPlugin { return OpenCodePlugin.source(command: command, tools: tools) }
+        if file.format.isTOML {
+            return try HookTOML.install(into: settings, command: command, file: file, tools: tools)
+        }
         var root = try object(settings)
-        var hooks = stripped(root["hooks"])
+        var hooks = stripped(container(root, file: file))
         for event in file.events + (tools ? file.toolEvents : []) {
             // Codex allows Interrupt hooks three seconds at most.
-            let seconds = event == "PermissionRequest" ? timeout : event == "Interrupt" ? 3 : 5
+            let seconds =
+                event == "PermissionRequest" && file.waitsForApproval ? timeout : event == "Interrupt" ? 3 : 5
             let scaled = seconds * file.format.timeoutScale
             var handler: [String: JSONValue] = [
                 "type": .string("command"), "command": .string(command),
@@ -71,16 +76,32 @@ public enum HookInstaller {
             if case .array(let existing) = hooks[event] { entries = existing }
             hooks[event] = .array(entries + [entry])
         }
+        if file.format.eventsAtTopLevel { return try encode(.object(hooks)) }
         root["hooks"] = .object(hooks)
         if let version = file.format.version, root["version"] == nil { root["version"] = .number(Double(version)) }
         return try encode(.object(root))
     }
 
     public static func remove(from settings: Data) throws -> Data {
+        try remove(from: settings, file: AgentSource.claude.adapter.hookFile)
+    }
+
+    /// Wisp's hooks taken out of `file`; everything else stays.
+    public static func remove(from settings: Data, file: HookFile) throws -> Data {
+        if file.format.isTOML { return try HookTOML.remove(from: settings) }
         var root = try object(settings)
+        if file.format.eventsAtTopLevel { return try encode(.object(stripped(.object(root)))) }
         let hooks = stripped(root["hooks"])
         root["hooks"] = hooks.isEmpty ? nil : .object(hooks)
         return try encode(.object(root))
+    }
+
+    /// The `hooks` object of a settings file, as the body of a hook file whose events are at the
+    /// top level (`HookFile.seedPath`). Nil when there are none, or the file can't be read.
+    public static func seed(fromSettings settings: Data) -> Data? {
+        guard let root = try? SettingsJSON.object(settings), case .object(let hooks) = root["hooks"], !hooks.isEmpty
+        else { return nil }
+        return try? encode(.object(hooks))
     }
 
     /// Whether a file Wisp owns holds nothing but its `version` after `remove`, so it can be
@@ -118,16 +139,20 @@ public enum HookInstaller {
     /// The approval wait Wisp's hooks in `file` were installed with: the PermissionRequest hook's
     /// timeout, or the wait in a plugin's command. Nil when there's neither.
     public static func installedApprovalTimeout(in settings: Data, file: HookFile) throws -> Int? {
-        file.format.isPlugin ? OpenCodePlugin.approvalTimeout(in: settings) : try installedApprovalTimeout(in: settings)
+        if file.format.isPlugin { return OpenCodePlugin.approvalTimeout(in: settings) }
+        guard file.waitsForApproval else { return nil }
+        let root = try object(settings)
+        guard case .array(let entries) = hooksObject(container(root, file: file))["PermissionRequest"] else {
+            return nil
+        }
+        let wisp = entries.flatMap(handlers).first(where: isWisp)
+        return (wisp?["timeout"] ?? wisp?["timeoutSec"])?.intValue.map { $0 / file.format.timeoutScale }
     }
 
-    /// The PermissionRequest timeout Wisp's hook in `settings` was installed with; nil when
-    /// there's no such hook.
+    /// The PermissionRequest timeout Wisp's hook in Claude Code's `settings` was installed with;
+    /// nil when there's no such hook.
     public static func installedApprovalTimeout(in settings: Data) throws -> Int? {
-        let root = try object(settings)
-        guard case .array(let entries) = hooksObject(root["hooks"])["PermissionRequest"] else { return nil }
-        let wisp = entries.flatMap(handlers).first(where: isWisp)
-        return (wisp?["timeout"] ?? wisp?["timeoutSec"])?.intValue
+        try installedApprovalTimeout(in: settings, file: AgentSource.claude.adapter.hookFile)
     }
 
     /// `text` as one POSIX shell word in single quotes.
@@ -171,7 +196,7 @@ public enum HookInstaller {
         if file.format.isPlugin {
             return OpenCodePlugin.link(in: settings, helper: helper, file: file, timeout: timeout)
         }
-        let commands = try wispCommands(in: settings)
+        let commands = try wispCommands(in: settings, file: file)
         if commands.isEmpty { return .none }
         let base = command(helper: helper, file: file)
         guard commands.allSatisfy({ withoutTimeout($0.command) == base }) else { return .other }
@@ -197,17 +222,18 @@ public enum HookInstaller {
         -> Bool
     {
         if file.format.isPlugin { return OpenCodePlugin.toolsOn(in: settings) }
-        let events = Set(try wispCommands(in: settings).map(\.event))
+        let events = Set(try wispCommands(in: settings, file: file).map(\.event))
         return !events.isDisjoint(with: file.toolEvents)
     }
 
     public static func isInstalled(in settings: Data) throws -> Bool {
-        try !wispCommands(in: settings).isEmpty
+        try !wispCommands(in: settings, file: AgentSource.claude.adapter.hookFile).isEmpty
     }
 
-    private static func wispCommands(in settings: Data) throws -> [(event: String, command: String)] {
+    private static func wispCommands(in settings: Data, file: HookFile) throws -> [(event: String, command: String)] {
+        if file.format.isTOML { return try HookTOML.commands(in: settings) }
         let root = try object(settings)
-        return hooksObject(root["hooks"]).flatMap { event, value -> [(event: String, command: String)] in
+        return hooksObject(container(root, file: file)).flatMap { event, value -> [(event: String, command: String)] in
             guard case .array(let entries) = value else { return [] }
             return entries.flatMap(handlers).filter(isWisp).compactMap { handler in
                 handler["command"]?.stringValue.map { (event, $0) }
@@ -250,6 +276,11 @@ public enum HookInstaller {
         if kept.isEmpty, !handlers.isEmpty { return nil }
         fields["hooks"] = .array(kept)
         return .object(fields)
+    }
+
+    /// Where the file keeps its events: under `hooks`, or at the top level.
+    private static func container(_ root: [String: JSONValue], file: HookFile) -> JSONValue? {
+        file.format.eventsAtTopLevel ? .object(root) : root["hooks"]
     }
 
     private static func hooksObject(_ value: JSONValue?) -> [String: JSONValue] {
