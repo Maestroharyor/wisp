@@ -60,6 +60,9 @@ public struct SessionRecord: Codable, Equatable, Sendable, Identifiable {
     public var endedWaiting: Bool
     /// The on-device AI's summary of this record, when AI is on.
     public var summary: String?
+    /// The agent quit without ending its session (a crash or a closed terminal). Optional so
+    /// records saved before it existed still load.
+    public var exited: Bool?
 
     public init(
         sessionID: String, project: String, source: AgentSource, started: Date, ended: Date? = nil,

@@ -201,6 +201,12 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "permission sound").first, .agents)
     }
 
+    func testQuietHoursAndTheAwayCardLandOnAgents() {
+        for query in ["quiet hours", "while you were away", "away summary", "mute for 1 hour", "overnight"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .agents, query)
+        }
+    }
+
     func testTitlesMatchCaseAndAccentInsensitively() {
         XCTAssertEqual(SettingsIndex.panes(matching: "SHELF").first, .shelf)
         XCTAssertTrue(SettingsIndex.panes(matching: "notch").contains(.notch))

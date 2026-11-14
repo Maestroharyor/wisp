@@ -23,7 +23,7 @@ final class ActivitySlotTests: XCTestCase {
         let dismissable: Set<ActivitySlot> = [
             .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone,
             .aiResult,
-            .quickInput, .agentCallout,
+            .quickInput, .agentCallout, .agentAway,
         ]
         XCTAssertEqual(Set(ActivitySlot.allCases.filter(\.isDismissable)), dismissable)
     }
@@ -31,6 +31,11 @@ final class ActivitySlotTests: XCTestCase {
     func testAgentCalloutsSitBelowRequestsButOverNotifications() {
         XCTAssertLessThan(ActivitySlot.agentCallout.priority, ActivitySlot.agentApproval.priority)
         XCTAssertGreaterThan(ActivitySlot.agentCallout.priority, ActivitySlot.notification.priority)
+    }
+
+    func testTheAwayCardSitsBelowCalloutsButOverNotifications() {
+        XCTAssertLessThan(ActivitySlot.agentAway.priority, ActivitySlot.agentCallout.priority)
+        XCTAssertGreaterThan(ActivitySlot.agentAway.priority, ActivitySlot.notification.priority)
     }
 
     func testShortAlertsShowDuringACall() {
