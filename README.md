@@ -269,7 +269,7 @@ Wisp has no account, no analytics and no server of its own. It only goes online 
 |---|---|---|---|
 | [LRCLIB](https://lrclib.net) | Song title, artist, album and length | Lyrics are on screen (Media page or mini player) | Settings › Live Activities › "Lyrics from LRCLIB" |
 | [iTunes Search](https://performance-partners.apple.com/search-api) | Song title and artist | A song is playing and its app gave no album art | Settings › Live Activities › "Find missing album art on iTunes" |
-| [Open-Meteo](https://open-meteo.com) | Your location, rounded to about 100 m | The Weather widget or ear is shown, at most every 30 minutes | Switch off the Weather widget (Settings › Shelf) and the weather ear (Settings › Appearance) |
+| [Open-Meteo](https://open-meteo.com) | Your location, rounded to about 1 km | The Weather widget or ear is shown, at most every 30 minutes | Switch off the Weather widget (Settings › Shelf) and the weather ear (Settings › Appearance) |
 | Apple (Core Location) | Your location, to name the town under the weather | Along with the weather | Same as above |
 | Spotify | Nothing new: Wisp loads the cover from the URL the Spotify app gives it | Spotify is playing | Quit Spotify |
 | GitHub | A request for `appcast.xml` | Update checks; Wisp asks before checking automatically | Settings › About › "Check for updates automatically" |
