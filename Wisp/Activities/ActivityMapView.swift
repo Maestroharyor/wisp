@@ -1,13 +1,18 @@
 import SwiftUI
 import WispCore
 
-/// A year of agent use, one square per day in Wisp violet steps, with each day's count per agent
-/// in its tooltip (`ActivityMap`). Sits in the history and on the Agents window page.
+/// Agent use over the kept stretch (a year at most), one square per day in Wisp violet steps, with
+/// each day's count per agent in its tooltip (`ActivityMap`). Sits in the history and on the Agents
+/// window page.
 struct ActivityMapView: View, Equatable {
     let map: ActivityMap
+    /// How long counts are kept, which sets the weeks shown.
+    let retention: ActivityRetention
 
     /// Its hosts redraw several times a second while agents work; the grid only needs to when the counts change.
-    nonisolated static func == (lhs: ActivityMapView, rhs: ActivityMapView) -> Bool { lhs.map == rhs.map }
+    nonisolated static func == (lhs: ActivityMapView, rhs: ActivityMapView) -> Bool {
+        lhs.map == rhs.map && lhs.retention == rhs.retention
+    }
 
     @State private var metric: ActivityMetric = .turns
 
@@ -16,11 +21,11 @@ struct ActivityMapView: View, Equatable {
 
     var body: some View {
         TimelineView(.everyMinute) { context in
-            let grid = map.grid(endingOn: context.date, metric: metric)
+            let grid = map.grid(endingOn: context.date, weeks: retention.weeks(now: context.date), metric: metric)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text("Activity").font(.system(size: 11, weight: .semibold))
-                    Text("\(metric.phrase(grid.total)) in the last year")
+                    Text("\(metric.phrase(grid.total)) \(retention.shownPeriod)")
                         .font(.system(size: 10)).monospacedDigit().foregroundStyle(Color.secondaryText)
                         .lineLimit(1)
                     Spacer(minLength: 0)
@@ -32,7 +37,7 @@ struct ActivityMapView: View, Equatable {
                     .controlSize(.mini)
                     .fixedSize()
                 }
-                ActivityGridView(grid: grid, metric: metric)
+                ActivityGridView(grid: grid, metric: metric, period: retention.shownPeriod)
             }
         }
     }
@@ -51,6 +56,8 @@ struct ActivityMapView: View, Equatable {
 private struct ActivityGridView: View {
     let grid: ActivityGrid
     let metric: ActivityMetric
+    /// "in the last year", for VoiceOver.
+    let period: String
 
     var body: some View {
         GeometryReader { proxy in
@@ -71,7 +78,7 @@ private struct ActivityGridView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Activity map")
         .accessibilityValue(
-            "\(metric.phrase(grid.total)) in the last year, the busiest day had \(metric.phrase(grid.busiest))")
+            "\(metric.phrase(grid.total)) \(period), the busiest day had \(metric.phrase(grid.busiest))")
     }
 }
 

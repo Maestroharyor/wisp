@@ -63,16 +63,31 @@ public enum ApprovalSettle {
     public static func settled<ID>(_ requests: [Request<ID>], finished call: TranscriptCalls.Call, session: String)
         -> [ID]
     {
-        requests.filter { request in
-            request.sessionID == session && request.tool == call.tool && request.agentID == nil
-                && (request.prompt != .tool || holds(request.input, every: call.input))
-        }
-        .map(\.id)
+        requests.filter { $0.sessionID == session && $0.isCall(call) }.map(\.id)
     }
 
-    private static func holds(_ input: JSONValue?, every fields: JSONValue?) -> Bool {
-        guard case .object(let wanted) = fields, case .object(let present) = input else { return input == fields }
-        return wanted.allSatisfy { present[$0.key] == $0.value }
+    /// Whether the call `request` waits on is open in `calls`, which follow its session's
+    /// transcript: its `tool_use` was read and no result yet.
+    public static func waits<ID>(_ request: Request<ID>, in calls: TranscriptCalls) -> Bool {
+        calls.isOpen { request.isCall($0) }
+    }
+
+    /// Whether new spend in a session with a request waiting means the request was answered in
+    /// the terminal (the model was called again). A subagent spends while the main agent waits,
+    /// so it needs to know none runs: from tool hooks, which count them, or otherwise from the
+    /// transcript (`subagentCallOpen`, nil before it's read) and no request from a subagent.
+    public static func spendMeansAnswered(toolHooks: Bool, subagentCallOpen: Bool?, subagentAsked: Bool) -> Bool {
+        toolHooks || (subagentCallOpen == false && !subagentAsked)
+    }
+
+    /// Seconds short of the hook timeout that still count as reaching it: the hook started a
+    /// moment before its request reached Wisp.
+    static let timeoutTolerance: TimeInterval = 2
+
+    /// Whether a hook that ended `elapsed` seconds after its request arrived was stopped by the
+    /// agent's own timeout (`hookTimeout` seconds) rather than by an answer in the terminal.
+    public static func timedOut(elapsed: TimeInterval, hookTimeout: Int) -> Bool {
+        elapsed >= Double(hookTimeout) - timeoutTolerance
     }
 }
 
@@ -81,5 +96,17 @@ extension ApprovalSettle.Request {
     /// answer comes back inside its input, so the input isn't compared for those.
     fileprivate func matches(tool: String?, input: JSONValue?, agentID: String?) -> Bool {
         self.tool == tool && self.agentID == agentID && (prompt != .tool || self.input == input)
+    }
+
+    /// The main agent's call in the transcript that this request is for. The transcript keeps the
+    /// model's own input, which Claude Code may fill out before it asks, so a tool request whose
+    /// input holds every field of the call's counts.
+    fileprivate func isCall(_ call: TranscriptCalls.Call) -> Bool {
+        tool == call.tool && agentID == nil && (prompt != .tool || Self.holds(input, every: call.input))
+    }
+
+    private static func holds(_ input: JSONValue?, every fields: JSONValue?) -> Bool {
+        guard case .object(let wanted) = fields, case .object(let present) = input else { return input == fields }
+        return wanted.allSatisfy { present[$0.key] == $0.value }
     }
 }

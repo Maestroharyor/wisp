@@ -59,6 +59,39 @@ final class SessionSwitcherTests: XCTestCase {
         XCTAssertEqual(SessionSwitcher.status(session), "Compacting")
     }
 
+    func testARequestHeldByTheSpendCapSaysSo() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var sessions = AgentSessions()
+        let ask = try XCTUnwrap(
+            AgentSource.claude.adapter.parse(
+                .object([
+                    "session_id": .string("s"), "hook_event_name": .string("PermissionRequest"),
+                    "tool_name": .string("Bash"), "cwd": .string("/p"),
+                ]), terminal: nil))
+        sessions.apply(ask, at: now)
+        sessions.markHeld(["s"])
+        var session = try XCTUnwrap(sessions.session("s"))
+        XCTAssertTrue(session.heldAtCap)
+        XCTAssertEqual(SessionSwitcher.status(session), "Paused at spend cap")
+        XCTAssertEqual(session.stateLabel, "Paused at spend cap")
+        sessions.markHeld([])
+        session = try XCTUnwrap(sessions.session("s"))
+        XCTAssertFalse(session.heldAtCap)
+        XCTAssertEqual(SessionSwitcher.status(session), "Needs approval")
+        XCTAssertEqual(session.stateLabel, "Approve?")
+    }
+
+    func testTheSwitcherMovesOffAShelfShortcutThatTakesIt() {
+        XCTAssertEqual(Hotkey.switcherShortcut(shelf: .hyperSpace), Hotkey.switcherHyper)
+        XCTAssertEqual(Hotkey.switcherShortcut(shelf: Hotkey.switcherHyper), Hotkey.switcherFallback)
+        // Without Hyper the switcher always has ⌃⌥⌘G.
+        let plain = Hotkey(keyCode: KeyCodes.space, modifiers: [.option])
+        XCTAssertEqual(Hotkey.switcherShortcut(shelf: plain), Hotkey.switcherFallback)
+        XCTAssertFalse(Hotkey.switcherClashes(shelf: .hyperSpace))
+        XCTAssertTrue(Hotkey.switcherClashes(shelf: Hotkey.switcherHyper))
+        XCTAssertFalse(Hotkey.switcherClashes(shelf: plain))
+    }
+
     func testTheShortcuts() {
         XCTAssertEqual(Hotkey.switcherHyper.keyCode, KeyCodes.g)
         XCTAssertTrue(Hotkey.switcherHyper.usesHyper)

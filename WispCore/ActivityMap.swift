@@ -54,6 +54,28 @@ public enum ActivityRetention: String, CaseIterable, Identifiable, Sendable {
         let today = calendar.startOfDay(for: now)
         return calendar.date(byAdding: .month, value: -months, to: today) ?? today
     }
+
+    /// The most week columns the map shows; more would shrink the squares out of sight.
+    public static let maxWeeks = 53
+
+    /// Week columns from the one holding the first day kept to this week, at most `maxWeeks`.
+    public func weeks(now: Date, calendar: Calendar = .current) -> Int {
+        let start = { (date: Date) -> Date in
+            let day = calendar.startOfDay(for: date)
+            let intoWeek = (calendar.component(.weekday, from: day) - calendar.firstWeekday + 7) % 7
+            return calendar.date(byAdding: .day, value: -intoWeek, to: day) ?? day
+        }
+        let days = calendar.dateComponents([.day], from: start(firstDay(now: now, calendar: calendar)), to: start(now))
+        return min(max((days.day ?? 0) / 7 + 1, 1), Self.maxWeeks)
+    }
+
+    /// The stretch the map covers, for its header: "in the last 3 months".
+    public var shownPeriod: String {
+        switch self {
+        case .threeMonths: "in the last 3 months"
+        case .oneYear, .twoYears: "in the last year"
+        }
+    }
 }
 
 /// One agent's runs on one day.

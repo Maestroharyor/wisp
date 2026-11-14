@@ -81,6 +81,8 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     /// The same for the critical level, which offers Compact now.
     public var contextCriticalAlerted = false
     public var compacting = false
+    /// A request waits off screen because the session reached the spend cap (`SpendCap`).
+    public var heldAtCap = false
     public var linesAdded = 0
     public var linesRemoved = 0
     /// The whole session's length and the time spent waiting on the model, as reported.
@@ -195,6 +197,21 @@ extension AgentSession {
     }
 
     public var displayModel: String? { model ?? modelID.map(ModelName.display) }
+
+    /// The state in a word or two for a session's row ("Working", "Approve?"). A request held
+    /// by the spend cap isn't asking yet, so it says it's paused instead.
+    public var stateLabel: String {
+        if heldAtCap, state == .needsApproval { return Self.heldLabel }
+        switch state {
+        case .idle: return "Ready"
+        case .running: return "Working"
+        case .waiting: return "Needs you"
+        case .needsApproval: return "Approve?"
+        case .finished: return "Done"
+        }
+    }
+
+    public static let heldLabel = "Paused at spend cap"
 
     /// Permission prompts are skipped (`--dangerously-skip-permissions`), so nothing will ask.
     public var bypassesPermissions: Bool { permissionMode == "bypassPermissions" }
@@ -594,6 +611,13 @@ public struct AgentSessions: Sendable {
         session.stateSince = date
         session.updated = date
         sessions[id] = session
+    }
+
+    /// Marks the sessions in `ids` as held by the spend cap and every other one as not.
+    public mutating func markHeld(_ ids: Set<String>) {
+        for (id, session) in sessions where session.heldAtCap != ids.contains(id) {
+            sessions[id]?.heldAtCap = ids.contains(id)
+        }
     }
 
     /// A reminder for a session still waiting: it leads the pill again, as when the wait began.

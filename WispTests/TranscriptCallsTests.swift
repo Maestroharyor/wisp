@@ -81,4 +81,34 @@ final class TranscriptCallsTests: XCTestCase {
             #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_b","content":"x"}]}}"#
         XCTAssertEqual(calls.add(complete: lines(both, readDone)).finished.map(\.tool), ["Read"])
     }
+
+    func testEachFinishedCallSaysWhereItsLineEnds() {
+        // So a result written after a request arrived counts, even inside the first read.
+        var calls = TranscriptCalls()
+        let data = lines(bashUse, bashResult)
+        let read = calls.add(complete: data)
+        XCTAssertEqual(read.finished.map(\.tool), ["Bash"])
+        XCTAssertEqual(read.ends, [data.count])
+        var later = TranscriptCalls()
+        let first = lines(bashUse)
+        XCTAssertEqual(later.add(complete: first + lines(bashResult)).ends, [first.count + bashResult.utf8.count + 1])
+    }
+
+    func testOpenCallsCanBeAskedAbout() {
+        var calls = TranscriptCalls()
+        _ = calls.add(complete: lines(bashUse))
+        XCTAssertTrue(calls.isOpen { $0.tool == "Bash" })
+        XCTAssertFalse(calls.isOpen { $0.tool == "Task" })
+        _ = calls.add(complete: lines(bashResult))
+        XCTAssertFalse(calls.isOpen { $0.tool == "Bash" })
+    }
+
+    func testTheLookBackWidensInBoundedSteps() {
+        let mib: UInt64 = 1 << 20
+        XCTAssertEqual(TranscriptCalls.lookBackStarts(size: 100 * mib), [99 * mib, 92 * mib, 68 * mib])
+        // A small file is read whole, once.
+        XCTAssertEqual(TranscriptCalls.lookBackStarts(size: 500), [0])
+        XCTAssertEqual(TranscriptCalls.lookBackStarts(size: 4 * mib), [3 * mib, 0])
+        XCTAssertEqual(TranscriptCalls.lookBackStarts(size: 0), [0])
+    }
 }

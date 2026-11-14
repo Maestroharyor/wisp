@@ -59,8 +59,13 @@ public enum ProcessScan {
         }
     }
 
+    /// This user's live processes, for `BashChild`.
+    public static func processTable() -> [BashChild.Entry] {
+        userProcesses().map { BashChild.Entry(pid: $0.pid, parent: $0.parent, started: $0.started) }
+    }
+
     /// The process's arguments; nil when they can't be read.
-    static func arguments(of pid: Int32) -> [String]? {
+    public static func arguments(of pid: Int32) -> [String]? {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
         guard sysctl(&mib, u_int(mib.count), nil, &size, nil, 0) == 0, size > 0 else { return nil }

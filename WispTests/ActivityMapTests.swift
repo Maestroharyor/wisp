@@ -79,6 +79,22 @@ final class ActivityMapTests: XCTestCase {
         XCTAssertEqual(grid.busiest, 4)
     }
 
+    func testTheGridIsSizedToTheRetention() throws {
+        XCTAssertEqual(ActivityRetention.threeMonths.weeks(now: now, calendar: calendar), 14)
+        XCTAssertEqual(ActivityRetention.oneYear.weeks(now: now, calendar: calendar), 53)
+        // Two years would make the squares too small to see; the map shows the last year.
+        XCTAssertEqual(ActivityRetention.twoYears.weeks(now: now, calendar: calendar), 53)
+        XCTAssertEqual(ActivityRetention.threeMonths.shownPeriod, "in the last 3 months")
+        XCTAssertEqual(ActivityRetention.oneYear.shownPeriod, "in the last year")
+        XCTAssertEqual(ActivityRetention.twoYears.shownPeriod, "in the last year")
+        // The first column holds the first day kept.
+        let weeks = ActivityRetention.threeMonths.weeks(now: now, calendar: calendar)
+        let grid = ActivityMap().grid(endingOn: now, weeks: weeks, metric: .turns, calendar: calendar)
+        let first = ActivityRetention.threeMonths.firstDay(now: now, calendar: calendar)
+        let column = try XCTUnwrap(grid.columns.first)
+        XCTAssertTrue(column.contains { calendar.isDate($0.date, inSameDayAs: first) })
+    }
+
     func testDaysAfterTodayAreFuture() throws {
         var mondayStart = calendar
         mondayStart.firstWeekday = 2

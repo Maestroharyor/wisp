@@ -82,6 +82,8 @@ struct AgentStatus: Sendable, Equatable {
     var others = 0
     /// Bundle ID of the terminal or editor the session runs in, for its icon.
     var terminal: String? = nil
+    /// Its request is held by the spend cap, so it's paused rather than asking.
+    var held = false
 }
 
 /// A session that reached the spend cap, waiting for Keep going, Raise or Stop.
@@ -267,8 +269,11 @@ final class AgentHub {
     var onContextAlert: (String) -> Void = { _ in }
     /// A session's context window passed Critical at, with the rounded percentage.
     var onContextCritical: (AgentSession, Int) -> Void = { _, _ in }
-    /// A tool ran long or spend reached the daily budget: a symbol and a line for the notch.
+    /// A tool ran long: a symbol and a line for the notch.
     var onAlert: (_ symbol: String, _ text: String) -> Void = { _, _ in }
+    /// A usage limit or the daily budget: a symbol and a line for the notch. They're in the
+    /// Limits group, so the receiver holds them back during quiet hours.
+    var onLimitNotice: (_ symbol: String, _ text: String) -> Void = { _, _ in }
     /// A session has waited for the user past the reminder limit.
     var onNudge: (IdleNudgeMoment) -> Void = { _ in }
     /// The latest idle nudge for a waiting request, so its minimised pill pulses once and says
@@ -300,6 +305,16 @@ final class AgentHub {
     @ObservationIgnored private var hookWatches: [UUID: any DispatchSourceProcess] = [:]
     /// What each waiting request is matched on when later events show it was answered elsewhere.
     @ObservationIgnored private var settleKeys: [UUID: ApprovalSettle.Request<UUID>] = [:]
+    /// When each waiting request arrived, to tell a hook the agent stopped at its timeout from
+    /// one that ended because the prompt was answered in the terminal.
+    @ObservationIgnored private var arrivals: [UUID: Date] = [:]
+    /// Waiting Bash requests and what to look for under their agent's process (`BashChild`).
+    @ObservationIgnored private var bashWatches: [UUID: BashWatch] = [:]
+    @ObservationIgnored private var bashTask: Task<Void, Never>?
+    private static let bashInterval: Duration = .milliseconds(500)
+    /// How long before its request a command's shell may have started: the hook reaches Wisp a
+    /// moment after the agent asks, and a quick answer in the terminal can beat it.
+    private static let bashSlack: TimeInterval = 2
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "agents")
     /// Codex sessions mid-turn: a watch on the rollout file and its read throttle.
     @ObservationIgnored private var rolloutWatches:
@@ -310,8 +325,6 @@ final class AgentHub {
     /// running until its timeout then, so the helper's exit comes far too late.
     @ObservationIgnored private var transcriptWatches: [String: TranscriptWatch] = [:]
     private static let transcriptInterval: TimeInterval = 0.25
-    /// How far back the first read starts, to find the waiting call's `tool_use` already written.
-    private static let transcriptLookBack: Int64 = 1 << 20
     /// Per session: how far into the transcript Wisp has read, and the totals so far.
     @ObservationIgnored private var transcripts: [String: (offset: UInt64, usage: TranscriptUsage)] = [:]
     @ObservationIgnored private var reading: Set<String> = []
@@ -370,6 +383,8 @@ final class AgentHub {
     @ObservationIgnored private var lastInstalledRead: Date?
     /// Counts hook-file reads, so a background read that a newer one overtook is dropped.
     @ObservationIgnored private var installedReads = 0
+    /// What runs once the newest hook-file read is applied (`refreshInstalled(then:)`).
+    @ObservationIgnored private var installedWaiters: [@MainActor () -> Void] = []
 
     /// Answer before the agent's hook timeout so it can still show its own prompt.
     private func approvalWait(_ source: AgentSource) -> Duration {
@@ -445,6 +460,8 @@ final class AgentHub {
         limitResetAt = nil
         for id in rolloutWatches.keys { stopRolloutWatch(id) }
         for id in transcriptWatches.keys { stopTranscriptWatch(id) }
+        bashTask?.cancel()
+        bashTask = nil
     }
 
     private static let maximumMessage = 1 << 20
@@ -562,6 +579,8 @@ final class AgentHub {
             if summaries.keys.contains(where: { !live.contains($0) }) {
                 summaries = summaries.filter { live.contains($0.key) }
             }
+            // A spend cap card for a session that's gone has nothing left to stop or keep going.
+            for id in capPrompts.map(\.sessionID) where !live.contains(id) { forgetSpendCap(id) }
             if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
         }
 
@@ -619,9 +638,12 @@ final class AgentHub {
             let isHeld = capState.isHeld(event.sessionID)
             if isHeld { held.append(approval.id) } else { queue.enqueue(approval.id) }
             waiting[approval.id] = connection
-            settleKeys[approval.id] = ApprovalSettle.Request(id: approval.id, event: event)
+            let key = ApprovalSettle.Request(id: approval.id, event: event)
+            settleKeys[approval.id] = key
+            arrivals[approval.id] = .now
             if let pid = event.hookPID { watchHook(pid, for: approval.id) }
-            watchTranscript(for: event)
+            watchTranscript(for: event, waitingOn: key)
+            watchBash(for: event, id: approval.id)
             startTimeout(approval.id, source: event.source)
             if !isHeld {
                 approvalsChanged()
@@ -654,8 +676,8 @@ final class AgentHub {
         for (id, item) in batch {
             if !seenSources.contains(item.source) { seenSources.insert(item.source) }
             // New spend while it waited: the request or question was answered in the terminal.
-            // Only with tool hooks, which count subagents; a subagent spends while the main agent waits.
-            if toolHooks.contains(item.source), sessions.movedOn(item.snapshot) {
+            // Only when no subagent could have spent it (`spendMeansAnswered`).
+            if spendMeansAnswered(session: id, source: item.source), sessions.movedOn(item.snapshot) {
                 for approval in waitingApprovals where approval.sessionID == id { settle(approval.id) }
             }
             let branch = item.snapshot.branch == nil ? Self.branch(cwd: item.snapshot.cwd) : nil
@@ -707,7 +729,7 @@ final class AgentHub {
         for alert in alerts {
             onSound(alert.sound, nil)
             guard wantsNotice(alert.kind) else { continue }
-            onAlert(alert.symbol, alert.text)
+            onLimitNotice(alert.symbol, alert.text)
             onMoment(.limit(alert.text))
         }
     }
@@ -802,7 +824,7 @@ final class AgentHub {
         budgetState.record(level, on: now, budget: dailyBudget)
         defaults.set(try? JSONEncoder().encode(budgetState), forKey: Self.budgetKey)
         let text = SpendBudget.text(level: level, budget: dailyBudget)
-        onAlert("dollarsign.circle", text)
+        onLimitNotice("dollarsign.circle", text)
         onMoment(.budget(text))
     }
 
@@ -1121,6 +1143,8 @@ final class AgentHub {
         // Cancelled before the reply goes, since the helper exits once it has it.
         hookWatches.removeValue(forKey: id)?.cancel()
         settleKeys[id] = nil
+        arrivals[id] = nil
+        bashWatches[id] = nil
         if !pending.values.contains(where: { $0.sessionID == approval.sessionID }) {
             stopTranscriptWatch(approval.sessionID)
         }
@@ -1134,14 +1158,27 @@ final class AgentHub {
             MainActor.assumeIsolated {
                 guard let self, self.pending[id] != nil else { return }
                 self.log.notice("a request's hook exited before Wisp answered; handing it back")
-                self.settle(id)
+                self.hookEnded(id)
             }
         }
         hookWatches[id] = watch
         watch.resume()
         // Gone before the watch started: nothing will report its exit.
         if kill(pid, 0) != 0, errno == ESRCH {
-            Task { @MainActor [weak self] in self?.settle(id) }
+            Task { @MainActor [weak self] in self?.hookEnded(id) }
+        }
+    }
+
+    /// The agent stopped waiting on a request's hook before Wisp answered: at its own timeout
+    /// (handed back, and logged as timed out), or because the prompt was answered in the terminal.
+    private func hookEnded(_ id: UUID) {
+        guard let approval = pending[id] else { return }
+        let elapsed = arrivals[id].map { Date.now.timeIntervalSince($0) } ?? 0
+        let timeout = installedTimeouts[approval.source] ?? HookInstaller.approvalTimeout
+        if ApprovalSettle.timedOut(elapsed: elapsed, hookTimeout: timeout) {
+            handBack(id)
+        } else {
+            settle(id)
         }
     }
 
@@ -1167,7 +1204,7 @@ final class AgentHub {
     private func connectionClosed(_ connection: NWConnection) {
         guard let id = waiting.first(where: { $0.value === connection })?.key else { return }
         waiting[id] = nil
-        answer(id, allow: nil)
+        hookEnded(id)
     }
 
     private func settleApprovals(for session: String) {
@@ -1184,6 +1221,8 @@ final class AgentHub {
 
     /// Shows the most urgent session (see `AgentUrgency`), with a count of the others.
     private func publishStatus() {
+        // Every change to what's held ends here, so the rows and the pill say Paused at spend cap.
+        sessions.markHeld(Set(held.compactMap { pending[$0]?.sessionID }))
         let all = sessions.list
         let now = Date.now
         let pick = AgentUrgency.pick(all, now: now)
@@ -1298,7 +1337,7 @@ final class AgentHub {
             started: session.turnStarted, contextPercent: session.contextPercent?.rounded(),
             compacting: session.compacting,
             tool: session.state == .running ? session.pillTool(now: now)?.description(hidden: detailsHidden) : nil,
-            others: others, terminal: session.terminal)
+            others: others, terminal: session.terminal, held: session.heldAtCap)
     }
 
     // MARK: Token use
@@ -1414,19 +1453,33 @@ final class AgentHub {
         let path: String
         /// Tells this watch from a later one on the same session, for a read that ends after a restart.
         let token = UUID()
+        /// The transcript's length when the request arrived: a result written past it is an
+        /// answer, one before it is older history.
+        let arrival: UInt64
+        /// The request the watch started for; the first read looks back until it finds its call.
+        let first: ApprovalSettle.Request<UUID>
         var offset: UInt64
         var calls = TranscriptCalls()
         var throttle: ReadThrottle
         var reading = false
         /// Claude Code wrote again while a read ran.
         var again = false
-        /// The first read only learns which calls are open; a result inside it is older history.
+        /// The first read is done, so `calls` knows which calls are open.
         var primed = false
+    }
+
+    /// One read of a transcript: where to read from next, the open calls, and the calls that
+    /// finished with where each result's line ends in the file.
+    private struct TranscriptRead: Sendable {
+        let offset: UInt64
+        let calls: TranscriptCalls
+        let finished: [TranscriptCalls.Call]
+        let ends: [UInt64]
     }
 
     /// Follows a Claude Code session's transcript while its main agent has a request waiting.
     /// A file system source, read only when Claude Code writes; nothing runs otherwise.
-    private func watchTranscript(for event: AgentEvent) {
+    private func watchTranscript(for event: AgentEvent, waitingOn request: ApprovalSettle.Request<UUID>) {
         let id = event.sessionID
         guard event.source == .claude, event.agentID == nil, transcriptWatches[id] == nil,
             let path = event.transcriptPath
@@ -1452,9 +1505,10 @@ final class AgentHub {
             }
         }
         source.setCancelHandler { close(descriptor) }
-        let start = UInt64(max(0, info.st_size - Self.transcriptLookBack))
+        let size = UInt64(max(0, info.st_size))
         transcriptWatches[id] = TranscriptWatch(
-            source: source, path: path, offset: start, throttle: ReadThrottle(interval: Self.transcriptInterval))
+            source: source, path: path, arrival: size, first: request, offset: size,
+            throttle: ReadThrottle(interval: Self.transcriptInterval))
         source.resume()
         readTranscript(id)
     }
@@ -1483,10 +1537,14 @@ final class AgentHub {
         watch.reading = true
         transcriptWatches[id] = watch
         let (path, offset, calls, token) = (watch.path, watch.offset, watch.calls, watch.token)
+        let (primed, arrival, first) = (watch.primed, watch.arrival, watch.first)
         Task { [weak self] in
-            let read = await Task.detached { Self.readCalls(path: path, from: offset, into: calls) }.value
+            let read = await Task.detached {
+                primed
+                    ? Self.readCalls(path: path, from: offset, into: calls)
+                    : Self.firstRead(path: path, arrival: arrival, waitingOn: first)
+            }.value
             guard let self, var watch = self.transcriptWatches[id], watch.token == token else { return }
-            let primed = watch.primed
             let again = watch.again
             watch.offset = read.offset
             watch.calls = read.calls
@@ -1494,31 +1552,116 @@ final class AgentHub {
             watch.reading = false
             watch.again = false
             self.transcriptWatches[id] = watch
-            if primed {
-                for call in read.finished {
-                    let keys = (self.queue.items + self.held).compactMap { self.settleKeys[$0] }
-                    for approval in ApprovalSettle.settled(keys, finished: call, session: id) {
-                        self.log.notice("a request was answered in the terminal; its call finished in the transcript")
-                        self.settle(approval)
-                    }
+            // A result written after the request arrived is new, even inside the first read.
+            for (call, end) in zip(read.finished, read.ends) where end > arrival {
+                let keys = (self.queue.items + self.held).compactMap { self.settleKeys[$0] }
+                for approval in ApprovalSettle.settled(keys, finished: call, session: id) {
+                    self.log.notice("a request was answered in the terminal; its call finished in the transcript")
+                    self.settle(approval)
                 }
             }
             if again { self.readTranscript(id) }
         }
     }
 
-    /// Complete lines only: a line still being written is read next time.
-    private nonisolated static func readCalls(path: String, from offset: UInt64, into calls: TranscriptCalls) -> (
-        offset: UInt64, calls: TranscriptCalls, finished: [TranscriptCalls.Call]
-    ) {
-        guard let handle = FileHandle(forReadingAtPath: path) else { return (offset, calls, []) }
-        defer { try? handle.close() }
-        guard (try? handle.seek(toOffset: offset)) != nil, let data = try? handle.readToEnd() else {
-            return (offset, calls, [])
+    /// The first read of a watch: back from the transcript's length when the request arrived,
+    /// widening (`TranscriptCalls.lookBackStarts`) until the waiting call's `tool_use` or its
+    /// result is found, so a long result written just before it can't hide it. The steps are
+    /// bounded, so a call that's never found costs a few reads at most.
+    private nonisolated static func firstRead(
+        path: String, arrival: UInt64, waitingOn request: ApprovalSettle.Request<UUID>
+    ) -> TranscriptRead {
+        var read = TranscriptRead(offset: arrival, calls: TranscriptCalls(), finished: [], ends: [])
+        for start in TranscriptCalls.lookBackStarts(size: arrival) {
+            read = readCalls(path: path, from: start, into: TranscriptCalls())
+            let answered = zip(read.finished, read.ends).contains { call, end in
+                end > arrival && !ApprovalSettle.settled([request], finished: call, session: request.sessionID).isEmpty
+            }
+            if answered || ApprovalSettle.waits(request, in: read.calls) { break }
         }
+        return read
+    }
+
+    /// Complete lines only: a line still being written is read next time.
+    private nonisolated static func readCalls(path: String, from offset: UInt64, into calls: TranscriptCalls)
+        -> TranscriptRead
+    {
+        let unread = TranscriptRead(offset: offset, calls: calls, finished: [], ends: [])
+        guard let handle = FileHandle(forReadingAtPath: path) else { return unread }
+        defer { try? handle.close() }
+        guard (try? handle.seek(toOffset: offset)) != nil, let data = try? handle.readToEnd() else { return unread }
         var calls = calls
         let read = calls.add(complete: data)
-        return (offset + UInt64(read.used), calls, read.finished)
+        return TranscriptRead(
+            offset: offset + UInt64(read.used), calls: calls, finished: read.finished,
+            ends: read.ends.map { offset + UInt64($0) })
+    }
+
+    /// Whether new spend in `id` means its waiting requests were answered in the terminal: with
+    /// tool hooks, or when the transcript shows no subagent running and none asked.
+    private func spendMeansAnswered(session id: String, source: AgentSource) -> Bool {
+        let watch = transcriptWatches[id]
+        return ApprovalSettle.spendMeansAnswered(
+            toolHooks: toolHooks.contains(source),
+            subagentCallOpen: watch.flatMap { $0.primed ? $0.calls.subagentRunning : nil },
+            subagentAsked: waitingApprovals.contains { $0.sessionID == id && settleKeys[$0.id]?.agentID != nil })
+    }
+
+    // MARK: Bash allowed in the terminal
+
+    /// What to look for under the agent's process while a Bash request waits.
+    private struct BashWatch: Sendable {
+        let agent: Int32
+        let command: String
+        /// Seconds since 1970; processes started before this are older calls.
+        let since: Double
+    }
+
+    /// Checks the agent's new processes every half second while a Bash request waits: the
+    /// command's shell starting means it was allowed in the terminal, well before its result
+    /// reaches the transcript. Only processes started since are read, and their arguments are
+    /// matched and dropped, never kept or logged.
+    private func watchBash(for event: AgentEvent, id: UUID) {
+        guard event.toolName == "Bash", event.prompt == .tool, let command = BashChild.command(of: event.rawToolInput),
+            let agent = event.process?.pid ?? sessions.session(event.sessionID)?.process?.pid
+        else { return }
+        bashWatches[id] = BashWatch(
+            agent: agent, command: command, since: Date.now.timeIntervalSince1970 - Self.bashSlack)
+        guard bashTask == nil else { return }
+        bashTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.bashInterval)
+                guard let self, !Task.isCancelled else { return }
+                let watches = self.bashWatches
+                guard !watches.isEmpty else {
+                    self.bashTask = nil
+                    return
+                }
+                let started = await Task.detached(priority: .utility) { Self.startedCommands(watches) }.value
+                for id in started where self.pending[id] != nil {
+                    self.log.notice("a request was allowed in the terminal; its command started")
+                    self.settle(id)
+                }
+            }
+        }
+    }
+
+    /// The watches whose command now runs under their agent, from one read of the process table.
+    private nonisolated static func startedCommands(_ watches: [UUID: BashWatch]) -> [UUID] {
+        let table = ProcessScan.processTable()
+        var arguments: [Int32: [String]] = [:]
+        var started: [UUID] = []
+        for (id, watch) in watches {
+            for pid in BashChild.newDescendants(of: watch.agent, in: table, since: watch.since) {
+                let words = arguments[pid] ?? ProcessScan.arguments(of: pid) ?? []
+                arguments[pid] = words
+                if BashChild.runs(watch.command, arguments: words) {
+                    started.append(id)
+                    break
+                }
+            }
+        }
+        return started
     }
 
     // MARK: Jump to terminal
@@ -1628,17 +1771,11 @@ final class AgentHub {
         let timeout: Int
     }
 
-    /// Reads the hook files now. Wisp's own installs, removals and setting changes use this, so
-    /// what they show is never a throttled read behind.
-    func refreshInstalled() {
-        installedReads += 1
-        lastInstalledRead = .now
-        apply(Self.readInstalled(helper: Self.helperURL?.path ?? "", timeout: approvalTimeout))
-    }
-
-    /// For pages that rebuild on every switch: reads at most every 30 seconds, off the main actor.
-    func refreshInstalledIfStale() {
-        guard RefreshRule.agentHooks.isDue(lastRefresh: lastInstalledRead, now: .now) else { return }
+    /// Reads the hook files now, off the main actor (one per agent, any of which can be slow).
+    /// Wisp's own installs, removals and setting changes use this, so what they show is never a
+    /// throttled read behind. `then` runs once the files as they are now have been applied.
+    func refreshInstalled(then done: (@MainActor () -> Void)? = nil) {
+        if let done { installedWaiters.append(done) }
         installedReads += 1
         lastInstalledRead = .now
         let read = installedReads
@@ -1648,10 +1785,20 @@ final class AgentHub {
             let hooks = await Task.detached(priority: .userInitiated) {
                 Self.readInstalled(helper: helper, timeout: timeout)
             }.value
-            // A newer read (an install that just finished) already has the files as they are now.
+            // A newer read (an install that just finished) has the files as they are now; its
+            // waiters include this one's.
             guard read == installedReads else { return }
             apply(hooks)
+            let waiters = installedWaiters
+            installedWaiters = []
+            for waiter in waiters { waiter() }
         }
+    }
+
+    /// For pages that rebuild on every switch: reads at most every 30 seconds.
+    func refreshInstalledIfStale() {
+        guard RefreshRule.agentHooks.isDue(lastRefresh: lastInstalledRead, now: .now) else { return }
+        refreshInstalled()
     }
 
     private nonisolated static func readInstalled(helper: String, timeout: Int) -> InstalledHooks {
@@ -1944,8 +2091,13 @@ final class AgentHub {
 
     /// Rewrites every connected agent's hooks for a new approval wait (phone push turned on or
     /// off, or its wait changed), after the user confirms. Cancelling leaves the hooks as they
-    /// are; they read as outdated, so Settings offers "Update hooks" later.
+    /// are; they read as outdated, so Settings offers "Update hooks" later. The files are read
+    /// again first, so the agents out of step are the ones for the wait just set.
     func applyApprovalTimeout() {
+        refreshInstalled { [weak self] in self?.offerApprovalTimeoutUpdate() }
+    }
+
+    private func offerApprovalTimeoutUpdate() {
         guard let helper = Self.helperURL else { return }
         var changes: [FileChange] = []
         for adapter in AgentAdapters.all where waitMismatched.contains(adapter.source) {
