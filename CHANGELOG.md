@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.6](https://github.com/Maestroharyor/wisp/compare/v0.2.5...v0.2.6) (2026-11-14)
+
+
+### Bug fixes
+
+* agent known issues ([#102](https://github.com/Maestroharyor/wisp/issues/102)) ([37757fa](https://github.com/Maestroharyor/wisp/commit/37757fae9caf777c109e04a92035c7305a682bbd))
+* app known issues ([#101](https://github.com/Maestroharyor/wisp/issues/101)) ([623c9b9](https://github.com/Maestroharyor/wisp/commit/623c9b9e491edda0eaf963e9624f0e7b5d04449a))
+
 ## [0.2.5](https://github.com/Maestroharyor/wisp/compare/v0.2.4...v0.2.5) (2026-11-14)
 
 
