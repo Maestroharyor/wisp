@@ -274,6 +274,7 @@ struct DropTile: View {
     let action: @MainActor @Sendable ([URL]) -> Void
 
     @State private var targeted = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(symbol: String, title: String, action: @escaping @MainActor @Sendable ([URL]) -> Void) {
         self.symbol = symbol
@@ -290,8 +291,8 @@ struct DropTile: View {
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.ink.opacity(targeted ? 0.22 : 0.08))
         )
-        .scaleEffect(targeted ? 1.05 : 1)
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: targeted)
+        .scaleEffect(targeted && !reduceMotion ? 1.05 : 1)
+        .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.8), value: targeted)
         .onDrop(of: [.fileURL], isTargeted: $targeted, perform: FileDrop.handler(action))
     }
 }

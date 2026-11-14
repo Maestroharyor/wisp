@@ -170,7 +170,7 @@ struct MirrorPage: View {
                     "No camera", systemImage: "video.slash", description: Text("Connect a camera to use the mirror."))
             case .idle, .running:
                 ZStack {
-                    CameraPreview(session: camera.session)
+                    CameraPreview(session: camera.session, running: camera.state == .running)
                         .opacity(camera.state == .running ? 1 : 0)
                     if camera.state == .idle { ProgressView().controlSize(.small) }
                 }

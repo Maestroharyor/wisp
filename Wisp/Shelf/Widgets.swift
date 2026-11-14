@@ -178,10 +178,21 @@ struct PlainIconButton: View {
 
 private struct PressDimStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.5 : 1)
-            .scaleEffect(configuration.isPressed ? 0.92 : 1)
-            .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)
+        PressDimLabel(label: configuration.label, pressed: configuration.isPressed)
+    }
+}
+
+/// Reduce Motion keeps the dim but drops the springy shrink.
+private struct PressDimLabel<Label: View>: View {
+    let label: Label
+    let pressed: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        label
+            .opacity(pressed ? 0.5 : 1)
+            .scaleEffect(pressed && !reduceMotion ? 0.92 : 1)
+            .animation(reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.7), value: pressed)
     }
 }
 
