@@ -76,7 +76,7 @@ Next for Dynamic Island Macs: once macOS 27.3 ships, publish agent, approval, ti
 
 Ideas for later not covered by the roadmap below: more system stats (battery cycles, disk, network); window snapping (Accessibility); a charging animation; lock screen widgets.
 
-Seen in the 2026-11-06 sweep, not fixed yet: spend is written to UserDefaults up to four times a second; the socket file isn't removed on quit; `sendDraft` leaves the draft on the clipboard; tcsh, nu and pwsh aren't in the shell list, so their agents' processes aren't confirmed; whether an approval answered in the terminal closes its card before the 110 s timeout needs a manual check.
+Seen in the 2026-11-06 sweep, not fixed yet: spend is written to UserDefaults up to four times a second; the socket file isn't removed on quit; `sendDraft` leaves the draft on the clipboard; tcsh, nu and pwsh aren't in the shell list, so their agents' processes aren't confirmed; an approval answered in Claude Code's terminal kept its card until the hook timed out (fixed 2026-11-14: Claude Code 2.1.325 runs the PermissionRequest hook beside its own prompt and leaves it running when the prompt is answered, so the hook-process watch only fired at the timeout; the hub now follows the session's transcript while a card waits and settles it when the call's `tool_result` lands, `TranscriptCalls` and `ApprovalSettle.settled(_:finished:session:)`).
 
 Seen while testing E: after a display was unplugged, both notch panels stayed idle while an agent activity was queued (`wisp status` listed it) until another activity forced a redraw. The root cause isn't confirmed; since the bubble fixes every panel is ordered front and redrawn after a display change. Check by unplugging a display with an agent running.
 
