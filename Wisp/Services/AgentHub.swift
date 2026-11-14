@@ -32,13 +32,17 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let fileName: String?
     /// The changed file's path as the request names it; nil for anything but a file change.
     let filePath: String?
+    /// Details were hidden when it arrived, so its history record keeps no summary even if
+    /// they're shown again before it's answered.
+    let arrivedHidden: Bool
 
     init(
         id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
         prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil,
         inlineDiff: InlineDiff? = nil, fileName: String? = nil, filePath: String? = nil, cwd: String = "",
-        rules: [String] = [], ruleChoices: [[String]] = []
+        rules: [String] = [], ruleChoices: [[String]] = [], arrivedHidden: Bool = false
     ) {
+        self.arrivedHidden = arrivedHidden
         self.ruleChoices = ruleChoices
         self.fileName = fileName
         self.filePath = filePath
@@ -600,7 +604,8 @@ final class AgentHub {
                 fileName: InlineDiff.fileName(tool: event.toolName ?? "", input: event.rawToolInput),
                 filePath: event.prompt == .tool
                     ? InlineDiff.filePath(tool: event.toolName ?? "", input: event.rawToolInput) : nil,
-                cwd: event.cwd, rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event))
+                cwd: event.cwd, rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event),
+                arrivedHidden: detailsHidden)
             pending[approval.id] = approval
             readAnchor(for: approval, input: event.rawToolInput)
             // Held off screen while the spend cap waits for a choice; the timeout still hands it back.
@@ -872,13 +877,14 @@ final class AgentHub {
     }
 
     /// Tells the history how a request ended. Only a tool request keeps its summary (the command or
-    /// file), never a plan's title or a question, and none while details are hidden.
+    /// file), never a plan's title or a question, and none while details are hidden or were when
+    /// it arrived.
     private func logOutcome(_ approval: AgentApproval, _ outcome: ApprovalOutcome) {
         onApprovalRecord(
             ApprovalRecord(
                 sessionID: approval.sessionID, project: approval.project, source: approval.source, tool: approval.tool,
                 summary: approval.prompt == .tool
-                    ? ApprovalRecord.summary(approval.summary, hidden: detailsHidden) : nil,
+                    ? ApprovalRecord.summary(approval.summary, hidden: detailsHidden || approval.arrivedHidden) : nil,
                 outcome: outcome, date: .now))
     }
 
