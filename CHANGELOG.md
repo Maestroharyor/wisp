@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.3](https://github.com/Maestroharyor/wisp/compare/v0.2.2...v0.2.3) (2026-11-14)
+
+
+### Features
+
+* approval history, smarter rules, sounds and more for agents ([#88](https://github.com/Maestroharyor/wisp/issues/88)) ([e0f2da3](https://github.com/Maestroharyor/wisp/commit/e0f2da3e533901d05f8f8361920dba33bf6d5031))
+
+
+### Bug fixes
+
+* Preview and Terminal work on approval cards ([#89](https://github.com/Maestroharyor/wisp/issues/89)) ([2c89427](https://github.com/Maestroharyor/wisp/commit/2c89427be02b8bac02d0e40e9c7a7372bb565e13))
+
 ## [0.2.2](https://github.com/Maestroharyor/wisp/compare/v0.2.1...v0.2.2) (2026-11-14)
 
 
