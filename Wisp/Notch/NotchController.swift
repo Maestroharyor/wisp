@@ -71,11 +71,11 @@ final class NotchController {
         }
     }
 
-    /// Approval, Join, call control, finished download, AI result and quick add cards have
+    /// Approval, Join, call control, finished download, AI result, quick add and agent callout cards have
     /// buttons, so the closed panel stops being click-through while one shows.
     private var showsApproval: Bool {
         switch model.activity {
-        case .agentApproval, .meetingSoon, .downloadDone, .aiResult, .quickIntent: true
+        case .agentApproval, .meetingSoon, .downloadDone, .aiResult, .quickIntent, .agentCallout: true
         case .meeting: model.showsMeetingControls
         default: false
         }

@@ -258,6 +258,11 @@ private struct SurfaceView: View {
                     .id(card.id)
                     .transition(reveal)
             }
+            if case .agentCallout(let callout) = model.activity {
+                AgentCalloutCard(callout: callout, model: model)
+                    .id(callout.id)
+                    .transition(reveal)
+            }
             if case .quickIntent(let intent) = model.activity {
                 QuickIntentCard(intent: intent, model: model)
                     .transition(reveal)

@@ -176,6 +176,8 @@ final class AgentHub {
     var onNotice: (String) -> Void = { _ in }
     /// A session's context window passed the alert threshold.
     var onContextAlert: (String) -> Void = { _ in }
+    /// A session's context window passed Critical at, with the rounded percentage.
+    var onContextCritical: (AgentSession, Int) -> Void = { _, _ in }
     /// A tool ran long or spend reached the daily budget: a symbol and a line for the notch.
     var onAlert: (_ symbol: String, _ text: String) -> Void = { _, _ in }
     /// A session has waited for the user past the reminder limit.
@@ -519,6 +521,11 @@ final class AgentHub {
             let project = sessions.session(id)?.project
         {
             onContextAlert(ContextUsage.notice(percent: percent, project: project))
+        }
+        if let percent = sessions.contextCriticalAlert(session: id, threshold: contextThresholds.critical),
+            contextAlert, let session = sessions.session(id)
+        {
+            onContextCritical(session, Int(percent.rounded()))
         }
     }
 
@@ -973,6 +980,24 @@ final class AgentHub {
             PasteShortcut.send()
         }
         return true
+    }
+
+    /// Brings the session's terminal forward and pastes `/compact` into its prompt, without
+    /// pressing Return, as a draft is: if the jump lands on another window, nothing is sent.
+    /// The clipboard comes back afterwards. Says why it couldn't in a notice.
+    func compact(session id: String) {
+        guard let session = sessions.session(id), CompactCommand.supported(session.source) else { return }
+        guard AccessibilityPermission.isTrusted else {
+            onNotice("Allow Accessibility in Settings to paste /compact")
+            return
+        }
+        focus(session: id)
+        Task { [weak self] in
+            // Give the terminal time to come forward before the keystroke lands.
+            try? await Task.sleep(for: .milliseconds(350))
+            PasteShortcut.pasteRestoring(CompactCommand.text, after: .seconds(1))
+            self?.onNotice("Pasted /compact. Press Return in the terminal.")
+        }
     }
 
     // MARK: Hooks

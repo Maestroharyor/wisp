@@ -113,7 +113,8 @@ struct CompactActivityView: View {
                 MinimisedApprovalGlyph(approval: approval)
                 Text(approval.project).lineLimit(1)
             }
-        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
+            .agentCallout:
             EmptyView()
         }
     }
@@ -211,7 +212,8 @@ struct CompactActivityView: View {
                     .foregroundStyle(Color.wispAmber)
                 PendingBadge(count: model.services.agents.approvals.count)
             }
-        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
+            .agentCallout:
             EmptyView()
         }
     }
@@ -307,7 +309,8 @@ struct SideActivityView: View {
             caption(status.paused ? "Paused" : "Watching")
         case .agentApproval:
             PendingBadge(count: model.services.agents.approvals.count)
-        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
+            .agentCallout:
             EmptyView()
         }
     }
@@ -374,7 +377,8 @@ struct ActivityGlyph: View {
             Image(systemName: "mic.fill").foregroundStyle(.red)
         case .agentApproval(let approval):
             MinimisedApprovalGlyph(approval: approval)
-        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
+            .agentCallout:
             EmptyView()
         }
     }

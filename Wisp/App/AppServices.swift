@@ -104,6 +104,8 @@ final class AppServices {
     /// time limit comes first sends it.
     @ObservationIgnored private var donePending: Set<UUID> = []
     private static let summaryWait: Duration = .seconds(20)
+    /// Seconds a Compact now card stays, long enough to reach for its button.
+    private static let calloutDuration: TimeInterval = 12
 
     func openTransform(_ urls: [URL]) {
         pocket.hide()
@@ -488,6 +490,12 @@ final class AppServices {
         agents.onContextAlert = { [weak self] text in
             self?.activities.post(
                 .notice(symbol: "gauge.with.dots.needle.67percent", text: text), slot: .notice, duration: 3)
+        }
+        agents.onContextCritical = { [weak self] session, percent in
+            let callout = AgentCallout(
+                sessionID: session.id, project: session.project, source: session.source,
+                kind: .compact(percent: percent, canCompact: CompactCommand.supported(session.source)))
+            self?.activities.post(.agentCallout(callout), slot: .agentCallout, duration: Self.calloutDuration)
         }
         automation.start()
         agents.start()

@@ -21,7 +21,7 @@ final class PillDestinationTests: XCTestCase {
     func testEverythingElseKeepsTheUsualPage() {
         let usual: [ActivitySlot] = [
             .notice, .notification, .focus, .capsLock, .level, .agentApproval, .meeting, .meetingSoon, .device,
-            .dictation, .downloadDone, .aiResult,
+            .dictation, .downloadDone, .aiResult, .agentCallout,
         ]
         for slot in usual {
             XCTAssertEqual(PillDestination(slot: slot), .home, "\(slot)")

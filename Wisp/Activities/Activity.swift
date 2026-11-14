@@ -78,6 +78,8 @@ enum Activity: Sendable, Equatable {
     case quickIntent(QuickIntent)
     /// An AI action on selected or copied text: working, then the answer with Copy and Replace.
     case aiResult(AIResultCard)
+    /// An agent session needs a decision: compact a full context, or carry on past the spend cap.
+    case agentCallout(AgentCallout)
 
     /// Two-line card under the notch rather than a one-line pill.
     var isMedium: Bool {
@@ -126,8 +128,23 @@ enum Activity: Sendable, Equatable {
         case .dictation: "dictation"
         case .quickIntent: "quickIntent"
         case .aiResult(let card): "aiResult-\(card.id)"
+        case .agentCallout(let callout): "agentCallout-\(callout.id)"
         }
     }
+}
+
+/// A decision about an agent session that isn't one of its requests.
+struct AgentCallout: Sendable, Equatable, Identifiable {
+    enum Kind: Sendable, Equatable {
+        /// The context passed Critical at; offers Compact now where the agent has `/compact`.
+        case compact(percent: Int, canCompact: Bool)
+    }
+
+    let id = UUID()
+    let sessionID: String
+    let project: String
+    let source: AgentSource
+    let kind: Kind
 }
 
 /// The microphone in use: a call (named from the calendar, if anything) or a recording,

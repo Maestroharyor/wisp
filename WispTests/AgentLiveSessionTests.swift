@@ -149,6 +149,26 @@ final class AgentLiveSessionTests: XCTestCase {
         }
         XCTAssertEqual(fired, [nil, 82, nil, nil, 81])
     }
+
+    func testCriticalAlertFiresOncePerClimbApartFromTheWarning() {
+        var sessions = AgentSessions()
+        var warned: [Double?] = []
+        var critical: [Double?] = []
+        for percent in [75.0, 91, 95, 40, 92] {
+            sessions.apply(snapshot(percent: percent), source: .claude, terminal: nil, branch: nil, at: start)
+            warned.append(sessions.contextAlert(session: "s1", threshold: 70))
+            critical.append(sessions.contextCriticalAlert(session: "s1", threshold: 90))
+        }
+        XCTAssertEqual(warned, [75, nil, nil, nil, 92])
+        XCTAssertEqual(critical, [nil, 91, nil, nil, 92])
+    }
+
+    func testCompactIsOfferedWhereTheAgentHasIt() {
+        XCTAssertTrue(CompactCommand.supported(.claude))
+        XCTAssertTrue(CompactCommand.supported(.codex))
+        XCTAssertFalse(CompactCommand.supported(.cursor))
+        XCTAssertEqual(CompactCommand.text, "/compact")
+    }
 }
 
 final class AgentFiguresTests: XCTestCase {

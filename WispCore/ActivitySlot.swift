@@ -28,6 +28,9 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case quickInput
     /// The answer to an AI action on selected or copied text, with Copy and Replace.
     case aiResult
+    /// An agent session needs a decision that isn't a request: compact a full context, or
+    /// carry on past the spend cap.
+    case agentCallout
 
     /// Ongoing activities sit below every short alert, so a battery or device alert still
     /// shows during a call and then hands the pill back.
@@ -55,6 +58,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         // The user just asked for it, so it shows over a notification; an agent's request still
         // comes first.
         case .quickInput: 51
+        // About an agent the user is running, so over notifications; its requests still come first.
+        case .agentCallout: 53
         case .agentApproval: 55
         // Held down on purpose, so it shows over cards; only HUDs (volume, Caps Lock) go above.
         case .dictation: 57
@@ -76,7 +81,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     public var isDismissable: Bool {
         switch self {
         case .notification, .notice, .timerDone, .device, .battery, .focus, .meetingSoon, .tray, .downloadDone,
-            .aiResult, .quickInput:
+            .aiResult, .quickInput, .agentCallout:
             true
         default: false
         }

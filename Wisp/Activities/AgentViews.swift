@@ -1281,6 +1281,17 @@ private struct SessionDetail: View {
             action(terminal, symbol: "arrow.up.forward.app", help: "Show in \(terminal)") {
                 hub.focus(session: session.id)
             }
+            // Offered once the context ring turns red, where the agent has /compact.
+            if CompactCommand.supported(session.source), let percent = session.contextPercent,
+                percent >= hub.contextThresholds.critical
+            {
+                action(
+                    "Compact now", symbol: "arrow.down.right.and.arrow.up.left",
+                    help: "Paste /compact into \(terminal)"
+                ) {
+                    hub.compact(session: session.id)
+                }
+            }
             if !session.cwd.isEmpty {
                 action("Folder", symbol: "folder", help: "Open the folder in Finder") {
                     hub.openFolder(session: session.id)
