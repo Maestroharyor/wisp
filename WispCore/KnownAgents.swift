@@ -13,12 +13,15 @@ public struct KnownAgent: Equatable, Hashable, Sendable, Identifiable {
     let packages: [String]
     /// Python modules, for `python -m <module>`.
     let modules: [String]
+    /// For a name other tools share: the subcommands one of its sessions starts with. Run by
+    /// name, it counts only with no arguments or with one of these as its first word.
+    let subcommands: Set<String>?
     /// The hook adapter's id, for agents Wisp can also connect with hooks.
     public let adapterID: String?
 
     init(
         id: String, name: String, symbol: String, binaries: [String], packages: [String] = [], modules: [String] = [],
-        adapterID: String? = nil
+        subcommands: Set<String>? = nil, adapterID: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -26,7 +29,14 @@ public struct KnownAgent: Equatable, Hashable, Sendable, Identifiable {
         self.binaries = binaries
         self.packages = packages
         self.modules = modules
+        self.subcommands = subcommands
         self.adapterID = adapterID
+    }
+
+    /// Whether `arguments` (after the executable) start a session of this agent.
+    func accepts(_ arguments: [String]) -> Bool {
+        guard let subcommands, let first = arguments.first(where: { !$0.hasPrefix("-") }) else { return true }
+        return subcommands.contains(first)
     }
 }
 
@@ -36,7 +46,10 @@ public struct KnownAgent: Equatable, Hashable, Sendable, Identifiable {
 public enum KnownAgents {
     public static let all: [KnownAgent] = [
         KnownAgent(id: "aider", name: "Aider", symbol: "a.circle", binaries: ["aider"], modules: ["aider"]),
-        KnownAgent(id: "goose", name: "Goose", symbol: "bird", binaries: ["goose"]),
+        // Also the name of a database migration tool (`goose postgres … up`).
+        KnownAgent(
+            id: "goose", name: "Goose", symbol: "bird", binaries: ["goose"],
+            subcommands: ["session", "s", "run", "web", "term", "acp", "project", "p", "projects", "ps", "recipe"]),
         KnownAgent(id: "amp", name: "Amp", symbol: "bolt", binaries: ["amp"], packages: ["@sourcegraph/amp"]),
         KnownAgent(id: "trae", name: "Trae", symbol: "t.circle", binaries: ["traecli", "trae-cli"]),
         KnownAgent(id: "antigravity", name: "Antigravity", symbol: "arrow.up.circle", binaries: ["agy"]),
@@ -81,7 +94,9 @@ public enum KnownAgents {
     /// its arguments; nil when it's none of them.
     public static func match(name: String, arguments: [String]) -> KnownAgent? {
         let executable = arguments.first.map(baseName) ?? name
-        if let agent = byBinary(executable) ?? byBinary(name) { return agent }
+        if let agent = byBinary(executable) ?? byBinary(name) {
+            return agent.accepts(Array(arguments.dropFirst())) ? agent : nil
+        }
         guard isLauncher(name) || isLauncher(executable) else { return nil }
         let rest = Array(arguments.dropFirst())
         if let flag = rest.firstIndex(of: "-m"), rest.indices.contains(flag + 1) {

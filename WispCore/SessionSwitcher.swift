@@ -55,6 +55,7 @@ public struct SessionSwitcher: Equatable, Sendable {
     /// One short line for a session's row.
     public static func status(_ session: AgentSession) -> String {
         if session.compacting { return "Compacting" }
+        if session.heldAtCap, session.state == .needsApproval { return AgentSession.heldLabel }
         switch session.state {
         case .needsApproval: return "Needs approval"
         case .waiting: return "Needs your input"

@@ -41,6 +41,18 @@ final class KnownAgentsTests: XCTestCase {
         XCTAssertNil(match("vim", ["vim", "aider.py"]), "an editor opening a file of the same name isn't the agent")
     }
 
+    func testGooseNeedsOneOfItsOwnSubcommands() {
+        // `goose` is also the name of a database migration tool.
+        XCTAssertEqual(match("goose", ["goose"]), "goose")
+        XCTAssertEqual(match("goose", ["/Users/me/.local/bin/goose", "run", "-t", "fix it"]), "goose")
+        XCTAssertEqual(match("goose", ["goose", "--debug", "session", "--resume"]), "goose")
+        XCTAssertNil(match("goose", ["/Users/me/go/bin/goose", "postgres", "user=me dbname=app", "up"]))
+        XCTAssertNil(match("goose", ["goose", "-dir", "db/migrations", "status"]))
+        XCTAssertNil(match("goose", ["goose", "create", "add_users", "sql"]))
+        // Agents without a subcommand list match on their name alone.
+        XCTAssertEqual(match("crush", ["crush", "anything"]), "crush")
+    }
+
     func testNodeLaunchers() {
         XCTAssertEqual(match("node", ["node", "/opt/homebrew/bin/qwen"]), "qwen")
         XCTAssertEqual(

@@ -29,14 +29,17 @@ public struct AgentProcess: Equatable, Sendable {
     static let maxSteps = 8
 
     /// The first process at or above `pid` that isn't a shell; nil when there's none below launchd.
-    public static func owner(from pid: Int32, info: (Int32) -> Info?) -> AgentProcess? {
+    /// `arguments` reads a process's arguments, asked only for Python (xonsh runs as Python).
+    public static func owner(
+        from pid: Int32, info: (Int32) -> Info?, arguments: (Int32) -> [String]? = { _ in nil }
+    ) -> AgentProcess? {
         var current = pid
         for _ in 0..<maxSteps {
             guard current > 1, let process = info(current) else { return nil }
-            // Agents may run a hook command through a shell, which isn't the agent. A login
-            // shell's name starts with "-".
-            let name = process.name.hasPrefix("-") ? String(process.name.dropFirst()) : process.name
-            if !ShellNames.all.contains(name) { return AgentProcess(pid: current, started: process.started) }
+            // Agents may run a hook command through a shell, which isn't the agent.
+            if !ShellNames.isShell(name: process.name, arguments: arguments(current)) {
+                return AgentProcess(pid: current, started: process.started)
+            }
             current = process.parent
         }
         return nil
@@ -64,7 +67,9 @@ public struct AgentProcess: Equatable, Sendable {
     }
 
     /// The agent that ran this process (the helper), from the process table.
-    public static func ownerOfThisProcess() -> AgentProcess? { owner(from: getppid(), info: systemInfo) }
+    public static func ownerOfThisProcess() -> AgentProcess? {
+        owner(from: getppid(), info: systemInfo, arguments: ProcessScan.arguments(of:))
+    }
 
     var json: JSONValue { .object(["pid": .number(Double(pid)), "started": .number(started)]) }
 

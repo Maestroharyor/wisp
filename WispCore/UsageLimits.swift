@@ -183,6 +183,13 @@ public struct LimitWatch: Sendable {
 
     var levels: [Double] { Set([threshold, Self.critical, Self.exhausted]).sorted() }
 
+    /// A usage bar's colour step: amber from the alert level the user set, red from 95%, so the
+    /// bar turns when the alert fires.
+    public static func level(percent: Double, threshold: Double) -> ContextUsage.Level {
+        if percent >= critical { return .critical }
+        return percent >= clamp(threshold) ? .warning : .normal
+    }
+
     /// Takes in the latest readings and returns the alerts now due. Levels already passed
     /// are marked even when alerts are off, so turning them on later stays quiet.
     public mutating func record(_ readings: [UsageReading], at date: Date) -> [LimitAlert] {

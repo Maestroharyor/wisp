@@ -60,7 +60,12 @@ final class NotchCoordinator {
                 guard let self else { return false }
                 // The shelf window's Esc is its own (a field's); its sidebar has no solo view to leave.
                 if self.services.shelfWindow.owns(event.window) { return false }
-                if !isEscape { return self.controllers.values.contains { $0.handleSwitcherKey(event.keyCode) } }
+                // Arrows and Return belong to the switcher only while its panel is the key window;
+                // aimed at Settings or another Wisp window, they stay there.
+                if !isEscape {
+                    guard event.window is NotchPanel else { return false }
+                    return self.controllers.values.contains { $0.handleSwitcherKey(event.keyCode) }
+                }
                 return self.dismissOpenShelves()
             }
             return handled ? nil : event

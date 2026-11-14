@@ -42,6 +42,17 @@ public struct Hotkey: Sendable, Hashable, CustomStringConvertible {
         return Set([shelf, clipboardFallback, switcherFallback] + approvals)
     }
 
+    /// The switcher's shortcut for this shelf shortcut: Hyper+G while the shelf uses Hyper, unless
+    /// the shelf is on Hyper+G itself, which would take it; then ⌃⌥⌘G, as without Hyper.
+    public static func switcherShortcut(shelf: Hotkey) -> Hotkey {
+        shelf.usesHyper && !switcherClashes(shelf: shelf) ? switcherHyper : switcherFallback
+    }
+
+    /// The shelf shortcut is the switcher's Hyper+G, so the switcher moves to ⌃⌥⌘G.
+    public static func switcherClashes(shelf: Hotkey) -> Bool {
+        shelf.usesHyper && shelf.keyCode == switcherHyper.keyCode
+    }
+
     /// Shift alone would swallow capitals in every app, so a shortcut needs ⌃, ⌥, ⌘ or
     /// Caps Lock, unless it's on a function key.
     public var isUsable: Bool {

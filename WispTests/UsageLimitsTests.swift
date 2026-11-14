@@ -198,4 +198,19 @@ final class UsageLimitsTests: XCTestCase {
         let alert = LimitAlert(window: .sevenDay, level: 0, percent: 0, resets: nil, source: .codex, kind: .reset)
         XCTAssertEqual(alert.text, "Your Codex weekly limit reset")
     }
+
+    func testTheBarsFollowTheAlertLevel() {
+        XCTAssertEqual(LimitWatch.level(percent: 79, threshold: 80), .normal)
+        XCTAssertEqual(LimitWatch.level(percent: 80, threshold: 80), .warning)
+        XCTAssertEqual(LimitWatch.level(percent: 95, threshold: 80), .critical)
+        // A lower alert level turns the bar amber sooner.
+        XCTAssertEqual(LimitWatch.level(percent: 60, threshold: 60), .warning)
+        XCTAssertEqual(LimitWatch.level(percent: 59, threshold: 60), .normal)
+        // At 95 the alert level is the critical one, so it goes straight to red.
+        XCTAssertEqual(LimitWatch.level(percent: 90, threshold: 95), .normal)
+        XCTAssertEqual(LimitWatch.level(percent: 95, threshold: 95), .critical)
+        // A level out of range is clamped as the setting is.
+        XCTAssertEqual(LimitWatch.level(percent: 45, threshold: 10), .normal)
+        XCTAssertEqual(LimitWatch.level(percent: 50, threshold: 10), .warning)
+    }
 }

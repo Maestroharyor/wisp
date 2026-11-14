@@ -25,16 +25,45 @@ public struct TranscriptCalls: Sendable {
     public init() {}
 
     /// Reads every complete line in `data`. Returns the bytes those lines took (a line still
-    /// being written is left for the next read) and the calls that finished in them, in order.
+    /// being written is left for the next read), the calls that finished in them, in order, and
+    /// for each where its line ends (bytes from the start of `data`, newline included).
     /// A first line cut short, from a read that started mid-file, doesn't parse and is skipped.
-    public mutating func add(complete data: Data) -> (used: Int, finished: [Call]) {
-        guard let end = data.lastIndex(of: UInt8(ascii: "\n")) else { return (0, []) }
+    public mutating func add(complete data: Data) -> (used: Int, finished: [Call], ends: [Int]) {
+        guard let end = data.lastIndex(of: UInt8(ascii: "\n")) else { return (0, [], []) }
         let complete = data[data.startIndex...end]
         var finished: [Call] = []
+        var ends: [Int] = []
         for line in complete.split(separator: UInt8(ascii: "\n")) {
-            finished += add(line: Data(line))
+            let calls = add(line: Data(line))
+            let lineEnd = line.endIndex - data.startIndex + 1
+            finished += calls
+            ends += Array(repeating: lineEnd, count: calls.count)
         }
-        return (complete.count, finished)
+        return (complete.count, finished, ends)
+    }
+
+    /// Whether a call that matches is still waiting for its result.
+    public func isOpen(where matches: (Call) -> Bool) -> Bool {
+        open.values.contains(where: matches)
+    }
+
+    /// The main agent started a subagent (Task, or Agent in newer versions) that hasn't returned.
+    public var subagentRunning: Bool { isOpen { ["Task", "Agent"].contains($0.tool) } }
+
+    /// The bytes the first read looks back from the end of a transcript, widening when the
+    /// waiting call's `tool_use` isn't in the window (a long result written just before it).
+    static let lookBacks: [UInt64] = [1 << 20, 8 << 20, 32 << 20]
+
+    /// Where each try of the first read starts in a transcript of `size` bytes, nearest first.
+    /// It stops at the start of the file, so a small file is read once and the cost is bounded.
+    public static func lookBackStarts(size: UInt64) -> [UInt64] {
+        var starts: [UInt64] = []
+        for back in lookBacks {
+            let start = size > back ? size - back : 0
+            starts.append(start)
+            if start == 0 { break }
+        }
+        return starts
     }
 
     private mutating func add(line: Data) -> [Call] {

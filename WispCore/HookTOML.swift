@@ -64,42 +64,57 @@ public enum HookTOML {
     /// header.
     static func split(_ text: String) -> [[String]] {
         var chunks: [[String]] = [[]]
-        var openString: String?
+        var state = LineState()
         for line in text.components(separatedBy: "\n") {
-            if openString == nil, line.trimmingCharacters(in: .whitespaces).hasPrefix("[") {
+            if state.isTopLevel, line.trimmingCharacters(in: .whitespaces).hasPrefix("[") {
+                // A header opens nothing, so a malformed one can't hide every header after it.
                 chunks.append([line])
             } else {
                 chunks[chunks.count - 1].append(line)
+                state = state.after(line)
             }
-            openString = multilineState(after: line, open: openString)
         }
         return chunks
     }
 
-    /// Whether a `"""` or `'''` string is still open at the end of `line`. Triple quotes in a
-    /// comment or inside a one-line string open nothing, and an escaped quote in a `"""` string
-    /// doesn't close it.
-    private static func multilineState(after line: String, open: String?) -> String? {
-        var open = open
-        var rest = Substring(line)
-        while !rest.isEmpty {
-            if let delimiter = open {
-                guard let after = closing(delimiter, in: rest) else { return open }
-                rest = after
-                open = nil
-            } else if rest.hasPrefix(basicMultiline) || rest.hasPrefix(literalMultiline) {
-                open = String(rest.prefix(3))
-                rest = rest.dropFirst(3)
-            } else {
-                switch rest.first {
-                case "#": return nil
-                case "\"": rest = afterOneLine(rest.dropFirst(), quote: "\"", escapes: true)
-                case "'": rest = afterOneLine(rest.dropFirst(), quote: "'", escapes: false)
-                default: rest = rest.dropFirst()
+    /// What's still open at the end of a line: a `"""` or `'''` string, or arrays a value spans
+    /// lines with. A line starting with `[` is a table header only when neither is.
+    private struct LineState {
+        var openString: String?
+        var depth = 0
+
+        var isTopLevel: Bool { openString == nil && depth == 0 }
+
+        /// Triple quotes in a comment or inside a one-line string open nothing, an escaped quote in
+        /// a `"""` string doesn't close it, and brackets inside strings or comments don't count.
+        func after(_ line: String) -> LineState {
+            var state = self
+            var rest = Substring(line)
+            while !rest.isEmpty {
+                if let delimiter = state.openString {
+                    guard let after = closing(delimiter, in: rest) else { return state }
+                    rest = after
+                    state.openString = nil
+                } else if rest.hasPrefix(basicMultiline) || rest.hasPrefix(literalMultiline) {
+                    state.openString = String(rest.prefix(3))
+                    rest = rest.dropFirst(3)
+                } else {
+                    switch rest.first {
+                    case "#": return state
+                    case "\"": rest = afterOneLine(rest.dropFirst(), quote: "\"", escapes: true)
+                    case "'": rest = afterOneLine(rest.dropFirst(), quote: "'", escapes: false)
+                    case "[":
+                        state.depth += 1
+                        rest = rest.dropFirst()
+                    case "]":
+                        state.depth = max(0, state.depth - 1)
+                        rest = rest.dropFirst()
+                    default: rest = rest.dropFirst()
+                    }
                 }
             }
+            return state
         }
-        return open
     }
 
     private static let basicMultiline = "\"\"\""

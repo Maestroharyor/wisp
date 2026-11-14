@@ -159,6 +159,9 @@ struct AgentStateLabel: View {
                     text: Countdown.format(max(0, context.date.timeIntervalSince(status.started))),
                     tint: status.state.tint)
             }
+        } else if status.held, status.state == .needsApproval {
+            Text("Paused").lineLimit(1).foregroundStyle(status.state.tint)
+                .accessibilityLabel(AgentSession.heldLabel)
         } else {
             Text(status.state.label).lineLimit(1).foregroundStyle(status.state.tint)
         }
@@ -919,7 +922,7 @@ struct AgentsWidget: View {
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 5) {
-                        LimitsHeader(readings: hub.limitReadings)
+                        LimitsHeader(readings: hub.limitReadings, threshold: hub.limitThreshold)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         ForEach(sessions) { session in
                             SessionBar(
@@ -1067,7 +1070,7 @@ private struct SessionGlanceLines: View {
             HStack(spacing: 4) {
                 SessionChips(chips: chips)
                 Spacer(minLength: 4)
-                Text("\(glance.runTime) · \(session.state.label)")
+                Text("\(glance.runTime) · \(session.stateLabel)")
                     .font(.system(size: 10)).monospacedDigit().foregroundStyle(Color.secondaryText)
                     .lineLimit(1).fixedSize()
                     .help("Running for \(glance.runTime)")
@@ -1186,6 +1189,8 @@ private struct SessionRowMenu: ViewModifier {
 /// Windows nobody reported are left out, and the header with them.
 private struct LimitsHeader: View {
     let readings: [UsageReading]
+    /// The limit alert level from Settings, where the bars turn amber.
+    let threshold: Double
 
     var body: some View {
         if !readings.isEmpty {
@@ -1193,9 +1198,11 @@ private struct LimitsHeader: View {
                 let items = LimitSummary.make(readings, now: context.date)
                 if !items.isEmpty {
                     ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 12) { ForEach(items, id: \.label, content: LimitItem.init) }
+                        HStack(spacing: 12) {
+                            ForEach(items, id: \.label) { LimitItem(item: $0, threshold: threshold) }
+                        }
                         VStack(alignment: .leading, spacing: 2) {
-                            ForEach(items, id: \.label, content: LimitItem.init)
+                            ForEach(items, id: \.label) { LimitItem(item: $0, threshold: threshold) }
                         }
                     }
                 }
@@ -1206,6 +1213,7 @@ private struct LimitsHeader: View {
 
 private struct LimitItem: View {
     let item: LimitSummary
+    let threshold: Double
 
     var body: some View {
         HStack(spacing: 4) {
@@ -1227,13 +1235,8 @@ private struct LimitItem: View {
             "\(item.label) limit \(item.percent) percent used" + (item.resetsIn.map { ", resets in \($0)" } ?? ""))
     }
 
-    /// The limit alerts' default levels; the colours stay put when the alert level is moved.
-    private var tint: Color {
-        let percent = Double(item.percent)
-        if percent >= LimitWatch.critical { return .red }
-        if percent >= LimitWatch.defaultThreshold { return .wispAmber }
-        return .wispViolet
-    }
+    /// Amber from the user's limit alert level and red from 95%, as the alerts fire.
+    private var tint: Color { LimitWatch.level(percent: Double(item.percent), threshold: threshold).tint }
 }
 
 /// One session: "project · task", what it's doing with its chips and run time, then context,
@@ -1362,7 +1365,7 @@ struct AgentsDetail: View {
                     PrivacyButton(hub: hub)
                 }
                 AgentFocusBar(services: model.services, showingHistory: $showingHistory)
-                LimitsHeader(readings: hub.limitReadings)
+                LimitsHeader(readings: hub.limitReadings, threshold: hub.limitThreshold)
                 if sessions.isEmpty && CloudLane.visible(cloud.tasks, now: .now).isEmpty && hub.monitor.sessions.isEmpty
                 {
                     if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }
@@ -1409,8 +1412,9 @@ struct AgentsDetail: View {
         .safeAreaInset(edge: .bottom, spacing: 12) {
             // The window has room for a year of activity under the sessions; the notch keeps it in the history.
             if host == .window {
-                let map = model.services.agentHistory.history.activityMap()
-                if !map.isEmpty { ActivityMapView(map: map).equatable() }
+                let history = model.services.agentHistory
+                let map = history.history.activityMap()
+                if !map.isEmpty { ActivityMapView(map: map, retention: history.activityRetention).equatable() }
             }
         }
         .onAppear {

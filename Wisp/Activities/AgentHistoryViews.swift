@@ -43,7 +43,7 @@ struct AgentHistoryView: View {
                 .font(.system(size: 11)).foregroundStyle(Color.secondaryText)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            ActivityMapView(map: map).equatable()
+            ActivityMapView(map: map, retention: store.activityRetention).equatable()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }

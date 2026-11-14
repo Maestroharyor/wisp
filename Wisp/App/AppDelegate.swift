@@ -62,6 +62,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         services.approvalCardChanged = { [weak self] prompt in self?.hotkeys.setApprovalCard(prompt) }
         services.agents.keysUseHyper = { [weak self] in self?.hotkeys.approvalKeysUseHyper ?? false }
         services.isShelfOpen = { [weak self] in self?.coordinator.hasOpenShelf ?? false }
+        services.agents.monitor.surfaceVisible = { [weak self] in
+            guard let self else { return false }
+            let window = self.services.shelfWindow
+            return self.coordinator.hasOpenShelf || NSApp.windows.contains { $0.isVisible && window.owns($0) }
+        }
         services.restoreApprovals = { [weak self] in self?.coordinator.restoreApprovals() ?? false }
         services.releaseNotchKey = { [weak self] in self?.coordinator.releaseKey() }
         hotkeys.onDictation = { [weak self] event in self?.services.dictation.handle(event) }

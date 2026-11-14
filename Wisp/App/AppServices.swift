@@ -595,16 +595,22 @@ final class AppServices {
         agents.onAlert = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 3)
         }
+        // Dropped during quiet hours, as Done cards are; the push and the sound decide on their own.
+        agents.onLimitNotice = { [weak self] symbol, text in
+            guard let self, !self.attention.isQuiet(.limits) else { return }
+            self.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 3)
+        }
         agents.onNotice = { [weak self] text in
             self?.activities.post(.notice(symbol: "checkmark.shield.fill", text: text), slot: .notice, duration: 2)
         }
         agents.onContextAlert = { [weak self] text in
-            self?.activities.post(
+            guard let self, !self.attention.isQuiet(.limits) else { return }
+            self.activities.post(
                 .notice(symbol: "gauge.with.dots.needle.67percent", text: text), slot: .notice, duration: 3)
         }
         agents.onContextCritical = { [weak self] session, percent in
             // The spend cap card waits on a choice; it isn't replaced.
-            guard let self, !self.showsSpendCap else { return }
+            guard let self, !self.showsSpendCap, !self.attention.isQuiet(.limits) else { return }
             let callout = AgentCallout(
                 sessionID: session.id, project: session.project, source: session.source,
                 kind: .compact(percent: percent, canCompact: CompactCommand.supported(session.source)))

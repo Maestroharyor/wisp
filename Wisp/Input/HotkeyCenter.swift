@@ -192,6 +192,12 @@ final class HotkeyCenter {
         tap.quickPressTogglesCapsLock = preferences.quickPressTogglesCapsLock
         tap.onChordReleased = { [weak self] keyCode in self?.onApprovalKeyUp(keyCode) }
         tap.holdKey = preferences.dictationEnabled ? preferences.dictationKey.keyCode : nil
+        // A shelf shortcut on Hyper+G takes the switcher's chord, so the switcher moves to ⌃⌥⌘G.
+        if Hotkey.switcherClashes(shelf: hotkey) {
+            _ = switcherCarbon.register(Hotkey.switcherShortcut(shelf: hotkey)) { [weak self] in
+                self?.onSessionSwitcher()
+            }
+        }
         tap.onHyperChord = { [weak self] keyCode in
             switch keyCode {
             case hotkey.keyCode: self?.onToggle()

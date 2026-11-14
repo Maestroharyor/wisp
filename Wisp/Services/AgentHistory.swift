@@ -60,6 +60,9 @@ final class AgentHistoryStore {
     /// Whether finished sessions get an AI summary: the setting is on and the engine is ready.
     var summariesAvailable: Bool { preferences.agentSummaries && ai.isReady }
 
+    /// How long the activity map's counts are kept, which sets how many weeks it shows.
+    var activityRetention: ActivityRetention { preferences.activityRetention }
+
     /// Saves a record when history is on and something happened in it.
     func save(_ record: SessionRecord) {
         guard preferences.agentHistory, !record.isEmpty, !removed.contains(record.id) else { return }
