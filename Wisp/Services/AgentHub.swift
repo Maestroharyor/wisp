@@ -1047,11 +1047,9 @@ final class AgentHub {
         let released = held.filter { pending[$0]?.sessionID == id }
         guard !released.isEmpty else { return }
         held.removeAll { released.contains($0) }
-        for request in released {
-            queue.enqueue(request)
-            // Its wait starts now, so a slow choice on the cap card doesn't hand it straight back.
-            if let source = pending[request]?.source { startTimeout(request, source: source) }
-        }
+        // Their timeouts keep running from arrival: the agent's hook timed out from then too, so a
+        // later hand-back would come after the agent stopped waiting.
+        for request in released { queue.enqueue(request) }
         approvalsChanged()
         onNewRequest()
         if let first = released.first.flatMap({ pending[$0] }) {
