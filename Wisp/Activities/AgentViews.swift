@@ -296,16 +296,28 @@ struct MinimiseApprovalButton: View {
     }
 }
 
-/// A minimised request in the pill: the agent's mark with a violet ring pulsing out of it.
+/// A minimised request in the pill: the agent's mark with a violet ring pulsing out of it. An
+/// idle nudge (`nudge`, its serial) gives the mark one bigger beat.
 struct MinimisedApprovalGlyph: View {
     let approval: AgentApproval
+    var nudge: Int? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulsing = false
+    @State private var beat = false
 
     var body: some View {
         Image(systemName: approval.source.symbol)
             .foregroundStyle(Color.project(approval.project))
             .frame(width: 16)
+            .scaleEffect(beat ? 1.35 : 1)
+            .onChange(of: nudge) { _, serial in
+                guard serial != nil, !reduceMotion else { return }
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) { beat = true }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(300))
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { beat = false }
+                }
+            }
             .background {
                 Circle().stroke(Color.wispViolet, lineWidth: 1.5)
                     .frame(width: 20, height: 20)

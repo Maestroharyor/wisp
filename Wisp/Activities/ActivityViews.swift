@@ -109,9 +109,13 @@ struct CompactActivityView: View {
             }
         case .agentApproval(let approval):
             // Only drawn while the request is minimised into the pill.
+            // The idle nudge says how long it has waited for a few seconds, with one pulse.
+            let nudge = model.services.agents.approvalNudge.flatMap { $0.approval == approval.id ? $0 : nil }
             HStack(spacing: ActivityMetrics.contentSpacing) {
-                MinimisedApprovalGlyph(approval: approval)
-                Text(approval.project).lineLimit(1)
+                MinimisedApprovalGlyph(approval: approval, nudge: nudge?.serial)
+                Text(nudge?.text ?? approval.project).lineLimit(1)
+                    .contentTransition(.opacity)
+                    .animation(model.reduceMotion ? nil : .easeInOut(duration: 0.25), value: nudge?.text)
             }
         case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
             .agentCallout:

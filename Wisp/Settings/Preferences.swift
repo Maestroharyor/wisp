@@ -761,7 +761,7 @@ final class Preferences {
     /// A notice when one tool call runs longer than `toolAlertMinutes`; needs tool activity.
     var toolAlert: Bool { didSet { defaults.set(toolAlert, forKey: Key.toolAlert) } }
     var toolAlertMinutes: Int { didSet { defaults.set(toolAlertMinutes, forKey: Key.toolAlertMinutes) } }
-    /// One more sound and pill when a session has waited for the user `nudgeMinutes`.
+    /// The idle nudge (`IdleNudge`) once a session has waited for the user `nudgeMinutes`.
     var nudgeAlert: Bool { didSet { defaults.set(nudgeAlert, forKey: Key.nudgeAlert) } }
     var nudgeMinutes: Int { didSet { defaults.set(nudgeMinutes, forKey: Key.nudgeMinutes) } }
     /// Notices at 80% and 100% of `dailyBudget` dollars of spend in a day.
@@ -1036,7 +1036,7 @@ final class Preferences {
             Key.agentSummaries: true,
             Key.toolAlert: true,
             Key.toolAlertMinutes: AgentAlertRules.defaultToolMinutes,
-            Key.nudgeAlert: false,
+            Key.nudgeAlert: true,
             Key.nudgeMinutes: AgentAlertRules.defaultNudgeMinutes,
             Key.budgetAlert: false,
             Key.limitAlert: true,

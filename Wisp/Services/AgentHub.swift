@@ -81,6 +81,23 @@ struct SpendCapPrompt: Sendable, Equatable {
     let estimated: Bool
 }
 
+/// A session that has waited on the user past the nudge limit.
+struct IdleNudgeMoment: Sendable, Equatable {
+    let sessionID: String
+    let project: String
+    let source: AgentSource
+    /// The request it waits on, when Wisp is showing one; nil for a prompt in the terminal.
+    let request: AgentApproval?
+    let minutes: Int
+}
+
+/// The pulse and words for a minimised request's pill; `serial` makes a repeat a change.
+struct ApprovalNudge: Sendable, Equatable {
+    let approval: UUID
+    let text: String
+    let serial: Int
+}
+
 /// A shortcut pressed for the question card on screen.
 struct KeyAnswer: Equatable {
     let approval: UUID
@@ -204,7 +221,10 @@ final class AgentHub {
     /// A tool ran long or spend reached the daily budget: a symbol and a line for the notch.
     var onAlert: (_ symbol: String, _ text: String) -> Void = { _, _ in }
     /// A session has waited for the user past the reminder limit.
-    var onReminder: () -> Void = {}
+    var onNudge: (IdleNudgeMoment) -> Void = { _ in }
+    /// The latest idle nudge for a waiting request, so its minimised pill pulses once and says
+    /// how long it has waited.
+    private(set) var approvalNudge: ApprovalNudge?
     /// Needs you, Done, a usage limit or the budget, for phone push. Fired whatever the notch
     /// shows; the receiver decides what goes out.
     var onMoment: (AgentMoment) -> Void = { _ in }
@@ -978,17 +998,40 @@ final class AgentHub {
         let list = sessions.list
         let due = alerts.due(list, rules: alertRules, now: now)
         if let text = AgentAlert.notice(due, hidden: detailsHidden) { onAlert("hourglass", text) }
-        var reminded = false
-        for case .nudge(let id, _, let approval) in due {
+        var nudged: [IdleNudgeMoment] = []
+        for case .nudge(let id, let project, let approval) in due {
             // An approval's card is already showing; a Needs you goes back in the pill.
             if !approval { sessions.nudge(session: id, at: now) }
-            reminded = true
+            guard let session = sessions.session(id) else { continue }
+            let request = waitingApprovals.first { $0.sessionID == id }
+            nudged.append(
+                IdleNudgeMoment(
+                    sessionID: id, project: project, source: session.source, request: request,
+                    minutes: alertRules.nudgeMinutes))
         }
         scheduleAlertCheck(at: alerts.nextCheck(list, rules: alertRules, now: now))
-        guard reminded else { return }
-        onReminder()
+        guard !nudged.isEmpty else { return }
+        for moment in nudged {
+            if let request = moment.request { showNudge(on: request, moment) }
+            onNudge(moment)
+        }
         publishStatus()
     }
+
+    /// Puts "Claude Code has waited 5 min" on the request's minimised pill for a few seconds.
+    private func showNudge(on request: AgentApproval, _ moment: IdleNudgeMoment) {
+        let nudge = ApprovalNudge(
+            approval: request.id, text: IdleNudge.text(agent: moment.source.displayName, minutes: moment.minutes),
+            serial: (approvalNudge?.serial ?? 0) + 1)
+        approvalNudge = nudge
+        Task { [weak self] in
+            try? await Task.sleep(for: Self.nudgeShown)
+            guard let self, self.approvalNudge == nudge else { return }
+            self.approvalNudge = nil
+        }
+    }
+
+    private static let nudgeShown: Duration = .seconds(6)
 
     /// Tool activity republishes several times a second; the wake-up only moves when the
     /// next limit does.

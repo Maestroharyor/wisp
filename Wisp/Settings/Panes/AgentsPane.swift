@@ -149,10 +149,10 @@ struct AgentSettings: View {
             if !preferences.agentToolActivity {
                 Text("Needs Show what agents are doing, under Advanced.").font(.caption).foregroundStyle(.secondary)
             }
-            Toggle("Remind me when a session is still waiting", isOn: $preferences.nudgeAlert)
+            Toggle("Nudge me when a session is still waiting", isOn: $preferences.nudgeAlert)
             if preferences.nudgeAlert {
-                Stepper(value: $preferences.nudgeMinutes, in: 1...30) {
-                    LabeledContent("Remind after", value: "\(preferences.nudgeMinutes) min")
+                Stepper(value: $preferences.nudgeMinutes, in: IdleNudge.minutesRange) {
+                    LabeledContent("Nudge after", value: "\(preferences.nudgeMinutes) min")
                 }
             }
             Toggle("Alert at 80% and 95% of a Claude usage limit", isOn: $preferences.limitAlert)

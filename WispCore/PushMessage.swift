@@ -118,6 +118,13 @@ public enum PushMessage {
             tags: ["bell"])
     }
 
+    public static func waited(agent: String, project: String, minutes: Int, hidden: Bool) -> PushNotice {
+        PushNotice(
+            title: "Still waiting",
+            message: IdleNudge.text(agent: agent, minutes: minutes) + "\(place(project, hidden: hidden)).", priority: 4,
+            tags: ["hourglass"])
+    }
+
     /// The session summary's first sentence goes along only with "Add the command or file name" on and details
     /// shown, since it can name files and commands.
     public static func done(

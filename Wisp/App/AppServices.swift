@@ -277,6 +277,19 @@ final class AppServices {
         activities.post(.agentCallout(callout), slot: .agentCallout, duration: nil)
     }
 
+    /// A session still waiting after the nudge limit: its sound again, a quiet line beside the
+    /// notch for a prompt in the terminal (a request's pill says it instead, see `ApprovalNudge`),
+    /// and the phone with push on.
+    private func idleNudge(_ moment: IdleNudgeMoment) {
+        agentSound(moment.request?.prompt == .question ? .question : .needsApproval, session: moment.sessionID)
+        if moment.request == nil {
+            let text = IdleNudge.text(agent: moment.source.displayName, minutes: moment.minutes)
+            activities.post(.notice(symbol: "hourglass", text: text), slot: .notice, duration: 3)
+        }
+        push.moment(
+            .waited(session: moment.sessionID, project: moment.project, source: moment.source, minutes: moment.minutes))
+    }
+
     /// An agent moment's sound from Settings › Agents › Sounds, once per burst (`SoundRule`), and
     /// quiet during a call or Focus when that's on. Requests and questions also tap the trackpad.
     private func agentSound(_ event: AgentSoundEvent, session: String?) {
@@ -513,7 +526,7 @@ final class AppServices {
             _ = self?.restoreApprovals()
         }
         agents.onSound = { [weak self] event, session in self?.agentSound(event, session: session) }
-        agents.onReminder = { [weak self] in self?.agentSound(.needsApproval, session: nil) }
+        agents.onNudge = { [weak self] moment in self?.idleNudge(moment) }
         agents.onAlert = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 3)
         }
