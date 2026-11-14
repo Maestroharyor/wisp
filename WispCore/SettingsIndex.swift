@@ -70,6 +70,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "orb", "float", "detach", "move", "form", "shape", "window", "open as window", "windowed",
                 "minimise", "minimize", "tear off", "normal app", "displays without a notch", "floating island",
                 "don't show", "external displays", "show on external displays", "sidebar",
+                "shelf height", "taller", "resize", "handle", "grabber", "bigger shelf", "reset height",
                 // The ring, which had its own pane before; its name stays a keyword.
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "hyper r",
                 "per app", "edit ring", "ring shortcut", "capture text", "ocr", "qr code", "barcode", "ai action",
