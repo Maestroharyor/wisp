@@ -44,6 +44,8 @@ enum ActivityDetail: Hashable {
     case regionWatch
     case downloads
     case external
+    /// The live sessions, opened with Hyper+G or ⌃⌥⌘G to jump to one.
+    case sessionSwitcher
 }
 
 /// A view the shelf can open on: a widget or a pill's view alone on the Widgets page, or a page.
@@ -215,6 +217,19 @@ final class NotchModel {
     }
     /// The session whose pill was clicked: the Agents view opens on it.
     var focusedSession: String?
+    /// The session switcher's selection.
+    var switcher = SessionSwitcher()
+    /// The sessions the switcher lists, in the Agents widget's order (needs you first, then pinned),
+    /// leaving out what it hides.
+    var switcherSessions: [AgentSession] {
+        SessionOrder.arrange(services.agents.sessions.list, rules: preferences.sessionOrderRules, now: .now)
+    }
+
+    /// Closes the shelf and brings the session's terminal forward.
+    func jumpFromSwitcher(to session: String) {
+        services.closeShelves()
+        services.agents.focus(session: session)
+    }
     /// The forms this display can switch to, and the switch itself (the nav pill's form menu).
     var forms: [FormFactor] = FormFactor.allCases
     var onSetForm: (FormFactor) -> Void = { _ in }

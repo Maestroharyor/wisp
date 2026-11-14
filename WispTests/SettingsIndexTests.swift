@@ -41,6 +41,10 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "quick add"), [.notch, .shelf])
         XCTAssertTrue(SettingsIndex.panes(matching: "reminders").contains(.permissions))
+        XCTAssertEqual(SettingsIndex.panes(matching: "session switcher"), [.general])
+        XCTAssertEqual(SettingsIndex.panes(matching: "hyper g").first, .general)
+        XCTAssertEqual(SettingsIndex.panes(matching: "activity map"), [.agents])
+        XCTAssertEqual(SettingsIndex.panes(matching: "limit reset"), [.agents])
     }
 
     func testAppearanceControlsAreFoundByNewAndOldNames() {

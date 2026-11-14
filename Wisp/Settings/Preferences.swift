@@ -262,6 +262,10 @@ final class Preferences {
         static let awaySummary = "agentAwaySummary"
         static let budgetAlert = "budgetAlert"
         static let limitAlert = "limitAlert"
+        static let limitThreshold = "limitThreshold"
+        static let limitExhaustedAlert = "limitExhaustedAlert"
+        static let limitResetAlert = "limitResetAlert"
+        static let activityRetention = "agentActivityRetention"
         static let dailyBudget = "dailyBudget"
         static let spendCap = "agentSpendCap"
         static let spendCapAmount = "agentSpendCapAmount"
@@ -820,6 +824,10 @@ final class Preferences {
 
     /// Finished sessions are kept on this Mac (figures, tools, masked commands, no prompts).
     var agentHistory: Bool { didSet { defaults.set(agentHistory, forKey: Key.agentHistory) } }
+    /// How long the activity map's daily counts outlive the session records.
+    var activityRetention: ActivityRetention {
+        didSet { defaults.set(activityRetention.rawValue, forKey: Key.activityRetention) }
+    }
     /// A finished session is summarised by the on-device AI, when AI is on.
     var agentSummaries: Bool { didSet { defaults.set(agentSummaries, forKey: Key.agentSummaries) } }
     /// A notice when one tool call runs longer than `toolAlertMinutes`; needs tool activity.
@@ -836,8 +844,14 @@ final class Preferences {
     var awaySummary: Bool { didSet { defaults.set(awaySummary, forKey: Key.awaySummary) } }
     /// Notices at 80% and 100% of `dailyBudget` dollars of spend in a day.
     var budgetAlert: Bool { didSet { defaults.set(budgetAlert, forKey: Key.budgetAlert) } }
-    /// Notices at 80% and 95% of Claude's five-hour and weekly usage limits.
+    /// Notices at `limitThreshold` and 95% of an agent's five-hour and weekly usage limits.
     var limitAlert: Bool { didSet { defaults.set(limitAlert, forKey: Key.limitAlert) } }
+    /// The first usage limit alert level, in percent (`LimitWatch.thresholdRange`).
+    var limitThreshold: Int { didSet { defaults.set(limitThreshold, forKey: Key.limitThreshold) } }
+    /// A notice when a usage window is used up.
+    var limitExhaustedAlert: Bool { didSet { defaults.set(limitExhaustedAlert, forKey: Key.limitExhaustedAlert) } }
+    /// A notice when a usage window that passed the alert level starts over.
+    var limitResetAlert: Bool { didSet { defaults.set(limitResetAlert, forKey: Key.limitResetAlert) } }
     var dailyBudget: Double { didSet { defaults.set(dailyBudget, forKey: Key.dailyBudget) } }
     /// Asks Keep going, Raise or Stop when one session spends `spendCapAmount` dollars. Off by default.
     var spendCap: Bool { didSet { defaults.set(spendCap, forKey: Key.spendCap) } }
@@ -1111,6 +1125,9 @@ final class Preferences {
             Key.awaySummary: true,
             Key.budgetAlert: false,
             Key.limitAlert: true,
+            Key.limitThreshold: Int(LimitWatch.defaultThreshold),
+            Key.limitExhaustedAlert: true,
+            Key.limitResetAlert: true,
             Key.dailyBudget: 20.0,
             Key.spendCap: false,
             Key.spendCapAmount: 5.0,
@@ -1253,6 +1270,8 @@ final class Preferences {
             defaults.string(forKey: Key.keepDoneSessions).flatMap(SessionOrder.KeepDone.init(rawValue:))
             ?? .untilDismissed
         agentHistory = defaults.bool(forKey: Key.agentHistory)
+        activityRetention =
+            defaults.string(forKey: Key.activityRetention).flatMap(ActivityRetention.init(rawValue:)) ?? .standard
         agentSummaries = defaults.bool(forKey: Key.agentSummaries)
         toolAlert = defaults.bool(forKey: Key.toolAlert)
         toolAlertMinutes = min(max(defaults.integer(forKey: Key.toolAlertMinutes), 1), 60)
@@ -1264,6 +1283,9 @@ final class Preferences {
         awaySummary = defaults.bool(forKey: Key.awaySummary)
         budgetAlert = defaults.bool(forKey: Key.budgetAlert)
         limitAlert = defaults.bool(forKey: Key.limitAlert)
+        limitThreshold = Int(LimitWatch(threshold: Double(defaults.integer(forKey: Key.limitThreshold))).threshold)
+        limitExhaustedAlert = defaults.bool(forKey: Key.limitExhaustedAlert)
+        limitResetAlert = defaults.bool(forKey: Key.limitResetAlert)
         let budget = defaults.double(forKey: Key.dailyBudget)
         dailyBudget = budget > 0 ? budget : 20
         spendCap = defaults.bool(forKey: Key.spendCap)

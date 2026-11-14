@@ -11,6 +11,12 @@ public enum AgentSoundEvent: String, CaseIterable, Codable, Identifiable, Sendab
     case contextWarning
     case contextCritical
     case spendCap
+    /// A usage window passed the alert level or 95%.
+    case limitWarning
+    /// A usage window was used up.
+    case limitReached
+    /// A usage window that had passed the alert level started over.
+    case limitReset
 
     public var id: Self { self }
 
@@ -23,6 +29,9 @@ public enum AgentSoundEvent: String, CaseIterable, Codable, Identifiable, Sendab
         case .contextWarning: "Context warning"
         case .contextCritical: "Context critical"
         case .spendCap: "Spend cap"
+        case .limitWarning: "Limit warning"
+        case .limitReached: "Limit reached"
+        case .limitReset: "Limit reset"
         }
     }
 
@@ -35,6 +44,9 @@ public enum AgentSoundEvent: String, CaseIterable, Codable, Identifiable, Sendab
         case .contextWarning: AgentSoundSetting(on: false, sound: .system("Purr"))
         case .contextCritical: AgentSoundSetting(on: false, sound: .system("Sosumi"))
         case .spendCap: AgentSoundSetting(on: true, sound: .system("Funk"))
+        case .limitWarning: AgentSoundSetting(on: false, sound: .system("Bottle"))
+        case .limitReached: AgentSoundSetting(on: true, sound: .system("Submarine"))
+        case .limitReset: AgentSoundSetting(on: false, sound: .system("Hero"))
         }
     }
 }

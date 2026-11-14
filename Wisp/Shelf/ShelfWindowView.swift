@@ -88,17 +88,19 @@ extension WindowDestination {
         case .widget(let kind):
             self = .widget(kind.rawValue)
         case .detail(let detail):
-            self = .live(detail.live)
+            // The switcher has no window row of its own; the Agents page lists the same sessions.
+            self = detail.live.map(WindowDestination.live) ?? .widget(WidgetKind.agents.rawValue)
         }
     }
 }
 
 extension ActivityDetail {
-    var live: WindowLive {
+    var live: WindowLive? {
         switch self {
         case .regionWatch: .regionWatch
         case .downloads: .downloads
         case .external: .external
+        case .sessionSwitcher: nil
         }
     }
 }

@@ -54,11 +54,13 @@ final class NotchCoordinator {
             self.controllers.values.forEach { $0.scrolled(scroll, at: location) }
         }
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == KeyCodes.escape else { return event }
+            let isEscape = event.keyCode == KeyCodes.escape
+            guard isEscape || SessionSwitcher.key(event.keyCode) != nil else { return event }
             let handled = MainActor.assumeIsolated { () -> Bool in
                 guard let self else { return false }
                 // The shelf window's Esc is its own (a field's); its sidebar has no solo view to leave.
                 if self.services.shelfWindow.owns(event.window) { return false }
+                if !isEscape { return self.controllers.values.contains { $0.handleSwitcherKey(event.keyCode) } }
                 return self.dismissOpenShelves()
             }
             return handled ? nil : event
@@ -125,6 +127,20 @@ final class NotchCoordinator {
     /// Hands the keyboard back to the app in front from any closed notch that took it.
     func releaseKey() {
         for controller in controllers.values { controller.releaseKey() }
+    }
+
+    /// Hyper+G or ⌃⌥⌘G: the session switcher on the display under the pointer. With the Window
+    /// form, the window's Agents page lists the same sessions.
+    func toggleSessionSwitcher() {
+        guard services.shelfWindow.opensUnderShell else {
+            services.shelfWindow.activateShell(view: .widget(.agents))
+            return
+        }
+        let target = targetController()
+        for controller in controllers.values where controller !== target && controller.phase == .open {
+            controller.dismiss()
+        }
+        target?.toggleSessionSwitcher()
     }
 
     /// Hyper+F: the next form on the display under the pointer.

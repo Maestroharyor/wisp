@@ -25,7 +25,7 @@ extension AgentSoundEvent {
         switch self {
         case .needsApproval, .question: .needsYou
         case .finished, .failed: .done
-        case .contextWarning, .contextCritical, .spendCap: .limits
+        case .contextWarning, .contextCritical, .spendCap, .limitWarning, .limitReached, .limitReset: .limits
         }
     }
 }

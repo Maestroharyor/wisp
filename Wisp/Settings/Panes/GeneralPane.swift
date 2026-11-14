@@ -47,10 +47,12 @@ struct GeneralSettings: View {
                     ShortcutRow(keys: "⇪ 1–9", action: "Switch profile")
                     ShortcutRow(keys: "⇪ Y or ⇪ N", action: "Allow or deny the request on screen")
                     ShortcutRow(keys: "⇪ 1–9", action: "Pick an answer while a question shows")
+                    ShortcutRow(keys: Hotkey.switcherHyper.description, action: "Jump to an agent session")
                 } else {
                     ShortcutRow(keys: Hotkey.clipboardFallback.description, action: "Clipboard history")
                     ShortcutRow(keys: "⌃⌥⌘Y or ⌃⌥⌘N", action: "Allow or deny the request on screen")
                     ShortcutRow(keys: "⌃⌥⌘1–9", action: "Pick an answer while a question shows")
+                    ShortcutRow(keys: Hotkey.switcherFallback.description, action: "Jump to an agent session")
                 }
                 ShortcutRow(keys: "Esc", action: "Back to the grid, or close the shelf")
                 ShortcutRow(keys: "Right-click the notch", action: "Menu: pages, tools, profiles, form, Settings")

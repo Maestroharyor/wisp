@@ -11,24 +11,41 @@ struct AgentHistoryView: View {
 
     @State private var query = ""
     @State private var expanded: String?
-    @State private var showingApprovals = false
+    @State private var tab = Tab.sessions
+
+    private enum Tab: Hashable {
+        case sessions, approvals, activity
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Picker("History", selection: $showingApprovals) {
-                Text("Sessions").tag(false)
-                Text("Approvals").tag(true)
+            Picker("History", selection: $tab) {
+                Text("Sessions").tag(Tab.sessions)
+                Text("Approvals").tag(Tab.approvals)
+                Text("Activity").tag(Tab.activity)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .controlSize(.small)
-            if showingApprovals {
-                ApprovalHistoryList(log: store.approvals, hidden: hidden, enabled: enabled)
-            } else {
-                sessions
+            switch tab {
+            case .sessions: sessions
+            case .approvals: ApprovalHistoryList(log: store.approvals, hidden: hidden, enabled: enabled)
+            case .activity: activity
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder private var activity: some View {
+        let map = store.history.activityMap()
+        if map.isEmpty {
+            Text(enabled ? "Days with agent sessions show here" : "Session history is off in Settings › Agents")
+                .font(.system(size: 11)).foregroundStyle(Color.secondaryText)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ActivityMapView(map: map).equatable()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
     }
 
     private var sessions: some View {
