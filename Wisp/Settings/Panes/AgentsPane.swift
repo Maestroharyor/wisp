@@ -156,7 +156,19 @@ struct AgentSettings: View {
                     LabeledContent("Nudge after", value: "\(preferences.nudgeMinutes) min")
                 }
             }
-            Toggle("Alert at 80% and 95% of a Claude usage limit", isOn: $preferences.limitAlert)
+            Toggle("Alert when a usage limit passes the alert level and 95%", isOn: $preferences.limitAlert)
+            if preferences.limitAlert {
+                ContextThresholdSlider(
+                    title: "Limit alert at", tint: .wispAmber, percent: $preferences.limitThreshold,
+                    range: LimitWatch.thresholdRange
+                ) { _ in }
+            }
+            Toggle("Alert when a usage limit is used up", isOn: $preferences.limitExhaustedAlert)
+            Toggle("Alert when a usage limit resets", isOn: $preferences.limitResetAlert)
+            Text(
+                "Covers Claude Code's and Codex's 5 h and weekly limits. A reset is only announced for a limit that passed the alert level. Each has a sound under Sounds."
+            )
+            .font(.caption).foregroundStyle(.secondary)
             Toggle("Alert at 80% and 100% of a daily budget", isOn: $preferences.budgetAlert)
             if preferences.budgetAlert {
                 dollars("Daily budget", value: budget)

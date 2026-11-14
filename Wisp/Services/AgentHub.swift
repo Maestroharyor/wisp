@@ -166,11 +166,22 @@ final class AgentHub {
     }
     /// Dollars a day before the budget notices; nil turns them off. Set from Preferences.
     var dailyBudget: Double?
-    /// Notices when a Claude usage window passes 80% and 95%. Set from Preferences.
+    /// Notices when a usage window passes the alert level and 95%. Set from Preferences.
     var limitAlerts = true
+    /// Notices when a usage window is used up, and when one that passed the alert level starts
+    /// over. Set from Preferences.
+    var limitExhaustedAlerts = true
+    var limitResetAlerts = true
+    /// The first limit alert level, in percent. Set from Preferences.
+    var limitThreshold = LimitWatch.defaultThreshold {
+        didSet { limitWatch.threshold = limitThreshold }
+    }
     /// The usage windows the status bar reported last; they're the account's, not a session's.
     private(set) var limitReadings: [UsageReading] = []
     @ObservationIgnored private var limitWatch = LimitWatch()
+    /// Wakes when a window that passed the alert level is due to reset.
+    @ObservationIgnored private var limitResetTask: Task<Void, Never>?
+    @ObservationIgnored private var limitResetAt: Date?
     /// Whether card shortcuts use Hyper (true) or ⌃⌥⌘, read from the hotkeys. Set by AppDelegate.
     @ObservationIgnored var keysUseHyper: @MainActor () -> Bool = { false }
     /// The newest tool requests from the approval history, for "Always allow" match counts.
@@ -403,6 +414,9 @@ final class AgentHub {
         if ownsSocket { unlink(Self.socketURL.path) }
         ownsSocket = false
         flushSpend()
+        limitResetTask?.cancel()
+        limitResetTask = nil
+        limitResetAt = nil
         for id in rolloutWatches.keys { stopRolloutWatch(id) }
         for id in transcriptWatches.keys { stopTranscriptWatch(id) }
     }
@@ -648,11 +662,45 @@ final class AgentHub {
     private func checkLimits(_ readings: [UsageReading]) {
         guard !readings.isEmpty else { return }
         limitReadings = UsageLimits.merge(limitReadings, with: readings)
-        let due = limitWatch.record(readings, at: .now)
-        guard limitAlerts else { return }
-        for alert in due {
-            onAlert("gauge.with.dots.needle.67percent", alert.text)
+        announce(limitWatch.record(readings, at: .now))
+        scheduleLimitReset()
+    }
+
+    /// The sounds have their own switches, so they play whatever the notice switches say;
+    /// quiet hours decide for both downstream.
+    private func announce(_ alerts: [LimitAlert]) {
+        for alert in alerts {
+            onSound(alert.sound, nil)
+            guard wantsNotice(alert.kind) else { continue }
+            onAlert(alert.symbol, alert.text)
             onMoment(.limit(alert.text))
+        }
+    }
+
+    private func wantsNotice(_ kind: LimitAlert.Kind) -> Bool {
+        switch kind {
+        case .level: limitAlerts
+        case .exhausted: limitExhaustedAlerts
+        case .reset: limitResetAlerts
+        }
+    }
+
+    /// No reading comes in while no session runs, so the reset is caught from the clock.
+    /// Snapshots come several times a second, so the timer is only replaced when the time changes.
+    private func scheduleLimitReset() {
+        let next = limitWatch.nextReset
+        guard next != limitResetAt else { return }
+        limitResetTask?.cancel()
+        limitResetTask = nil
+        limitResetAt = next
+        guard let next else { return }
+        limitResetTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(next.timeIntervalSinceNow, 0) + 1))
+            guard !Task.isCancelled, let self else { return }
+            self.limitResetTask = nil
+            self.limitResetAt = nil
+            self.announce(self.limitWatch.resetsDue(at: .now))
+            self.scheduleLimitReset()
         }
     }
 

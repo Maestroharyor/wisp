@@ -931,11 +931,11 @@ private struct LimitItem: View {
             "\(item.label) limit \(item.percent) percent used" + (item.resetsIn.map { ", resets in \($0)" } ?? ""))
     }
 
-    /// The same levels the limit alerts use.
+    /// The limit alerts' default levels; the colours stay put when the alert level is moved.
     private var tint: Color {
         let percent = Double(item.percent)
-        if percent >= (LimitWatch.levels.last ?? 95) { return .red }
-        if percent >= (LimitWatch.levels.first ?? 80) { return .wispAmber }
+        if percent >= LimitWatch.critical { return .red }
+        if percent >= LimitWatch.defaultThreshold { return .wispAmber }
         return .wispViolet
     }
 }

@@ -77,35 +77,88 @@ public enum UsageLimits {
     }
 }
 
-/// A window passing one of the alert levels.
+/// A window passing the alert level or 95%, running out, or starting over.
 public struct LimitAlert: Equatable, Sendable {
+    public enum Kind: Equatable, Sendable {
+        /// Passed the alert level or 95%.
+        case level
+        /// Used up.
+        case exhausted
+        /// Started over after it had passed the alert level.
+        case reset
+    }
+
     public let window: LimitWindow
     public let level: Double
     public let percent: Double
     public let resets: Date?
     public var source: AgentSource = .claude
+    public var kind: Kind = .level
 
     /// Short enough for the pill ("5 h limit 82%"); the reset time is in the session's
     /// details and `wisp status`. Claude Code's windows came first, so only others are named.
     public var text: String {
         let agent = source == .claude ? "" : source.displayName + " "
-        return "\(agent)\(window.name) limit \(Int(percent.rounded()))%"
+        switch kind {
+        case .level: return "\(agent)\(window.name) limit \(Int(percent.rounded()))%"
+        case .exhausted: return "\(agent)\(window.name) limit used up"
+        case .reset: return "Your \(agent)\(window.lowercasedName) limit reset"
+        }
+    }
+
+    public var symbol: String {
+        switch kind {
+        case .level: "gauge.with.dots.needle.67percent"
+        case .exhausted: "gauge.with.dots.needle.100percent"
+        case .reset: "arrow.counterclockwise"
+        }
+    }
+
+    public var sound: AgentSoundEvent {
+        switch kind {
+        case .level: .limitWarning
+        case .exhausted: .limitReached
+        case .reset: .limitReset
+        }
     }
 }
 
-/// Follows the usage windows across snapshots: alerts once per level in each agent's
-/// window, starting again when the window resets, and projects when it will run out.
+extension LimitWindow {
+    /// For the middle of a sentence ("Your weekly limit reset").
+    var lowercasedName: String {
+        switch self {
+        case .fiveHour: "5 h"
+        case .sevenDay: "weekly"
+        }
+    }
+}
+
+/// Follows the usage windows across snapshots: alerts once per level in each agent's window
+/// (the alert level, 95% and used up), starting again when the window resets; says when a
+/// window that had passed the alert level starts over; and projects when it will run out.
 public struct LimitWatch: Sendable {
-    public static let levels: [Double] = [80, 95]
+    public static let defaultThreshold: Double = 80
+    /// Where the alert level can be set in Settings.
+    public static let thresholdRange: ClosedRange<Double> = 50...95
+    /// The second warning, whatever the alert level.
+    public static let critical: Double = 95
+    public static let exhausted: Double = 100
     /// A rate measured over less than this is noise.
     static let minimumStretch: TimeInterval = 300
     /// Only the last hour of use decides the pace.
     static let paceWindow: TimeInterval = 3600
+    /// Reset times this close are the same window: older Codex rollouts give the time left,
+    /// which drifts by a second or two between lines.
+    static let resetTolerance: TimeInterval = 120
 
     private struct Track: Sendable {
         var resets: Date?
         var fired: Double = 0
+        /// The start over was already announced, so the next reading doesn't announce it again.
+        var resetAnnounced = false
         var samples: [(date: Date, percent: Double)] = []
+
+        var owesReset: Bool { fired > 0 && !resetAnnounced }
     }
 
     private struct Key: Hashable, Sendable {
@@ -115,7 +168,20 @@ public struct LimitWatch: Sendable {
 
     private var tracks: [Key: Track] = [:]
 
-    public init() {}
+    /// The first alert level, from Settings; 95% and used up always follow it.
+    public var threshold: Double {
+        didSet { threshold = Self.clamp(threshold) }
+    }
+
+    public init(threshold: Double = LimitWatch.defaultThreshold) {
+        self.threshold = Self.clamp(threshold)
+    }
+
+    private static func clamp(_ level: Double) -> Double {
+        min(max(level, thresholdRange.lowerBound), thresholdRange.upperBound)
+    }
+
+    var levels: [Double] { Set([threshold, Self.critical, Self.exhausted]).sorted() }
 
     /// Takes in the latest readings and returns the alerts now due. Levels already passed
     /// are marked even when alerts are off, so turning them on later stays quiet.
@@ -124,11 +190,24 @@ public struct LimitWatch: Sendable {
         for reading in readings {
             let key = Key(source: reading.source, window: reading.window)
             var track = tracks[key] ?? Track(resets: reading.resets)
+            // A reading from a window that already ended (another session's old snapshot) says nothing new.
+            if let resets = reading.resets, let current = track.resets,
+                resets < current.addingTimeInterval(-Self.resetTolerance)
+            {
+                continue
+            }
             // A new reset time means a fresh window. Without one, only a fall in usage can say
             // so; with one, a lower figure is just another session's older snapshot.
             let lastPercent = track.samples.last?.percent ?? 0
             let fell = reading.resets == nil && reading.percent < lastPercent - 1
-            if track.resets != reading.resets || fell {
+            // A snapshot that only adds or drops the reset time (another session, another
+            // version) is the same window unless usage fell.
+            if track.resets == nil, reading.resets != nil, reading.percent >= lastPercent - 1 {
+                track.resets = reading.resets
+            }
+            let newWindow = reading.resets != nil && !Self.sameReset(track.resets, reading.resets)
+            if newWindow || fell {
+                if track.owesReset { due.append(alert(.reset, reading, level: 0)) }
                 track = Track(resets: reading.resets)
             }
             if reading.percent < lastPercent, !fell, !track.samples.isEmpty {
@@ -137,16 +216,43 @@ public struct LimitWatch: Sendable {
             }
             track.samples.append((date, reading.percent))
             track.samples.removeAll { date.timeIntervalSince($0.date) > Self.paceWindow }
-            if let level = Self.levels.last(where: { reading.percent >= $0 }), level > track.fired {
+            if let level = levels.last(where: { reading.percent >= $0 }), level > track.fired {
                 track.fired = level
-                due.append(
-                    LimitAlert(
-                        window: reading.window, level: level, percent: reading.percent, resets: reading.resets,
-                        source: reading.source))
+                due.append(alert(level >= Self.exhausted ? .exhausted : .level, reading, level: level))
             }
             tracks[key] = track
         }
         return due
+    }
+
+    /// Windows whose reset time has come since they passed the alert level, each announced once.
+    /// Readings stop while no session runs, so the clock has to notice the reset too.
+    public mutating func resetsDue(at date: Date) -> [LimitAlert] {
+        var due: [LimitAlert] = []
+        for (key, var track) in tracks {
+            guard track.owesReset, let resets = track.resets, resets <= date else { continue }
+            track.resetAnnounced = true
+            tracks[key] = track
+            due.append(
+                LimitAlert(window: key.window, level: 0, percent: 0, resets: resets, source: key.source, kind: .reset))
+        }
+        return due.sorted { ($0.resets ?? date) < ($1.resets ?? date) }
+    }
+
+    /// The soonest reset still to announce, so a timer can wake for it.
+    public var nextReset: Date? {
+        tracks.values.filter(\.owesReset).compactMap(\.resets).min()
+    }
+
+    private func alert(_ kind: LimitAlert.Kind, _ reading: UsageReading, level: Double) -> LimitAlert {
+        LimitAlert(
+            window: reading.window, level: level, percent: reading.percent, resets: reading.resets,
+            source: reading.source, kind: kind)
+    }
+
+    private static func sameReset(_ lhs: Date?, _ rhs: Date?) -> Bool {
+        guard let lhs, let rhs else { return lhs == nil && rhs == nil }
+        return abs(lhs.timeIntervalSince(rhs)) <= resetTolerance
     }
 
     /// When the window will be used up at the pace of the last hour; nil when it isn't
