@@ -11,10 +11,29 @@ struct AgentHistoryView: View {
 
     @State private var query = ""
     @State private var expanded: String?
+    @State private var showingApprovals = false
 
     var body: some View {
-        let records = store.history.search(query, hidden: hidden)
         VStack(alignment: .leading, spacing: 6) {
+            Picker("History", selection: $showingApprovals) {
+                Text("Sessions").tag(false)
+                Text("Approvals").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            if showingApprovals {
+                ApprovalHistoryList(log: store.approvals, hidden: hidden, enabled: enabled)
+            } else {
+                sessions
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var sessions: some View {
+        let records = store.history.search(query, hidden: hidden)
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(Color.secondaryText)
                 TextField("Search history", text: $query)
@@ -195,5 +214,116 @@ struct AgentHistoryButton: View {
         .buttonStyle(.plain)
         .hoverHint(tip, edge: .bottom, help: tip)
         .accessibilityLabel(tip)
+    }
+}
+
+/// The last week of requests with how each ended, filtered by session and outcome.
+struct ApprovalHistoryList: View {
+    let log: ApprovalLog
+    let hidden: Bool
+    let enabled: Bool
+
+    @State private var session: String?
+    @State private var outcome: ApprovalOutcome?
+
+    var body: some View {
+        let records = log.filtered(session: session, outcome: outcome)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Picker("Session", selection: $session) {
+                    Text("All sessions").tag(String?.none)
+                    ForEach(log.sessions, id: \.id) { item in
+                        Text(item.project).tag(String?.some(item.id))
+                    }
+                }
+                Picker("Outcome", selection: $outcome) {
+                    Text("Any outcome").tag(ApprovalOutcome?.none)
+                    ForEach(ApprovalOutcome.allCases, id: \.self) { item in
+                        Text(item.title).tag(ApprovalOutcome?.some(item))
+                    }
+                }
+            }
+            .labelsHidden()
+            .controlSize(.small)
+            if records.isEmpty {
+                Text(emptyText)
+                    .font(.system(size: 11)).foregroundStyle(Color.secondaryText)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(alignment: .leading, spacing: 3) {
+                        ForEach(records) { record in
+                            ApprovalHistoryRow(record: record, hidden: hidden, showsProject: session == nil)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var emptyText: String {
+        if session != nil || outcome != nil { return "Nothing matches" }
+        return enabled ? "Requests from the last 7 days show here" : "Session history is off in Settings › Agents"
+    }
+}
+
+/// One request: what it was, how it ended and when. The summary stays hidden while details are.
+struct ApprovalHistoryRow: View {
+    let record: ApprovalRecord
+    let hidden: Bool
+    var showsProject = true
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: record.outcome.symbol).font(.system(size: 10))
+                .foregroundStyle(record.outcome.tint).frame(width: 12)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    Text(record.tool).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                    if showsProject {
+                        Text(record.project).font(.system(size: 10)).foregroundStyle(Color.project(record.project))
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    Text(record.date, format: .relative(presentation: .named))
+                        .font(.system(size: 10)).foregroundStyle(Color.secondaryText).lineLimit(1).fixedSize()
+                }
+                Text(line).font(.system(size: 10, design: .monospaced)).foregroundStyle(Color.secondaryText)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// "Answered in the terminal · npm test", the summary left out while hidden.
+    private var line: String {
+        guard let summary = record.summary, !hidden else { return record.outcome.title }
+        return "\(record.outcome.title) · \(summary)"
+    }
+}
+
+extension ApprovalOutcome {
+    var symbol: String {
+        switch self {
+        case .allowed: "checkmark.circle.fill"
+        case .denied: "xmark.circle.fill"
+        case .answered: "arrowshape.turn.up.left.fill"
+        case .terminal: "terminal"
+        case .rule: "checkmark.shield.fill"
+        case .timedOut: "hourglass"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .allowed, .rule: .wispGreen
+        case .denied: .red
+        case .answered: .wispViolet
+        case .terminal, .timedOut: .secondaryText
+        }
     }
 }

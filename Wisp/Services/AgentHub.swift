@@ -180,6 +180,8 @@ final class AgentHub {
     /// A session finished a turn (`ended` false) or ended, with its record so far. The receiver
     /// saves it to the history and sends Done to the phone.
     var onRecord: (_ record: SessionRecord, _ ended: Bool) -> Void = { _, _ in }
+    /// A request, plan or question ended: answered in Wisp or the terminal, by a rule or timed out.
+    var onApprovalRecord: (ApprovalRecord) -> Void = { _ in }
     /// Builds history records from the events; commands and files are left out while hidden.
     @ObservationIgnored private var recorder = SessionRecorder()
     /// `wisp activity` (or a script) posted, changed or ended a live activity. Returns why it
@@ -427,6 +429,12 @@ final class AgentHub {
             reply(connection, nil)
         } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event) {
             reply(connection, event.source.adapter.reply(.allow(.tool, input: nil)))
+            onApprovalRecord(
+                ApprovalRecord(
+                    sessionID: event.sessionID, project: event.project, source: event.source,
+                    tool: event.toolName ?? "Tool",
+                    summary: ApprovalRecord.summary(event.summary, hidden: detailsHidden),
+                    outcome: .rule, date: .now))
             sessions.record(.allowed, "Allowed (Allow All)", session: event.sessionID, at: .now)
             sessions.resolveApproval(session: event.sessionID, at: .now)
             onNotice(AgentPrivacy.allowedNotice(tool: event.toolName, summary: event.summary, hidden: detailsHidden))
@@ -582,6 +590,7 @@ final class AgentHub {
     func answer(_ id: UUID, allow: Bool?) {
         guard let taken = take(id) else { return }
         let approval = taken.approval
+        logOutcome(approval, allow.map { $0 ? .allowed : .denied } ?? .terminal)
         if let connection = taken.connection {
             reply(
                 connection,
@@ -605,6 +614,7 @@ final class AgentHub {
     /// user there (Needs you) rather than looking like it carried on.
     private func handBack(_ id: UUID) {
         guard let taken = take(id) else { return }
+        logOutcome(taken.approval, .timedOut)
         if let connection = taken.connection { reply(connection, nil) }
         let before = sessions.session(taken.approval.sessionID)?.state
         sessions.handedBack(session: taken.approval.sessionID, at: .now)
@@ -617,6 +627,7 @@ final class AgentHub {
     func deny(_ id: UUID, reason: String) {
         guard let taken = take(id) else { return }
         let approval = taken.approval
+        logOutcome(approval, .denied)
         if let connection = taken.connection {
             reply(connection, approval.source.adapter.reply(.deny(approval.prompt, reason: reason)))
         }
@@ -625,6 +636,14 @@ final class AgentHub {
         sessions.resolveApproval(session: approval.sessionID, at: .now)
         approvalsChanged()
         publishStatus()
+    }
+
+    /// Tells the history how a request ended; its summary is left out while details are hidden.
+    private func logOutcome(_ approval: AgentApproval, _ outcome: ApprovalOutcome) {
+        onApprovalRecord(
+            ApprovalRecord(
+                sessionID: approval.sessionID, project: approval.project, source: approval.source, tool: approval.tool,
+                summary: ApprovalRecord.summary(approval.summary, hidden: detailsHidden), outcome: outcome, date: .now))
     }
 
     /// Hands a session's last record over as it ends and lets its draft go.
@@ -640,6 +659,7 @@ final class AgentHub {
     func answerQuestion(_ id: UUID, answers: [String: String]) {
         guard let taken = take(id) else { return }
         let approval = taken.approval
+        logOutcome(approval, .answered)
         if let connection = taken.connection {
             reply(
                 connection,

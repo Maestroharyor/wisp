@@ -1019,7 +1019,8 @@ struct AgentsDetail: View {
             } else if let selected {
                 SessionDetail(
                     session: selected, hub: hub, hidden: hub.detailsHidden, draft: draft(for: selected.id),
-                    note: $note, listening: listening(to: selected.id))
+                    note: $note, listening: listening(to: selected.id),
+                    approvals: model.services.agentHistory.approvals.filtered(session: selected.id, outcome: nil))
             } else {
                 Spacer()
             }
@@ -1169,6 +1170,10 @@ private struct SessionDetail: View {
     @Binding var draft: String
     @Binding var note: String?
     var listening = false
+    /// This session's requests and how each ended, newest first.
+    var approvals: [ApprovalRecord] = []
+    /// Requests listed at most; the history shows the rest.
+    private static let approvalRows = 20
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -1222,6 +1227,14 @@ private struct SessionDetail: View {
                                     .truncationMode(.middle)
                             }
                             .id(entry.id)
+                        }
+                    }
+                    if !approvals.isEmpty {
+                        Divider().opacity(0.4)
+                        Text("Approvals").font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.secondaryText)
+                        ForEach(approvals.prefix(Self.approvalRows)) { record in
+                            ApprovalHistoryRow(record: record, hidden: hidden, showsProject: false)
                         }
                     }
                 }
