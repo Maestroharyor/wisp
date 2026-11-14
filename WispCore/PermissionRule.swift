@@ -131,15 +131,15 @@ public enum PermissionRule {
     }
 
     /// Words a rule never widens past, because they run other commands, delete or move files,
-    /// reach the network or change permissions.
-    private static let exactOnly: Set<String> = [
-        "rm", "rmdir", "unlink", "shred", "dd", "mkfs", "sudo", "su", "doas", "sh", "bash", "zsh", "fish", "dash",
-        "ksh", "csh", "tcsh", "eval", "exec", "source", "env", "xargs", "chmod", "chown", "chgrp", "kill", "killall",
-        "pkill", "mv", "cp", "ln", "curl", "wget", "ssh", "scp", "sftp", "rsync", "open", "osascript", "python",
-        "python3", "node", "ruby", "perl", "php", "deno", "lua", "npx", "bunx", "pnpx", "uvx", "docker", "podman",
-        "kubectl", "find", "watch", "setsid", "ionice", "flock", "timeout", "nice", "stdbuf", "direnv", "devbox",
-        "mise", "asdf", "nix", "launchctl", "crontab", "security", "defaults",
-    ]
+    /// reach the network or change permissions. Every shell is one of them.
+    private static let exactOnly: Set<String> = ShellNames.all.union([
+        "rm", "rmdir", "unlink", "shred", "dd", "mkfs", "sudo", "su", "doas", "eval", "exec", "source", "env",
+        "xargs", "chmod", "chown", "chgrp", "kill", "killall", "pkill", "mv", "cp", "ln", "curl", "wget", "ssh",
+        "scp", "sftp", "rsync", "open", "osascript", "python", "python3", "node", "ruby", "perl", "php", "deno",
+        "lua", "npx", "bunx", "pnpx", "uvx", "docker", "podman", "kubectl", "find", "watch", "setsid", "ionice",
+        "flock", "timeout", "nice", "stdbuf", "direnv", "devbox", "mise", "asdf", "nix", "launchctl", "crontab",
+        "security", "defaults",
+    ])
 
     /// Second words that run whatever follows them (`cargo run`, `npm exec`).
     private static let runners: Set<String> = ["run", "exec", "x", "dlx", "eval", "shell", "sh"]

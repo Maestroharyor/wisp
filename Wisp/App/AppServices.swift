@@ -685,6 +685,7 @@ final class AppServices {
         automation.stop()
         regionWatch.stop()
         ai.stop()
+        agents.stop()
         agentHistoryStore?.flush()
         microphone.stop()
         meetingTask?.cancel()
