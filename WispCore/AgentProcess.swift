@@ -26,8 +26,6 @@ public struct AgentProcess: Equatable, Sendable {
         }
     }
 
-    /// Agents may run a hook command through a shell, which isn't the agent.
-    static let shells: Set<String> = ["sh", "bash", "zsh", "dash", "fish"]
     static let maxSteps = 8
 
     /// The first process at or above `pid` that isn't a shell; nil when there's none below launchd.
@@ -35,9 +33,10 @@ public struct AgentProcess: Equatable, Sendable {
         var current = pid
         for _ in 0..<maxSteps {
             guard current > 1, let process = info(current) else { return nil }
-            // A login shell's name starts with "-".
+            // Agents may run a hook command through a shell, which isn't the agent. A login
+            // shell's name starts with "-".
             let name = process.name.hasPrefix("-") ? String(process.name.dropFirst()) : process.name
-            if !shells.contains(name) { return AgentProcess(pid: current, started: process.started) }
+            if !ShellNames.all.contains(name) { return AgentProcess(pid: current, started: process.started) }
             current = process.parent
         }
         return nil
