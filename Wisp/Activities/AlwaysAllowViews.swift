@@ -2,15 +2,26 @@ import AppKit
 import SwiftUI
 import WispCore
 
-/// A menu beside Allow All with "Always allow…", kept small so the card's buttons stay as
-/// they were.
+/// A menu beside Allow All with the rule choices, narrowest first, each with how many recent
+/// requests it would have covered, and "Always allow…" to write one by hand. Kept small so the
+/// card's buttons stay as they were. While details are hidden only "Always allow…" shows, since
+/// the choices spell out the command.
 struct AlwaysAllowMenu: View {
     let approval: AgentApproval
     let hub: AgentHub
 
     var body: some View {
         Menu {
-            Button("Always allow…") { AlwaysAllowWindow.shared.show(approval: approval, hub: hub) }
+            if !hub.detailsHidden, !approval.ruleChoices.isEmpty {
+                let recent = hub.recentRequests()
+                ForEach(approval.ruleChoices, id: \.self) { rules in
+                    Button(Self.title(rules, recent: recent)) {
+                        AlwaysAllowWindow.shared.show(approval: approval, hub: hub, rules: rules)
+                    }
+                }
+                Divider()
+            }
+            Button("Always allow…") { AlwaysAllowWindow.shared.show(approval: approval, hub: hub, rules: nil) }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 12, weight: .bold))
@@ -26,6 +37,13 @@ struct AlwaysAllowMenu: View {
         .hoverHint("Always allow…", help: "Always allow…")
         .accessibilityLabel("More ways to allow")
     }
+
+    /// "Bash(git log *) · Matches 4 of your last 50 requests".
+    private static func title(_ rules: [String], recent: [ApprovalRecord]) -> String {
+        let rule = rules.joined(separator: ", ")
+        let count = RuleSuggestion.matchCount(rules, in: recent)
+        return RuleSuggestion.matchText(count: count, of: recent.count).map { "\(rule) · \($0)" } ?? rule
+    }
 }
 
 /// The confirm window for "Always allow…": a window of its own, since the notch can't host
@@ -36,11 +54,13 @@ final class AlwaysAllowWindow {
 
     private var window: NSWindow?
 
-    func show(approval: AgentApproval, hub: AgentHub) {
+    /// `rules` is the choice picked in the card's menu; nil starts from the card's suggestion.
+    func show(approval: AgentApproval, hub: AgentHub, rules: [String]?) {
         let window = window ?? makeWindow()
         self.window = window
         let view = AlwaysAllowSheet(
-            approval: approval, hub: hub, hidden: hub.detailsHidden, close: { [weak self] in self?.close() })
+            approval: approval, rules: rules ?? approval.rules, hub: hub, hidden: hub.detailsHidden,
+            close: { [weak self] in self?.close() })
         window.contentViewController = NSHostingController(rootView: view)
         NSApp.activate()
         window.center()
@@ -71,6 +91,8 @@ final class AlwaysAllowWindow {
 /// saved unseen.
 private struct AlwaysAllowSheet: View {
     let approval: AgentApproval
+    /// The rules the sheet starts from.
+    let suggested: [String]
     let hub: AgentHub
     let close: () -> Void
 
@@ -80,12 +102,13 @@ private struct AlwaysAllowSheet: View {
     @State private var problem: String?
     @FocusState private var editing: Bool
 
-    init(approval: AgentApproval, hub: AgentHub, hidden: Bool, close: @escaping () -> Void) {
+    init(approval: AgentApproval, rules: [String], hub: AgentHub, hidden: Bool, close: @escaping () -> Void) {
         self.approval = approval
+        suggested = rules
         self.hub = hub
         self.close = close
         let scope: RuleScope = approval.cwd.isEmpty ? .everywhere : .project
-        _text = State(initialValue: Self.suggestion(approval, scope: scope))
+        _text = State(initialValue: Self.suggestion(rules, cwd: approval.cwd, scope: scope))
         _scope = State(initialValue: scope)
         _revealed = State(initialValue: !hidden)
     }
@@ -94,9 +117,8 @@ private struct AlwaysAllowSheet: View {
 
     /// The suggested rules for a scope. User settings apply in every project, so their file
     /// rules name this project's folder instead of a relative one.
-    private static func suggestion(_ approval: AgentApproval, scope: RuleScope) -> String {
-        let rules = scope == .everywhere ? PermissionRule.anchored(approval.rules, cwd: approval.cwd) : approval.rules
-        return rules.joined(separator: "\n")
+    private static func suggestion(_ rules: [String], cwd: String, scope: RuleScope) -> String {
+        (scope == .everywhere ? PermissionRule.anchored(rules, cwd: cwd) : rules).joined(separator: "\n")
     }
     private var path: String? { AgentHub.rulesPath(scope, cwd: approval.cwd) }
     /// The request can be answered by then (in the terminal, or timed out); the rule still saves.
@@ -155,7 +177,9 @@ private struct AlwaysAllowSheet: View {
         .onChange(of: scope) { old, new in
             problem = nil
             // Follow the scope unless the user has edited the rule.
-            if text == Self.suggestion(approval, scope: old) { text = Self.suggestion(approval, scope: new) }
+            if text == Self.suggestion(suggested, cwd: approval.cwd, scope: old) {
+                text = Self.suggestion(suggested, cwd: approval.cwd, scope: new)
+            }
         }
     }
 

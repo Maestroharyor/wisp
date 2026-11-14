@@ -190,6 +190,21 @@ final class Preferences {
         defaults.set(true, forKey: LegacyDefaults.importedFlagKey)
     }
 
+    /// The saved agent sounds, or on first run of this version the old permission sound switch
+    /// and sound pack folded into them (saved, and the old key removed).
+    private static func agentSounds(_ defaults: UserDefaults, look: Appearance) -> AgentSounds {
+        if let data = defaults.data(forKey: Key.agentSounds),
+            let saved = try? JSONDecoder().decode(AgentSounds.self, from: data)
+        {
+            return saved
+        }
+        let old = defaults.object(forKey: Key.approvalSound) == nil ? nil : defaults.bool(forKey: Key.approvalSound)
+        let sounds = AgentSounds.migrated(approvalSound: old, pack: look.soundPack, custom: look.customSounds)
+        defaults.set(try? JSONEncoder().encode(sounds), forKey: Key.agentSounds)
+        defaults.removeObject(forKey: Key.approvalSound)
+        return sounds
+    }
+
     private enum Key {
         static let hotkey = "hotkey"
         static let quickPressTogglesCapsLock = "quickPressTogglesCapsLock"
@@ -222,7 +237,9 @@ final class Preferences {
         static let batteryHUD = "batteryHUD"
         static let capsLockHUD = "capsLockHUD"
         static let mediaActivity = "mediaActivity"
+        /// The old request sound switch, read once into `agentSounds` and then removed.
         static let approvalSound = "approvalSound"
+        static let agentSounds = "agentSounds"
         static let terminalBarMode = "terminalBarMode"
         static let contextAlert = "contextAlert"
         static let contextWarnPercent = ContextUsage.Thresholds.warnKey
@@ -239,6 +256,8 @@ final class Preferences {
         static let budgetAlert = "budgetAlert"
         static let limitAlert = "limitAlert"
         static let dailyBudget = "dailyBudget"
+        static let spendCap = "agentSpendCap"
+        static let spendCapAmount = "agentSpendCapAmount"
         static let pushEnabled = "pushEnabled"
         static let pushServer = "pushServer"
         static let pushTopic = "pushTopic"
@@ -708,8 +727,10 @@ final class Preferences {
     var downloadFolders: [String] { didSet { defaults.set(downloadFolders, forKey: Key.downloadFolders) } }
     var capsLockHUD: Bool { didSet { defaults.set(capsLockHUD, forKey: Key.capsLockHUD) } }
     var mediaActivity: Bool { didSet { defaults.set(mediaActivity, forKey: Key.mediaActivity) } }
-    /// A short sound when an agent asks for permission.
-    var approvalSound: Bool { didSet { defaults.set(approvalSound, forKey: Key.approvalSound) } }
+    /// Each agent moment's sound and switch, the volume, and muting during calls or Focus.
+    var agentSounds: AgentSounds {
+        didSet { defaults.set(try? JSONEncoder().encode(agentSounds), forKey: Key.agentSounds) }
+    }
     /// What Claude Code's status bar shows once connected: Wisp's, the user's own, or nothing new.
     var terminalBarMode: TerminalBarMode {
         didSet { defaults.set(terminalBarMode.rawValue, forKey: Key.terminalBarMode) }
@@ -740,7 +761,7 @@ final class Preferences {
     /// A notice when one tool call runs longer than `toolAlertMinutes`; needs tool activity.
     var toolAlert: Bool { didSet { defaults.set(toolAlert, forKey: Key.toolAlert) } }
     var toolAlertMinutes: Int { didSet { defaults.set(toolAlertMinutes, forKey: Key.toolAlertMinutes) } }
-    /// One more sound and pill when a session has waited for the user `nudgeMinutes`.
+    /// The idle nudge (`IdleNudge`) once a session has waited for the user `nudgeMinutes`.
     var nudgeAlert: Bool { didSet { defaults.set(nudgeAlert, forKey: Key.nudgeAlert) } }
     var nudgeMinutes: Int { didSet { defaults.set(nudgeMinutes, forKey: Key.nudgeMinutes) } }
     /// Notices at 80% and 100% of `dailyBudget` dollars of spend in a day.
@@ -748,6 +769,9 @@ final class Preferences {
     /// Notices at 80% and 95% of Claude's five-hour and weekly usage limits.
     var limitAlert: Bool { didSet { defaults.set(limitAlert, forKey: Key.limitAlert) } }
     var dailyBudget: Double { didSet { defaults.set(dailyBudget, forKey: Key.dailyBudget) } }
+    /// Asks Keep going, Raise or Stop when one session spends `spendCapAmount` dollars. Off by default.
+    var spendCap: Bool { didSet { defaults.set(spendCap, forKey: Key.spendCap) } }
+    var spendCapAmount: Double { didSet { defaults.set(spendCapAmount, forKey: Key.spendCapAmount) } }
     /// Phone push through ntfy. Off by default: it sends to a server.
     var pushEnabled: Bool { didSet { defaults.set(pushEnabled, forKey: Key.pushEnabled) } }
     /// The ntfy server, `https://ntfy.sh` unless self-hosted.
@@ -1003,7 +1027,6 @@ final class Preferences {
             Key.batteryHUD: true,
             Key.capsLockHUD: true,
             Key.mediaActivity: true,
-            Key.approvalSound: true,
             Key.terminalBarMode: TerminalBarMode.wisp.rawValue,
             Key.contextAlert: true,
             Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
@@ -1013,11 +1036,13 @@ final class Preferences {
             Key.agentSummaries: true,
             Key.toolAlert: true,
             Key.toolAlertMinutes: AgentAlertRules.defaultToolMinutes,
-            Key.nudgeAlert: false,
+            Key.nudgeAlert: true,
             Key.nudgeMinutes: AgentAlertRules.defaultNudgeMinutes,
             Key.budgetAlert: false,
             Key.limitAlert: true,
             Key.dailyBudget: 20.0,
+            Key.spendCap: false,
+            Key.spendCapAmount: 5.0,
             Key.pushEnabled: false,
             Key.pushServer: PushTopic.defaultServer,
             Key.pushKinds: PushKind.defaults.map(\.rawValue).sorted(),
@@ -1083,7 +1108,7 @@ final class Preferences {
             legacyAutoClose: defaults.object(forKey: Key.shelfAutoCloses) == nil
                 ? nil : defaults.bool(forKey: Key.shelfAutoCloses))
         // Earlier builds kept each look setting under its own key; carry them over once.
-        appearance =
+        let look =
             defaults.data(forKey: Key.appearance).flatMap { try? JSONDecoder().decode(Appearance.self, from: $0) }
             ?? Appearance.migrated(
                 from: LegacyLook(
@@ -1096,6 +1121,7 @@ final class Preferences {
                     animationSpeed: defaults.string(forKey: Key.animationSpeed),
                     surface: defaults.string(forKey: Key.surfaceStyle),
                     glassEdge: defaults.string(forKey: Key.glassEdge)))
+        appearance = look
         lookPresets =
             defaults.data(forKey: Key.lookPresets).flatMap {
                 try? JSONDecoder().decode([AppearancePreset].self, from: $0)
@@ -1127,7 +1153,7 @@ final class Preferences {
         batteryHUD = defaults.bool(forKey: Key.batteryHUD)
         capsLockHUD = defaults.bool(forKey: Key.capsLockHUD)
         mediaActivity = defaults.bool(forKey: Key.mediaActivity)
-        approvalSound = defaults.bool(forKey: Key.approvalSound)
+        agentSounds = Self.agentSounds(defaults, look: look)
         terminalBarMode = defaults.string(forKey: Key.terminalBarMode).flatMap(TerminalBarMode.init(rawValue:)) ?? .wisp
         contextAlert = defaults.bool(forKey: Key.contextAlert)
         let thresholds = ContextUsage.Thresholds.stored { key in
@@ -1155,6 +1181,9 @@ final class Preferences {
         limitAlert = defaults.bool(forKey: Key.limitAlert)
         let budget = defaults.double(forKey: Key.dailyBudget)
         dailyBudget = budget > 0 ? budget : 20
+        spendCap = defaults.bool(forKey: Key.spendCap)
+        let cap = defaults.double(forKey: Key.spendCapAmount)
+        spendCapAmount = cap > 0 ? cap : 5
         pushEnabled = defaults.bool(forKey: Key.pushEnabled)
         pushServer = defaults.string(forKey: Key.pushServer) ?? PushTopic.defaultServer
         pushTopic = defaults.string(forKey: Key.pushTopic) ?? ""

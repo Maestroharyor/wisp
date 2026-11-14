@@ -7,6 +7,7 @@ struct AgentSettings: View {
     let cloud: CloudAgentStore
     let history: AgentHistoryStore
     let push: PushService
+    let sounds: SoundPlayer
     @Bindable var preferences: Preferences
 
     /// "~$12.40", or "~$12.40 of $20" with the budget on.
@@ -21,6 +22,27 @@ struct AgentSettings: View {
         Binding(
             get: { preferences.dailyBudget },
             set: { if $0 > 0 { preferences.dailyBudget = $0 } })
+    }
+
+    private var spendCapAmount: Binding<Double> {
+        Binding(
+            get: { preferences.spendCapAmount },
+            set: { if $0 > 0 { preferences.spendCapAmount = $0 } })
+    }
+
+    /// A dollar amount field, as spend shows in dollars whatever the region's currency.
+    private func dollars(_ title: String, value: Binding<Double>, unit: String? = nil) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 2) {
+                Text("$")
+                TextField(title, value: value, format: .number.precision(.fractionLength(0...2)))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 64)
+                if let unit { Text(unit).foregroundStyle(.secondary).padding(.leading, 4) }
+            }
+        }
     }
 
     var body: some View {
@@ -50,6 +72,7 @@ struct AgentSettings: View {
                 AgentConnection(hub: hub, adapter: adapter)
             }
             alerts
+            AgentSoundsSection(preferences: preferences, player: sounds)
             Section("Spend") {
                 LabeledContent("Estimated spend today") {
                     Text(spentToday).monospacedDigit()
@@ -83,6 +106,7 @@ struct AgentSettings: View {
             AdvancedSection {
                 StatusLineSettings(hub: hub, preferences: preferences)
                 toolActivity
+                AgentSoundVolume(preferences: preferences)
                 CommandLineSettings()
                 if preferences.pushEnabled {
                     PhoneAlertsAdvanced(push: push, hub: hub, preferences: preferences)
@@ -99,7 +123,6 @@ struct AgentSettings: View {
 
     private var alerts: some View {
         Section("Alerts") {
-            Toggle("Play a sound when an agent asks for permission", isOn: $preferences.approvalSound)
             Toggle("Alert when a session's context reaches the warn level", isOn: $preferences.contextAlert)
             ContextThresholdSlider(
                 title: "Warn at", tint: .wispAmber, percent: $preferences.contextWarnPercent,
@@ -126,26 +149,24 @@ struct AgentSettings: View {
             if !preferences.agentToolActivity {
                 Text("Needs Show what agents are doing, under Advanced.").font(.caption).foregroundStyle(.secondary)
             }
-            Toggle("Remind me when a session is still waiting", isOn: $preferences.nudgeAlert)
+            Toggle("Nudge me when a session is still waiting", isOn: $preferences.nudgeAlert)
             if preferences.nudgeAlert {
-                Stepper(value: $preferences.nudgeMinutes, in: 1...30) {
-                    LabeledContent("Remind after", value: "\(preferences.nudgeMinutes) min")
+                Stepper(value: $preferences.nudgeMinutes, in: IdleNudge.minutesRange) {
+                    LabeledContent("Nudge after", value: "\(preferences.nudgeMinutes) min")
                 }
             }
             Toggle("Alert at 80% and 95% of a Claude usage limit", isOn: $preferences.limitAlert)
             Toggle("Alert at 80% and 100% of a daily budget", isOn: $preferences.budgetAlert)
             if preferences.budgetAlert {
-                // Spend is shown in dollars everywhere, whatever the region's currency.
-                LabeledContent("Daily budget") {
-                    HStack(spacing: 2) {
-                        Text("$")
-                        TextField("Daily budget", value: budget, format: .number.precision(.fractionLength(0...2)))
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 64)
-                    }
-                }
+                dollars("Daily budget", value: budget)
+            }
+            Toggle("Pause a session at a spend cap", isOn: $preferences.spendCap)
+            if preferences.spendCap {
+                dollars("Pause at", value: spendCapAmount, unit: "per session")
+                Text(
+                    "Asks Keep going, Raise or Stop, and holds the session's next request until you choose. Stop presses Esc in its terminal (needs Accessibility). Codex spend is estimated from tokens, and Claude Code without a status line Wisp reads is checked only when a turn ends."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -157,7 +178,7 @@ struct AgentSettings: View {
                 .disabled(!preferences.aiEnabled)
             LabeledContent {
                 Button("Clear history") { history.clear() }
-                    .disabled(history.history.records.isEmpty)
+                    .disabled(history.history.records.isEmpty && history.approvals.records.isEmpty)
             } label: {
                 let count = history.history.records.count
                 Text(count == 1 ? "1 session saved" : "\(count) sessions saved")
@@ -166,7 +187,7 @@ struct AgentSettings: View {
             Text("History")
         } footer: {
             Text(
-                "Keeps finished sessions on this Mac for 30 days (at most \(SessionHistory.limit)): project, agent, length, cost, tool counts, test results, file names and commands with secrets masked. Tools, files, commands and tests need Show what agents are doing, under Advanced (Copilot CLI sends finished tool calls anyway). Prompts, messages, file contents and command output are never saved. Commands and file names aren't saved while agent details are hidden. Turning history off stops saving; what's saved stays until you clear it. Summaries need AI (Settings › AI), run on this Mac and appear after Done, and in the Done phone alert with Add the command or file name on. Open the history with the clock button in the Agents widget (Wide size)."
+                "Keeps finished sessions on this Mac for 30 days (at most \(SessionHistory.limit)): project, agent, length, cost, tool counts, test results, file names and commands with secrets masked. Tools, files, commands and tests need Show what agents are doing, under Advanced (Copilot CLI sends finished tool calls anyway). Prompts, messages, file contents and command output are never saved. Requests from the last 7 days (at most \(ApprovalLog.limit)) are kept too: the tool, its masked command or file, and how it ended. Commands and file names aren't saved while agent details are hidden. Turning history off stops saving; what's saved stays until you clear it. Summaries need AI (Settings › AI), run on this Mac and appear after Done, and in the Done phone alert with Add the command or file name on. Open the history with the clock button in the Agents widget (Wide size)."
             )
         }
     }

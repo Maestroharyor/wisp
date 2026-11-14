@@ -251,7 +251,7 @@ struct AppearanceSettings: View {
                     soundRow(event)
                 }
             }
-            caption("Whether a permission request plays a sound is set in Agents › Alerts and spend.")
+            caption("Agent sounds, permission requests included, have their own settings in Agents › Sounds.")
         }
     }
 

@@ -109,11 +109,16 @@ struct CompactActivityView: View {
             }
         case .agentApproval(let approval):
             // Only drawn while the request is minimised into the pill.
+            // The idle nudge says how long it has waited for a few seconds, with one pulse.
+            let nudge = model.services.agents.approvalNudge.flatMap { $0.approval == approval.id ? $0 : nil }
             HStack(spacing: ActivityMetrics.contentSpacing) {
-                MinimisedApprovalGlyph(approval: approval)
-                Text(approval.project).lineLimit(1)
+                MinimisedApprovalGlyph(approval: approval, nudge: nudge?.serial)
+                Text(nudge?.text ?? approval.project).lineLimit(1)
+                    .contentTransition(.opacity)
+                    .animation(model.reduceMotion ? nil : .easeInOut(duration: 0.25), value: nudge?.text)
             }
-        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
+            .agentCallout:
             EmptyView()
         }
     }
@@ -211,7 +216,8 @@ struct CompactActivityView: View {
                     .foregroundStyle(Color.wispAmber)
                 PendingBadge(count: model.services.agents.approvals.count)
             }
-        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
+            .agentCallout:
             EmptyView()
         }
     }
@@ -307,7 +313,8 @@ struct SideActivityView: View {
             caption(status.paused ? "Paused" : "Watching")
         case .agentApproval:
             PendingBadge(count: model.services.agents.approvals.count)
-        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
+            .agentCallout:
             EmptyView()
         }
     }
@@ -374,7 +381,8 @@ struct ActivityGlyph: View {
             Image(systemName: "mic.fill").foregroundStyle(.red)
         case .agentApproval(let approval):
             MinimisedApprovalGlyph(approval: approval)
-        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent:
+        case .batteryFull, .timerDone, .notification, .meetingSoon, .downloadDone, .aiResult, .quickIntent,
+            .agentCallout:
             EmptyView()
         }
     }

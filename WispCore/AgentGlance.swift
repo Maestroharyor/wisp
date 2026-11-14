@@ -178,6 +178,30 @@ public struct InlineDiff: Equatable, Sendable {
         }
     }
 
+    /// The changed file's name without its folders, for private mode, where the card shows that
+    /// and the counts but no lines. A patch touching several files names the first and counts
+    /// the rest ("a.py +1"). Nil for anything that isn't a file change.
+    public static func fileName(tool: String, input: JSONValue?) -> String? {
+        switch tool {
+        case "Edit", "MultiEdit", "Write":
+            return input?["file_path"]?.stringValue.flatMap(lastComponent)
+        case "apply_patch":
+            let headers = ["*** Update File: ", "*** Add File: ", "*** Delete File: "]
+            let files = (input?["command"]?.stringValue ?? "").components(separatedBy: "\n").compactMap { line in
+                headers.first(where: line.hasPrefix).map { String(line.dropFirst($0.count)) }
+            }
+            guard let first = files.first.flatMap(lastComponent) else { return nil }
+            return files.count > 1 ? "\(first) +\(files.count - 1)" : first
+        default:
+            return nil
+        }
+    }
+
+    private static func lastComponent(_ path: String) -> String? {
+        let name = URL(fileURLWithPath: path.trimmingCharacters(in: .whitespaces)).lastPathComponent
+        return name.isEmpty || name == "/" ? nil : name
+    }
+
     private static func edits(_ edits: [JSONValue?], maxLines: Int) -> InlineDiff? {
         var removed: [String] = []
         var added: [String] = []

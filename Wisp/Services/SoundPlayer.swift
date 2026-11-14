@@ -22,7 +22,23 @@ final class SoundPlayer {
         }
     }
 
+    /// The macOS sounds in /System/Library/Sounds by name, for the agent sound pickers.
+    static let systemSounds: [String] = {
+        let folder = URL(fileURLWithPath: "/System/Library/Sounds")
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        return files.map { $0.deletingPathExtension().lastPathComponent }.sorted()
+    }()
+
+    /// An agent moment's sound, at the agent sound volume.
+    func play(_ source: SoundSource, volume: Double) {
+        play(source, gain: Float(volume))
+    }
+
     func play(_ source: SoundSource) {
+        play(source, gain: 1)
+    }
+
+    private func play(_ source: SoundSource, gain: Float) {
         let key: String
         let sound: NSSound?
         switch source {
@@ -36,6 +52,7 @@ final class SoundPlayer {
         guard let sound else { return }
         cache[key] = sound
         sound.stop()
+        sound.volume = gain
         sound.play()
     }
 }

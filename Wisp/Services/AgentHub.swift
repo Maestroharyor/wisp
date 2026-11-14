@@ -26,12 +26,19 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let cwd: String
     /// Suggested "Always allow" rules; empty when the card doesn't offer it.
     let rules: [String]
+    /// The card menu's rule choices, narrowest first; each saves its rules.
+    let ruleChoices: [[String]]
+    /// The changed file's name, all private mode shows of an edit besides its counts.
+    let fileName: String?
 
     init(
         id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
         prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil,
-        inlineDiff: InlineDiff? = nil, cwd: String = "", rules: [String] = []
+        inlineDiff: InlineDiff? = nil, fileName: String? = nil, cwd: String = "", rules: [String] = [],
+        ruleChoices: [[String]] = []
     ) {
+        self.ruleChoices = ruleChoices
+        self.fileName = fileName
         self.id = id
         self.sessionID = sessionID
         self.project = project
@@ -68,6 +75,33 @@ struct AgentStatus: Sendable, Equatable {
     var terminal: String? = nil
 }
 
+/// A session that reached the spend cap, waiting for Keep going, Raise or Stop.
+struct SpendCapPrompt: Sendable, Equatable {
+    let sessionID: String
+    let project: String
+    let source: AgentSource
+    let crossing: SpendCap.Crossing
+    /// Wisp estimated the cost from tokens (Codex, or Claude Code without its status line).
+    let estimated: Bool
+}
+
+/// A session that has waited on the user past the nudge limit.
+struct IdleNudgeMoment: Sendable, Equatable {
+    let sessionID: String
+    let project: String
+    let source: AgentSource
+    /// The request it waits on, when Wisp is showing one; nil for a prompt in the terminal.
+    let request: AgentApproval?
+    let minutes: Int
+}
+
+/// The pulse and words for a minimised request's pill; `serial` makes a repeat a change.
+struct ApprovalNudge: Sendable, Equatable {
+    let approval: UUID
+    let text: String
+    let serial: Int
+}
+
 /// A shortcut pressed for the question card on screen.
 struct KeyAnswer: Equatable {
     let approval: UUID
@@ -93,6 +127,19 @@ final class AgentHub {
     /// The latest key answer for a question card; `serial` makes a repeat count as a change.
     private(set) var keyAnswer: KeyAnswer?
     var approvals: [AgentApproval] { queue.items.compactMap { pending[$0] } }
+    /// Requests on screen and ones held back by the spend cap: what the terminal could still answer.
+    private var waitingApprovals: [AgentApproval] { (queue.items + held).compactMap { pending[$0] } }
+    /// Requests from sessions at the spend cap, held off screen until the user chooses.
+    @ObservationIgnored private var held: [UUID] = []
+    /// Dollars a session may spend before Wisp asks; nil is off. Set from Preferences.
+    var spendCap: Double? {
+        didSet { if spendCap == nil { for prompt in capPrompts { keepGoing(session: prompt.sessionID) } } }
+    }
+    @ObservationIgnored private var capState = SpendCap()
+    /// Sessions at the cap waiting for a choice, oldest first; the front one is on screen.
+    @ObservationIgnored private var capPrompts: [SpendCapPrompt] = []
+    /// The spend cap card to show, or nil to take it away.
+    var onSpendCap: (SpendCapPrompt?) -> Void = { _ in }
     /// Sources whose hooks call this copy's helper.
     private(set) var connected: Set<AgentSource> = []
     /// Sources whose hooks call another copy's helper (a dev build, a moved app), which
@@ -126,6 +173,9 @@ final class AgentHub {
     @ObservationIgnored private var limitWatch = LimitWatch()
     /// Whether card shortcuts use Hyper (true) or ⌃⌥⌘, read from the hotkeys. Set by AppDelegate.
     @ObservationIgnored var keysUseHyper: @MainActor () -> Bool = { false }
+    /// The newest tool requests from the approval history, for "Always allow" match counts.
+    /// Set by AppServices.
+    @ObservationIgnored var recentRequests: @MainActor () -> [ApprovalRecord] = { [] }
     /// Connected agents whose hook file has Wisp's tool hooks.
     private(set) var toolHooks: Set<AgentSource> = []
 
@@ -172,20 +222,29 @@ final class AgentHub {
     var onApproval: (AgentApproval?) -> Void = { _ in }
     /// A request that needs the user arrived (not one allowed by Allow All).
     var onNewRequest: () -> Void = {}
+    /// An agent moment that can make a sound, and its session; the receiver decides whether it does.
+    var onSound: (AgentSoundEvent, _ session: String?) -> Void = { _, _ in }
     /// A short message for the notch, such as a request allowed by Allow All.
     var onNotice: (String) -> Void = { _ in }
     /// A session's context window passed the alert threshold.
     var onContextAlert: (String) -> Void = { _ in }
+    /// A session's context window passed Critical at, with the rounded percentage.
+    var onContextCritical: (AgentSession, Int) -> Void = { _, _ in }
     /// A tool ran long or spend reached the daily budget: a symbol and a line for the notch.
     var onAlert: (_ symbol: String, _ text: String) -> Void = { _, _ in }
     /// A session has waited for the user past the reminder limit.
-    var onReminder: () -> Void = {}
+    var onNudge: (IdleNudgeMoment) -> Void = { _ in }
+    /// The latest idle nudge for a waiting request, so its minimised pill pulses once and says
+    /// how long it has waited.
+    private(set) var approvalNudge: ApprovalNudge?
     /// Needs you, Done, a usage limit or the budget, for phone push. Fired whatever the notch
     /// shows; the receiver decides what goes out.
     var onMoment: (AgentMoment) -> Void = { _ in }
     /// A session finished a turn (`ended` false) or ended, with its record so far. The receiver
     /// saves it to the history and sends Done to the phone.
     var onRecord: (_ record: SessionRecord, _ ended: Bool) -> Void = { _, _ in }
+    /// A request, plan or question ended: answered in Wisp or the terminal, by a rule or timed out.
+    var onApprovalRecord: (ApprovalRecord) -> Void = { _ in }
     /// Builds history records from the events; commands and files are left out while hidden.
     @ObservationIgnored private var recorder = SessionRecorder()
     /// `wisp activity` (or a script) posted, changed or ended a live activity. Returns why it
@@ -205,9 +264,15 @@ final class AgentHub {
     /// What each waiting request is matched on when later events show it was answered elsewhere.
     @ObservationIgnored private var settleKeys: [UUID: ApprovalSettle.Request<UUID>] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "agents")
+    /// Codex sessions mid-turn: a watch on the rollout file and its read throttle.
+    @ObservationIgnored private var rolloutWatches:
+        [String: (source: any DispatchSourceFileSystemObject, throttle: ReadThrottle)] = [:]
+    private static let rolloutInterval: TimeInterval = 1
     /// Per session: how far into the transcript Wisp has read, and the totals so far.
     @ObservationIgnored private var transcripts: [String: (offset: UInt64, usage: TranscriptUsage)] = [:]
     @ObservationIgnored private var reading: Set<String> = []
+    /// Sessions asked to read again while a read was running.
+    @ObservationIgnored private var rereads: Set<String> = []
     /// Latest status bar snapshot per session, applied together at most every `liveInterval`.
     @ObservationIgnored private var pendingSnapshots:
         [String: (snapshot: StatusLineSnapshot, source: AgentSource, terminal: String?)] = [:]
@@ -331,6 +396,7 @@ final class AgentHub {
         if ownsSocket { unlink(Self.socketURL.path) }
         ownsSocket = false
         flushSpend()
+        for id in rolloutWatches.keys { stopRolloutWatch(id) }
     }
 
     private static let maximumMessage = 1 << 20
@@ -421,7 +487,7 @@ final class AgentHub {
         // terminal. (Notification events can arrive while the request is still open.)
         if [.userPromptSubmit, .stop, .sessionEnd].contains(event.kind) { settleApprovals(for: event.sessionID) }
         // So does the requested call finishing, or an interrupted turn.
-        let keys = queue.items.compactMap { settleKeys[$0] }
+        let keys = (queue.items + held).compactMap { settleKeys[$0] }
         for id in ApprovalSettle.settled(keys, by: event) { settle(id) }
         let previous = sessions.session(event.sessionID)
         let before = previous?.state
@@ -429,11 +495,21 @@ final class AgentHub {
         if event.kind == .sessionEnd, let previous { finishRecord(previous) }
         sessions.apply(event, at: .now)
         reportMoment(session: event.sessionID, before: before, stopped: event.kind == .stop)
+        if event.kind == .stop {
+            onSound(.finished, event.sessionID)
+        } else if sessions.session(event.sessionID)?.state == .waiting, before != .waiting {
+            // Waiting on a prompt in the terminal (Needs you), which Wisp can't answer.
+            onSound(.needsApproval, event.sessionID)
+        }
         // Tool activity comes several times a second; the branch and pruning can wait for the
         // next prompt, stop or status bar snapshot.
         if !event.kind.isToolActivity {
             sessions.prune(now: .now, olderThan: 6 * 3600)
-            recorder.keep(only: Set(sessions.list.map(\.id)))
+            let live = Set(sessions.list.map(\.id))
+            recorder.keep(only: live)
+            // A session pruned without ending keeps no file watch or read position behind.
+            for id in rolloutWatches.keys where !live.contains(id) { stopRolloutWatch(id) }
+            transcripts = transcripts.filter { live.contains($0.key) }
             if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
         }
 
@@ -442,7 +518,12 @@ final class AgentHub {
             saveSpend(adding: 0)
         }
         if event.kind == .stop { refreshUsage(for: event.sessionID) }
-        if event.kind == .sessionEnd { transcripts[event.sessionID] = nil }
+        followRollout(event)
+        if event.kind == .sessionEnd {
+            transcripts[event.sessionID] = nil
+            forgetSpendCap(event.sessionID)
+        }
+        if event.kind == .userPromptSubmit { capState.newTurn(event.sessionID) }
 
         let capabilities = event.source.adapter.capabilities
         if event.kind == .permissionRequest, !capabilities.contains(.approve) {
@@ -453,8 +534,15 @@ final class AgentHub {
         {
             // Nothing Wisp can show, so the terminal asks (Needs you).
             reply(connection, nil)
-        } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event) {
+        } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event), !capState.isHeld(event.sessionID)
+        {
             reply(connection, event.source.adapter.reply(.allow(.tool, input: nil)))
+            onApprovalRecord(
+                ApprovalRecord(
+                    sessionID: event.sessionID, project: event.project, source: event.source,
+                    tool: event.toolName ?? "Tool",
+                    summary: ApprovalRecord.summary(event.summary, hidden: detailsHidden),
+                    outcome: .rule, date: .now))
             sessions.record(.allowed, "Allowed (Allow All)", session: event.sessionID, at: .now)
             sessions.resolveApproval(session: event.sessionID, at: .now)
             onNotice(AgentPrivacy.allowedNotice(tool: event.toolName, summary: event.summary, hidden: detailsHidden))
@@ -468,20 +556,21 @@ final class AgentHub {
                     tool: event.toolName ?? "", input: event.rawToolInput, limit: Self.previewLines),
                 inlineDiff: event.prompt == .tool
                     ? InlineDiff.make(tool: event.toolName ?? "", input: event.rawToolInput) : nil,
-                cwd: event.cwd, rules: Self.suggestedRules(event))
+                fileName: InlineDiff.fileName(tool: event.toolName ?? "", input: event.rawToolInput), cwd: event.cwd,
+                rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event))
             pending[approval.id] = approval
-            queue.enqueue(approval.id)
+            // Held off screen while the spend cap waits for a choice; the timeout still hands it back.
+            let isHeld = capState.isHeld(event.sessionID)
+            if isHeld { held.append(approval.id) } else { queue.enqueue(approval.id) }
             waiting[approval.id] = connection
             settleKeys[approval.id] = ApprovalSettle.Request(id: approval.id, event: event)
             if let pid = event.hookPID { watchHook(pid, for: approval.id) }
-            let wait = approvalWait(event.source)
-            timeouts[approval.id] = Task { [weak self] in
-                try? await Task.sleep(for: wait)
-                guard !Task.isCancelled else { return }
-                self?.handBack(approval.id)
+            startTimeout(approval.id, source: event.source)
+            if !isHeld {
+                approvalsChanged()
+                onNewRequest()
+                onSound(approval.prompt == .question ? .question : .needsApproval, approval.sessionID)
             }
-            approvalsChanged()
-            onNewRequest()
         } else {
             reply(connection, nil)
         }
@@ -509,7 +598,7 @@ final class AgentHub {
             // New spend while it waited: the request or question was answered in the terminal.
             // Only with tool hooks, which count subagents; a subagent spends while the main agent waits.
             if toolHooks.contains(item.source), sessions.movedOn(item.snapshot) {
-                for approval in approvals where approval.sessionID == id { settle(approval.id) }
+                for approval in waitingApprovals where approval.sessionID == id { settle(approval.id) }
             }
             let branch = item.snapshot.branch == nil ? Self.branch(cwd: item.snapshot.cwd) : nil
             let pillChanged = sessions.apply(
@@ -520,6 +609,7 @@ final class AgentHub {
                     total: cost, session: id, transcript: item.snapshot.transcriptPath, at: .now)
                 saveSpend(adding: increase, project: sessions.session(id)?.project)
             }
+            checkSpendCap(session: id)
             checkContext(session: id)
             checkLimits(UsageLimits.readings(item.snapshot.extras))
             if pillChanged { publishStatus() }
@@ -527,12 +617,20 @@ final class AgentHub {
     }
 
     /// Tracked even while the alert is off, so turning it on doesn't fire for a session that
-    /// was already past the level.
+    /// was already past the level. The sounds have their own switches, so they follow the climb
+    /// whatever the alert says.
     private func checkContext(session id: String) {
-        if let percent = sessions.contextAlert(session: id, threshold: contextThresholds.warn), contextAlert,
+        if let percent = sessions.contextAlert(session: id, threshold: contextThresholds.warn),
             let project = sessions.session(id)?.project
         {
-            onContextAlert(ContextUsage.notice(percent: percent, project: project))
+            onSound(.contextWarning, id)
+            if contextAlert { onContextAlert(ContextUsage.notice(percent: percent, project: project)) }
+        }
+        if let percent = sessions.contextCriticalAlert(session: id, threshold: contextThresholds.critical),
+            let session = sessions.session(id)
+        {
+            onSound(.contextCritical, id)
+            if contextAlert { onContextCritical(session, Int(percent.rounded())) }
         }
     }
 
@@ -637,6 +735,7 @@ final class AgentHub {
     func answer(_ id: UUID, allow: Bool?) {
         guard let taken = take(id) else { return }
         let approval = taken.approval
+        logOutcome(approval, allow.map { $0 ? .allowed : .denied } ?? .terminal)
         if let connection = taken.connection {
             reply(
                 connection,
@@ -660,6 +759,7 @@ final class AgentHub {
     /// user there (Needs you) rather than looking like it carried on.
     private func handBack(_ id: UUID) {
         guard let taken = take(id) else { return }
+        logOutcome(taken.approval, .timedOut)
         if let connection = taken.connection { reply(connection, nil) }
         let before = sessions.session(taken.approval.sessionID)?.state
         sessions.handedBack(session: taken.approval.sessionID, at: .now)
@@ -680,6 +780,7 @@ final class AgentHub {
     func deny(_ id: UUID, reason: String) {
         guard let taken = take(id) else { return }
         let approval = taken.approval
+        logOutcome(approval, .denied)
         if let connection = taken.connection {
             reply(connection, approval.source.adapter.reply(.deny(approval.prompt, reason: reason)))
         }
@@ -690,6 +791,17 @@ final class AgentHub {
         publishStatus()
     }
 
+    /// Tells the history how a request ended. Only a tool request keeps its summary (the command or
+    /// file), never a plan's title or a question, and none while details are hidden.
+    private func logOutcome(_ approval: AgentApproval, _ outcome: ApprovalOutcome) {
+        onApprovalRecord(
+            ApprovalRecord(
+                sessionID: approval.sessionID, project: approval.project, source: approval.source, tool: approval.tool,
+                summary: approval.prompt == .tool
+                    ? ApprovalRecord.summary(approval.summary, hidden: detailsHidden) : nil,
+                outcome: outcome, date: .now))
+    }
+
     /// Hands a session's last record over as it ends and lets its draft go.
     private func finishRecord(_ session: AgentSession) {
         if let record = recorder.record(session, at: .now) { onRecord(record, true) }
@@ -697,12 +809,13 @@ final class AgentHub {
     }
 
     /// Lines of a diff or new file an approval card shows at most.
-    private static let previewLines = 60
+    private static let previewLines = 40
 
     /// Answers a question from the notch; `answers` maps each question's text to its answer.
     func answerQuestion(_ id: UUID, answers: [String: String]) {
         guard let taken = take(id) else { return }
         let approval = taken.approval
+        logOutcome(approval, .answered)
         if let connection = taken.connection {
             reply(
                 connection,
@@ -723,6 +836,102 @@ final class AgentHub {
         // Nothing left to answer: forget keys whose key-up may never arrive.
         if front == nil { keyGate.releaseAll() }
         onApproval(approvals.first)
+    }
+
+    /// Hands the request back to the terminal if nobody answers in time.
+    private func startTimeout(_ id: UUID, source: AgentSource) {
+        timeouts.removeValue(forKey: id)?.cancel()
+        let wait = approvalWait(source)
+        timeouts[id] = Task { [weak self] in
+            try? await Task.sleep(for: wait)
+            guard !Task.isCancelled else { return }
+            self?.handBack(id)
+        }
+    }
+
+    // MARK: Spend cap
+
+    /// Asks once a session's spend crosses the cap, holding its next requests until answered.
+    private func checkSpendCap(session id: String) {
+        guard let session = sessions.session(id),
+            let crossing = capState.check(session: id, cost: session.cost, cap: spendCap)
+        else { return }
+        capPrompts.append(
+            SpendCapPrompt(
+                sessionID: id, project: session.project, source: session.source, crossing: crossing,
+                estimated: !session.costIsReal))
+        onSound(.spendCap, id)
+        if capPrompts.count == 1 { onSpendCap(capPrompts.first) }
+    }
+
+    /// Keep going: no more asking for this session, and its held requests show.
+    func keepGoing(session id: String) {
+        capState.keepGoing(id)
+        capAnswered(id)
+    }
+
+    /// Asks again when the session reaches `limit`.
+    func raiseCap(session id: String, to limit: Double) {
+        capState.raise(id, to: limit)
+        capAnswered(id)
+    }
+
+    /// Interrupts the session with Esc in its terminal (Accessibility, as paste needs) and denies
+    /// what it held, so it stops at the cap. Asks again after the next prompt.
+    func stopAtCap(session id: String) {
+        capState.stop(id)
+        for approval in waitingApprovals where approval.sessionID == id && held.contains(approval.id) {
+            deny(approval.id, reason: "Stopped at the spend cap set in Wisp.")
+        }
+        capAnswered(id)
+        guard AccessibilityPermission.isTrusted else {
+            onNotice("Allow Accessibility in Settings to stop it from Wisp")
+            return
+        }
+        guard let session = sessions.session(id) else { return }
+        focus(session: id)
+        Task { [weak self] in
+            // Give the terminal time to come forward before the keystroke lands.
+            try? await Task.sleep(for: .milliseconds(350))
+            guard let self else { return }
+            guard self.terminalInFront(session) else {
+                self.onNotice("Couldn't bring the terminal forward. Press Esc there to stop it.")
+                return
+            }
+            PasteShortcut.press(PasteShortcut.escapeKey)
+        }
+    }
+
+    /// The card closed without a choice (its ×, Esc): the session keeps going.
+    func dismissSpendCap() {
+        guard let front = capPrompts.first else { return }
+        keepGoing(session: front.sessionID)
+    }
+
+    private func capAnswered(_ id: String) {
+        capPrompts.removeAll { $0.sessionID == id }
+        onSpendCap(capPrompts.first)
+        let released = held.filter { pending[$0]?.sessionID == id }
+        guard !released.isEmpty else { return }
+        held.removeAll { released.contains($0) }
+        for request in released {
+            queue.enqueue(request)
+            // Its wait starts now, so a slow choice on the cap card doesn't hand it straight back.
+            if let source = pending[request]?.source { startTimeout(request, source: source) }
+        }
+        approvalsChanged()
+        onNewRequest()
+        if let first = released.first.flatMap({ pending[$0] }) {
+            onSound(first.prompt == .question ? .question : .needsApproval, id)
+        }
+        publishStatus()
+    }
+
+    private func forgetSpendCap(_ id: String) {
+        capState.forget(id)
+        guard capPrompts.contains(where: { $0.sessionID == id }) else { return }
+        capPrompts.removeAll { $0.sessionID == id }
+        onSpendCap(capPrompts.first)
     }
 
     // MARK: Keyboard answers
@@ -765,8 +974,9 @@ final class AgentHub {
 
     /// Takes a request off the queue, with the hook call still waiting for its reply.
     private func take(_ id: UUID) -> (approval: AgentApproval, connection: NWConnection?)? {
-        guard let approval = approvals.first(where: { $0.id == id }) else { return nil }
+        guard let approval = pending[id] else { return nil }
         queue.remove(id)
+        held.removeAll { $0 == id }
         pending[id] = nil
         timeouts.removeValue(forKey: id)?.cancel()
         // Cancelled before the reply goes, since the helper exits once it has it.
@@ -815,7 +1025,7 @@ final class AgentHub {
     }
 
     private func settleApprovals(for session: String) {
-        for approval in approvals where approval.sessionID == session {
+        for approval in waitingApprovals where approval.sessionID == session {
             answer(approval.id, allow: nil)
         }
     }
@@ -867,10 +1077,14 @@ final class AgentHub {
         let ended = sessions.endExited(at: .now) { $0.isRunning(info: AgentProcess.systemInfo) }
         guard !ended.isEmpty else { return }
         for id in ended {
+            // Quitting without SessionEnd is a crash or a closed terminal: the Failed sound.
+            onSound(.failed, id)
             recorder.exited(session: id)
             if let session = live.first(where: { $0.id == id }) { finishRecord(session) }
             settleApprovals(for: id)
             transcripts[id] = nil
+            stopRolloutWatch(id)
+            forgetSpendCap(id)
         }
         publishStatus()
     }
@@ -881,17 +1095,40 @@ final class AgentHub {
         let list = sessions.list
         let due = alerts.due(list, rules: alertRules, now: now)
         if let text = AgentAlert.notice(due, hidden: detailsHidden) { onAlert("hourglass", text) }
-        var reminded = false
-        for case .nudge(let id, _, let approval) in due {
+        var nudged: [IdleNudgeMoment] = []
+        for case .nudge(let id, let project, let approval) in due {
             // An approval's card is already showing; a Needs you goes back in the pill.
             if !approval { sessions.nudge(session: id, at: now) }
-            reminded = true
+            guard let session = sessions.session(id) else { continue }
+            let request = approvals.first { $0.sessionID == id }
+            nudged.append(
+                IdleNudgeMoment(
+                    sessionID: id, project: project, source: session.source, request: request,
+                    minutes: alertRules.nudgeMinutes))
         }
         scheduleAlertCheck(at: alerts.nextCheck(list, rules: alertRules, now: now))
-        guard reminded else { return }
-        onReminder()
+        guard !nudged.isEmpty else { return }
+        for moment in nudged {
+            if let request = moment.request { showNudge(on: request, moment) }
+            onNudge(moment)
+        }
         publishStatus()
     }
+
+    /// Puts "Claude Code has waited 5 min" on the request's minimised pill for a few seconds.
+    private func showNudge(on request: AgentApproval, _ moment: IdleNudgeMoment) {
+        let nudge = ApprovalNudge(
+            approval: request.id, text: IdleNudge.text(agent: moment.source.displayName, minutes: moment.minutes),
+            serial: (approvalNudge?.serial ?? 0) + 1)
+        approvalNudge = nudge
+        Task { [weak self] in
+            try? await Task.sleep(for: Self.nudgeShown)
+            guard let self, self.approvalNudge == nudge else { return }
+            self.approvalNudge = nil
+        }
+    }
+
+    private static let nudgeShown: Duration = .seconds(6)
 
     /// Tool activity republishes several times a second; the wake-up only moves when the
     /// next limit does.
@@ -922,13 +1159,19 @@ final class AgentHub {
 
     /// Reads what was added to the session's transcript since last time, off the main actor.
     private func refreshUsage(for id: String) {
-        guard let path = sessions.session(id)?.transcriptPath, !reading.contains(id) else { return }
+        guard let path = sessions.session(id)?.transcriptPath else { return }
+        // One read at a time; a request meanwhile (the turn's end after a live read) reads again after.
+        guard !reading.contains(id) else {
+            rereads.insert(id)
+            return
+        }
         let previous = transcripts[id] ?? (0, TranscriptUsage())
         reading.insert(id)
         Task { [weak self] in
             let next = await Task.detached { Self.read(path: path, from: previous.offset, into: previous.usage) }.value
             guard let self else { return }
             reading.remove(id)
+            defer { if rereads.remove(id) != nil { refreshUsage(for: id) } }
             guard sessions.session(id) != nil else { return }
             transcripts[id] = next
             let cost = next.usage.cost()
@@ -938,6 +1181,7 @@ final class AgentHub {
                     adding: ledger.record(total: cost, for: path, at: .now), project: sessions.session(id)?.project)
             }
             sessions.setUsage(next.usage.total, cost: cost, session: id)
+            checkSpendCap(session: id)
             if let session = sessions.session(id) { recorder.figuresChanged(session) }
             sessions.setModelID(next.usage.lastModel, session: id)
             // Codex has no status line; its rollout carries the context and plan limits instead.
@@ -957,15 +1201,64 @@ final class AgentHub {
     ) {
         guard let handle = FileHandle(forReadingAtPath: path) else { return (offset, usage) }
         defer { try? handle.close() }
-        guard (try? handle.seek(toOffset: offset)) != nil, let data = try? handle.readToEnd(),
-            let end = data.lastIndex(of: UInt8(ascii: "\n"))
-        else { return (offset, usage) }
-        var usage = usage
-        let complete = data[data.startIndex...end]
-        for line in complete.split(separator: UInt8(ascii: "\n")) {
-            usage.add(line: String(decoding: line, as: UTF8.self))
+        guard (try? handle.seek(toOffset: offset)) != nil, let data = try? handle.readToEnd() else {
+            return (offset, usage)
         }
-        return (offset + UInt64(complete.count), usage)
+        var usage = usage
+        let used = usage.add(complete: data)
+        return (offset + UInt64(used), usage)
+    }
+
+    // MARK: Live Codex context
+
+    /// Starts or stops following a Codex session's rollout for this event.
+    private func followRollout(_ event: AgentEvent) {
+        let id = event.sessionID
+        if RolloutWatch.stops(event) {
+            stopRolloutWatch(id)
+        } else if RolloutWatch.starts(event, running: sessions.session(id)?.state == .running),
+            rolloutWatches[id] == nil,
+            let path = event.transcriptPath
+        {
+            startRolloutWatch(id, path: path)
+        }
+    }
+
+    /// A file system source on the rollout: each write asks the throttle, which reads at most
+    /// once a second. No polling; nothing runs while Codex writes nothing.
+    private func startRolloutWatch(_ id: String, path: String) {
+        let descriptor = open(path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename], queue: .main)
+        source.setEventHandler { [weak self, weak source] in
+            MainActor.assumeIsolated {
+                guard let self, let source else { return }
+                let events = source.data
+                if events.contains(.delete) || events.contains(.rename) {
+                    self.stopRolloutWatch(id)
+                } else {
+                    self.rolloutChanged(id)
+                }
+            }
+        }
+        source.setCancelHandler { close(descriptor) }
+        rolloutWatches[id] = (source, ReadThrottle(interval: Self.rolloutInterval))
+        source.resume()
+    }
+
+    private func stopRolloutWatch(_ id: String) {
+        rolloutWatches.removeValue(forKey: id)?.source.cancel()
+    }
+
+    private func rolloutChanged(_ id: String) {
+        guard let delay = rolloutWatches[id]?.throttle.request(now: .now) else { return }
+        Task { [weak self] in
+            if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+            guard let self, self.rolloutWatches[id] != nil else { return }
+            self.rolloutWatches[id]?.throttle.didRead(now: .now)
+            self.refreshUsage(for: id)
+        }
     }
 
     // MARK: Jump to terminal
@@ -1011,6 +1304,38 @@ final class AgentHub {
         }
         return true
     }
+
+    /// Brings the session's terminal forward and pastes `/compact` into its prompt, without
+    /// pressing Return, so nothing is sent until the user does. Pastes only if the session's
+    /// terminal really is in front. The clipboard comes back afterwards. Says why it couldn't in a
+    /// notice.
+    func compact(session id: String) {
+        guard let session = sessions.session(id), CompactCommand.supported(session.source) else { return }
+        guard AccessibilityPermission.isTrusted else {
+            onNotice("Allow Accessibility in Settings to paste /compact")
+            return
+        }
+        focus(session: id)
+        Task { [weak self] in
+            // Give the terminal time to come forward before the keystroke lands.
+            try? await Task.sleep(for: .milliseconds(350))
+            guard let self else { return }
+            guard self.terminalInFront(session) else {
+                self.onNotice("Couldn't bring the terminal forward. Type /compact there.")
+                return
+            }
+            PasteShortcut.pasteRestoring(CompactCommand.text, after: .seconds(1))
+            self.onNotice("Pasted /compact. Press Return in the terminal.")
+        }
+    }
+
+    /// Whether the app in front is the one the session runs in (Terminal when Wisp doesn't know,
+    /// since the jump then opens its folder there), so keys sent now land in it.
+    private func terminalInFront(_ session: AgentSession) -> Bool {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == (session.terminal ?? Self.terminalApp)
+    }
+
+    private static let terminalApp = "com.apple.Terminal"
 
     // MARK: Hooks
 

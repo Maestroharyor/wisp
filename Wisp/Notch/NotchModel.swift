@@ -277,12 +277,13 @@ final class NotchModel {
                 if case .agentApproval(let approval) = activity {
                     if minimisedApprovals.contains(approval.id) { return .compact(wide: true) }
                     if approval.prompt == .question { return .notification(extra: questionAnswersHeight(approval)) }
-                    // Private mode hides the preview, so the card doesn't keep its room either.
+                    // Private mode hides the preview, so the card doesn't keep its room; the inline row stays,
+                    // with only the file's name.
                     let hidden = services.agents.detailsHidden
                     return .notification(
                         extra: SurfaceSizing.approvalCardExtra(
                             previewOpen: expandedApproval == approval.id && approval.preview != nil && !hidden,
-                            inlineDiff: approval.inlineDiff != nil && !hidden))
+                            inlineDiff: approval.inlineDiff != nil))
                 }
                 if case .meetingSoon = activity { return .notification(extra: 0) }
                 if case .downloadDone = activity { return .notification(extra: 0) }
@@ -290,6 +291,7 @@ final class NotchModel {
                     return .notification(extra: card.answer == nil ? 0 : SurfaceSizing.aiResultHeight)
                 }
                 if case .quickIntent = activity { return .notification(extra: 0) }
+                if case .agentCallout = activity { return .notification(extra: 0) }
                 if showsMeetingControls { return .notification(extra: 0) }
                 return activity.isMedium ? .medium : .compact(wide: activity.usesWideWings)
             }
@@ -386,6 +388,7 @@ final class NotchModel {
         else { return false }
         if case .notification = activity { return true }
         if case .aiResult = activity { return true }
+        if case .agentCallout = activity { return true }
         return activity.isMedium
     }
 
