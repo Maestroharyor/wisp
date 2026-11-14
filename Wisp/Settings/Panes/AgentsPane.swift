@@ -52,25 +52,8 @@ struct AgentSettings: View {
                     Label("Wisp isn't listening for agents right now.", systemImage: "exclamationmark.triangle")
                 }
             }
-            if let source = hub.outdated.sorted(by: { $0.rawValue < $1.rawValue }).first {
-                Section {
-                    LabeledContent {
-                        Button("Update Hooks") { hub.installHooks(source) }
-                    } label: {
-                        if hub.waitMismatched.contains(source) {
-                            Text("Approval wait changed")
-                            Text("Update \(source.displayName)'s hooks so permission prompts wait the new time.")
-                        } else {
-                            Text("Agents has new features")
-                            Text(
-                                "Update \(source.displayName)'s hooks so the notch gets everything this version shows.")
-                        }
-                    }
-                }
-            }
-            ForEach(AgentAdapters.all, id: \.source) { adapter in
-                AgentConnection(hub: hub, adapter: adapter)
-            }
+            IntegrationsSection(hub: hub)
+            SessionListSection(preferences: preferences)
             alerts
             AgentSoundsSection(preferences: preferences, player: sounds)
             AgentQuietHoursSection(preferences: preferences)
@@ -218,60 +201,160 @@ struct AgentSettings: View {
     }
 }
 
-private struct AgentConnection: View {
+/// One row per coding agent: where it stands (`IntegrationStatus`), what Wisp does with it, and
+/// Install, Update, Repair or Remove through the hub's install paths, which keep backups.
+private struct IntegrationsSection: View {
+    let hub: AgentHub
+
+    var body: some View {
+        Section {
+            ForEach(AgentAdapters.all, id: \.source) { adapter in
+                IntegrationRow(hub: hub, adapter: adapter)
+            }
+        } header: {
+            Text("Integrations")
+        } footer: {
+            Text(
+                "Installing adds Wisp's hooks to the agent's settings, or a plugin for OpenCode, and keeps your other settings and hooks. Each change saves the file as it was next to it. Restart running sessions afterwards. Agents without approve are monitor only: approve their requests in the terminal."
+            )
+        }
+    }
+}
+
+private struct IntegrationRow: View {
     let hub: AgentHub
     let adapter: AgentAdapter
 
+    /// Where the last change's backup went, shown under the row.
+    @State private var note: String?
+
     private var source: AgentSource { adapter.source }
 
-    /// What connecting does, built from what the adapter can do.
+    var body: some View {
+        let status = hub.integrationStatus(source)
+        LabeledContent {
+            HStack(spacing: 6) {
+                ForEach(status.actions, id: \.title) { action in
+                    Button(action.title) { perform(action, from: status) }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Circle().fill(status.tint).frame(width: 8, height: 8)
+                Text(adapter.displayName)
+                Text(status.label).foregroundStyle(.secondary)
+            }
+            Text(IntegrationStatus.capabilities(adapter).joined(separator: " · "))
+            if let detail = detail(status) { Text(detail) }
+        }
+        .help(about)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func detail(_ status: IntegrationStatus) -> String? {
+        if let note { return note }
+        switch status {
+        case .needsUpdate:
+            return hub.waitMismatched.contains(source)
+                ? "Approval wait changed. Update so permission prompts wait the new time."
+                : "Update so the notch gets everything this version shows."
+        case .otherCopy:
+            return "Its hooks point at another copy of Wisp, so this one doesn't see its sessions."
+        case .ready, .connected:
+            return adapter.setupNote
+        case .monitor, .notInstalled:
+            return nil
+        }
+    }
+
+    private func perform(_ action: IntegrationStatus.Action, from status: IntegrationStatus) {
+        let path = adapter.hookFile.displayPath
+        switch action {
+        case .install:
+            // A backup is made only of a file that was already there (never of a plugin, which is Wisp's own).
+            let existing = AgentHub.settingsURL(source)
+            let backedUp =
+                !adapter.hookFile.format.isPlugin
+                && ((try? Data(contentsOf: existing)).map { !$0.isEmpty } ?? false)
+            guard hub.installHooks(source) else { return }
+            note = backedUp ? "Installed. A copy of the file as it was is at \(path).wisp-backup." : "Installed."
+        case .update, .repair, .useHere:
+            note =
+                hub.installHooks(source)
+                ? "\(action == .repair ? "Repaired" : "Updated"). The file as it was is at \(path).wisp-previous."
+                : nil
+        case .remove:
+            hub.removeHooks(source)
+            note = nil
+        }
+    }
+
+    /// What installing does, built from what the adapter can do.
     private var about: String {
         let card =
             adapter.capabilities.contains(.approve)
             ? ", and an Allow or Deny card for permission prompts. Prompts you don't answer within two minutes fall back to the terminal."
             : ". Permission prompts stay in the terminal."
-        let note = adapter.setupNote.map { " " + $0 } ?? ""
         if adapter.hookFile.format.isPlugin {
             return
-                "Wisp adds a plugin at \(adapter.hookFile.displayPath), so every \(adapter.displayName) session shows in the notch: a pill while it works, Done when it finishes, and an Allow or Deny card for permission prompts, which you can also answer in \(adapter.displayName). Restart \(adapter.displayName) after connecting.\(note)"
+                "Wisp adds a plugin at \(adapter.hookFile.displayPath), so every \(adapter.displayName) session shows in the notch: a pill while it works, Done when it finishes, and an Allow or Deny card for permission prompts, which you can also answer in \(adapter.displayName)."
         }
         return
-            "Wisp adds hooks to \(adapter.hookFile.displayPath), so every \(adapter.displayName) session shows in the notch: a pill while it works, Done when it finishes\(card) Restart running sessions after connecting.\(note)"
+            "Wisp adds hooks to \(adapter.hookFile.displayPath), so every \(adapter.displayName) session shows in the notch: a pill while it works, Done when it finishes\(card)"
     }
+}
+
+extension IntegrationStatus {
+    fileprivate var tint: Color {
+        switch self {
+        case .connected: .green
+        case .ready: .wispViolet
+        case .needsUpdate, .otherCopy: .orange
+        case .monitor: .blue
+        case .notInstalled: .secondary
+        }
+    }
+}
+
+/// How long done sessions stay in the Agents widget, and a way back for what was pinned or hidden.
+private struct SessionListSection: View {
+    @Bindable var preferences: Preferences
 
     var body: some View {
-        let connected = hub.isConnected(source)
-        let elsewhere = hub.connectedElsewhere.contains(source)
         Section {
-            LabeledContent("Status") {
-                HStack(spacing: 6) {
-                    Circle().fill(connected ? Color.green : elsewhere ? Color.orange : Color.secondary)
-                        .frame(width: 8, height: 8)
-                    Text(connected ? "Connected" : elsewhere ? "Hooks point at another copy of Wisp" : "Not connected")
+            Picker("Keep done sessions for", selection: $preferences.keepDoneSessions) {
+                Text("5 minutes").tag(SessionOrder.KeepDone.fiveMinutes)
+                Text("1 hour").tag(SessionOrder.KeepDone.oneHour)
+                Text("Until dismissed").tag(SessionOrder.KeepDone.untilDismissed)
+            }
+            let hidden = preferences.hiddenAgentSessions.count + preferences.hiddenAgentProjects.count
+            let pinned = preferences.pinnedAgentSessions.count + preferences.pinnedAgentProjects.count
+            if hidden > 0 || pinned > 0 {
+                LabeledContent {
+                    HStack(spacing: 6) {
+                        if hidden > 0 {
+                            Button("Show hidden") {
+                                preferences.hiddenAgentSessions = [:]
+                                preferences.hiddenAgentProjects = []
+                            }
+                        }
+                        if pinned > 0 {
+                            Button("Unpin all") {
+                                preferences.pinnedAgentSessions = []
+                                preferences.pinnedAgentProjects = []
+                            }
+                        }
+                    }
+                } label: {
+                    Text("\(pinned) pinned, \(hidden) hidden")
                 }
             }
-            if connected {
-                Button("Disconnect \(source.displayName)") { hub.removeHooks(source) }
-            } else if elsewhere {
-                // Its events go to that copy, so this one shows no sessions until switched.
-                Button("Use this Wisp") { hub.installHooks(source) }
-                Button("Disconnect \(source.displayName)") { hub.removeHooks(source) }
-            } else {
-                Button("Connect \(source.displayName)") { hub.installHooks(source) }
-            }
-            Text(about).font(.caption).foregroundStyle(.secondary)
         } header: {
-            HStack(spacing: 6) {
-                Text(adapter.displayName)
-                if !adapter.capabilities.contains(.approve) {
-                    Text("Monitor only")
-                        .font(.caption2.weight(.medium))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1)
-                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                        .help("Wisp shows this agent's sessions; approve its requests in the terminal.")
-                }
-            }
+            Text("Sessions")
+        } footer: {
+            Text(
+                "Sessions that need you come first, then pinned ones, then running, ready and done. Right-click a session in the Agents widget to pin or hide it or its project. A hidden session comes back when it changes state."
+            )
         }
     }
 }

@@ -19,8 +19,8 @@ public enum SurfaceSpec: Sendable, Equatable {
     /// Drop tiles: the four built-in ones plus up to two Drop Actions.
     case dropTiles(extra: Int)
     /// A card under the notch (a notification, an approval); `extra` adds rows below it,
-    /// such as the reply bar or a question's options.
-    case notification(extra: CGFloat)
+    /// such as the reply bar or a question's options. `wide` gives an approval's diff more room.
+    case notification(extra: CGFloat, wide: Bool = false)
 }
 
 /// Turns a `SurfaceSpec` into a rectangle on a display, using the shell metrics.
@@ -38,6 +38,8 @@ public enum SurfaceSizing {
     public static let navPillSize = CGSize(width: 216, height: 34)
     public static let navPillGap: CGFloat = 12
     public static let notificationWidth: CGFloat = 480
+    /// An approval card showing a diff, so its lines and gutter aren't cut short.
+    public static let wideNotificationWidth: CGFloat = 520
     public static let mediaPageWidth: CGFloat = 420
     public static let notificationCardHeight: CGFloat = 84
     public static let replyBarHeight: CGFloat = 48
@@ -79,17 +81,29 @@ public enum SurfaceSizing {
     }
     /// An approval card opened to show its diff, command or plan, with a reason row.
     public static let approvalPreviewHeight: CGFloat = 220
-    /// An edit's first changed lines (`InlineDiff.maxLines`) under an approval card's summary.
-    public static let inlineDiffHeight: CGFloat = 60
-    /// Terminal, Deny and Allow on their own row under an approval card's request. Beside the
-    /// title and summary they left the header too little width at `notificationWidth`.
-    public static let approvalActionRowHeight: CGFloat = 36
+    /// One row of an approval card's inline diff, and the space between rows.
+    public static let inlineDiffRowHeight: CGFloat = 14
+    public static let inlineDiffRowSpacing: CGFloat = 1
+    /// Around the inline diff's rows: their box's padding, the counts line under it and the gap
+    /// above the card's buttons.
+    public static let inlineDiffChrome: CGFloat = 30
+    /// Allow All, Always allow and Terminal: the quieter row above Deny and Allow.
+    public static let approvalQuietRowHeight: CGFloat = 26
+    /// Deny and Allow as two full-width buttons, with the card's bottom margin.
+    public static let approvalActionRowHeight: CGFloat = 40
 
-    /// What a tool or plan approval card adds under the standard card: its action row, then
-    /// the open preview or else the inline diff.
-    public static func approvalCardExtra(previewOpen: Bool, inlineDiff: Bool) -> CGFloat {
-        let below = previewOpen ? approvalPreviewHeight : inlineDiff ? inlineDiffHeight : 0
-        return approvalActionRowHeight + below
+    /// The inline diff's height for `rows` rows (at most `InlineDiff.maxLines`); none for none.
+    public static func inlineDiffHeight(rows: Int) -> CGFloat {
+        let shown = CGFloat(min(max(rows, 0), InlineDiff.maxLines))
+        guard shown > 0 else { return 0 }
+        return shown * inlineDiffRowHeight + (shown - 1) * inlineDiffRowSpacing + inlineDiffChrome
+    }
+
+    /// What a tool or plan approval card adds under the standard card: the open preview or
+    /// else the inline diff, then the quiet row and Deny and Allow.
+    public static func approvalCardExtra(previewOpen: Bool, inlineDiffRows: Int) -> CGFloat {
+        let above = previewOpen ? approvalPreviewHeight : inlineDiffHeight(rows: inlineDiffRows)
+        return above + approvalQuietRowHeight + approvalActionRowHeight
     }
     /// The answer under an AI result card's title; longer answers scroll.
     public static let aiResultHeight: CGFloat = 132
@@ -143,9 +157,10 @@ public enum SurfaceSizing {
             return shelf(
                 contentWidth: shelfContentWidth(for: spec, in: layout) ?? 0, contentHeight: shelfContentHeight,
                 layout, sizes)
-        case .notification(let extra):
+        case .notification(let extra, let wide):
             let height = bar + notificationCardHeight + extra
-            return layout.surfaceRect(size: CGSize(width: notificationWidth, height: height))
+            return layout.surfaceRect(
+                size: CGSize(width: wide ? wideNotificationWidth : notificationWidth, height: height))
         }
     }
 

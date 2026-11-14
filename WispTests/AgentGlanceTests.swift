@@ -113,7 +113,64 @@ final class SessionGlanceTests: XCTestCase {
         let glance = SessionGlance.make(
             try session([("UserPromptSubmit", "")]), now: start.addingTimeInterval(27 * 60 + 5), hidden: false)
         XCTAssertEqual(glance.agent, "Claude Code")
-        XCTAssertEqual(glance.age, "27m")
+        XCTAssertEqual(glance.runTime, "27m")
+    }
+
+    func testRunTimeCountsFromTheSessionsStartNotItsState() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("SessionStart"), at: start)
+        sessions.apply(try event("UserPromptSubmit"), at: start.addingTimeInterval(3000))
+        let session = try XCTUnwrap(sessions.session("s"))
+        XCTAssertEqual(SessionGlance.make(session, now: start.addingTimeInterval(3700), hidden: false).runTime, "1h")
+    }
+
+    func testCompactionKeepsTheRunTimeAndTitle() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("SessionStart"), at: start)
+        sessions.apply(try event("UserPromptSubmit", extra: #","prompt":"Fix login""#), at: start)
+        sessions.apply(try event("SessionStart", extra: #","source":"compact""#), at: start.addingTimeInterval(600))
+        let session = try XCTUnwrap(sessions.session("s"))
+        XCTAssertEqual(session.started, start)
+        XCTAssertEqual(session.firstPrompt, "Fix login")
+        sessions.apply(try event("SessionStart", extra: #","source":"clear""#), at: start.addingTimeInterval(900))
+        XCTAssertNil(sessions.session("s")?.firstPrompt)
+        XCTAssertEqual(sessions.session("s")?.started, start.addingTimeInterval(900))
+    }
+
+    func testTheTitleIsTheNameThenTheSummaryThenTheFirstPrompt() throws {
+        var session = try session([
+            ("UserPromptSubmit", #","prompt":"Add rate limiting""#), ("Stop", ""),
+            ("UserPromptSubmit", #","prompt":"now the tests""#),
+        ])
+        XCTAssertEqual(SessionGlance.make(session, now: start, hidden: false).title, "Add rate limiting")
+        XCTAssertEqual(
+            SessionGlance.make(session, now: start, hidden: false, summary: "Added a limiter. Tests pass.").title,
+            "Added a limiter.")
+        session.extras.sessionName = "rate-limits"
+        XCTAssertEqual(
+            SessionGlance.make(session, now: start, hidden: false, summary: "Added a limiter.").title, "rate-limits")
+        // Session names and prompts are personal, so private mode leaves the title out.
+        XCTAssertNil(SessionGlance.make(session, now: start, hidden: true).title)
+    }
+
+    func testALongTitleIsCut() throws {
+        let prompt = String(repeating: "word ", count: 30)
+        let session = try session([("UserPromptSubmit", #","prompt":"\#(prompt)""#)])
+        let title = try XCTUnwrap(SessionGlance.make(session, now: start, hidden: false).title)
+        XCTAssertEqual(title.count, SessionGlance.titleLimit)
+        XCTAssertTrue(title.hasSuffix("…"))
+    }
+
+    func testBypassComesFromThePermissionMode() throws {
+        let skipping = try session([("UserPromptSubmit", #","permission_mode":"bypassPermissions""#)])
+        XCTAssertTrue(SessionGlance.make(skipping, now: start, hidden: false).bypass)
+        let asking = try session([("UserPromptSubmit", #","permission_mode":"default""#)])
+        XCTAssertFalse(SessionGlance.make(asking, now: start, hidden: false).bypass)
+        // A hook without the field keeps the mode the session had.
+        let kept = try session([
+            ("UserPromptSubmit", #","permission_mode":"bypassPermissions""#), ("Stop", ""),
+        ])
+        XCTAssertTrue(kept.bypassesPermissions)
     }
 
     func testAgeFormat() {
@@ -183,9 +240,26 @@ final class InlineDiffTests: XCTestCase {
         XCTAssertEqual(diff.added, 4)
         XCTAssertEqual(diff.removed, 4)
         XCTAssertEqual(diff.counts, "+4 −4")
-        XCTAssertEqual(diff.lines.map(\.kind), [.removed, .removed, .added])
-        XCTAssertEqual(diff.lines.map(\.text), ["a", "b", "w"])
-        XCTAssertEqual(diff.lines.map(\.number), [nil, nil, nil])
+        // In order, as the change reads, up to six rows.
+        XCTAssertEqual(diff.lines.map(\.kind), [.removed, .removed, .removed, .removed, .added, .added])
+        XCTAssertEqual(diff.lines.map(\.text), ["a", "b", "c", "d", "w", "x"])
+        XCTAssertEqual(diff.lines.map(\.old), [1, 2, 3, 4, nil, nil])
+        XCTAssertEqual(diff.lines.map(\.new), [nil, nil, nil, nil, 1, 2])
+    }
+
+    func testAnEditIsNumberedOnlyOnceItsAnchorIsKnown() throws {
+        let input = try json(#"{"old_string":"a\nb\nc","new_string":"a\nB\nc"}"#)
+        let diff = try XCTUnwrap(InlineDiff.make(tool: "Edit", input: input))
+        XCTAssertEqual(diff.lines.map(\.kind), [.context, .removed, .added, .context])
+        let removed = diff.lines[1]
+        XCTAssertTrue(diff.numbers(for: removed, anchor: nil) == (nil, nil))
+        XCTAssertTrue(diff.numbers(for: removed, anchor: 40) == (41, nil))
+        XCTAssertTrue(diff.numbers(for: diff.lines[3], anchor: 40) == (42, 42))
+    }
+
+    func testANewFileIsNumberedWithoutAnAnchor() throws {
+        let diff = try XCTUnwrap(InlineDiff.make(tool: "Write", input: .object(["content": .string("a\nb")])))
+        XCTAssertTrue(diff.numbers(for: diff.lines[1], anchor: nil) == (nil, 2))
     }
 
     func testWriteIsAllAddedWithLineNumbers() throws {
@@ -193,8 +267,8 @@ final class InlineDiffTests: XCTestCase {
         let diff = try XCTUnwrap(InlineDiff.make(tool: "Write", input: input))
         XCTAssertEqual(diff.added, 4)
         XCTAssertEqual(diff.removed, 0)
-        XCTAssertEqual(diff.lines.map(\.number), [1, 2, 3])
-        XCTAssertEqual(diff.lines.map(\.text), ["one", "two", "three"])
+        XCTAssertEqual(diff.lines.map(\.new), [1, 2, 3, 4])
+        XCTAssertEqual(diff.lines.map(\.text), ["one", "two", "three", "four"])
         // A Write may replace a file whose old lines the request doesn't carry.
         XCTAssertTrue(diff.wholeFile)
         XCTAssertEqual(diff.counts, "4 lines")
@@ -232,7 +306,10 @@ final class InlineDiffTests: XCTestCase {
         ])
         let diff = try XCTUnwrap(InlineDiff.make(tool: "Edit", input: input))
         XCTAssertEqual(diff.counts, "+2 −2")
-        XCTAssertEqual(diff.lines.map(\.text), ["line 2", "line 19", "changed 2"])
+        // Context around each change, and a gap row between them.
+        XCTAssertEqual(diff.lines.map(\.text), ["line 1", "line 2", "changed 2", "line 3", "⋯", "line 18"])
+        XCTAssertEqual(diff.lines[4].kind, .hunk)
+        XCTAssertEqual(diff.lines[5].old, 18)
     }
 
     func testHugeEditsFallBackToTrimming() {
@@ -267,13 +344,14 @@ final class InlineDiffTests: XCTestCase {
         let diff = try XCTUnwrap(InlineDiff.make(tool: "apply_patch", input: input))
         XCTAssertEqual(diff.added, 2)
         XCTAssertEqual(diff.removed, 1)
-        XCTAssertEqual(diff.lines.map(\.text), ["old", "new", "more"])
+        XCTAssertEqual(diff.lines.map(\.text), ["old", "new", "more", "context"])
+        XCTAssertEqual(diff.lines.map(\.old), [nil, nil, nil, nil])
     }
 
     func testOnlyAddedWhenNothingRemoved() throws {
         let input = try json(#"{"old_string":"x","new_string":"x\n1\n2\n3\n4"}"#)
         let diff = try XCTUnwrap(InlineDiff.make(tool: "Edit", input: input))
-        XCTAssertEqual(diff.lines.map(\.kind), [.added, .added, .added])
+        XCTAssertEqual(diff.lines.map(\.kind), [.context, .added, .added, .added, .added])
     }
 
     func testOtherToolsAndNoChangeHaveNoDiff() throws {

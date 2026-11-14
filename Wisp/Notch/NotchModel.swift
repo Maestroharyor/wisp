@@ -279,11 +279,14 @@ final class NotchModel {
                     if approval.prompt == .question { return .notification(extra: questionAnswersHeight(approval)) }
                     // Private mode hides the preview, so the card doesn't keep its room; the inline row stays,
                     // with only the file's name.
+                    // A card with a diff is wider, so its gutter and lines aren't cut short.
                     let hidden = services.agents.detailsHidden
+                    let rows = approval.inlineDiff.map { hidden ? 1 : $0.lines.count } ?? 0
                     return .notification(
                         extra: SurfaceSizing.approvalCardExtra(
                             previewOpen: expandedApproval == approval.id && approval.preview != nil && !hidden,
-                            inlineDiff: approval.inlineDiff != nil))
+                            inlineDiffRows: rows),
+                        wide: approval.inlineDiff != nil)
                 }
                 if case .meetingSoon = activity { return .notification(extra: 0) }
                 if case .downloadDone = activity { return .notification(extra: 0) }
