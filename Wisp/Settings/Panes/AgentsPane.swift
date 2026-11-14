@@ -164,7 +164,7 @@ struct AgentSettings: View {
             if preferences.spendCap {
                 dollars("Pause at", value: spendCapAmount, unit: "per session")
                 Text(
-                    "Asks Keep going, Raise or Stop, and holds the session's next request until you choose. Stop presses Esc in its terminal (needs Accessibility). Codex spend is estimated from tokens."
+                    "Asks Keep going, Raise or Stop, and holds the session's next request until you choose. Stop presses Esc in its terminal (needs Accessibility). Codex spend is estimated from tokens, and Claude Code without a status line Wisp reads is checked only when a turn ends."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }

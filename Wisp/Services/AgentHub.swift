@@ -132,7 +132,9 @@ final class AgentHub {
     /// Requests from sessions at the spend cap, held off screen until the user chooses.
     @ObservationIgnored private var held: [UUID] = []
     /// Dollars a session may spend before Wisp asks; nil is off. Set from Preferences.
-    var spendCap: Double?
+    var spendCap: Double? {
+        didSet { if spendCap == nil { for prompt in capPrompts { keepGoing(session: prompt.sessionID) } } }
+    }
     @ObservationIgnored private var capState = SpendCap()
     /// Sessions at the cap waiting for a choice, oldest first; the front one is on screen.
     @ObservationIgnored private var capPrompts: [SpendCapPrompt] = []
@@ -261,6 +263,8 @@ final class AgentHub {
     /// Per session: how far into the transcript Wisp has read, and the totals so far.
     @ObservationIgnored private var transcripts: [String: (offset: UInt64, usage: TranscriptUsage)] = [:]
     @ObservationIgnored private var reading: Set<String> = []
+    /// Sessions asked to read again while a read was running.
+    @ObservationIgnored private var rereads: Set<String> = []
     /// Latest status bar snapshot per session, applied together at most every `liveInterval`.
     @ObservationIgnored private var pendingSnapshots:
         [String: (snapshot: StatusLineSnapshot, source: AgentSource, terminal: String?)] = [:]
@@ -472,7 +476,11 @@ final class AgentHub {
         // next prompt, stop or status bar snapshot.
         if !event.kind.isToolActivity {
             sessions.prune(now: .now, olderThan: 6 * 3600)
-            recorder.keep(only: Set(sessions.list.map(\.id)))
+            let live = Set(sessions.list.map(\.id))
+            recorder.keep(only: live)
+            // A session pruned without ending keeps no file watch or read position behind.
+            for id in rolloutWatches.keys where !live.contains(id) { stopRolloutWatch(id) }
+            transcripts = transcripts.filter { live.contains($0.key) }
             if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
         }
 
@@ -497,7 +505,8 @@ final class AgentHub {
         {
             // Nothing Wisp can show, so the terminal asks (Needs you).
             reply(connection, nil)
-        } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event) {
+        } else if event.kind == .permissionRequest, sessions.shouldAutoApprove(event), !capState.isHeld(event.sessionID)
+        {
             reply(connection, event.source.adapter.reply(.allow(.tool, input: nil)))
             onApprovalRecord(
                 ApprovalRecord(
@@ -527,12 +536,7 @@ final class AgentHub {
             waiting[approval.id] = connection
             settleKeys[approval.id] = ApprovalSettle.Request(id: approval.id, event: event)
             if let pid = event.hookPID { watchHook(pid, for: approval.id) }
-            let wait = approvalWait(event.source)
-            timeouts[approval.id] = Task { [weak self] in
-                try? await Task.sleep(for: wait)
-                guard !Task.isCancelled else { return }
-                self?.handBack(approval.id)
-            }
+            startTimeout(approval.id, source: event.source)
             if !isHeld {
                 approvalsChanged()
                 onNewRequest()
@@ -584,8 +588,8 @@ final class AgentHub {
     }
 
     /// Tracked even while the alert is off, so turning it on doesn't fire for a session that
-    /// was already past the level.
-    /// The sounds have their own switches, so they follow the climb whatever the alert says.
+    /// was already past the level. The sounds have their own switches, so they follow the climb
+    /// whatever the alert says.
     private func checkContext(session id: String) {
         if let percent = sessions.contextAlert(session: id, threshold: contextThresholds.warn),
             let project = sessions.session(id)?.project
@@ -723,12 +727,15 @@ final class AgentHub {
         publishStatus()
     }
 
-    /// Tells the history how a request ended; its summary is left out while details are hidden.
+    /// Tells the history how a request ended. Only a tool request keeps its summary (the command or
+    /// file), never a plan's title or a question, and none while details are hidden.
     private func logOutcome(_ approval: AgentApproval, _ outcome: ApprovalOutcome) {
         onApprovalRecord(
             ApprovalRecord(
                 sessionID: approval.sessionID, project: approval.project, source: approval.source, tool: approval.tool,
-                summary: ApprovalRecord.summary(approval.summary, hidden: detailsHidden), outcome: outcome, date: .now))
+                summary: approval.prompt == .tool
+                    ? ApprovalRecord.summary(approval.summary, hidden: detailsHidden) : nil,
+                outcome: outcome, date: .now))
     }
 
     /// Hands a session's last record over as it ends and lets its draft go.
@@ -765,6 +772,17 @@ final class AgentHub {
         // Nothing left to answer: forget keys whose key-up may never arrive.
         if front == nil { keyGate.releaseAll() }
         onApproval(approvals.first)
+    }
+
+    /// Hands the request back to the terminal if nobody answers in time.
+    private func startTimeout(_ id: UUID, source: AgentSource) {
+        timeouts.removeValue(forKey: id)?.cancel()
+        let wait = approvalWait(source)
+        timeouts[id] = Task { [weak self] in
+            try? await Task.sleep(for: wait)
+            guard !Task.isCancelled else { return }
+            self?.handBack(id)
+        }
     }
 
     // MARK: Spend cap
@@ -806,10 +824,16 @@ final class AgentHub {
             onNotice("Allow Accessibility in Settings to stop it from Wisp")
             return
         }
+        guard let session = sessions.session(id) else { return }
         focus(session: id)
-        Task {
+        Task { [weak self] in
             // Give the terminal time to come forward before the keystroke lands.
             try? await Task.sleep(for: .milliseconds(350))
+            guard let self else { return }
+            guard self.terminalInFront(session) else {
+                self.onNotice("Couldn't bring the terminal forward. Press Esc there to stop it.")
+                return
+            }
             PasteShortcut.press(PasteShortcut.escapeKey)
         }
     }
@@ -826,7 +850,11 @@ final class AgentHub {
         let released = held.filter { pending[$0]?.sessionID == id }
         guard !released.isEmpty else { return }
         held.removeAll { released.contains($0) }
-        for request in released { queue.enqueue(request) }
+        for request in released {
+            queue.enqueue(request)
+            // Its wait starts now, so a slow choice on the cap card doesn't hand it straight back.
+            if let source = pending[request]?.source { startTimeout(request, source: source) }
+        }
         approvalsChanged()
         onNewRequest()
         if let first = released.first.flatMap({ pending[$0] }) {
@@ -1008,7 +1036,7 @@ final class AgentHub {
             // An approval's card is already showing; a Needs you goes back in the pill.
             if !approval { sessions.nudge(session: id, at: now) }
             guard let session = sessions.session(id) else { continue }
-            let request = waitingApprovals.first { $0.sessionID == id }
+            let request = approvals.first { $0.sessionID == id }
             nudged.append(
                 IdleNudgeMoment(
                     sessionID: id, project: project, source: session.source, request: request,
@@ -1067,13 +1095,19 @@ final class AgentHub {
 
     /// Reads what was added to the session's transcript since last time, off the main actor.
     private func refreshUsage(for id: String) {
-        guard let path = sessions.session(id)?.transcriptPath, !reading.contains(id) else { return }
+        guard let path = sessions.session(id)?.transcriptPath else { return }
+        // One read at a time; a request meanwhile (the turn's end after a live read) reads again after.
+        guard !reading.contains(id) else {
+            rereads.insert(id)
+            return
+        }
         let previous = transcripts[id] ?? (0, TranscriptUsage())
         reading.insert(id)
         Task { [weak self] in
             let next = await Task.detached { Self.read(path: path, from: previous.offset, into: previous.usage) }.value
             guard let self else { return }
             reading.remove(id)
+            defer { if rereads.remove(id) != nil { refreshUsage(for: id) } }
             guard sessions.session(id) != nil else { return }
             transcripts[id] = next
             let cost = next.usage.cost()
@@ -1118,7 +1152,10 @@ final class AgentHub {
         let id = event.sessionID
         if RolloutWatch.stops(event) {
             stopRolloutWatch(id)
-        } else if RolloutWatch.starts(event), rolloutWatches[id] == nil, let path = event.transcriptPath {
+        } else if RolloutWatch.starts(event, running: sessions.session(id)?.state == .running),
+            rolloutWatches[id] == nil,
+            let path = event.transcriptPath
+        {
             startRolloutWatch(id, path: path)
         }
     }
@@ -1205,8 +1242,9 @@ final class AgentHub {
     }
 
     /// Brings the session's terminal forward and pastes `/compact` into its prompt, without
-    /// pressing Return, as a draft is: if the jump lands on another window, nothing is sent.
-    /// The clipboard comes back afterwards. Says why it couldn't in a notice.
+    /// pressing Return, so nothing is sent until the user does. Pastes only if the session's
+    /// terminal really is in front. The clipboard comes back afterwards. Says why it couldn't in a
+    /// notice.
     func compact(session id: String) {
         guard let session = sessions.session(id), CompactCommand.supported(session.source) else { return }
         guard AccessibilityPermission.isTrusted else {
@@ -1217,10 +1255,23 @@ final class AgentHub {
         Task { [weak self] in
             // Give the terminal time to come forward before the keystroke lands.
             try? await Task.sleep(for: .milliseconds(350))
+            guard let self else { return }
+            guard self.terminalInFront(session) else {
+                self.onNotice("Couldn't bring the terminal forward. Type /compact there.")
+                return
+            }
             PasteShortcut.pasteRestoring(CompactCommand.text, after: .seconds(1))
-            self?.onNotice("Pasted /compact. Press Return in the terminal.")
+            self.onNotice("Pasted /compact. Press Return in the terminal.")
         }
     }
+
+    /// Whether the app in front is the one the session runs in (Terminal when Wisp doesn't know,
+    /// since the jump then opens its folder there), so keys sent now land in it.
+    private func terminalInFront(_ session: AgentSession) -> Bool {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == (session.terminal ?? Self.terminalApp)
+    }
+
+    private static let terminalApp = "com.apple.Terminal"
 
     // MARK: Hooks
 

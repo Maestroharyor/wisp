@@ -4,11 +4,16 @@ import Foundation
 /// context and plan limits only come from `token_count` lines in the rollout; reading them as
 /// they're written, rather than at the turn's end, keeps the ring current while it works.
 public enum RolloutWatch {
-    /// Turn activity from a Codex session with a rollout starts the watch (also when Wisp
-    /// launched mid-turn and the first event is a tool).
-    public static func starts(_ event: AgentEvent) -> Bool {
+    /// A prompt or request from a Codex session with a rollout starts the watch. A tool event
+    /// does only while the session is `running` (Wisp launched mid-turn): Codex's tool hooks run
+    /// in the background, so one can arrive after the turn's Stop and must not start it again.
+    public static func starts(_ event: AgentEvent, running: Bool) -> Bool {
         guard event.source == .codex, event.transcriptPath?.isEmpty == false else { return false }
-        return [.userPromptSubmit, .preToolUse, .postToolUse, .permissionRequest].contains(event.kind)
+        switch event.kind {
+        case .userPromptSubmit, .permissionRequest: return true
+        case .preToolUse, .postToolUse: return running
+        default: return false
+        }
     }
 
     /// The turn is over: the watch stops, and the turn-end read takes what's left.

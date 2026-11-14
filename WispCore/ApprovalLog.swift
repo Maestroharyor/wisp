@@ -9,7 +9,7 @@ public enum ApprovalOutcome: String, Codable, CaseIterable, Sendable {
     case answered
     /// Answered in the terminal, or handed back to it from the card.
     case terminal
-    /// Allowed without asking, by Allow All.
+    /// Allowed without asking, by Allow All. (Claude Code's own rules never reach Wisp.)
     case rule
     /// Nobody answered in Wisp before the hook's wait ran out, so the terminal asked.
     case timedOut
@@ -20,7 +20,7 @@ public enum ApprovalOutcome: String, Codable, CaseIterable, Sendable {
         case .denied: "Denied"
         case .answered: "Answered"
         case .terminal: "Answered in the terminal"
-        case .rule: "By a rule"
+        case .rule: "Allow All"
         case .timedOut: "Timed out"
         }
     }

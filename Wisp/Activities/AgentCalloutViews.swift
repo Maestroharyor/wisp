@@ -96,7 +96,12 @@ struct AgentCalloutCard: View {
         }
     }
 
+    /// Only while the slot still holds this card: a spend cap card that replaced it mid-transition
+    /// must not go, since closing that one counts as Keep going.
     private func close() {
-        model.services.activities.remove(.agentCallout)
+        let activities = model.services.activities
+        guard case .agentCallout(let current) = activities.activity(in: .agentCallout), current.id == callout.id
+        else { return }
+        activities.remove(.agentCallout)
     }
 }

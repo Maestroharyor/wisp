@@ -15,15 +15,22 @@ final class RolloutWatchTests: XCTestCase {
     // MARK: When to watch
 
     func testCodexTurnActivityStartsTheWatch() throws {
-        for kind in ["UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest"] {
-            XCTAssertTrue(RolloutWatch.starts(try event(kind)), kind)
+        for kind in ["UserPromptSubmit", "PermissionRequest"] {
+            XCTAssertTrue(RolloutWatch.starts(try event(kind), running: false), kind)
         }
-        XCTAssertFalse(RolloutWatch.starts(try event("SessionStart")))
+        for kind in ["PreToolUse", "PostToolUse"] {
+            XCTAssertTrue(RolloutWatch.starts(try event(kind), running: true), kind)
+        }
+        XCTAssertFalse(RolloutWatch.starts(try event("SessionStart"), running: true))
+    }
+
+    func testALateToolEventAfterTheTurnDoesNotStartIt() throws {
+        XCTAssertFalse(RolloutWatch.starts(try event("PostToolUse"), running: false))
     }
 
     func testOnlyCodexWithATranscriptIsWatched() throws {
-        XCTAssertFalse(RolloutWatch.starts(try event("UserPromptSubmit", source: "claude")))
-        XCTAssertFalse(RolloutWatch.starts(try event("UserPromptSubmit", transcript: false)))
+        XCTAssertFalse(RolloutWatch.starts(try event("UserPromptSubmit", source: "claude"), running: true))
+        XCTAssertFalse(RolloutWatch.starts(try event("UserPromptSubmit", transcript: false), running: true))
     }
 
     func testTheEndOfATurnStopsIt() throws {

@@ -91,7 +91,7 @@ final class ApprovalLogTests: XCTestCase {
 
     func testOutcomeTitles() {
         XCTAssertEqual(ApprovalOutcome.terminal.title, "Answered in the terminal")
-        XCTAssertEqual(ApprovalOutcome.rule.title, "By a rule")
+        XCTAssertEqual(ApprovalOutcome.rule.title, "Allow All")
         XCTAssertEqual(ApprovalOutcome.timedOut.title, "Timed out")
         XCTAssertEqual(Set(ApprovalOutcome.allCases.map(\.title)).count, ApprovalOutcome.allCases.count)
     }
