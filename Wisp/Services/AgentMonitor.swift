@@ -24,24 +24,27 @@ final class AgentMonitor {
     var connected: Set<String> = [] {
         didSet { if connected != oldValue { sessions = sessions.filter(isShown) } }
     }
+    /// Whether the shelf or the Wisp window, where the Agents views live, is on screen. Set by
+    /// AppDelegate; a view that left without saying so can't keep the scan going past it.
+    @ObservationIgnored var surfaceVisible: @MainActor () -> Bool = { true }
 
-    @ObservationIgnored private var viewers = 0
+    @ObservationIgnored private var schedule = MonitorScan()
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     /// Bumped for each loop, so an old loop ending doesn't forget a newer one.
     @ObservationIgnored private var generation = 0
 
     /// An Agents view came on screen: scan now, then keep scanning while it shows.
     func viewAppeared() {
-        viewers += 1
+        schedule.viewAppeared()
         update(scanNow: true)
     }
 
     func viewDisappeared() {
-        viewers = max(0, viewers - 1)
+        schedule.viewDisappeared()
         update()
     }
 
-    private var wanted: Bool { enabled && (viewers > 0 || !sessions.isEmpty) }
+    private var wanted: Bool { enabled && schedule.wanted(tracking: !sessions.isEmpty) }
 
     /// Starts or stops the scan loop to match `wanted`.
     private func update(scanNow: Bool = false) {
@@ -54,18 +57,29 @@ final class AgentMonitor {
         generation += 1
         let loop = generation
         pollTask = Task { [weak self] in
+            // A view that just appeared gets its list at once, even mid-animation.
+            var first = scanNow
             while !Task.isCancelled {
                 guard let self else { return }
-                guard self.wanted else {
-                    // Stopped by itself (the last agent quit with no view open): let the next
+                let step = first ? .scan : self.nextStep()
+                first = false
+                switch step {
+                case .scan: await self.scan()
+                case .wait: break
+                case .stop:
+                    // Stopped by itself (the last agent quit, no view on screen): let the next
                     // view start a new loop.
                     if self.generation == loop { self.pollTask = nil }
                     return
                 }
-                await self.scan()
                 try? await Task.sleep(for: Self.interval)
             }
         }
+    }
+
+    private func nextStep() -> MonitorScan.Step {
+        guard enabled else { return .stop }
+        return schedule.tick(surfaceVisible: surfaceVisible(), tracking: !sessions.isEmpty, now: .now)
     }
 
     private func scan() async {
