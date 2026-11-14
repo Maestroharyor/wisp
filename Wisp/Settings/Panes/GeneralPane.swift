@@ -47,7 +47,15 @@ struct GeneralSettings: View {
                     ShortcutRow(keys: "⇪ 1–9", action: "Switch profile")
                     ShortcutRow(keys: "⇪ Y or ⇪ N", action: "Allow or deny the request on screen")
                     ShortcutRow(keys: "⇪ 1–9", action: "Pick an answer while a question shows")
-                    ShortcutRow(keys: Hotkey.switcherHyper.description, action: "Jump to an agent session")
+                    ShortcutRow(
+                        keys: Hotkey.switcherShortcut(shelf: preferences.hotkey).description,
+                        action: "Jump to an agent session")
+                    if Hotkey.switcherClashes(shelf: preferences.hotkey) {
+                        let shelf = Hotkey.switcherHyper.description
+                        let switcher = Hotkey.switcherFallback.description
+                        Text("\(shelf) opens the shelf, so the session switcher uses \(switcher).")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 } else {
                     ShortcutRow(keys: Hotkey.clipboardFallback.description, action: "Clipboard history")
                     ShortcutRow(keys: "⌃⌥⌘Y or ⌃⌥⌘N", action: "Allow or deny the request on screen")
