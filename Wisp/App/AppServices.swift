@@ -376,6 +376,7 @@ final class AppServices {
         Task { [weak self] in
             guard let self else { return }
             let summary = await self.agentHistory.summarise(record, hidden: self.agents.detailsHidden)
+            self.agents.setSummary(summary, session: record.sessionID)
             let quiet = self.attention.isQuiet(.done)
             let looking = await self.attention.isLooking(at: record.sessionID, group: .done)
             // A new turn has begun since; its own Done will bring a fresh summary.

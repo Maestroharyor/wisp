@@ -40,7 +40,7 @@ struct WidgetCard: View {
                 if services.preferences.size(of: .agents) == .wide, host == .notch {
                     AgentsDetail(hub: services.agents, cloud: services.cloud, model: model)
                 } else {
-                    AgentsWidget(hub: services.agents, cloud: services.cloud)
+                    AgentsWidget(hub: services.agents, cloud: services.cloud, preferences: services.preferences)
                 }
             case .script: ScriptWidget(store: services.script, preferences: services.preferences)
             case .quickInput: QuickInputWidget(store: services.quickInput, dictation: services.dictation)

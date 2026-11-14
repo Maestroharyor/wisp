@@ -180,64 +180,45 @@ struct AgentApprovalCard: View {
 
     private var requestCard: some View {
         let hub = model.services.agents
+        let hidden = hub.detailsHidden
         return VStack(spacing: 0) {
             Color.clear.frame(height: model.isNotchStyle ? model.notchHeight : 8)
-            // The answer buttons get a row of their own: beside the request they left the
-            // header less width than its controls need, so the row overflowed the card.
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: approval.source.symbol)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(Color.project(approval.project))
-                        .frame(width: 38, height: 38)
-                        .background(Circle().fill(Color.project(approval.project).opacity(0.18)))
-                    VStack(alignment: .leading, spacing: 3) {
-                        header(hub: hub)
-                        ApprovalSummary(
-                            approval: approval, hidden: hub.detailsHidden,
-                            fallback: approval.prompt == .plan
-                                ? "Plan ready for review" : "Wants to use \(approval.tool)",
-                            size: 12, lines: 2
-                        )
-                        .id(approval.id)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: approval.source.symbol)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.project(approval.project))
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(Color.project(approval.project).opacity(0.18)))
+                VStack(alignment: .leading, spacing: 3) {
+                    header(hub: hub)
+                    ApprovalSummary(
+                        approval: approval, hidden: hidden,
+                        fallback: approval.prompt == .plan
+                            ? "Plan ready for review" : "Wants to use \(approval.tool)",
+                        size: 12, lines: approval.filePath == nil ? 2 : 1
+                    )
+                    .id(approval.id)
                 }
-                ApprovalButtons(approval: approval, hub: hub) {
-                    Button {
-                        hub.answerInTerminal(approval.id)
-                    } label: {
-                        Text("Terminal")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.ink.opacity(0.7))
-                            .padding(.horizontal, 8)
-                            .frame(height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Answer in the terminal instead")
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 18)
-            .frame(height: SurfaceSizing.notificationCardHeight - 8 + SurfaceSizing.approvalActionRowHeight)
+            .frame(height: SurfaceSizing.notificationCardHeight - 8)
             // The full preview replaces it when open; private mode shows only the file's name.
             if !expanded, let diff = approval.inlineDiff {
                 Group {
-                    if hub.detailsHidden {
+                    if hidden {
                         PrivateDiffRow(fileName: approval.fileName, diff: diff)
                     } else {
-                        InlineDiffView(diff: diff)
+                        InlineDiffView(diff: diff, anchor: hub.anchors[approval.id])
                     }
                 }
                 .padding(.horizontal, 18)
-                .padding(.bottom, 8)
-                .frame(height: SurfaceSizing.inlineDiffHeight, alignment: .top)
+                .frame(height: SurfaceSizing.inlineDiffHeight(rows: hidden ? 1 : diff.lines.count), alignment: .top)
                 .transition(.opacity)
             }
-            if expanded, let preview = approval.preview, !hub.detailsHidden {
+            if expanded, let preview = approval.preview, !hidden {
                 VStack(spacing: 8) {
-                    ApprovalPreviewPane(preview: preview)
+                    ApprovalPreviewPane(preview: preview, anchor: hub.anchors[approval.id], counts: approval.inlineDiff)
                     DenyReasonRow(approval: approval, model: model)
                 }
                 .padding(.horizontal, 18)
@@ -245,18 +226,33 @@ struct AgentApprovalCard: View {
                 .frame(height: SurfaceSizing.approvalPreviewHeight)
                 .transition(.opacity)
             }
+            CardAnswers(approval: approval, hub: hub)
+                .padding(.horizontal, 18)
             Spacer(minLength: 0)
         }
         .foregroundStyle(.ink)
     }
 
-    /// Title, queue position and project, then Preview and Minimise. Only the project and
-    /// then the title give way, so the row never runs past the card.
+    /// The verb and file ("Edit src/auth.ts", the path middle-truncated), queue position and
+    /// project, then Preview and Minimise. Only the project and then the path give way, so the
+    /// row never runs past the card. Private mode names the file without its folders.
     private func header(hub: AgentHub) -> some View {
         HStack(spacing: 6) {
-            Text(approval.title).font(.system(size: 13, weight: .bold))
-                .lineLimit(1).truncationMode(.middle)
-                .layoutPriority(1)
+            HStack(spacing: 5) {
+                if approval.filePath != nil {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.wispAmber)
+                        .help("Changes a file")
+                        .accessibilityLabel("Changes a file")
+                }
+                Text(approval.title).font(.system(size: 13, weight: .bold)).lineLimit(1).fixedSize()
+                if let path = hub.detailsHidden ? approval.fileName : approval.titlePath {
+                    Text(path).font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .lineLimit(1).truncationMode(.middle)
+                }
+            }
+            .layoutPriority(1)
             if let position = hub.queue.positionLabel {
                 Text(position)
                     .font(.system(size: 10, weight: .semibold)).monospacedDigit()
@@ -376,24 +372,32 @@ struct PendingBadge: View {
     }
 }
 
-/// The diff, command, new file or plan behind a request, scrolled inside the card.
+/// The diff, command, new file or plan behind a request, scrolled inside the card. An edit's
+/// diff gets the line-number gutter once its place in the file is known (`anchor`), and the
+/// whole change's "+N −M" from `counts`.
 private struct ApprovalPreviewPane: View {
     let preview: ApprovalPreview
+    let anchor: Int?
+    let counts: InlineDiff?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 1) {
                 switch preview {
                 case .diff(let lines, let more):
+                    let numbers = lines.map {
+                        (old: FileAnchor.shift($0.old, anchor: anchor), new: FileAnchor.shift($0.new, anchor: anchor))
+                    }
+                    let digits = DiffRow.digits(numbers)
                     ForEach(Array(lines.enumerated()), id: \.offset) { offset, line in
-                        Text(line.kind.marker + line.text)
-                            .fontWeight(line.kind == .hunk ? .semibold : .regular)
-                            .foregroundStyle(line.kind.tint)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, line.kind == .hunk && offset > 0 ? 4 : 0)
-                            .background(line.kind.tint.opacity(line.kind.isChange ? 0.12 : 0))
+                        DiffRow(
+                            kind: line.kind, text: line.text, old: numbers[offset].old, new: numbers[offset].new,
+                            digits: digits, wraps: true
+                        )
+                        .padding(.top, line.kind == .hunk && offset > 0 ? 4 : 0)
                     }
                     moreLines(more)
+                    if let counts, !counts.wholeFile { DiffCounts(diff: counts).padding(.top, 4) }
                 case .text(let text, let more):
                     Text(text).foregroundStyle(.ink.opacity(0.85))
                     moreLines(more)
@@ -444,6 +448,73 @@ extension DiffLine.Kind {
     fileprivate var isChange: Bool { self == .removed || self == .added }
 }
 
+/// One line of a diff, tinted across the card's width when it changes, after an old and new
+/// line-number gutter when `digits` is set.
+private struct DiffRow: View {
+    let kind: DiffLine.Kind
+    let text: String
+    let old: Int?
+    let new: Int?
+    /// Digits each gutter column has room for; nil leaves the gutter out.
+    let digits: Int?
+    /// The preview wraps long lines; the card's few rows stay one line each.
+    var wraps = false
+
+    /// Room for the widest number shown; nil when nothing is numbered.
+    static func digits(_ numbers: [(old: Int?, new: Int?)]) -> Int? {
+        let widest = numbers.flatMap { [$0.old, $0.new] }.compactMap { $0 }.max()
+        return widest.map { String($0).count }
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            if let digits {
+                gutter(old, digits: digits)
+                gutter(new, digits: digits)
+            }
+            Text(kind.marker + text)
+                .fontWeight(kind == .hunk ? .semibold : .regular)
+                .foregroundStyle(kind.tint)
+                .lineLimit(wraps ? nil : 1).truncationMode(.tail)
+                .padding(.leading, digits == nil ? 0 : 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(kind.tint.opacity(kind.isChange ? 0.14 : 0))
+    }
+
+    private func gutter(_ number: Int?, digits: Int) -> some View {
+        Text(number.map(String.init) ?? "")
+            .foregroundStyle(Color.secondaryText)
+            .frame(width: CGFloat(digits) * 7 + 6, alignment: .trailing)
+            .accessibilityHidden(number == nil)
+    }
+}
+
+/// "+4 −2" in green and red, or a new file's line count.
+private struct DiffCounts: View {
+    let diff: InlineDiff
+
+    var body: some View {
+        Group {
+            if diff.wholeFile {
+                Text(diff.counts).foregroundStyle(Color.secondaryText)
+                    .help("The file's whole new content")
+                    .accessibilityLabel("New content, \(diff.counts)")
+            } else {
+                HStack(spacing: 4) {
+                    Text("+\(diff.added)").foregroundStyle(Color.wispGreen)
+                    Text("−\(diff.removed)").foregroundStyle(.red.opacity(0.85))
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(diff.added) lines added, \(diff.removed) removed")
+            }
+        }
+        .font(.system(size: 11, weight: .medium, design: .monospaced))
+        .monospacedDigit()
+        .fixedSize()
+    }
+}
+
 /// An edit in private mode: the file's name and the counts, never its lines.
 private struct PrivateDiffRow: View {
     let fileName: String?
@@ -466,47 +537,148 @@ private struct PrivateDiffRow: View {
     }
 }
 
-/// The first changed lines of an edit, in the card itself, with the whole change's counts.
+/// The first rows of a change in the card itself: changed lines in order with a line of context,
+/// numbered once Wisp knows where the edit sits (a new file always is), with the counts under them.
 private struct InlineDiffView: View {
     let diff: InlineDiff
+    let anchor: Int?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                ForEach(Array(diff.lines.enumerated()), id: \.offset) { _, line in
-                    HStack(spacing: 6) {
-                        if let number = line.number {
-                            Text("\(number)").foregroundStyle(Color.secondaryText)
-                                .frame(minWidth: 18, alignment: .trailing)
-                        }
-                        Text(line.kind.marker + line.text).foregroundStyle(line.kind.tint)
-                            .lineLimit(1).truncationMode(.tail)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(line.kind.tint.opacity(0.12))
+        let numbers = diff.lines.map { diff.numbers(for: $0, anchor: anchor) }
+        let digits = DiffRow.digits(numbers)
+        VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: SurfaceSizing.inlineDiffRowSpacing) {
+                ForEach(Array(diff.lines.enumerated()), id: \.offset) { offset, line in
+                    DiffRow(
+                        kind: line.kind, text: line.text, old: numbers[offset].old, new: numbers[offset].new,
+                        digits: digits
+                    )
+                    .frame(height: SurfaceSizing.inlineDiffRowHeight)
                 }
             }
-            Group {
-                if diff.wholeFile {
-                    Text(diff.counts).foregroundStyle(Color.secondaryText)
-                        .help("The file's whole new content")
-                        .accessibilityLabel("New content, \(diff.counts)")
-                } else {
-                    HStack(spacing: 4) {
-                        Text("+\(diff.added)").foregroundStyle(Color.wispGreen)
-                        Text("−\(diff.removed)").foregroundStyle(.red.opacity(0.85))
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(diff.added) lines added, \(diff.removed) removed")
-                }
-            }
-            .fixedSize()
+            .font(.system(size: 11, design: .monospaced))
+            .monospacedDigit()
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.ink.opacity(0.06)))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            DiffCounts(diff: diff).frame(height: 13)
         }
-        .font(.system(size: 11, design: .monospaced))
-        .monospacedDigit()
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.ink.opacity(0.06)))
+    }
+}
+
+/// The card's answers: Allow All, Always allow and Terminal in a quieter row, then Deny and Allow
+/// as two equal full-width buttons with their key hints.
+private struct CardAnswers: View {
+    let approval: AgentApproval
+    let hub: AgentHub
+
+    var body: some View {
+        let hyper = hub.keysUseHyper()
+        VStack(spacing: 4) {
+            HStack(spacing: 14) {
+                // Allow All covers tool calls only; each plan is approved on its own.
+                if approval.prompt == .tool {
+                    Button("Allow All") { hub.allowAll(approval.id) }
+                        .buttonStyle(QuietAnswerStyle())
+                        .help("Allow this and every later request from \(approval.project) until the session ends")
+                    if !approval.rules.isEmpty {
+                        AlwaysAllowMenu(approval: approval, hub: hub) {
+                            Label("Always allow", systemImage: "chevron.down")
+                                .labelStyle(TrailingIconLabelStyle())
+                                .modifier(QuietAnswerLook())
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+                Button("Terminal") { hub.answerInTerminal(approval.id) }
+                    .buttonStyle(QuietAnswerStyle())
+                    .help("Answer in the terminal instead")
+            }
+            .frame(height: 22)
+            HStack(spacing: 8) {
+                Button {
+                    hub.answer(approval.id, allow: false)
+                } label: {
+                    KeyHintLabel(title: "Deny", hint: ApprovalKeys.hint(.deny, hyper: hyper))
+                }
+                .buttonStyle(WideAnswerStyle(fill: .ink.opacity(0.14), text: .ink))
+                Button {
+                    hub.answer(approval.id, allow: true)
+                } label: {
+                    KeyHintLabel(
+                        title: approval.prompt == .plan ? "Approve" : "Allow",
+                        hint: ApprovalKeys.hint(.allow, hyper: hyper))
+                }
+                .buttonStyle(WideAnswerStyle(fill: .wispGreen, text: .black))
+            }
+            .frame(height: 32)
+        }
+        .modifier(AnswerWake(id: approval.id))
+    }
+}
+
+/// Keeps answer buttons asleep for a moment after a request appears, so a click aimed at the
+/// previous card can't answer the one that just replaced it.
+struct AnswerWake: ViewModifier {
+    let id: UUID
+    @State private var ready = false
+
+    func body(content: Content) -> some View {
+        content
+            .disabled(!ready)
+            .opacity(ready ? 1 : 0.6)
+            .task(id: id) {
+                ready = false
+                try? await Task.sleep(for: .milliseconds(400))
+                ready = true
+            }
+    }
+}
+
+/// Deny or Allow across half the card.
+private struct WideAnswerStyle: ButtonStyle {
+    let fill: Color
+    let text: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(text)
+            .frame(maxWidth: .infinity)
+            .frame(height: 32)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fill))
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
+/// The text of the card's quieter answers.
+private struct QuietAnswerLook: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.ink.opacity(0.7))
+            .lineLimit(1)
+            .frame(height: 22)
+            .contentShape(Rectangle())
+    }
+}
+
+private struct QuietAnswerStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .modifier(QuietAnswerLook())
+            .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
+/// The title, then a small icon after it ("Always allow ⌄").
+private struct TrailingIconLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.title
+            configuration.icon.font(.system(size: 8, weight: .bold))
+        }
     }
 }
 
@@ -595,26 +767,15 @@ private struct ApprovalSummary: View {
     }
 }
 
-/// Deny and Allow, shared by the card under the notch and the bar in an open shelf, after
-/// any `leading` controls (the card's Terminal). They wake a moment after a request appears,
-/// so a click aimed at the previous card can't answer the one that just replaced it.
-struct ApprovalButtons<Leading: View>: View {
+/// Deny, Allow All, Always allow and Allow in a compact row for the bar in an open shelf. They
+/// wake a moment after a request appears (`AnswerWake`).
+struct ApprovalButtons: View {
     let approval: AgentApproval
     let hub: AgentHub
-    let leading: Leading
-
-    @State private var ready = false
-
-    init(approval: AgentApproval, hub: AgentHub, @ViewBuilder leading: () -> Leading) {
-        self.approval = approval
-        self.hub = hub
-        self.leading = leading()
-    }
 
     var body: some View {
         let hyper = hub.keysUseHyper()
         HStack(spacing: 8) {
-            leading
             Button {
                 hub.answer(approval.id, allow: false)
             } label: {
@@ -640,19 +801,7 @@ struct ApprovalButtons<Leading: View>: View {
         // The buttons keep their full width; the request text beside them truncates instead,
         // so a narrow card never squeezes a label (Allow All) down to an empty pill.
         .fixedSize()
-        .disabled(!ready)
-        .opacity(ready ? 1 : 0.6)
-        .task(id: approval.id) {
-            ready = false
-            try? await Task.sleep(for: .milliseconds(400))
-            ready = true
-        }
-    }
-}
-
-extension ApprovalButtons where Leading == EmptyView {
-    init(approval: AgentApproval, hub: AgentHub) {
-        self.init(approval: approval, hub: hub) { EmptyView() }
+        .modifier(AnswerWake(id: approval.id))
     }
 }
 
@@ -750,17 +899,20 @@ private struct ApprovalButtonStyle: ButtonStyle {
     }
 }
 
-/// Every live Claude Code session, newest first.
-/// Each agent session as a status bar, like the one in the terminal. At the Wide size the
-/// widget shows `AgentsDetail` instead, with the selected session's details on the right.
+/// Each agent session as a status bar, like the one in the terminal, what needs you first
+/// (`SessionOrder`). At the Wide size the widget shows `AgentsDetail` instead, with the selected
+/// session's details on the right.
 struct AgentsWidget: View {
     let hub: AgentHub
     let cloud: CloudAgentStore
+    let preferences: Preferences
 
     var body: some View {
-        let sessions = hub.sessions.list
-        let hasCloud = !CloudLane.visible(cloud.tasks, now: .now).isEmpty
-        Group {
+        // Redrawn every half minute so a done session leaves once its keep time is up.
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let sessions = SessionOrder.arrange(
+                hub.sessions.list, rules: preferences.sessionOrderRules, now: context.date)
+            let hasCloud = !CloudLane.visible(cloud.tasks, now: context.date).isEmpty
             if sessions.isEmpty && !hasCloud {
                 if hub.connected.isEmpty { ConnectAgentsHint(hub: hub) } else { NoSessionsHint() }
             } else {
@@ -769,8 +921,11 @@ struct AgentsWidget: View {
                         LimitsHeader(readings: hub.limitReadings)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         ForEach(sessions) { session in
-                            SessionBar(session: session, hidden: hub.detailsHidden) { hub.focus(session: session.id) }
-                                .help("Show the terminal")
+                            SessionBar(
+                                session: session, hidden: hub.detailsHidden, summary: hub.summaries[session.id]
+                            ) { hub.focus(session: session.id) }
+                            .help("Show the terminal")
+                            .modifier(SessionRowMenu(session: session, preferences: preferences))
                         }
                         CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                     }
@@ -833,13 +988,14 @@ extension SessionGlance.Activity {
     }
 }
 
-/// Under a session's title: "You: <last prompt>" (left out while details are private), what
-/// it's doing now, then its agent and terminal tags with how long it's been in this state.
-/// With `jump`, a finished session's line brings its terminal forward; without it the row's
-/// own tap decides (the detail list selects).
+/// Under a session's title: "You: <last prompt>" (left out while details are private) and what
+/// it's doing now, then its chips (a red Bypass when prompts are skipped, the agent, model,
+/// terminal and branch) with how long it has run and its state ("1h · Working"). With `jump`, a
+/// finished session's line brings its terminal forward; without it the row's own tap decides
+/// (the detail list selects).
 private struct SessionGlanceLines: View {
     let glance: SessionGlance
-    let terminal: String?
+    let session: AgentSession
     var jump: (() -> Void)?
 
     var body: some View {
@@ -856,13 +1012,30 @@ private struct SessionGlanceLines: View {
                 activity
             }
             HStack(spacing: 4) {
-                SessionTag(text: glance.agent)
-                if let name = TerminalApps.name(for: terminal) { SessionTag(text: name) }
+                SessionChips(chips: chips)
                 Spacer(minLength: 4)
-                Text(glance.age).font(.system(size: 10)).monospacedDigit().foregroundStyle(Color.secondaryText)
+                Text("\(glance.runTime) · \(session.state.label)")
+                    .font(.system(size: 10)).monospacedDigit().foregroundStyle(Color.secondaryText)
                     .lineLimit(1).fixedSize()
+                    .help("Running for \(glance.runTime)")
             }
         }
+    }
+
+    /// In the order they're kept when the row is narrow; Bypass leads so it's never the one dropped.
+    private var chips: [SessionChip] {
+        var result: [SessionChip] = []
+        if glance.bypass {
+            result.append(
+                SessionChip(text: "Bypass", tint: .red, help: "Permission prompts are skipped in this session"))
+        }
+        result.append(SessionChip(text: glance.agent))
+        if let model = session.displayModel { result.append(SessionChip(text: model)) }
+        if let name = TerminalApps.name(for: session.terminal) { result.append(SessionChip(text: name)) }
+        if let branch = session.branch {
+            result.append(SessionChip(text: branch, symbol: "arrow.triangle.branch", help: "Branch \(branch)"))
+        }
+        return result
     }
 
     private var activity: some View {
@@ -873,16 +1046,86 @@ private struct SessionGlanceLines: View {
     }
 }
 
-private struct SessionTag: View {
+private struct SessionChip: Hashable {
     let text: String
+    var symbol: String? = nil
+    var tint: Color? = nil
+    var help: String? = nil
+}
+
+/// As many chips as fit, dropping the last ones first.
+private struct SessionChips: View {
+    let chips: [SessionChip]
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 9.5, weight: .semibold))
-            .foregroundStyle(Color.secondaryText)
-            .lineLimit(1)
-            .padding(.horizontal, 5).padding(.vertical, 1)
-            .background(Capsule().fill(.ink.opacity(0.1)))
+        ViewThatFits(in: .horizontal) {
+            ForEach(0..<max(chips.count, 1), id: \.self) { dropped in
+                HStack(spacing: 4) {
+                    ForEach(Array(chips.prefix(max(chips.count - dropped, 1)).enumerated()), id: \.offset) {
+                        SessionTag(chip: $0.element)
+                    }
+                }
+                .fixedSize()
+            }
+        }
+    }
+}
+
+private struct SessionTag: View {
+    let chip: SessionChip
+
+    var body: some View {
+        HStack(spacing: 2) {
+            if let symbol = chip.symbol { Image(systemName: symbol).font(.system(size: 8, weight: .semibold)) }
+            Text(chip.text).lineLimit(1).truncationMode(.middle)
+        }
+        .font(.system(size: 9.5, weight: .semibold))
+        .foregroundStyle(chip.tint ?? Color.secondaryText)
+        .padding(.horizontal, 5).padding(.vertical, 1)
+        .background(Capsule().fill((chip.tint ?? Color.ink).opacity(chip.tint == nil ? 0.1 : 0.18)))
+        .frame(maxWidth: 120)
+        .help(chip.help ?? chip.text)
+    }
+}
+
+/// "project · task title": the project in its weight, the task after it, truncated first.
+private struct SessionTitle: View {
+    let project: String
+    let title: String?
+    let size: CGFloat
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(project).font(.system(size: size, weight: .semibold)).lineLimit(1)
+                .layoutPriority(1)
+            if let title {
+                Text("· \(title)").font(.system(size: size - 1)).foregroundStyle(.ink.opacity(0.75))
+                    .lineLimit(1).truncationMode(.tail)
+            }
+        }
+    }
+}
+
+/// Pin and hide for a session row, saved in Preferences (`SessionOrder`).
+private struct SessionRowMenu: ViewModifier {
+    let session: AgentSession
+    let preferences: Preferences
+
+    func body(content: Content) -> some View {
+        content.contextMenu {
+            let project = session.project
+            Button(preferences.pinnedAgentSessions.contains(session.id) ? "Unpin session" : "Pin session") {
+                preferences.togglePin(session: session.id)
+            }
+            Button(preferences.pinnedAgentProjects.contains(project) ? "Unpin \(project)" : "Pin \(project)") {
+                preferences.togglePin(project: project)
+            }
+            Divider()
+            Button(session.state == .finished ? "Dismiss session" : "Hide session") {
+                preferences.hide(session: session.id)
+            }
+            Button("Hide \(project)") { preferences.hide(project: project) }
+        }
     }
 }
 
@@ -940,12 +1183,14 @@ private struct LimitItem: View {
     }
 }
 
-/// One session in the terminal bar's order: project, branch and model with its state, then
-/// context, cost, tokens and lines changed. Figures nobody reported are left out; when the
-/// widget is narrow the last ones go first, as in the terminal.
+/// One session: "project · task", what it's doing with its chips and run time, then context,
+/// cost, tokens and lines changed as in the terminal bar. Figures nobody reported are left out;
+/// when the widget is narrow the last ones go first, as in the terminal.
 private struct SessionBar: View {
     let session: AgentSession
     let hidden: Bool
+    /// The AI summary of its last finished turn, a fallback for its title.
+    let summary: String?
     let open: () -> Void
 
     @State private var hovering = false
@@ -959,26 +1204,21 @@ private struct SessionBar: View {
                 )
                 .font(.system(size: 12))
                 TerminalIcon(bundleID: session.terminal, size: 14)
-                Text(session.project).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                if let branch = session.branch {
-                    Label(branch, systemImage: "arrow.triangle.branch")
-                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(Color.secondaryText)
-                        .lineLimit(1).truncationMode(.middle)
-                }
-                if let model = session.displayModel {
-                    Text(model).font(.system(size: 11)).foregroundStyle(Color.secondaryText).lineLimit(1)
-                }
+                SessionTitle(
+                    project: session.project,
+                    title: SessionGlance.make(session, now: .now, hidden: hidden, summary: summary).title, size: 13)
                 Spacer(minLength: 4)
             }
             TimelineView(.periodic(from: .now, by: 15)) { context in
                 SessionGlanceLines(
-                    glance: SessionGlance.make(session, now: context.date, hidden: hidden), terminal: session.terminal,
-                    jump: open)
+                    glance: SessionGlance.make(session, now: context.date, hidden: hidden, summary: summary),
+                    session: session, jump: open)
             }
             .padding(.leading, 25)
             if partCount > 0 {
+                // All the figures first, then one fewer each time, so the widest that fits wins.
                 ViewThatFits(in: .horizontal) {
-                    ForEach((0..<partCount).reversed(), id: \.self) { dropped in
+                    ForEach(0..<partCount, id: \.self) { dropped in
                         figures(keeping: partCount - dropped)
                     }
                 }
@@ -1057,7 +1297,8 @@ struct AgentsDetail: View {
     @State private var owner = UUID()
 
     var body: some View {
-        let sessions = hub.sessions.list
+        let preferences = model.services.preferences
+        let sessions = SessionOrder.arrange(hub.sessions.list, rules: preferences.sessionOrderRules, now: .now)
         let selected = sessions.first { $0.id == selection } ?? sessions.first
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -1076,12 +1317,14 @@ struct AgentsDetail: View {
                         VStack(spacing: 4) {
                             ForEach(sessions) { session in
                                 DetailSessionRow(
-                                    session: session, selected: session.id == selected?.id, hidden: hub.detailsHidden
+                                    session: session, selected: session.id == selected?.id, hidden: hub.detailsHidden,
+                                    summary: hub.summaries[session.id]
                                 )
                                 .onTapGesture {
                                     selection = session.id
                                     showingHistory = false
                                 }
+                                .modifier(SessionRowMenu(session: session, preferences: preferences))
                             }
                             CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                         }
@@ -1201,12 +1444,13 @@ private struct PrivacyButton: View {
     }
 }
 
-/// The title line (project and branch), then the glance lines. A tap selects the session,
+/// The title line ("project · task"), then the glance lines and the context bar. A tap selects the session,
 /// done or not; the detail pane's terminal button jumps.
 private struct DetailSessionRow: View {
     let session: AgentSession
     let selected: Bool
     let hidden: Bool
+    let summary: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -1217,19 +1461,20 @@ private struct DetailSessionRow: View {
                 )
                 .font(.system(size: 11))
                 TerminalIcon(bundleID: session.terminal, size: 13)
-                Text(session.project).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                    .layoutPriority(1)
-                if let branch = session.branch {
-                    Text(branch).font(.system(size: 10, design: .monospaced)).foregroundStyle(Color.secondaryText)
-                        .lineLimit(1).truncationMode(.middle)
-                }
+                SessionTitle(
+                    project: session.project,
+                    title: SessionGlance.make(session, now: .now, hidden: hidden, summary: summary).title, size: 12)
                 Spacer(minLength: 0)
             }
             TimelineView(.periodic(from: .now, by: 15)) { context in
                 SessionGlanceLines(
-                    glance: SessionGlance.make(session, now: context.date, hidden: hidden), terminal: session.terminal)
+                    glance: SessionGlance.make(session, now: context.date, hidden: hidden, summary: summary),
+                    session: session)
             }
             .padding(.leading, 22)
+            if let percent = session.contextPercent {
+                ContextBar(percent: percent).padding(.leading, 22)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)

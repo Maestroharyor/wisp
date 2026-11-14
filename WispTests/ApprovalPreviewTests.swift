@@ -14,8 +14,8 @@ final class ApprovalPreviewTests: XCTestCase {
             preview,
             .diff(
                 [
-                    DiffLine(kind: .context, text: "b"), DiffLine(kind: .removed, text: "c"),
-                    DiffLine(kind: .added, text: "C"), DiffLine(kind: .context, text: "d"),
+                    DiffLine(kind: .context, text: "b", old: 2, new: 2), DiffLine(kind: .removed, text: "c", old: 3),
+                    DiffLine(kind: .added, text: "C", new: 3), DiffLine(kind: .context, text: "d", old: 4, new: 4),
                 ], more: 0))
     }
 
@@ -28,13 +28,13 @@ final class ApprovalPreviewTests: XCTestCase {
         else { return XCTFail("expected a diff") }
         XCTAssertEqual(lines.count, 10)
         XCTAssertEqual(more, 50)
-        XCTAssertEqual(lines.first, DiffLine(kind: .removed, text: "old 1"))
+        XCTAssertEqual(lines.first, DiffLine(kind: .removed, text: "old 1", old: 1))
     }
 
     func testAnEmptySideIsNoLines() {
         XCTAssertEqual(
             ApprovalPreview.make(tool: "Edit", input: input(["old_string": "", "new_string": "x"]), limit: 5),
-            .diff([DiffLine(kind: .added, text: "x")], more: 0))
+            .diff([DiffLine(kind: .added, text: "x", new: 1)], more: 0))
     }
 
     func testAMultiEditShowsEveryEdit() {
@@ -46,9 +46,9 @@ final class ApprovalPreviewTests: XCTestCase {
             ApprovalPreview.make(tool: "MultiEdit", input: .object(["edits": edits]), limit: 10),
             .diff(
                 [
-                    DiffLine(kind: .hunk, text: "Edit 1 of 2"), DiffLine(kind: .removed, text: "a"),
-                    DiffLine(kind: .added, text: "b"), DiffLine(kind: .hunk, text: "Edit 2 of 2"),
-                    DiffLine(kind: .removed, text: "c"), DiffLine(kind: .added, text: "d"),
+                    DiffLine(kind: .hunk, text: "Edit 1 of 2"), DiffLine(kind: .removed, text: "a", old: 1),
+                    DiffLine(kind: .added, text: "b", new: 1), DiffLine(kind: .hunk, text: "Edit 2 of 2"),
+                    DiffLine(kind: .removed, text: "c", old: 1), DiffLine(kind: .added, text: "d", new: 1),
                 ], more: 0))
     }
 
@@ -59,11 +59,11 @@ final class ApprovalPreviewTests: XCTestCase {
             ApprovalPreview.make(tool: "Edit", input: input(["old_string": old, "new_string": new]), limit: 40),
             .diff(
                 [
-                    DiffLine(kind: .context, text: "a"), DiffLine(kind: .removed, text: "b"),
-                    DiffLine(kind: .added, text: "B"), DiffLine(kind: .context, text: "c"),
+                    DiffLine(kind: .context, text: "a", old: 1, new: 1), DiffLine(kind: .removed, text: "b", old: 2),
+                    DiffLine(kind: .added, text: "B", new: 2), DiffLine(kind: .context, text: "c", old: 3, new: 3),
                     DiffLine(kind: .hunk, text: "⋯"),
-                    DiffLine(kind: .context, text: "e"), DiffLine(kind: .removed, text: "f"),
-                    DiffLine(kind: .added, text: "F"), DiffLine(kind: .context, text: "g"),
+                    DiffLine(kind: .context, text: "e", old: 5, new: 5), DiffLine(kind: .removed, text: "f", old: 6),
+                    DiffLine(kind: .added, text: "F", new: 6), DiffLine(kind: .context, text: "g", old: 7, new: 7),
                 ], more: 0))
     }
 
@@ -74,9 +74,9 @@ final class ApprovalPreviewTests: XCTestCase {
             ApprovalPreview.make(tool: "Edit", input: input(["old_string": old, "new_string": new]), limit: 40),
             .diff(
                 [
-                    DiffLine(kind: .removed, text: "a"), DiffLine(kind: .added, text: "A"),
-                    DiffLine(kind: .context, text: "b"), DiffLine(kind: .removed, text: "c"),
-                    DiffLine(kind: .added, text: "C"), DiffLine(kind: .context, text: "d"),
+                    DiffLine(kind: .removed, text: "a", old: 1), DiffLine(kind: .added, text: "A", new: 1),
+                    DiffLine(kind: .context, text: "b", old: 2, new: 2), DiffLine(kind: .removed, text: "c", old: 3),
+                    DiffLine(kind: .added, text: "C", new: 3), DiffLine(kind: .context, text: "d", old: 4, new: 4),
                 ], more: 0))
     }
 
