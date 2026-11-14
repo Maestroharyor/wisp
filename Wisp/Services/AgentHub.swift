@@ -207,6 +207,10 @@ final class AgentHub {
     /// What each waiting request is matched on when later events show it was answered elsewhere.
     @ObservationIgnored private var settleKeys: [UUID: ApprovalSettle.Request<UUID>] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "agents")
+    /// Codex sessions mid-turn: a watch on the rollout file and its read throttle.
+    @ObservationIgnored private var rolloutWatches:
+        [String: (source: any DispatchSourceFileSystemObject, throttle: ReadThrottle)] = [:]
+    private static let rolloutInterval: TimeInterval = 1
     /// Per session: how far into the transcript Wisp has read, and the totals so far.
     @ObservationIgnored private var transcripts: [String: (offset: UInt64, usage: TranscriptUsage)] = [:]
     @ObservationIgnored private var reading: Set<String> = []
@@ -424,6 +428,7 @@ final class AgentHub {
             saveSpend(adding: 0)
         }
         if event.kind == .stop { refreshUsage(for: event.sessionID) }
+        followRollout(event)
         if event.kind == .sessionEnd { transcripts[event.sessionID] = nil }
 
         let capabilities = event.source.adapter.capabilities
@@ -841,6 +846,7 @@ final class AgentHub {
             if let session = live.first(where: { $0.id == id }) { finishRecord(session) }
             settleApprovals(for: id)
             transcripts[id] = nil
+            stopRolloutWatch(id)
         }
         publishStatus()
     }
@@ -927,15 +933,61 @@ final class AgentHub {
     ) {
         guard let handle = FileHandle(forReadingAtPath: path) else { return (offset, usage) }
         defer { try? handle.close() }
-        guard (try? handle.seek(toOffset: offset)) != nil, let data = try? handle.readToEnd(),
-            let end = data.lastIndex(of: UInt8(ascii: "\n"))
-        else { return (offset, usage) }
-        var usage = usage
-        let complete = data[data.startIndex...end]
-        for line in complete.split(separator: UInt8(ascii: "\n")) {
-            usage.add(line: String(decoding: line, as: UTF8.self))
+        guard (try? handle.seek(toOffset: offset)) != nil, let data = try? handle.readToEnd() else {
+            return (offset, usage)
         }
-        return (offset + UInt64(complete.count), usage)
+        var usage = usage
+        let used = usage.add(complete: data)
+        return (offset + UInt64(used), usage)
+    }
+
+    // MARK: Live Codex context
+
+    /// Starts or stops following a Codex session's rollout for this event.
+    private func followRollout(_ event: AgentEvent) {
+        let id = event.sessionID
+        if RolloutWatch.stops(event) {
+            stopRolloutWatch(id)
+        } else if RolloutWatch.starts(event), rolloutWatches[id] == nil, let path = event.transcriptPath {
+            startRolloutWatch(id, path: path)
+        }
+    }
+
+    /// A file system source on the rollout: each write asks the throttle, which reads at most
+    /// once a second. No polling; nothing runs while Codex writes nothing.
+    private func startRolloutWatch(_ id: String, path: String) {
+        let descriptor = open(path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename], queue: .main)
+        source.setEventHandler { [weak self, weak source] in
+            MainActor.assumeIsolated {
+                guard let self, let source else { return }
+                let events = source.data
+                if events.contains(.delete) || events.contains(.rename) {
+                    self.stopRolloutWatch(id)
+                } else {
+                    self.rolloutChanged(id)
+                }
+            }
+        }
+        source.setCancelHandler { close(descriptor) }
+        rolloutWatches[id] = (source, ReadThrottle(interval: Self.rolloutInterval))
+        source.resume()
+    }
+
+    private func stopRolloutWatch(_ id: String) {
+        rolloutWatches.removeValue(forKey: id)?.source.cancel()
+    }
+
+    private func rolloutChanged(_ id: String) {
+        guard let delay = rolloutWatches[id]?.throttle.request(now: .now) else { return }
+        Task { [weak self] in
+            if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+            guard let self, self.rolloutWatches[id] != nil else { return }
+            self.rolloutWatches[id]?.throttle.didRead(now: .now)
+            self.refreshUsage(for: id)
+        }
     }
 
     // MARK: Jump to terminal
