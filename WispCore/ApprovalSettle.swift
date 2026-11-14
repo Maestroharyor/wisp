@@ -47,14 +47,39 @@ public enum ApprovalSettle {
         case .interrupt:
             return session.map(\.id)
         case .postToolUse:
-            return
-                session.filter { request in
-                    request.tool == event.toolName && request.agentID == event.agentID
-                        && (request.prompt != .tool || request.input == event.rawToolInput)
-                }
-                .map(\.id)
+            return session.filter {
+                $0.matches(tool: event.toolName, input: event.rawToolInput, agentID: event.agentID)
+            }
+            .map(\.id)
         default:
             return []
         }
+    }
+
+    /// The requests a call that finished in the session's transcript settles, in their order.
+    /// The same rule as PostToolUse, for the main agent, whose calls are the only ones there.
+    /// The transcript keeps the model's own input, which Claude Code may fill out before it
+    /// asks, so a tool request whose input holds every field of the call's counts as that call.
+    public static func settled<ID>(_ requests: [Request<ID>], finished call: TranscriptCalls.Call, session: String)
+        -> [ID]
+    {
+        requests.filter { request in
+            request.sessionID == session && request.tool == call.tool && request.agentID == nil
+                && (request.prompt != .tool || holds(request.input, every: call.input))
+        }
+        .map(\.id)
+    }
+
+    private static func holds(_ input: JSONValue?, every fields: JSONValue?) -> Bool {
+        guard case .object(let wanted) = fields, case .object(let present) = input else { return input == fields }
+        return wanted.allSatisfy { present[$0.key] == $0.value }
+    }
+}
+
+extension ApprovalSettle.Request {
+    /// The same agent and tool, and for a tool request the same input. A question or plan's
+    /// answer comes back inside its input, so the input isn't compared for those.
+    fileprivate func matches(tool: String?, input: JSONValue?, agentID: String?) -> Bool {
+        self.tool == tool && self.agentID == agentID && (prompt != .tool || self.input == input)
     }
 }
