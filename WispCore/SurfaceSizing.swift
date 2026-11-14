@@ -109,9 +109,39 @@ public enum SurfaceSizing {
     public static let aiResultHeight: CGFloat = 132
 
     /// `contentScale` zooms the open shelf's content (the shelf size setting); pills and
-    /// cards keep their size.
+    /// cards keep their size. `extraHeight` is how far the user dragged the shelf taller, in
+    /// points on screen; it's clamped to what the screen allows (see `ShelfHeight`).
     public static func rect(
         for spec: SurfaceSpec, in layout: NotchLayout, sizes: NotchSizes = .standard, contentScale: CGFloat = 1,
+        peekStrength: CGFloat = 1, extraHeight: CGFloat = 0
+    ) -> CGRect {
+        let base = baseRect(
+            for: spec, in: layout, sizes: sizes, contentScale: contentScale, peekStrength: peekStrength)
+        let extra = shelfExtra(for: spec, base: base, in: layout, requested: extraHeight)
+        guard extra > 0 else { return base }
+        return layout.surfaceRect(size: CGSize(width: base.width, height: base.height + extra))
+    }
+
+    /// The part of `requested` the shelf actually grows by: none for pills and cards, or where
+    /// the handle isn't offered, and never past the screen's limit.
+    public static func shelfExtra(
+        for spec: SurfaceSpec, in layout: NotchLayout, sizes: NotchSizes = .standard, contentScale: CGFloat = 1,
+        requested: CGFloat
+    ) -> CGFloat {
+        guard requested > 0 else { return 0 }
+        let base = baseRect(for: spec, in: layout, sizes: sizes, contentScale: contentScale)
+        return shelfExtra(for: spec, base: base, in: layout, requested: requested)
+    }
+
+    private static func shelfExtra(for spec: SurfaceSpec, base: CGRect, in layout: NotchLayout, requested: CGFloat)
+        -> CGFloat
+    {
+        guard requested > 0, shelfContentWidth(for: spec, in: layout) != nil else { return 0 }
+        return min(requested, ShelfHeight.maxExtra(base: base, in: layout))
+    }
+
+    private static func baseRect(
+        for spec: SurfaceSpec, in layout: NotchLayout, sizes: NotchSizes, contentScale: CGFloat,
         peekStrength: CGFloat = 1
     ) -> CGRect {
         func shelf(contentWidth: CGFloat, contentHeight: CGFloat, _ layout: NotchLayout, _ sizes: NotchSizes)

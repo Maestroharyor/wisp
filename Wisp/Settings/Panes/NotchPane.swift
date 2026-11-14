@@ -73,6 +73,14 @@ struct NotchSettings: View {
                     "Two fingers away from the edge on the closed notch opens the shelf. Along the edge on the music pill skips tracks."
                 )
                 .font(.caption).foregroundStyle(.secondary)
+                LabeledContent("Shelf height") {
+                    Button("Reset all pages") { preferences.shelfHeights = [:] }
+                        .disabled(preferences.shelfHeights.isEmpty)
+                }
+                Text(
+                    "Drag the handle on the open shelf's bottom edge to make Agents, Clipboard, Calendar and other lists taller. Double-click it to reset one page. At the top of the screen only."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
             Section("Dragging files") {
                 Picker("Show the drop pocket", selection: $preferences.pocketTrigger) {
