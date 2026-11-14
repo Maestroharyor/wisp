@@ -160,6 +160,12 @@ final class AgentHub {
     private(set) var spend: DailySpend
     /// Cost already added to `spend` per transcript, so a transcript read again isn't counted twice.
     @ObservationIgnored private var ledger: SpendLedger
+    /// What's in UserDefaults, so only a real change is written.
+    @ObservationIgnored private var savedSpend: DailySpend
+    @ObservationIgnored private var savedLedger: SpendLedger
+    /// Status bar snapshots bring cost several times a second; the write waits for a quiet moment.
+    @ObservationIgnored private var spendSaves = SaveThrottle(interval: 5)
+    @ObservationIgnored private var spendSaveTask: Task<Void, Never>?
 
     /// Shows or clears the agent activities.
     var onStatus: (AgentStatus?) -> Void = { _ in }
@@ -225,12 +231,16 @@ final class AgentHub {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        spend =
+        let spend =
             defaults.data(forKey: Self.spendKey).flatMap { try? JSONDecoder().decode(DailySpend.self, from: $0) }
             ?? DailySpend()
-        ledger =
+        let ledger =
             defaults.data(forKey: Self.ledgerKey).flatMap { try? JSONDecoder().decode(SpendLedger.self, from: $0) }
             ?? SpendLedger()
+        self.spend = spend
+        self.ledger = ledger
+        savedSpend = spend
+        savedLedger = ledger
         budgetState =
             defaults.data(forKey: Self.budgetKey).flatMap {
                 try? JSONDecoder().decode(SpendBudget.State.self, from: $0)
@@ -537,14 +547,41 @@ final class AgentHub {
         GitHead.branch(cwd: cwd, read: { try? String(contentsOfFile: $0, encoding: .utf8) })
     }
 
-    /// Saves the ledger and adds `increase`, the part of a cost not counted before, to today
-    /// and to `project`.
+    /// Adds `increase`, the part of a cost not counted before, to today and to `project`, and
+    /// saves it with the ledger once the throttle allows.
     private func saveSpend(adding increase: Double, project: String? = nil) {
-        defaults.set(try? JSONEncoder().encode(ledger), forKey: Self.ledgerKey)
-        guard increase > 0 else { return }
-        spend.add(increase, on: .now, project: project)
-        defaults.set(try? JSONEncoder().encode(spend), forKey: Self.spendKey)
-        checkBudget()
+        if increase > 0 { spend.add(increase, on: .now, project: project) }
+        if spend != savedSpend || ledger != savedLedger {
+            spendSaves.markChanged()
+            scheduleSpendSave()
+        }
+        if increase > 0 { checkBudget() }
+    }
+
+    private func scheduleSpendSave() {
+        guard spendSaveTask == nil, let wait = spendSaves.wait(now: .now) else { return }
+        spendSaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled, let self else { return }
+            self.spendSaveTask = nil
+            self.flushSpend()
+        }
+    }
+
+    /// Writes spend and the ledger now, whichever changed since the last write.
+    private func flushSpend() {
+        spendSaveTask?.cancel()
+        spendSaveTask = nil
+        guard spendSaves.isPending else { return }
+        if ledger != savedLedger {
+            defaults.set(try? JSONEncoder().encode(ledger), forKey: Self.ledgerKey)
+            savedLedger = ledger
+        }
+        if spend != savedSpend {
+            defaults.set(try? JSONEncoder().encode(spend), forKey: Self.spendKey)
+            savedSpend = spend
+        }
+        spendSaves.saved(at: .now)
     }
 
     /// Checked only as spend grows, so editing the amount never alerts halfway through typing.
