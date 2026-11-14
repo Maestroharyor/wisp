@@ -803,8 +803,12 @@ final class AgentHub {
     }
 
     /// Hands a session's last record over as it ends and lets its draft go.
-    private func finishRecord(_ session: AgentSession) {
-        if let record = recorder.record(session, at: .now) { onRecord(record, true) }
+    /// `exited` marks a run whose agent quit without ending its session.
+    private func finishRecord(_ session: AgentSession, exited: Bool? = nil) {
+        if var record = recorder.record(session, at: .now) {
+            record.exited = exited
+            onRecord(record, true)
+        }
         recorder.forget(session.id)
     }
 
@@ -1080,7 +1084,7 @@ final class AgentHub {
             // Quitting without SessionEnd is a crash or a closed terminal: the Failed sound.
             onSound(.failed, id)
             recorder.exited(session: id)
-            if let session = live.first(where: { $0.id == id }) { finishRecord(session) }
+            if let session = live.first(where: { $0.id == id }) { finishRecord(session, exited: true) }
             settleApprovals(for: id)
             transcripts[id] = nil
             stopRolloutWatch(id)
