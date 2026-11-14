@@ -48,6 +48,18 @@ enum ActivityDetail: Hashable {
     case sessionSwitcher
 }
 
+extension ActivityDetail {
+    /// Its key in `Preferences.shelfHeights`, when its list fills a taller shelf.
+    var shelfHeightKey: String? {
+        switch self {
+        case .downloads: "detail.downloads"
+        case .sessionSwitcher: "detail.sessionSwitcher"
+        // A few lines of facts, laid out to the usual height.
+        case .regionWatch, .external: nil
+        }
+    }
+}
+
 /// A view the shelf can open on: a widget or a pill's view alone on the Widgets page, or a page.
 enum ShelfView: Equatable {
     case widget(WidgetKind)
@@ -329,7 +341,90 @@ final class NotchModel {
     var surfaceRect: CGRect {
         let look = preferences.appearance
         return SurfaceSizing.rect(
-            for: spec, in: layout, contentScale: look.shelfSize.scale, peekStrength: look.hoverStrength)
+            for: spec, in: layout, contentScale: look.shelfSize.scale, peekStrength: look.hoverStrength,
+            extraHeight: requestedShelfExtra)
+    }
+
+    // MARK: Shelf height
+
+    /// The extra height while the handle on the shelf's bottom edge is dragged; nil otherwise.
+    /// Set without animation, so the shell follows the pointer directly.
+    private(set) var shelfDrag: CGFloat?
+    /// The handle is being dragged: the pointer counts as on the shelf wherever it goes.
+    var resizingShelf: Bool { shelfDrag != nil }
+    /// Called once a drag of the handle ends, so the controller can see where the pointer is.
+    var onShelfResized: () -> Void = {}
+
+    /// What's on screen, as its key in `Preferences.shelfHeights`, for views whose lists fill a
+    /// taller shelf; nil for fixed layouts (Home's row, the player, the grid, the tray's strip)
+    /// and where the handle isn't offered.
+    var shelfHeightKey: String? {
+        guard phase == .open, !dragging, page == .widgets, ShelfHeight.offered(in: layout) else { return nil }
+        if let activityDetail { return activityDetail.shelfHeightKey }
+        guard let soloWidget, soloWidget.fillsTallShelf else { return nil }
+        return "widget.\(soloWidget.rawValue)"
+    }
+
+    private var requestedShelfExtra: CGFloat {
+        guard shelfHeightKey != nil else { return 0 }
+        return shelfDrag ?? ShelfHeight.extra(for: shelfHeightKey, in: preferences.shelfHeights)
+    }
+
+    /// How much taller than usual the shelf is drawn, in points on screen.
+    var shelfExtra: CGFloat {
+        SurfaceSizing.shelfExtra(
+            for: spec, in: layout, contentScale: preferences.appearance.shelfSize.scale,
+            requested: requestedShelfExtra)
+    }
+
+    /// The content height a shelf page lays out to, before the shelf size zoom.
+    var shelfContentHeight: CGFloat { SurfaceSizing.shelfContentHeight + shelfExtra / shelfZoom }
+
+    /// How much taller the current page may be dragged.
+    var maxShelfExtra: CGFloat {
+        let base = SurfaceSizing.rect(for: spec, in: layout, contentScale: preferences.appearance.shelfSize.scale)
+        return ShelfHeight.maxExtra(base: base, in: layout)
+    }
+
+    var showsShelfHandle: Bool { shelfHeightKey != nil && maxShelfExtra > 0 }
+
+    /// Follows a drag of the handle that began at `start` extra and has moved `translation`
+    /// points down.
+    func resizeShelf(from start: CGFloat, by translation: CGFloat) {
+        let extra = ShelfHeight.dragged(from: start, by: translation, maxExtra: maxShelfExtra)
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { shelfDrag = extra }
+    }
+
+    /// Keeps the dragged height for this page; a drag that ended near the usual height springs back to it.
+    func endShelfResize() {
+        guard let drag = shelfDrag else { return }
+        let settled = ShelfHeight.settled(drag)
+        withAnimation(surfaceAnimation) {
+            if let key = shelfHeightKey {
+                preferences.shelfHeights = ShelfHeight.storing(settled, for: key, in: preferences.shelfHeights)
+            }
+            shelfDrag = nil
+        }
+        onShelfResized()
+    }
+
+    /// Double-clicking the handle: back to the usual height.
+    func resetShelfHeight() {
+        guard let key = shelfHeightKey else { return }
+        withAnimation(surfaceAnimation) {
+            preferences.shelfHeights = ShelfHeight.storing(0, for: key, in: preferences.shelfHeights)
+        }
+    }
+
+    /// The handle's accessibility increment and decrement.
+    func nudgeShelfHeight(by step: CGFloat) {
+        guard let key = shelfHeightKey else { return }
+        let extra = ShelfHeight.dragged(from: shelfExtra, by: step, maxExtra: maxShelfExtra)
+        withAnimation(surfaceAnimation) {
+            preferences.shelfHeights = ShelfHeight.storing(extra, for: key, in: preferences.shelfHeights)
+        }
     }
 
     /// Extra live activities beside a compact pill. They merge back into the shell while
@@ -380,7 +475,10 @@ final class NotchModel {
         [layout.hitRegion(for: surfaceRect)] + (navPillRect.map { [$0.insetBy(dx: -4, dy: -4)] } ?? [])
     }
 
-    func contains(_ point: CGPoint) -> Bool { hitRegions.contains { $0.contains(point) } }
+    func contains(_ point: CGPoint) -> Bool {
+        // A drag of the shelf's handle may run ahead of the edge; it mustn't close the shelf.
+        resizingShelf || hitRegions.contains { $0.contains(point) }
+    }
 
     /// Converts a global rect to the panel's top-left coordinate space.
     func local(_ rect: CGRect) -> CGRect {

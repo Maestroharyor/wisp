@@ -135,8 +135,11 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
     /// Picking it opens its sub-ring of choices made when the ring opens (sessions, forms).
     public var opensChoices: Bool { kind == .agents || kind == .form }
 
-    /// The timer length, 25 minutes when unset or unreadable.
-    public var minutes: Int { value.flatMap(Int.init).map { max($0, 1) } ?? 25 }
+    /// The timer length, 25 minutes when unset or unreadable, and within what a link may start.
+    public var minutes: Int {
+        let range = ExternalCommand.timerMinutes
+        return value.flatMap(Int.init).map { min(max($0, range.lowerBound), range.upperBound) } ?? 25
+    }
 }
 
 /// A ring segment: one action, and optionally a sub-ring that opens beside it.

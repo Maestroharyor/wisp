@@ -145,6 +145,8 @@ public struct NotchLayout: Sendable, Equatable {
     /// The resting shape: the camera housing, a drawn notch, the idle island or a side tab.
     public let closedRect: CGRect
     public let screenFrame: CGRect
+    /// The screen clear of the menu bar and Dock.
+    public let visibleFrame: CGRect
     /// Where surfaces must fit: the whole screen for a shell on its edge, the visible frame
     /// (clear of the menu bar and Dock) for the orb or a moved island.
     public let bounds: CGRect
@@ -315,6 +317,7 @@ public enum NotchGeometry {
             moved: moved,
             closedRect: closed,
             screenFrame: screen.frame,
+            visibleFrame: visible,
             bounds: free ? visible : screen.frame,
             // Side tabs swell outward more than they grow taller.
             peekGrowth: placement == .floating
@@ -356,10 +359,16 @@ public enum NotchGeometry {
     }
 
     /// The largest surface plus room for its shadow, stretched to the screen edge it grows
-    /// from and kept on its own screen.
+    /// from and kept on its own screen. Where the shelf can be dragged taller, that includes
+    /// the tallest shelf and the nav pill under it.
     private static func panelFrame(for layout: NotchLayout, sizes: NotchSizes) -> CGRect {
         let screen = layout.screenFrame
-        var panel = layout.surfaceRect(size: sizes.maxSurface).union(layout.closedRect)
+        var largest = sizes.maxSurface
+        if ShelfHeight.offered(in: layout) {
+            let navPill = SurfaceSizing.navPillGap + SurfaceSizing.navPillSize.height
+            largest.height = max(largest.height, ShelfHeight.maxHeight(in: layout) + navPill)
+        }
+        var panel = layout.surfaceRect(size: largest).union(layout.closedRect)
             .insetBy(dx: -sizes.shadowPadding, dy: -sizes.shadowPadding)
         if layout.floatsFree { return panel.intersection(screen) }
         switch layout.edge {

@@ -100,8 +100,8 @@ final class ClipboardStore {
         let source = (name: app?.localizedName, bundleID: app?.bundleIdentifier)
         let copied = Date.now
         let previous = storing
-        if let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
+        if let text = pasteboard.string(forType: .string) {
+            guard ClipClassifier.keeps(text: text) else { return }
             let item = ClipItem(kind: ClipClassifier.kind(for: text), text: text, date: copied)
             guard let previous else { return record(item, source: source) }
             let number = nextStore()
@@ -177,9 +177,16 @@ final class ClipboardStore {
     private var historyURL: URL { Self.folder.appendingPathComponent("history.json") }
 
     private func load() {
-        guard let data = try? Data(contentsOf: historyURL),
-            let saved = try? JSONDecoder().decode(ClipboardHistory.self, from: data)
-        else { return }
+        guard let data = try? Data(contentsOf: historyURL) else { return }
+        guard let saved = try? JSONDecoder().decode(ClipboardHistory.self, from: data) else {
+            // The next copy would save over it, pinned items and all. Keep it aside instead, so
+            // a downgrade or a damaged file doesn't lose the history for good.
+            let aside = Self.folder.appendingPathComponent("history.unreadable.json")
+            try? FileManager.default.removeItem(at: aside)
+            try? FileManager.default.moveItem(at: historyURL, to: aside)
+            log.error("clipboard history could not be read; set it aside")
+            return
+        }
         history = saved
         history.limit = preferences.clipboardLimit
     }

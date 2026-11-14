@@ -127,6 +127,7 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
 - **Shelf**
   - **Home**: up to four widgets, resizable and reorderable.
   - **Widgets**: an icon grid of every widget; click one to open it on its own.
+  - **Taller shelf**: on the Agents, Calendar, Clipboard, Shortcuts and Notes widgets opened on their own, and the Downloads and session switcher views, drag the handle on the shelf's bottom edge down to see more (up to 60% of the screen under the menu bar, and at most 760 pt). The lists and the Agents details fill the new height, with the prompt draft kept at the bottom. Each page remembers its height; double-click the handle to reset it, or reset every page in Settings › Notch › Opening. Only for a notch or island at the top of the screen: shelves on the bottom or sides, the orb and a moved island grow toward the middle of the screen, so they keep their height. Home, Media, the Widgets grid and the tray keep fixed layouts and don't offer the handle.
   - Calendar shows the coming week and scrolls.
   - Widgets: Now Playing, Calendar, Timer, Pomodoro, Battery, System Stats, Weather, Notes, Quick Toggles, Shortcuts, Clipboard, Mirror, Day Progress, World Clocks, Agents, Script and Quick add.
   - **Quick add**: type or dictate "25 min", "pomodoro", "remind me to call Sam at 5" or "tomorrow 9am meeting" and Wisp starts a timer, adds a Reminders item or puts an event on your default calendar. A card shows what it read (title, day and time, in your time zone and time format) and nothing is made until you press Start or Add. Common English phrasings are read on your Mac without AI; anything else goes to the on-device AI when it's on. Reminders asks for access the first time you add one; events use the Calendars access Wisp already asks for. Hold the dictation key while the field has the cursor to speak into it. Also a ring action.
@@ -269,7 +270,7 @@ Wisp has no account, no analytics and no server of its own. It only goes online 
 |---|---|---|---|
 | [LRCLIB](https://lrclib.net) | Song title, artist, album and length | Lyrics are on screen (Media page or mini player) | Settings › Live Activities › "Lyrics from LRCLIB" |
 | [iTunes Search](https://performance-partners.apple.com/search-api) | Song title and artist | A song is playing and its app gave no album art | Settings › Live Activities › "Find missing album art on iTunes" |
-| [Open-Meteo](https://open-meteo.com) | Your location, rounded to about 100 m | The Weather widget or ear is shown, at most every 30 minutes | Switch off the Weather widget (Settings › Shelf) and the weather ear (Settings › Appearance) |
+| [Open-Meteo](https://open-meteo.com) | Your location, rounded to about 1 km | The Weather widget or ear is shown, at most every 30 minutes | Switch off the Weather widget (Settings › Shelf) and the weather ear (Settings › Appearance) |
 | Apple (Core Location) | Your location, to name the town under the weather | Along with the weather | Same as above |
 | Spotify | Nothing new: Wisp loads the cover from the URL the Spotify app gives it | Spotify is playing | Quit Spotify |
 | GitHub | A request for `appcast.xml` | Update checks; Wisp asks before checking automatically | Settings › About › "Check for updates automatically" |

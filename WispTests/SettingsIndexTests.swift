@@ -97,6 +97,12 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "each display"), [.notch])
     }
 
+    func testShelfHeightIsFoundInNotch() {
+        for query in ["shelf height", "taller", "resize", "grabber", "reset height"] {
+            XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.notch), query)
+        }
+    }
+
     func testKeyboardShortcutsAreFoundInGeneral() {
         for query in [
             "keyboard shortcuts", "shortcuts", "allow or deny", "hyper y", "switch profile", "right-click the notch",
@@ -336,5 +342,13 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "translate to"), [.ai])
         XCTAssertTrue(SettingsIndex.panes(matching: "selected text").contains(.ai))
         XCTAssertTrue(SettingsIndex.panes(matching: "ai action").contains(.notch))
+    }
+
+    func testLabelsOnScreenAreFound() {
+        XCTAssertTrue(SettingsIndex.panes(matching: "now playing").contains(.activities))
+        XCTAssertTrue(SettingsIndex.panes(matching: "reduce motion").contains(.appearance))
+        XCTAssertTrue(SettingsIndex.panes(matching: "page switcher").contains(.appearance))
+        XCTAssertTrue(SettingsIndex.panes(matching: "full disk access").contains(.notifications))
+        XCTAssertTrue(SettingsIndex.panes(matching: "engine").contains(.ai))
     }
 }

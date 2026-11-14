@@ -74,4 +74,25 @@ final class TrayListTests: XCTestCase {
         let urls = [URL(fileURLWithPath: "/a/README.md"), URL(fileURLWithPath: "/b/Readme.md")]
         XCTAssertEqual(ArchiveNaming.stagedNames(for: urls), ["README.md", "Readme 2.md"])
     }
+
+    func testVolumeRootIsFoundOnlyForMountedVolumes() {
+        XCTAssertEqual(TrayList.volumeRoot(of: URL(fileURLWithPath: "/Volumes/Backup/Photos/a.jpg")), "/Volumes/Backup")
+        XCTAssertEqual(TrayList.volumeRoot(of: URL(fileURLWithPath: "/Volumes/Backup")), "/Volumes/Backup")
+        XCTAssertNil(TrayList.volumeRoot(of: URL(fileURLWithPath: "/Users/me/a.jpg")))
+        XCTAssertNil(TrayList.volumeRoot(of: URL(fileURLWithPath: "/Volumes")))
+    }
+
+    func testFileOnAnEjectedVolumeIsKept() {
+        let ejected = URL(fileURLWithPath: "/Volumes/Backup/a.jpg")
+        let gone = URL(fileURLWithPath: "/Users/me/gone.jpg")
+        let here = URL(fileURLWithPath: "/Users/me/here.jpg")
+        let existing: Set<String> = ["/Users/me/here.jpg"]
+        let keeps = { (url: URL) in TrayList.keeps(url, exists: existing.contains) }
+        XCTAssertTrue(keeps(ejected))
+        XCTAssertFalse(keeps(gone))
+        XCTAssertTrue(keeps(here))
+        // Mounted, but the file itself was deleted.
+        let mounted: Set<String> = ["/Volumes/Backup"]
+        XCTAssertFalse(TrayList.keeps(ejected, exists: mounted.contains))
+    }
 }

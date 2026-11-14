@@ -23,7 +23,7 @@ final class TrayStore {
         self.defaults = defaults
         let paths = defaults.stringArray(forKey: key) ?? []
         list = TrayList(urls: paths.map { URL(fileURLWithPath: $0) }.reversed())
-        list.prune(keeping: Self.exists)
+        list.prune(keeping: Self.isKept)
         list.urls.forEach(loadThumbnail)
     }
 
@@ -58,7 +58,7 @@ final class TrayStore {
         guard Date.now.timeIntervalSince(lastPrune) > 60 else { return }
         lastPrune = .now
         let before = list.urls
-        list.prune(keeping: Self.exists)
+        list.prune(keeping: Self.isKept)
         guard list.urls != before else { return }
         for url in before where !list.urls.contains(url) {
             thumbnails[url] = nil
@@ -175,5 +175,10 @@ final class TrayStore {
 
     private nonisolated static func exists(_ url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.path)
+    }
+
+    /// Cards for files on an ejected drive stay, so they come back when it does.
+    private nonisolated static func isKept(_ url: URL) -> Bool {
+        TrayList.keeps(url) { FileManager.default.fileExists(atPath: $0) }
     }
 }

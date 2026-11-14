@@ -70,6 +70,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "orb", "float", "detach", "move", "form", "shape", "window", "open as window", "windowed",
                 "minimise", "minimize", "tear off", "normal app", "displays without a notch", "floating island",
                 "don't show", "external displays", "show on external displays", "sidebar",
+                "shelf height", "taller", "resize", "handle", "grabber", "bigger shelf", "reset height",
                 // The ring, which had its own pane before; its name stays a keyword.
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "hyper r",
                 "per app", "edit ring", "ring shortcut", "capture text", "ocr", "qr code", "barcode", "ai action",
@@ -88,7 +89,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "shape", "effects", "edge highlight", "number style", "accent follows", "playing album",
                 "change colour through the day", "change color through the day", "beside the closed notch",
                 "sounds", "shell", "finish", "glass edge", "numbers in", "through the day", "while idle",
-                "match the desktop picture", "tint with the playing album",
+                "match the desktop picture", "tint with the playing album", "motion", "reduce motion",
+                "page switcher",
             ]
         case .activities:
             [
@@ -106,7 +108,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "use wisp for these pop-ups", "pop-ups", "popups", "show more than one activity at once",
                 "more than one activity", "focus changes", "battery warning level", "batteries",
                 "replace system overlays", "system overlays", "split extra activities", "show focus changes",
-                "notifications",
+                "notifications", "now playing",
             ]
         case .shelf:
             [
@@ -125,7 +127,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .notifications:
             [
                 "messages", "imessage", "whatsapp", "telegram", "reply", "banner", "apps", "dismiss",
-                "close", "stay on screen", "duration", "swipe",
+                "close", "stay on screen", "duration", "swipe", "full disk access",
             ]
         case .agents:
             [
@@ -170,6 +172,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "apple intelligence", "foundation models", "ollama", "llm", "language model", "on-device", "local",
                 "localhost", "summarise", "summarize", "translate", "grammar", "rewrite", "action items", "explain",
                 "try it", "translate to", "language", "selection", "selected text", "clipboard actions", "replace",
+                "engine",
             ]
         case .permissions:
             [

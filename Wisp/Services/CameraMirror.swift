@@ -16,7 +16,8 @@ final class CameraMirror {
     @ObservationIgnored private let capture = CaptureQueue()
     var session: AVCaptureSession { capture.session }
     @ObservationIgnored private var viewers = 0
-    @ObservationIgnored private var configured = false
+    /// The camera feeding the session, once one is set up.
+    @ObservationIgnored private var input: AVCaptureDeviceInput?
 
     func attach() {
         viewers += 1
@@ -44,7 +45,13 @@ final class CameraMirror {
             return
         }
         guard viewers > 0 else { return }
-        if !configured {
+        // A Continuity Camera iPhone or USB webcam that went away leaves a dead input, which
+        // would show black for good. Pick a camera again instead.
+        if let input, !input.device.isConnected {
+            session.removeInput(input)
+            self.input = nil
+        }
+        if input == nil {
             guard let device = AVCaptureDevice.default(for: .video),
                 let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input)
             else {
@@ -53,7 +60,7 @@ final class CameraMirror {
             }
             session.sessionPreset = .medium
             session.addInput(input)
-            configured = true
+            self.input = input
         }
         await capture.start()
         state = viewers > 0 ? .running : .idle

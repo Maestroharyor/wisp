@@ -388,7 +388,7 @@ private struct SoloWidgetView: View {
         .frame(
             width: kind.hasDetailPage
                 ? SurfaceSizing.wideSoloWidth : ShellMetrics.soloCardWidth(notchStyle: model.isNotchStyle),
-            height: SurfaceSizing.shelfContentHeight
+            height: model.shelfContentHeight
         )
         .zoomSource(id: kind, in: zoom)
         .overlay(alignment: .topLeading) {
@@ -415,7 +415,7 @@ private struct ActivityDetailView: View {
         .padding(.vertical, 4)
         .frame(
             width: ShellMetrics.soloCardWidth(notchStyle: model.isNotchStyle),
-            height: SurfaceSizing.shelfContentHeight, alignment: .topLeading
+            height: model.shelfContentHeight, alignment: .topLeading
         )
         .overlay(alignment: .topLeading) {
             SoloBackButton(model: model)
@@ -450,6 +450,18 @@ private struct SoloBackButton: View {
 extension WidgetKind {
     /// Opened on its own, this widget gets the wide page with a list and details.
     var hasDetailPage: Bool { self == .agents || self == .calendar }
+
+    /// Opened on its own, its list or text fills a shelf dragged taller. The rest are laid out
+    /// to the usual height, so a taller shelf would only add empty space.
+    var fillsTallShelf: Bool {
+        switch self {
+        case .agents, .calendar, .clipboard, .shortcuts, .notes: true
+        // World Clocks and Script show a set number of rows.
+        case .nowPlaying, .timer, .pomodoro, .battery, .systemStats, .weather, .quickToggles, .mirror,
+            .dayProgress, .quickInput, .worldClocks, .script:
+            false
+        }
+    }
 
     /// Sizes the resize button offers. Agents can also fill the shelf.
     var sizes: [WidgetSize] { self == .agents ? WidgetSize.allCases : WidgetSize.standard }

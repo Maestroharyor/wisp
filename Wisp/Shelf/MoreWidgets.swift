@@ -200,11 +200,16 @@ private struct ClipRow: View {
     }
 
     @ViewBuilder private var leading: some View {
-        if let imageURL, let image = NSImage(contentsOf: imageURL) {
-            Image(nsImage: image).resizable().scaledToFill().clipShape(RoundedRectangle(cornerRadius: 3))
+        if let imageURL {
+            StoredClipImage(url: imageURL, maxPixels: 64, mode: .fill) { symbolImage }
+                .clipShape(RoundedRectangle(cornerRadius: 3))
         } else {
-            Image(systemName: symbol).font(.system(size: 10)).foregroundStyle(Color.secondaryText)
+            symbolImage
         }
+    }
+
+    private var symbolImage: some View {
+        Image(systemName: symbol).font(.system(size: 10)).foregroundStyle(Color.secondaryText)
     }
 
     private var symbol: String {

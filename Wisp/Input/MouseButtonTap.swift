@@ -10,6 +10,8 @@ final class MouseButtonTap {
     var onPress: @MainActor (CGPoint) -> Void = { _ in }
     var onMove: @MainActor (CGPoint) -> Void = { _ in }
     var onRelease: @MainActor (CGPoint) -> Void = { _ in }
+    /// The tap was switched off for a while, so a release may have gone unseen.
+    var onCancel: @MainActor () -> Void = {}
 
     /// The CGEvent button number to take: 2 is the middle button, 3 back, 4 forward.
     private(set) var button: Int64 = 3
@@ -52,6 +54,7 @@ final class MouseButtonTap {
 
     fileprivate func reenable() {
         if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+        onCancel()
     }
 
     /// Hands the event on to the ring when it's the ring's button; returns whether to swallow it.

@@ -14,6 +14,8 @@ final class LyricsStore {
     private(set) var loading = false
 
     @ObservationIgnored private var cache: [String: Lyrics?] = [:]
+    /// Lookups on their way, so several open lyrics views share one request per song.
+    @ObservationIgnored private var inFlight: [String: Task<Lyrics??, Never>] = [:]
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "lyrics")
 
@@ -41,18 +43,34 @@ final class LyricsStore {
                 title: info.title, artist: info.artist, album: info.album, duration: info.duration)
         else { return }
         loading = true
-        defer { loading = false }
-        var request = URLRequest(url: url, timeoutInterval: 10)
-        request.setValue("Wisp (https://ayomideodewale.com/wisp)", forHTTPHeaderField: "User-Agent")
-        do {
-            // A miss comes back as an error object, which decodes to no lyrics.
-            let (data, response) = try await URLSession.shared.data(for: request)
-            let found = (try? JSONDecoder().decode(LyricsResponse.self, from: data))?.lyrics
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if LyricsQuery.isCacheable(status: status) { cache[id] = found }
-            if trackID == id { lyrics = found }
-        } catch {
-            log.debug("lyrics fetch failed: \(error.localizedDescription, privacy: .public)")
+        let lookup = inFlight[id] ?? startLookup(url: url, id: id)
+        let result = await lookup.value
+        // A load for a newer song owns `loading` and `lyrics` now.
+        guard trackID == id else { return }
+        loading = false
+        if let found = result { lyrics = found }
+    }
+
+    /// One request for a song, unaffected by the view that started it going away. Nil when it
+    /// failed, so a later view can try again; a song with no lyrics is `.some(nil)`.
+    private func startLookup(url: URL, id: String) -> Task<Lyrics??, Never> {
+        let task = Task { [weak self] () -> Lyrics?? in
+            var request = URLRequest(url: url, timeoutInterval: 10)
+            request.setValue("Wisp (https://ayomideodewale.com/wisp)", forHTTPHeaderField: "User-Agent")
+            defer { self?.inFlight[id] = nil }
+            do {
+                // A miss comes back as an error object, which decodes to no lyrics.
+                let (data, response) = try await URLSession.shared.data(for: request)
+                let found = (try? JSONDecoder().decode(LyricsResponse.self, from: data))?.lyrics
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                if LyricsQuery.isCacheable(status: status) { self?.cache[id] = found }
+                return .some(found)
+            } catch {
+                self?.log.debug("lyrics fetch failed: \(error.localizedDescription, privacy: .public)")
+                return nil
+            }
         }
+        inFlight[id] = task
+        return task
     }
 }

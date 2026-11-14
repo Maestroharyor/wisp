@@ -193,10 +193,10 @@ final class Preferences {
     /// The saved agent sounds, or on first run of this version the old permission sound switch
     /// and sound pack folded into them (saved, and the old key removed).
     private static func agentSounds(_ defaults: UserDefaults, look: Appearance) -> AgentSounds {
-        if let data = defaults.data(forKey: Key.agentSounds),
-            let saved = try? JSONDecoder().decode(AgentSounds.self, from: data)
-        {
-            return saved
+        if let data = defaults.data(forKey: Key.agentSounds) {
+            if let saved = try? JSONDecoder().decode(AgentSounds.self, from: data) { return saved }
+            // Saved by another version: use defaults for now without writing over the user's choice.
+            return AgentSounds.migrated(approvalSound: nil, pack: look.soundPack, custom: look.customSounds)
         }
         let old = defaults.object(forKey: Key.approvalSound) == nil ? nil : defaults.bool(forKey: Key.approvalSound)
         let sounds = AgentSounds.migrated(approvalSound: old, pack: look.soundPack, custom: look.customSounds)
@@ -316,6 +316,7 @@ final class Preferences {
         static let orbCentres = "orbCentres"
         static let orbReturnPlacements = "orbReturnPlacements"
         static let islandSpots = "islandSpots"
+        static let shelfHeights = "shelfHeights"
         static let displayPlacements = "displayPlacements"
         static let miniPlayerOrigin = "miniPlayerOrigin"
         static let windowForm = "windowForm"
@@ -1001,6 +1002,11 @@ final class Preferences {
         updateOrbPlacements { $0.set(form, for: uuid) }
     }
 
+    /// How far each shelf page was dragged taller, in points, by `NotchModel.shelfHeightKey`. Missing is
+    /// the usual height. Per page, since a list (Agents, Clipboard) wants far more room than
+    /// a widget with a fixed layout.
+    var shelfHeights: [String: Double] { didSet { defaults.set(shelfHeights, forKey: Key.shelfHeights) } }
+
     /// Where each display's dragged island rests, as "placement@x,y" by display UUID.
     var islandSpots: [String: String] { didSet { defaults.set(islandSpots, forKey: Key.islandSpots) } }
 
@@ -1342,6 +1348,7 @@ final class Preferences {
         orbReturnPlacements =
             (defaults.dictionary(forKey: Key.orbReturnPlacements) ?? [:]).compactMapValues { "\($0)" }
         islandSpots = (defaults.dictionary(forKey: Key.islandSpots) ?? [:]).compactMapValues { "\($0)" }
+        shelfHeights = (defaults.dictionary(forKey: Key.shelfHeights) ?? [:]).compactMapValues { Double("\($0)") }
         displayPlacements = (defaults.dictionary(forKey: Key.displayPlacements) ?? [:]).compactMapValues { "\($0)" }
         hudDuration = defaults.string(forKey: Key.hudDuration).flatMap(HUDDuration.init(rawValue:)) ?? .standard
         volumeSteps = defaults.integer(forKey: Key.volumeSteps)
@@ -1385,8 +1392,11 @@ final class Preferences {
             defaults.data(forKey: Key.dropActions).flatMap { try? JSONDecoder().decode([DropAction].self, from: $0) }
             ?? []
         doNotDisturbShortcut = defaults.string(forKey: Key.doNotDisturbShortcut) ?? ""
-        workdayStart = defaults.integer(forKey: Key.workdayStart)
-        workdayEnd = defaults.integer(forKey: Key.workdayEnd)
+        // Out-of-order hours would make the working-hours steppers' ranges trap.
+        let hours = DayProgress(
+            startHour: defaults.integer(forKey: Key.workdayStart), endHour: defaults.integer(forKey: Key.workdayEnd))
+        workdayStart = hours.startHour
+        workdayEnd = hours.endHour
         worldClockZones = defaults.stringArray(forKey: Key.worldClockZones) ?? []
         pocketTrigger =
             (defaults.string(forKey: Key.pocketTrigger) ?? defaults.string(forKey: Key.legacyPocketTrigger))
