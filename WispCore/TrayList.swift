@@ -50,6 +50,21 @@ public struct TrayList: Sendable, Equatable {
         selected.isEmpty ? urls : urls.filter(selected.contains)
     }
 
+    /// The `/Volumes/<name>` root a file lives on, nil for the startup disk.
+    public static func volumeRoot(of url: URL) -> String? {
+        let parts = url.standardizedFileURL.pathComponents
+        guard parts.count >= 3, parts[0] == "/", parts[1] == "Volumes" else { return nil }
+        return "/Volumes/" + parts[2]
+    }
+
+    /// Whether a card stays: its file exists, or it's on a volume that isn't mounted right now
+    /// (an ejected drive, a share not yet back after login), so it returns with the volume.
+    public static func keeps(_ url: URL, exists: (String) -> Bool) -> Bool {
+        if exists(url.path) { return true }
+        guard let root = volumeRoot(of: url) else { return false }
+        return !exists(root)
+    }
+
     /// Drops files that no longer exist.
     public mutating func prune(keeping exists: (URL) -> Bool) {
         urls.removeAll { !exists($0) }

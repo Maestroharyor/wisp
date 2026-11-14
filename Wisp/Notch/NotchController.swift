@@ -290,7 +290,7 @@ final class NotchController {
 
     func releasePull() {
         guard model.pull > 0 else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) { model.pull = 0 }
+        withAnimation(model.reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.55)) { model.pull = 0 }
     }
 
     /// Springs the shell up from smaller after it changed form.
@@ -675,6 +675,9 @@ final class NotchController {
 
     /// Another account is in front: the panel goes until this one is back.
     func suspend() {
+        // No pointer reaches a hidden panel, so a card held under it would never be let go.
+        if let heldSlot { services.activities.release(heldSlot) }
+        heldSlot = nil
         panel.orderOut(nil)
     }
 
@@ -694,7 +697,11 @@ final class NotchController {
     func tearDown() {
         // A display unplugged mid-reply must not leave notifications held back forever.
         if isReplying { services.endReply(sentText: nil) }
+        // A card held under the pointer on an unplugged display would otherwise never expire.
+        if let heldSlot { services.activities.release(heldSlot) }
+        heldSlot = nil
         dwellTask?.cancel()
+        collapseControlsTask?.cancel()
         closeTask?.cancel()
         dragEndTask?.cancel()
         if let motionObserver { NSWorkspace.shared.notificationCenter.removeObserver(motionObserver) }

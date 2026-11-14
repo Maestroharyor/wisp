@@ -312,16 +312,49 @@ private struct ClipThumbnail: View {
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .task(id: imageURL) {
+            // The last clip's picture must not stay up while this one loads, or if it's gone.
+            image = nil
             guard let imageURL else { return }
             // Twice the points it's drawn at, for Retina; the preview column is at most about 450 pt.
-            let maxPixels = Int((size ?? 450) * 2)
-            let thumbnail = await Task.detached { Self.thumbnail(of: imageURL, maxPixels: maxPixels) }.value
-            image = thumbnail.map { NSImage(cgImage: $0, size: .zero) }
+            image = await ClipImageLoader.thumbnail(of: imageURL, maxPixels: Int((size ?? 450) * 2))
         }
+    }
+}
+
+/// A stored clipboard image decoded as a thumbnail off the main thread, or `placeholder` until
+/// it's ready. Screenshots can be tens of megabytes, too much to read in a view's body.
+struct StoredClipImage<Placeholder: View>: View {
+    let url: URL
+    /// The longest side to decode, in pixels: twice the points it's drawn at.
+    let maxPixels: Int
+    let mode: ContentMode
+    @ViewBuilder let placeholder: () -> Placeholder
+
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image).resizable().aspectRatio(contentMode: mode)
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: url) {
+            image = nil
+            image = await ClipImageLoader.thumbnail(of: url, maxPixels: maxPixels)
+        }
+    }
+}
+
+enum ClipImageLoader {
+    static func thumbnail(of url: URL, maxPixels: Int) async -> NSImage? {
+        let image = await Task.detached { decode(url, maxPixels: maxPixels) }.value
+        return image.map { NSImage(cgImage: $0, size: .zero) }
     }
 
     /// A screenshot can be tens of megapixels; decoding only a thumbnail keeps the list light.
-    private nonisolated static func thumbnail(of url: URL, maxPixels: Int) -> CGImage? {
+    private nonisolated static func decode(_ url: URL, maxPixels: Int) -> CGImage? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,

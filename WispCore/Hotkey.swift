@@ -33,6 +33,15 @@ public struct Hotkey: Sendable, Hashable, CustomStringConvertible {
 
     public var usesHyper: Bool { modifiers.contains(.hyper) }
 
+    /// Shortcuts Wisp registers itself besides the ring's: the shelf's, the clipboard and switcher
+    /// fallbacks and the approval fallbacks. A ring shortcut that matches one would take it away.
+    public static func reservedByWisp(shelf: Hotkey) -> Set<Hotkey> {
+        let approvals = ApprovalKeys.allFallbackKeys.map {
+            Hotkey(keyCode: $0, modifiers: ApprovalKeys.fallbackModifiers)
+        }
+        return Set([shelf, clipboardFallback, switcherFallback] + approvals)
+    }
+
     /// Shift alone would swallow capitals in every app, so a shortcut needs ⌃, ⌥, ⌘ or
     /// Caps Lock, unless it's on a function key.
     public var isUsable: Bool {

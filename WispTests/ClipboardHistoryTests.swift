@@ -81,4 +81,12 @@ final class ClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(rgb?.green, 128)
         XCTAssertEqual(rgb?.blue, 0)
     }
+
+    func testOnlyKeepsTextWorthStoring() {
+        XCTAssertTrue(ClipClassifier.keeps(text: "hello"))
+        XCTAssertFalse(ClipClassifier.keeps(text: "  \n\t "))
+        XCTAssertTrue(ClipClassifier.keeps(text: String(repeating: "a", count: ClipClassifier.maxTextBytes)))
+        // A huge copy (a log file) would be held in memory and rewritten to disk on every change.
+        XCTAssertFalse(ClipClassifier.keeps(text: String(repeating: "a", count: ClipClassifier.maxTextBytes + 1)))
+    }
 }

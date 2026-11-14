@@ -34,6 +34,7 @@ final class AppVolumeStore {
     /// Playing-flag listeners on the tapped process objects.
     @ObservationIgnored private var playListeners: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
     @ObservationIgnored private var names: [String: String] = [:]
+    @ObservationIgnored private var unnamed: Set<String> = []
     @ObservationIgnored private var icons: [String: NSImage] = [:]
     /// Lists on screen; while any is, who's playing is refreshed even with no taps.
     @ObservationIgnored private var viewers = 0
@@ -211,8 +212,9 @@ final class AppVolumeStore {
     private func apply() -> Bool {
         let settings = preferences.appVolumeSettings
         let own = Bundle.main.bundleIdentifier
-        for app in Set(processes.compactMap(\.appID)) where names[app] == nil {
-            names[app] = Self.name(of: app)
+        // Apps without a name are remembered too, or Launch Services is asked again twice a second.
+        for app in Set(processes.compactMap(\.appID)) where names[app] == nil && !unnamed.contains(app) {
+            if let name = Self.name(of: app) { names[app] = name } else { unnamed.insert(app) }
         }
         let next = AppVolumeList.rows(processes: processes, settings: settings, ownAppID: own, names: names)
         if next != rows { rows = next }

@@ -126,7 +126,8 @@ final class NowPlayingMonitor {
     func position(at date: Date) -> Double {
         guard let info else { return 0 }
         let elapsed = info.isPlaying ? date.timeIntervalSince(readAt) : 0
-        return min(info.position + elapsed, info.duration)
+        // Streams and web players often report no length; capping at 0 would freeze the playhead.
+        return info.duration > 0 ? min(info.position + elapsed, info.duration) : info.position + elapsed
     }
 
     func togglePlayPause() { command(.togglePlayPause, script: "playpause") }
@@ -134,11 +135,13 @@ final class NowPlayingMonitor {
     func previous() { command(.previous, script: "previous track") }
 
     func seek(to seconds: Double) {
-        guard let info else { return }
+        guard let info, seconds.isFinite, seconds >= 0 else { return }
         if usingBridge {
             bridge.send(.seek(seconds))
             return
         }
+        // `tell application` launches a player that has quit since the last poll.
+        guard isRunning(info.source) else { return }
         let script = "tell application id \"\(info.source.bundleID)\" to set player position to \(Int(seconds))"
         Task { [weak self] in
             _ = await AppleScriptRunner.run(script)
@@ -157,7 +160,8 @@ final class NowPlayingMonitor {
             bridge.send(bridgeCommand)
             return
         }
-        guard let info else { return }
+        // `tell application` launches a player that has quit since the last poll.
+        guard let info, isRunning(info.source) else { return }
         let script = "tell application id \"\(info.source.bundleID)\" to \(verb)"
         Task { [weak self] in
             _ = await AppleScriptRunner.run(script)

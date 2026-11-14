@@ -137,7 +137,12 @@ extension ClipboardView {
                 if !ai.isReady { Text(ai.statusMessage) }
                 ForEach(Array(ai.tasks.enumerated()), id: \.offset) { index, task in
                     Button(task.title) { runAI(task, item) }
-                        .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+                        // ⌘1 to ⌘9; "10" isn't one character.
+                        .keyboardShortcut(
+                            index < 9
+                                ? KeyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+                                : nil
+                        )
                         .disabled(!ai.isReady)
                 }
             }
@@ -193,8 +198,8 @@ private struct ClipCard: View {
                 Text(item.text ?? "").font(.system(size: 11)).foregroundStyle(Color.secondaryText).lineLimit(4)
             }
         case .image:
-            if let url = store.imageURL(for: item), let image = NSImage(contentsOf: url) {
-                Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
+            if let url = store.imageURL(for: item) {
+                StoredClipImage(url: url, maxPixels: 640, mode: .fit) { Color.clear }
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
