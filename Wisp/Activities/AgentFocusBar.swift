@@ -48,7 +48,7 @@ private struct KeepAwakeMenu: View {
         Menu {
             Button("Keep awake now") { actions.startKeepAwake(.lasting(nil, from: .now)) }
             Button("Keep awake for 1 hour") { actions.startKeepAwake(.lasting(3600, from: .now)) }
-            Toggle("Keep awake while agents work", isOn: $preferences.agentKeepAwake)
+            Toggle("Keep the Mac awake while an agent works", isOn: $preferences.agentKeepAwake)
             if actions.keepAwake {
                 Divider()
                 Button("Let the Mac sleep") { actions.endKeepAwake() }

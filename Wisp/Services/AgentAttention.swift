@@ -33,6 +33,8 @@ final class AgentAttention {
     @ObservationIgnored private var awayBaseline: SpendBaseline?
     @ObservationIgnored private var wakeTask: Task<Void, Never>?
     @ObservationIgnored private var historyExpiry: Task<Void, Never>?
+    /// Recent looking answers per session, in flight or done.
+    @ObservationIgnored private var looks: [String: (started: Date, answer: Task<Bool, Never>)] = [:]
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var idleTask: Task<Void, Never>?
     @ObservationIgnored private var muteEnd: Task<Void, Never>?
@@ -45,6 +47,8 @@ final class AgentAttention {
     private static let idleAwayCheck: Duration = .seconds(5)
     /// The longest a tab check may take; past it the app in front decides alone.
     private static let probeTimeout: Duration = .seconds(1)
+    /// Seconds a looking answer is reused for the same session.
+    private static let lookReuse: TimeInterval = 3
     /// A wake is counted this long after it, once a lock that came with the sleep has been
     /// confirmed (`SessionLock.settle`), so the card doesn't go behind the lock screen.
     private static let wakeSettle: Duration = .seconds(3)
@@ -93,17 +97,34 @@ final class AgentAttention {
     /// skipped. The app in front decides at once; where the selected tab can be read (iTerm2 and
     /// Terminal, already allowed under Automation) that read takes a moment and runs only while
     /// the app is in front. Limits alerts never count as looked at.
+    /// One finish asks up to three times (sound, card, summary), so an answer is shared for a
+    /// few seconds and they all agree.
     func isLooking(at sessionID: String?, group: AgentAlertGroup) async -> Bool {
         guard AgentLooking.applies(to: group), let sessionID, let session = hub.sessions.session(sessionID) else {
             return false
         }
+        // Asleep, locked or idle: nobody is looking, whatever is in front.
+        guard tracker.since == nil else { return false }
+        let now = Date.now
+        looks = looks.filter { now.timeIntervalSince($0.value.started) < Self.lookReuse }
+        if let look = looks[sessionID] { return await look.answer.value }
+        let answer = Task { await Self.look(at: session) }
+        looks[sessionID] = (now, answer)
+        return await answer.value
+    }
+
+    private static func look(at session: AgentSession) async -> Bool {
         let app = session.terminal
-        guard AgentLooking.isLooking(frontmost: Self.frontmost, sessionApp: app, sessionTTY: nil, activeTTY: nil)
+        guard
+            AgentLooking.isLooking(
+                frontmost: frontmost, sessionApp: app, sessionTTY: nil, activeTTY: nil,
+                idleSeconds: PushService.idleSeconds)
         else { return false }
         guard let probe = AgentLooking.probe(context: session.terminalContext, sessionApp: app) else { return true }
-        let active = await Self.activeTTY(probe)
+        let active = await activeTTY(probe)
         return AgentLooking.isLooking(
-            frontmost: Self.frontmost, sessionApp: probe.app, sessionTTY: probe.tty, activeTTY: active)
+            frontmost: frontmost, sessionApp: probe.app, sessionTTY: probe.tty, activeTTY: active,
+            idleSeconds: PushService.idleSeconds)
     }
 
     private static var frontmost: String? { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }

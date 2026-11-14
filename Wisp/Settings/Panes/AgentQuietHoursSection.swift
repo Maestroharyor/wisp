@@ -21,7 +21,7 @@ struct AgentQuietHoursSection: View {
             Text("Quiet hours")
         } footer: {
             Text(
-                "In quiet hours the chosen alerts make no sound, send nothing to your phone, and Done cards don't show. Requests still show their card, silently. Mute for 1 hour in the Agents widget quiets everything for an hour. Sounds and Done cards are also skipped while the session's terminal is in front. The away card comes after the Mac sleeps, locks or sits idle for 15 minutes or more."
+                "In quiet hours the chosen alerts make no sound, send nothing to your phone, and Done cards don't show. Requests still show their card, silently. The bell in the Agents widget mutes everything for an hour. Sounds and Done cards are also skipped while the session's terminal is in front and you're using the Mac. The away card comes after the Mac sleeps, locks or sits idle for 15 minutes or more."
             )
         }
     }

@@ -376,10 +376,10 @@ final class AppServices {
         Task { [weak self] in
             guard let self else { return }
             let summary = await self.agentHistory.summarise(record, hidden: self.agents.detailsHidden)
-            // A new turn has begun since; its own Done will bring a fresh summary.
-            let stillDone = self.agents.sessions.session(record.sessionID).map { $0.state == .finished } ?? true
             let quiet = self.attention.isQuiet(.done)
             let looking = await self.attention.isLooking(at: record.sessionID, group: .done)
+            // A new turn has begun since; its own Done will bring a fresh summary.
+            let stillDone = self.agents.sessions.session(record.sessionID).map { $0.state == .finished } ?? true
             if stillDone, !quiet, !looking,
                 let text = SessionSummaryText.notice(
                     project: record.project, summary: summary, hidden: self.agents.detailsHidden)
@@ -434,8 +434,9 @@ final class AppServices {
         Task { [weak self] in
             guard let self else { return }
             let looking = await self.attention.isLooking(at: status.sessionID, group: .done)
-            // A new turn may have started during the tab check.
-            guard self.agentStates[status.sessionID] == .finished else { return }
+            // A new turn may have started during the tab check, or another session taken the pill.
+            guard self.agentStates[status.sessionID] == .finished, self.agentPillIsFree(for: status.sessionID)
+            else { return }
             guard !looking else { return self.activities.remove(.agent) }
             self.doneShown.insert(status.sessionID)
             self.finishes += 1
@@ -444,15 +445,24 @@ final class AppServices {
         }
     }
 
+    /// The agent pill shows this session, or nothing.
+    private func agentPillIsFree(for sessionID: String) -> Bool {
+        guard case .agent(let current) = activities.activity(in: .agent) else { return true }
+        return current.sessionID == sessionID
+    }
+
     /// The "While you were away" card, when it's on and something happened: runs that ended
     /// while away, sessions waiting on the user, timed-out requests and the spend since.
     private func showAwaySummary(_ away: DateInterval, baseline: SpendBaseline?) {
         guard preferences.awaySummary else { return }
-        let waiting = agents.sessions.list.filter { $0.state == .waiting || $0.state == .needsApproval }
+        var waiting: [String: Date] = [:]
+        for session in agents.sessions.list where session.state == .waiting || session.state == .needsApproval {
+            waiting[session.id] = session.stateSince ?? session.updated
+        }
         let spent = baseline.map { AwaySummary.spent(agents.spend, since: $0, now: away.end) } ?? 0
         let summary = AwaySummary.build(
             records: agentHistory.history.records, approvals: agentHistory.approvals.records,
-            waiting: Set(waiting.map(\.id)), spend: spent, during: away)
+            waiting: waiting, spend: spent, during: away)
         guard !summary.isEmpty else { return }
         activities.post(.agentAway(summary), slot: .agentAway, duration: Self.awayCardDuration)
     }
