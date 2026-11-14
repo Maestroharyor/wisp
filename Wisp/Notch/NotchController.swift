@@ -100,13 +100,24 @@ final class NotchController {
 
     /// Setting ignoresMouseEvents to false makes the whole transparent panel catch clicks
     /// (AppKit passes clicks through transparent areas only while the property is untouched),
-    /// so a closed panel takes the mouse only while the pointer is over something it handles.
-    private func updateClickThrough() {
-        // The orb floats over windows; a press on it must not reach the window underneath.
-        let overControls =
-            pointerInside && (isReplying || showsApproval || showsPillButton || showsCard || isOrb)
-        panel.ignoresMouseEvents =
-            machine.phase == .closed && !model.dragging && !overControls && !pointerOverBubble && !pointerOverIsland
+    /// so the panel takes the mouse only while the pointer is over something it handles.
+    private func updateClickThrough(at location: CGPoint = NSEvent.mouseLocation) {
+        let ignores: Bool
+        if machine.phase == .closed {
+            // The orb floats over windows; a press on it must not reach the window underneath.
+            let overControls =
+                pointerInside && (isReplying || showsApproval || showsPillButton || showsCard || isOrb)
+            ignores = !model.dragging && !overControls && !pointerOverBubble && !pointerOverIsland
+        } else if NSEvent.pressedMouseButtons & 1 != 0, !panel.ignoresMouseEvents {
+            // Mid-press (selecting text, dragging a card), the window that took the press keeps it.
+            return
+        } else {
+            // The panel reaches past the shelf (room for the tallest one), so only the shell, its
+            // hover margin and the nav pill take clicks. A click below passes through to the app
+            // there, and the pointer monitor still closes the shelf on it.
+            ignores = !model.dragging && !model.contains(location) && !pointerOverBubble && !pointerOverIsland
+        }
+        if panel.ignoresMouseEvents != ignores { panel.ignoresMouseEvents = ignores }
     }
 
     /// Notification and two-line cards take their own clicks (close, reply), so they don't
@@ -324,7 +335,10 @@ final class NotchController {
         if overBubble != pointerOverBubble || overIsland != pointerOverIsland {
             pointerOverBubble = overBubble
             pointerOverIsland = overIsland
-            updateClickThrough()
+            updateClickThrough(at: location)
+        } else if machine.phase != .closed {
+            // An open shelf follows the pointer on and off its shape.
+            updateClickThrough(at: location)
         }
         let inside = model.contains(location)
         guard inside != pointerInside else { return }
@@ -391,6 +405,8 @@ final class NotchController {
 
     /// A press on the closed shell that didn't turn into a drag opens it.
     func leftMouseUp(at location: CGPoint) {
+        // A press that ended off the open shelf leaves the panel click-through again.
+        if machine.phase != .closed { updateClickThrough(at: location) }
         guard pendingPress else { return }
         pendingPress = false
         guard model.contains(location) else { return }
