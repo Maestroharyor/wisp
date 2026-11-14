@@ -356,6 +356,7 @@ final class AppServices {
         Task { [weak self] in
             guard let self else { return }
             let summary = await self.agentHistory.summarise(record, hidden: self.agents.detailsHidden)
+            self.agents.setSummary(summary, session: record.sessionID)
             // A new turn has begun since; its own Done will bring a fresh summary.
             let stillDone = self.agents.sessions.session(record.sessionID).map { $0.state == .finished } ?? true
             if stillDone,

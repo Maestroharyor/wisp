@@ -247,6 +247,11 @@ final class Preferences {
         static let agentPrivacy = "agentPrivacy"
         static let agentToolActivity = "agentToolActivity"
         static let agentKeepAwake = "agentKeepAwake"
+        static let pinnedAgentSessions = "pinnedAgentSessions"
+        static let pinnedAgentProjects = "pinnedAgentProjects"
+        static let hiddenAgentSessions = "hiddenAgentSessions"
+        static let hiddenAgentProjects = "hiddenAgentProjects"
+        static let keepDoneSessions = "keepDoneSessions"
         static let agentHistory = "agentHistory"
         static let agentSummaries = "agentSummaries"
         static let toolAlert = "toolAlert"
@@ -754,6 +759,63 @@ final class Preferences {
     var agentToolActivity: Bool { didSet { defaults.set(agentToolActivity, forKey: Key.agentToolActivity) } }
     /// Stop the Mac sleeping while an agent is working (the display may still sleep).
     var agentKeepAwake: Bool { didSet { defaults.set(agentKeepAwake, forKey: Key.agentKeepAwake) } }
+    /// Sessions and projects pinned to the top of the Agents widget's lists (`SessionOrder`).
+    var pinnedAgentSessions: [String] {
+        didSet { defaults.set(pinnedAgentSessions, forKey: Key.pinnedAgentSessions) }
+    }
+    var pinnedAgentProjects: [String] {
+        didSet { defaults.set(pinnedAgentProjects, forKey: Key.pinnedAgentProjects) }
+    }
+    /// Sessions hidden from the lists, and when; one comes back once its state changes.
+    var hiddenAgentSessions: [String: Date] {
+        didSet { defaults.set(try? JSONEncoder().encode(hiddenAgentSessions), forKey: Key.hiddenAgentSessions) }
+    }
+    var hiddenAgentProjects: [String] {
+        didSet { defaults.set(hiddenAgentProjects, forKey: Key.hiddenAgentProjects) }
+    }
+    /// How long a done session stays in the lists.
+    var keepDoneSessions: SessionOrder.KeepDone {
+        didSet { defaults.set(keepDoneSessions.rawValue, forKey: Key.keepDoneSessions) }
+    }
+
+    var sessionOrderRules: SessionOrder.Rules {
+        var rules = SessionOrder.Rules()
+        rules.pinnedSessions = Set(pinnedAgentSessions)
+        rules.pinnedProjects = Set(pinnedAgentProjects)
+        rules.hiddenSessions = hiddenAgentSessions
+        rules.hiddenProjects = Set(hiddenAgentProjects)
+        rules.keepDone = keepDoneSessions
+        return rules
+    }
+
+    /// Pins a session, or unpins it if it was pinned. Only the newest pins are kept, since
+    /// session ids don't come back.
+    func togglePin(session id: String) {
+        if pinnedAgentSessions.contains(id) {
+            pinnedAgentSessions.removeAll { $0 == id }
+        } else {
+            pinnedAgentSessions = Array((pinnedAgentSessions + [id]).suffix(SessionOrder.hiddenLimit))
+        }
+    }
+
+    func togglePin(project: String) {
+        if pinnedAgentProjects.contains(project) {
+            pinnedAgentProjects.removeAll { $0 == project }
+        } else {
+            pinnedAgentProjects.append(project)
+        }
+    }
+
+    func hide(session id: String) {
+        hiddenAgentSessions = SessionOrder.hiding(id, at: .now, in: hiddenAgentSessions)
+        pinnedAgentSessions.removeAll { $0 == id }
+    }
+
+    func hide(project: String) {
+        if !hiddenAgentProjects.contains(project) { hiddenAgentProjects.append(project) }
+        pinnedAgentProjects.removeAll { $0 == project }
+    }
+
     /// Finished sessions are kept on this Mac (figures, tools, masked commands, no prompts).
     var agentHistory: Bool { didSet { defaults.set(agentHistory, forKey: Key.agentHistory) } }
     /// A finished session is summarised by the on-device AI, when AI is on.
@@ -1171,6 +1233,16 @@ final class Preferences {
             defaults.string(forKey: Key.agentPrivacy).flatMap(AgentPrivacy.Mode.init(rawValue:)) ?? .default
         agentToolActivity = defaults.bool(forKey: Key.agentToolActivity)
         agentKeepAwake = defaults.bool(forKey: Key.agentKeepAwake)
+        pinnedAgentSessions = defaults.stringArray(forKey: Key.pinnedAgentSessions) ?? []
+        pinnedAgentProjects = defaults.stringArray(forKey: Key.pinnedAgentProjects) ?? []
+        hiddenAgentSessions =
+            defaults.data(forKey: Key.hiddenAgentSessions).flatMap {
+                try? JSONDecoder().decode([String: Date].self, from: $0)
+            } ?? [:]
+        hiddenAgentProjects = defaults.stringArray(forKey: Key.hiddenAgentProjects) ?? []
+        keepDoneSessions =
+            defaults.string(forKey: Key.keepDoneSessions).flatMap(SessionOrder.KeepDone.init(rawValue:))
+            ?? .untilDismissed
         agentHistory = defaults.bool(forKey: Key.agentHistory)
         agentSummaries = defaults.bool(forKey: Key.agentSummaries)
         toolAlert = defaults.bool(forKey: Key.toolAlert)

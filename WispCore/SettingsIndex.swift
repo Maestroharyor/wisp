@@ -147,6 +147,10 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "edit rule", "sounds", "agent sounds", "mute", "mute during calls or focus", "needs approval",
                 "finished", "failed", "context warning", "context critical", "choose file", "chime", "idle nudge",
                 "still waiting", "nudge after", "remind after",
+                "integrations", "install", "repair", "remove hooks", "connected",
+                "ready", "monitor only", "capabilities", "keep done sessions for", "done sessions", "pin",
+                "pinned", "unpin all", "hide session", "hidden", "show hidden", "bypass",
+                "line numbers",
                 // Phone alerts, which had their own pane; its name stays a keyword.
                 "phone", "phone alerts", "send agent alerts to my phone", "ntfy", "push", "iphone", "android",
                 "apple watch", "watch", "mobile", "remote", "away", "idle", "locked", "topic", "qr", "send test",

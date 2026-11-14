@@ -30,15 +30,18 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let ruleChoices: [[String]]
     /// The changed file's name, all private mode shows of an edit besides its counts.
     let fileName: String?
+    /// The changed file's path as the request names it; nil for anything but a file change.
+    let filePath: String?
 
     init(
         id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
         prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil,
-        inlineDiff: InlineDiff? = nil, fileName: String? = nil, cwd: String = "", rules: [String] = [],
-        ruleChoices: [[String]] = []
+        inlineDiff: InlineDiff? = nil, fileName: String? = nil, filePath: String? = nil, cwd: String = "",
+        rules: [String] = [], ruleChoices: [[String]] = []
     ) {
         self.ruleChoices = ruleChoices
         self.fileName = fileName
+        self.filePath = filePath
         self.id = id
         self.sessionID = sessionID
         self.project = project
@@ -56,6 +59,8 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
 
     /// The card's title: a plan is approved, not "used".
     var title: String { prompt == .plan ? "Approve plan" : tool }
+    /// The file after the title's verb, relative to the project ("Edit src/auth.ts").
+    var titlePath: String? { filePath.map { FileAnchor.relativePath($0, folder: cwd) } }
 }
 
 /// Session status for the compact pill.
@@ -142,6 +147,14 @@ final class AgentHub {
     var onSpendCap: (SpendCapPrompt?) -> Void = { _ in }
     /// Sources whose hooks call this copy's helper.
     private(set) var connected: Set<AgentSource> = []
+    /// Agents that sent a hook since Wisp started, so Settings can say Connected rather than Ready.
+    private(set) var seenSources: Set<AgentSource> = []
+    /// The on-device AI's summary of each session's last finished turn, for its row's title. In
+    /// memory only; a session that's gone takes its summary with it.
+    private(set) var summaries: [String: String] = [:]
+    /// The line in its file where each waiting edit starts, once Wisp has read the file
+    /// (`FileAnchor`). The card on screen holds a copy of its request, so it reads this live.
+    private(set) var anchors: [UUID: Int] = [:]
     /// Sources whose hooks call another copy's helper (a dev build, a moved app), which
     /// sends events to that copy instead of this one.
     private(set) var connectedElsewhere: Set<AgentSource> = []
@@ -494,6 +507,7 @@ final class AgentHub {
         recorder.observe(event, at: .now, keepDetails: !detailsHidden, session: previous)
         if event.kind == .sessionEnd, let previous { finishRecord(previous) }
         sessions.apply(event, at: .now)
+        if !seenSources.contains(event.source) { seenSources.insert(event.source) }
         reportMoment(session: event.sessionID, before: before, stopped: event.kind == .stop)
         if event.kind == .stop {
             onSound(.finished, event.sessionID)
@@ -510,6 +524,9 @@ final class AgentHub {
             // A session pruned without ending keeps no file watch or read position behind.
             for id in rolloutWatches.keys where !live.contains(id) { stopRolloutWatch(id) }
             transcripts = transcripts.filter { live.contains($0.key) }
+            if summaries.keys.contains(where: { !live.contains($0) }) {
+                summaries = summaries.filter { live.contains($0.key) }
+            }
             if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
         }
 
@@ -556,9 +573,12 @@ final class AgentHub {
                     tool: event.toolName ?? "", input: event.rawToolInput, limit: Self.previewLines),
                 inlineDiff: event.prompt == .tool
                     ? InlineDiff.make(tool: event.toolName ?? "", input: event.rawToolInput) : nil,
-                fileName: InlineDiff.fileName(tool: event.toolName ?? "", input: event.rawToolInput), cwd: event.cwd,
-                rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event))
+                fileName: InlineDiff.fileName(tool: event.toolName ?? "", input: event.rawToolInput),
+                filePath: event.prompt == .tool
+                    ? InlineDiff.filePath(tool: event.toolName ?? "", input: event.rawToolInput) : nil,
+                cwd: event.cwd, rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event))
             pending[approval.id] = approval
+            readAnchor(for: approval, input: event.rawToolInput)
             // Held off screen while the spend cap waits for a choice; the timeout still hands it back.
             let isHeld = capState.isHeld(event.sessionID)
             if isHeld { held.append(approval.id) } else { queue.enqueue(approval.id) }
@@ -595,6 +615,7 @@ final class AgentHub {
         let batch = pendingSnapshots
         pendingSnapshots = [:]
         for (id, item) in batch {
+            if !seenSources.contains(item.source) { seenSources.insert(item.source) }
             // New spend while it waited: the request or question was answered in the terminal.
             // Only with tool hooks, which count subagents; a subagent spends while the main agent waits.
             if toolHooks.contains(item.source), sessions.movedOn(item.snapshot) {
@@ -811,6 +832,42 @@ final class AgentHub {
     /// Lines of a diff or new file an approval card shows at most.
     private static let previewLines = 40
 
+    /// Reads an edit's file off the main actor to find the line it starts on, so the card can
+    /// number its diff. Only files under the session's folder and up to `FileAnchor.maxBytes`,
+    /// never in private mode; the text is matched and dropped, never kept or logged. A read that
+    /// fails (folder access denied, file gone) leaves the diff without numbers.
+    private func readAnchor(for approval: AgentApproval, input: JSONValue?) {
+        guard !detailsHidden, let target = FileAnchor.target(tool: approval.tool, input: input),
+            let path = FileAnchor.absolute(target.path, folder: approval.cwd)
+        else { return }
+        let (id, folder, text) = (approval.id, approval.cwd, target.text)
+        Task { [weak self] in
+            let line = await Task.detached(priority: .utility) {
+                Self.anchorLine(path: path, folder: folder, text: text)
+            }.value
+            guard let self, let line, self.pending[id] != nil else { return }
+            self.anchors[id] = line
+        }
+    }
+
+    private nonisolated static func anchorLine(path: String, folder: String, text: String) -> Int? {
+        // Links are followed first, so one inside the project can't lead the read outside it.
+        let file = URL(fileURLWithPath: path).resolvingSymlinksInPath()
+        let base = URL(fileURLWithPath: folder).resolvingSymlinksInPath().path
+        guard FileAnchor.isInside(file.path, folder: base),
+            let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+            values.isRegularFile == true, let size = values.fileSize, size <= FileAnchor.maxBytes,
+            let data = try? Data(contentsOf: file), let contents = String(data: data, encoding: .utf8)
+        else { return nil }
+        return FileAnchor.line(of: text, in: contents)
+    }
+
+    /// Keeps a finished turn's summary for the session's title.
+    func setSummary(_ summary: String?, session id: String) {
+        guard let summary, !summary.isEmpty, sessions.session(id) != nil else { return }
+        summaries[id] = summary
+    }
+
     /// Answers a question from the notch; `answers` maps each question's text to its answer.
     func answerQuestion(_ id: UUID, answers: [String: String]) {
         guard let taken = take(id) else { return }
@@ -978,6 +1035,7 @@ final class AgentHub {
         queue.remove(id)
         held.removeAll { $0 == id }
         pending[id] = nil
+        anchors[id] = nil
         timeouts.removeValue(forKey: id)?.cancel()
         // Cancelled before the reply goes, since the helper exits once it has it.
         hookWatches.removeValue(forKey: id)?.cancel()
@@ -1341,6 +1399,14 @@ final class AgentHub {
 
     func isConnected(_ source: AgentSource) -> Bool { connected.contains(source) }
 
+    /// Where `source` stands for its row in Settings, from the last read of its hook file.
+    func integrationStatus(_ source: AgentSource) -> IntegrationStatus {
+        let link: HookLink =
+            outdated.contains(source)
+            ? .outdated : connected.contains(source) ? .this : connectedElsewhere.contains(source) ? .other : .none
+        return IntegrationStatus(link: link, sessionSeen: seenSources.contains(source))
+    }
+
     /// What every agent's hook file says about Wisp, read in one pass.
     private struct InstalledHooks: Sendable {
         var here: Set<AgentSource> = []
@@ -1416,11 +1482,13 @@ final class AgentHub {
         if hooks.old != outdated { outdated = hooks.old }
     }
 
-    /// Adds Wisp's hooks after the user confirms; keeps a backup of the original file.
-    func installHooks(_ source: AgentSource) {
+    /// Adds Wisp's hooks after the user confirms; keeps a backup of the original file. True when
+    /// the file was written.
+    @discardableResult
+    func installHooks(_ source: AgentSource) -> Bool {
         guard let helper = Self.helperURL, FileManager.default.isExecutableFile(atPath: helper.path) else {
             alert("Wisp's helper is missing", detail: "Rebuild Wisp, then try again.")
-            return
+            return false
         }
         let adapter = source.adapter
         let file = adapter.hookFile
@@ -1436,7 +1504,7 @@ final class AgentHub {
                 file: file, helper: helper.path)
         else {
             alert("Couldn't read \(path)", detail: "Fix the file's JSON, then try again.")
-            return
+            return false
         }
         let events = file.events.joined(separator: ", ")
         let tools = withTools ? Self.toolSentence : ""
@@ -1500,7 +1568,7 @@ final class AgentHub {
                     """,
                 action: "Use This Wisp")
         }
-        guard confirmed else { return }
+        guard confirmed else { return false }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -1511,9 +1579,9 @@ final class AgentHub {
             }
         } catch {
             alert("Couldn't write \(path)", detail: error.localizedDescription)
-            return
+            return false
         }
-        write(updated, to: url)
+        return write(updated, to: url)
     }
 
     /// A file that holds the agent's status line (Claude Code's settings) also gets the status
@@ -1738,13 +1806,16 @@ final class AgentHub {
     }
 
     /// Writes a settings file Wisp has edited before, keeping the version it replaces.
-    private func write(_ data: Data, to url: URL) {
+    @discardableResult
+    private func write(_ data: Data, to url: URL) -> Bool {
+        defer { refreshInstalled() }
         do {
             try SettingsFileWriter.write(data, to: url)
+            return true
         } catch {
             alert("Couldn't write \(url.path)", detail: error.localizedDescription)
+            return false
         }
-        refreshInstalled()
     }
 
     private func confirm(_ title: String, detail: String, action: String) -> Bool {

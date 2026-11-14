@@ -3,12 +3,19 @@ import SwiftUI
 import WispCore
 
 /// A menu beside Allow All with the rule choices, narrowest first, each with how many recent
-/// requests it would have covered, and "Always allow…" to write one by hand. Kept small so the
-/// card's buttons stay as they were. While details are hidden only "Always allow…" shows, since
-/// the choices spell out the command.
-struct AlwaysAllowMenu: View {
+/// requests it would have covered, and "Always allow…" to write one by hand. The shelf's bar
+/// shows it as a small ellipsis button; the card's quieter row passes a text label. While details
+/// are hidden only "Always allow…" shows, since the choices spell out the command.
+struct AlwaysAllowMenu<MenuLabel: View>: View {
     let approval: AgentApproval
     let hub: AgentHub
+    let menuLabel: MenuLabel
+
+    init(approval: AgentApproval, hub: AgentHub, @ViewBuilder label: () -> MenuLabel) {
+        self.approval = approval
+        self.hub = hub
+        self.menuLabel = label()
+    }
 
     var body: some View {
         Menu {
@@ -23,12 +30,7 @@ struct AlwaysAllowMenu: View {
             }
             Button("Always allow…") { AlwaysAllowWindow.shared.show(approval: approval, hub: hub, rules: nil) }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.ink)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(.ink.opacity(0.14)))
-                .contentShape(Circle())
+            menuLabel
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -43,6 +45,24 @@ struct AlwaysAllowMenu: View {
         let rule = rules.joined(separator: ", ")
         let count = RuleSuggestion.matchCount(rules, in: recent)
         return RuleSuggestion.matchText(count: count, of: recent.count).map { "\(rule) · \($0)" } ?? rule
+    }
+}
+
+extension AlwaysAllowMenu where MenuLabel == AlwaysAllowEllipsis {
+    init(approval: AgentApproval, hub: AgentHub) {
+        self.init(approval: approval, hub: hub) { AlwaysAllowEllipsis() }
+    }
+}
+
+/// The menu's small round button in the shelf's approval bar.
+struct AlwaysAllowEllipsis: View {
+    var body: some View {
+        Image(systemName: "ellipsis")
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(.ink)
+            .frame(width: 28, height: 28)
+            .background(Circle().fill(.ink.opacity(0.14)))
+            .contentShape(Circle())
     }
 }
 

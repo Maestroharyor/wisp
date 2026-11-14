@@ -56,6 +56,9 @@ public struct AgentEvent: Equatable, Sendable {
     /// For a prompt event: what the user typed, trimmed to one line (`PromptText`). Kept in
     /// memory only, never logged, saved or sent.
     public let promptText: String?
+    /// Claude Code's permission mode for the session ("default", "plan", "acceptEdits",
+    /// "bypassPermissions"), when the hook carries it.
+    public let permissionMode: String?
 
     public enum DecodeFailure: Error { case notAnObject }
 
@@ -97,6 +100,7 @@ public struct AgentEvent: Equatable, Sendable {
         // Every adapter sends `prompt` with its prompt event (Gemini CLI's BeforeAgent, Copilot CLI's
         // userPromptSubmitted included).
         self.promptText = kind == .userPromptSubmit ? PromptText.trimmed(json["prompt"]?.stringValue) : nil
+        self.permissionMode = json["permission_mode"]?.stringValue
     }
 
     /// What a permission request asks the user for.
