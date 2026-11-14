@@ -281,6 +281,13 @@ final class AgentHub {
     @ObservationIgnored private var rolloutWatches:
         [String: (source: any DispatchSourceFileSystemObject, throttle: ReadThrottle)] = [:]
     private static let rolloutInterval: TimeInterval = 1
+    /// Claude Code sessions with a request waiting: a watch on the transcript, where the call's
+    /// result shows once the prompt is answered in the terminal. Claude Code leaves the hook
+    /// running until its timeout then, so the helper's exit comes far too late.
+    @ObservationIgnored private var transcriptWatches: [String: TranscriptWatch] = [:]
+    private static let transcriptInterval: TimeInterval = 0.25
+    /// How far back the first read starts, to find the waiting call's `tool_use` already written.
+    private static let transcriptLookBack: Int64 = 1 << 20
     /// Per session: how far into the transcript Wisp has read, and the totals so far.
     @ObservationIgnored private var transcripts: [String: (offset: UInt64, usage: TranscriptUsage)] = [:]
     @ObservationIgnored private var reading: Set<String> = []
@@ -410,6 +417,7 @@ final class AgentHub {
         ownsSocket = false
         flushSpend()
         for id in rolloutWatches.keys { stopRolloutWatch(id) }
+        for id in transcriptWatches.keys { stopTranscriptWatch(id) }
     }
 
     private static let maximumMessage = 1 << 20
@@ -585,6 +593,7 @@ final class AgentHub {
             waiting[approval.id] = connection
             settleKeys[approval.id] = ApprovalSettle.Request(id: approval.id, event: event)
             if let pid = event.hookPID { watchHook(pid, for: approval.id) }
+            watchTranscript(for: event)
             startTimeout(approval.id, source: event.source)
             if !isHeld {
                 approvalsChanged()
@@ -1040,6 +1049,9 @@ final class AgentHub {
         // Cancelled before the reply goes, since the helper exits once it has it.
         hookWatches.removeValue(forKey: id)?.cancel()
         settleKeys[id] = nil
+        if !pending.values.contains(where: { $0.sessionID == approval.sessionID }) {
+            stopTranscriptWatch(approval.sessionID)
+        }
         return (approval, waiting.removeValue(forKey: id))
     }
 
@@ -1047,7 +1059,11 @@ final class AgentHub {
     private func watchHook(_ pid: Int32, for id: UUID) {
         let watch = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
         watch.setEventHandler { [weak self] in
-            MainActor.assumeIsolated { self?.settle(id) }
+            MainActor.assumeIsolated {
+                guard let self, self.pending[id] != nil else { return }
+                self.log.notice("a request's hook exited before Wisp answered; handing it back")
+                self.settle(id)
+            }
         }
         hookWatches[id] = watch
         watch.resume()
@@ -1317,6 +1333,120 @@ final class AgentHub {
             self.rolloutWatches[id]?.throttle.didRead(now: .now)
             self.refreshUsage(for: id)
         }
+    }
+
+    // MARK: Answers in the terminal
+
+    private struct TranscriptWatch {
+        let source: any DispatchSourceFileSystemObject
+        let path: String
+        /// Tells this watch from a later one on the same session, for a read that ends after a restart.
+        let token = UUID()
+        var offset: UInt64
+        var calls = TranscriptCalls()
+        var throttle: ReadThrottle
+        var reading = false
+        /// Claude Code wrote again while a read ran.
+        var again = false
+        /// The first read only learns which calls are open; a result inside it is older history.
+        var primed = false
+    }
+
+    /// Follows a Claude Code session's transcript while its main agent has a request waiting.
+    /// A file system source, read only when Claude Code writes; nothing runs otherwise.
+    private func watchTranscript(for event: AgentEvent) {
+        let id = event.sessionID
+        guard event.source == .claude, event.agentID == nil, transcriptWatches[id] == nil,
+            let path = event.transcriptPath
+        else { return }
+        let descriptor = open(path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0 else {
+            close(descriptor)
+            return
+        }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename], queue: .main)
+        source.setEventHandler { [weak self, weak source] in
+            MainActor.assumeIsolated {
+                guard let self, let source else { return }
+                let events = source.data
+                if events.contains(.delete) || events.contains(.rename) {
+                    self.stopTranscriptWatch(id)
+                } else {
+                    self.transcriptChanged(id)
+                }
+            }
+        }
+        source.setCancelHandler { close(descriptor) }
+        let start = UInt64(max(0, info.st_size - Self.transcriptLookBack))
+        transcriptWatches[id] = TranscriptWatch(
+            source: source, path: path, offset: start, throttle: ReadThrottle(interval: Self.transcriptInterval))
+        source.resume()
+        readTranscript(id)
+    }
+
+    private func stopTranscriptWatch(_ id: String) {
+        transcriptWatches.removeValue(forKey: id)?.source.cancel()
+    }
+
+    private func transcriptChanged(_ id: String) {
+        guard let delay = transcriptWatches[id]?.throttle.request(now: .now) else { return }
+        Task { [weak self] in
+            if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+            self?.transcriptWatches[id]?.throttle.didRead(now: .now)
+            self?.readTranscript(id)
+        }
+    }
+
+    /// Reads what Claude Code added, off the main actor, and settles the requests whose call
+    /// finished: it ran (allowed in the terminal) or got an error result (refused there).
+    private func readTranscript(_ id: String) {
+        guard var watch = transcriptWatches[id] else { return }
+        guard !watch.reading else {
+            transcriptWatches[id]?.again = true
+            return
+        }
+        watch.reading = true
+        transcriptWatches[id] = watch
+        let (path, offset, calls, token) = (watch.path, watch.offset, watch.calls, watch.token)
+        Task { [weak self] in
+            let read = await Task.detached { Self.readCalls(path: path, from: offset, into: calls) }.value
+            guard let self, var watch = self.transcriptWatches[id], watch.token == token else { return }
+            let primed = watch.primed
+            let again = watch.again
+            watch.offset = read.offset
+            watch.calls = read.calls
+            watch.primed = true
+            watch.reading = false
+            watch.again = false
+            self.transcriptWatches[id] = watch
+            if primed {
+                for call in read.finished {
+                    let keys = (self.queue.items + self.held).compactMap { self.settleKeys[$0] }
+                    for approval in ApprovalSettle.settled(keys, finished: call, session: id) {
+                        self.log.notice("a request was answered in the terminal; its call finished in the transcript")
+                        self.settle(approval)
+                    }
+                }
+            }
+            if again { self.readTranscript(id) }
+        }
+    }
+
+    /// Complete lines only: a line still being written is read next time.
+    private nonisolated static func readCalls(path: String, from offset: UInt64, into calls: TranscriptCalls) -> (
+        offset: UInt64, calls: TranscriptCalls, finished: [TranscriptCalls.Call]
+    ) {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return (offset, calls, []) }
+        defer { try? handle.close() }
+        guard (try? handle.seek(toOffset: offset)) != nil, let data = try? handle.readToEnd() else {
+            return (offset, calls, [])
+        }
+        var calls = calls
+        let read = calls.add(complete: data)
+        return (offset + UInt64(read.used), calls, read.finished)
     }
 
     // MARK: Jump to terminal

@@ -87,6 +87,44 @@ final class ApprovalSettleTests: XCTestCase {
         XCTAssertEqual(ApprovalSettle.settled(pending, by: interrupt), [1, 2])
     }
 
+    func testAFinishedTranscriptCallSettlesTheSameMainAgentRequest() throws {
+        let pending = [
+            try request(1, bash),
+            try request(
+                2,
+                #"{"session_id":"s","agent_id":"a1","hook_event_name":"PermissionRequest","tool_name":"Bash","#
+                    + #""tool_input":{"command":"ls"}}"#),
+            try request(3, bash.replacingOccurrences(of: #""session_id":"s""#, with: #""session_id":"t""#)),
+        ]
+        let ls = TranscriptCalls.Call(tool: "Bash", input: .object(["command": .string("ls")]))
+        // The transcript is the main agent's, so a subagent's request and other sessions stay.
+        XCTAssertEqual(ApprovalSettle.settled(pending, finished: ls, session: "s"), [1])
+        let pwd = TranscriptCalls.Call(tool: "Bash", input: .object(["command": .string("pwd")]))
+        XCTAssertEqual(ApprovalSettle.settled(pending, finished: pwd, session: "s"), [])
+    }
+
+    func testATranscriptCallMatchesARequestClaudeCodeFilledOut() throws {
+        let filled = try request(
+            1,
+            #"{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Bash","#
+                + #""tool_input":{"command":"ls","timeout":120000}}"#)
+        let ls = TranscriptCalls.Call(tool: "Bash", input: .object(["command": .string("ls")]))
+        XCTAssertEqual(ApprovalSettle.settled([filled], finished: ls, session: "s"), [1])
+        // A call with a field the request lacks, or another value, is another call.
+        let more = TranscriptCalls.Call(
+            tool: "Bash", input: .object(["command": .string("ls"), "run_in_background": .bool(true)]))
+        XCTAssertEqual(ApprovalSettle.settled([try request(2, bash)], finished: more, session: "s"), [])
+    }
+
+    func testAFinishedTranscriptQuestionSettlesWhateverTheAnswer() throws {
+        let question = try request(
+            1,
+            #"{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"AskUserQuestion","#
+                + #""tool_input":{"questions":[{"question":"Push?"}]}}"#)
+        let answered = TranscriptCalls.Call(tool: "AskUserQuestion", input: .object(["questions": .array([])]))
+        XCTAssertEqual(ApprovalSettle.settled([question], finished: answered, session: "s"), [1])
+    }
+
     func testOtherEventsSettleNothing() throws {
         let pending = [try request(1, bash)]
         for name in ["Notification", "PreCompact", "SubagentStop", "PermissionRequest"] {
