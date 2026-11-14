@@ -589,7 +589,7 @@ final class AgentHub {
                     summary: ApprovalRecord.summary(event.summary, hidden: detailsHidden),
                     outcome: .rule, date: .now))
             sessions.record(.allowed, "Allowed (Allow All)", session: event.sessionID, at: .now)
-            sessions.resolveApproval(session: event.sessionID, at: .now)
+            resolveApproval(session: event.sessionID)
             onNotice(AgentPrivacy.allowedNotice(tool: event.toolName, summary: event.summary, hidden: detailsHidden))
         } else if event.kind == .permissionRequest {
             let approval = AgentApproval(
@@ -835,9 +835,16 @@ final class AgentHub {
         }
         // Handed back to the terminal (timed out, or answered there) counts as resolved too,
         // so the session doesn't keep saying it waits on the notch.
-        sessions.resolveApproval(session: approval.sessionID, at: .now)
+        resolveApproval(session: approval.sessionID)
         approvalsChanged()
         publishStatus()
+    }
+
+    /// The session is back to work once nothing else of its waits in Wisp; a parallel request
+    /// still on screen keeps it at Needs approval.
+    private func resolveApproval(session id: String) {
+        guard !pending.values.contains(where: { $0.sessionID == id }) else { return }
+        sessions.resolveApproval(session: id, at: .now)
     }
 
     /// Nobody answered in the notch: the terminal asks instead, so the session waits on the
@@ -871,7 +878,7 @@ final class AgentHub {
         }
         sessions.record(.denied, "Denied", session: approval.sessionID, at: .now)
         recorder.denied(session: approval.sessionID, command: approval.summary)
-        sessions.resolveApproval(session: approval.sessionID, at: .now)
+        resolveApproval(session: approval.sessionID)
         approvalsChanged()
         publishStatus()
     }
