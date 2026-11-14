@@ -409,6 +409,7 @@ private struct ActivityDetailView: View {
             case .regionWatch: RegionWatchDetail(watch: model.services.regionWatch)
             case .downloads: DownloadsDetail(monitor: model.services.downloads)
             case .external: ExternalActivityDetail(automation: model.services.automation)
+            case .sessionSwitcher: SessionSwitcherView(model: model)
             }
         }
         .padding(.vertical, 4)

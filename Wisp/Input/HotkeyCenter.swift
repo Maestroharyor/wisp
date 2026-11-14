@@ -29,6 +29,8 @@ final class HotkeyCenter {
     @ObservationIgnored var onClipboard: @MainActor () -> Void = {}
     @ObservationIgnored var onRing: @MainActor () -> Void = {}
     @ObservationIgnored var onCycleForm: @MainActor () -> Void = {}
+    /// Hyper+G, or ⌃⌥⌘G without Hyper: the session switcher.
+    @ObservationIgnored var onSessionSwitcher: @MainActor () -> Void = {}
     /// The ring's shortcut couldn't be registered, for example because Wisp already uses it.
     private(set) var ringHotkeyTaken = false
     /// Hyper+1…9 picks a profile.
@@ -47,6 +49,7 @@ final class HotkeyCenter {
     @ObservationIgnored private let carbon = CarbonHotkey(id: 1)
     @ObservationIgnored private let clipboardCarbon = CarbonHotkey(id: 2)
     @ObservationIgnored private let ringCarbon = CarbonHotkey(id: 3)
+    @ObservationIgnored private let switcherCarbon = CarbonHotkey(id: 4)
     /// ⌃⌥⌘Y, N and 1 to 9 without Hyper, registered only while a card shows.
     /// One per key in `ApprovalKeys.allFallbackKeys`, so each key keeps its Carbon id.
     @ObservationIgnored private let approvalCarbons = ApprovalKeys.allFallbackKeys.indices.map {
@@ -94,6 +97,7 @@ final class HotkeyCenter {
         carbon.unregister()
         clipboardCarbon.unregister()
         ringCarbon.unregister()
+        switcherCarbon.unregister()
         unregisterApprovalFallback()
         keyboardWatcher?.stop()
         do {
@@ -110,6 +114,7 @@ final class HotkeyCenter {
         carbon.unregister()
         clipboardCarbon.unregister()
         ringCarbon.unregister()
+        switcherCarbon.unregister()
         if let ringHotkey = preferences.ringHotkey {
             ringHotkeyTaken = !ringCarbon.register(ringHotkey) { [weak self] in self?.onRing() }
         } else {
@@ -123,6 +128,7 @@ final class HotkeyCenter {
         } else {
             disableRemap()
             _ = clipboardCarbon.register(Hotkey.clipboardFallback) { [weak self] in self?.onClipboard() }
+            _ = switcherCarbon.register(Hotkey.switcherFallback) { [weak self] in self?.onSessionSwitcher() }
             status =
                 carbon.register(hotkey) { [weak self] in self?.onToggle() }
                 ? .active : .unavailable("\(hotkey) is used by another app")
@@ -167,6 +173,7 @@ final class HotkeyCenter {
             case KeyCodes.v: self?.onClipboard()
             case KeyCodes.r: self?.onRing()
             case KeyCodes.f: self?.onCycleForm()
+            case KeyCodes.g: self?.onSessionSwitcher()
             default:
                 if self?.onApprovalKey(keyCode) == true { return true }
                 guard let digit = KeyCodes.digit(forKeyCode: keyCode) else { return false }

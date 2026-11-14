@@ -26,6 +26,10 @@ public struct Hotkey: Sendable, Hashable, CustomStringConvertible {
     public static let clipboardHyper = Hotkey(keyCode: KeyCodes.v, modifiers: .hyper)
     /// Clipboard history without Caps Lock. Avoids ⇧⌘V (Paste and Match Style).
     public static let clipboardFallback = Hotkey(keyCode: KeyCodes.v, modifiers: [.option, .shift, .command])
+    /// Opens the session switcher when the shelf uses Caps Lock.
+    public static let switcherHyper = Hotkey(keyCode: KeyCodes.g, modifiers: .hyper)
+    /// The session switcher without Caps Lock.
+    public static let switcherFallback = Hotkey(keyCode: KeyCodes.g, modifiers: [.control, .option, .command])
 
     public var usesHyper: Bool { modifiers.contains(.hyper) }
 
@@ -86,6 +90,7 @@ public enum KeyCodes {
     public static let v: UInt16 = 9
     public static let f: UInt16 = 3
     public static let r: UInt16 = 15
+    public static let g: UInt16 = 5
 
     /// F1 to F20.
     public static func isFunctionKey(_ code: UInt16) -> Bool {

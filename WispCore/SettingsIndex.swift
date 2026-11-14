@@ -58,6 +58,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 // The keyboard shortcuts list, which was in About. No "approve": it would pull
                 // "app" searches here.
                 "keyboard shortcuts", "shortcuts", "keyboard", "hyper y", "hyper n",
+                "hyper g", "session switcher", "switch session", "jump to an agent session", "jump to session",
                 "switch profile", "allow or deny", "pick an answer", "esc", "escape",
                 "right-click the notch", "right click", "menu",
             ]
@@ -149,6 +150,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "still waiting", "nudge after", "remind after",
                 "quiet hours", "quiet", "schedule", "night", "overnight", "silent",
                 "needs you", "limits", "while you were away",
+                "limit alert at", "used up", "limit reset", "limit warning", "limit reached", "threshold",
+                "activity map", "heatmap", "contributions", "keep the activity map for", "retention",
                 "away summary", "show what happened while i was away", "away card",
                 // Phone alerts, which had their own pane; its name stays a keyword.
                 "phone", "phone alerts", "send agent alerts to my phone", "ntfy", "push", "iphone", "android",
