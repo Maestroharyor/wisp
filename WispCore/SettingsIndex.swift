@@ -40,7 +40,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         case .activities: "What shows beside the notch while it's closed"
         case .shelf: "Widgets, clipboard history and profiles"
         case .notifications: "Notifications in the notch, and quick replies"
-        case .agents: "Claude Code, Codex, Gemini CLI, Copilot CLI, Cursor and OpenCode, alerts and phone alerts"
+        case .agents: "Claude Code, Codex, OpenCode and other coding agents, alerts and phone alerts"
         case .ai: "On-device AI with Apple Intelligence or Ollama"
         case .permissions: "What Wisp can access, and why"
         case .about: "Version, updates, diagnostics and reset"
@@ -130,6 +130,9 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             [
                 "claude", "claude code", "codex", "gemini", "gemini cli", "copilot", "copilot cli", "github copilot",
                 "cursor", "cursor-agent", "opencode", "open code", "plugin", "ai", "hooks", "approve", "allow", "deny",
+                "qwen", "qwen code", "qoder", "qodercli", "droid", "factory", "codebuddy", "kimi", "kimi code", "grok",
+                "mistral", "vibe", "mistral vibe", "aider", "goose", "amp", "trae", "antigravity", "agy", "deepseek",
+                "zcode", "mimo", "pi", "crush", "cline", "kiro", "monitor", "running", "integrations",
                 "sessions", "sound", "permission sound",
                 "spend", "cost", "tokens", "status bar", "statusline", "context", "terminal", "compact", "privacy",
                 "private", "hide", "call", "screen share", "transcript", "tool", "activity", "subagent", "pill",
@@ -209,7 +212,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "your own ntfy server", "server", "self-hosted", "access token", "reply token",
                 "add the command or file name", "away after", "wait for an answer", "approval timeout",
                 "terminal bar", "claude code status bar", "tool activity", "show tool activity", "protected server",
-                "include details", "agent sound volume", "volume",
+                "include details", "agent sound volume", "volume", "show agents without hooks",
             ]
         default: []
         }

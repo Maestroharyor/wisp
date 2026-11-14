@@ -41,5 +41,9 @@ final class IntegrationStatusTests: XCTestCase {
             IntegrationStatus.capabilities(AgentSource.codex.adapter),
             ["context", "lifecycle", "tools", "approve", "jump"])
         XCTAssertEqual(IntegrationStatus.capabilities(AgentSource.gemini.adapter), ["lifecycle", "tools", "jump"])
+        XCTAssertEqual(
+            IntegrationStatus.capabilities(AgentSource.qwen.adapter), ["lifecycle", "tools", "approve", "jump"])
+        XCTAssertEqual(IntegrationStatus.capabilities(AgentSource.vibe.adapter), ["lifecycle", "tools", "jump"])
+        XCTAssertEqual(IntegrationStatus.monitorCapabilities, ["running", "jump"])
     }
 }

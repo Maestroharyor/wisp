@@ -82,4 +82,7 @@ public enum IntegrationStatus: Equatable, Sendable {
             "jump",
         ].compactMap { $0 }
     }
+
+    /// What Wisp does with an agent it knows only by its process (`KnownAgents`).
+    public static let monitorCapabilities = ["running", "jump"]
 }

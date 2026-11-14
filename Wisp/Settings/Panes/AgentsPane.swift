@@ -52,7 +52,7 @@ struct AgentSettings: View {
                     Label("Wisp isn't listening for agents right now.", systemImage: "exclamationmark.triangle")
                 }
             }
-            IntegrationsSection(hub: hub)
+            IntegrationsSection(hub: hub, preferences: preferences)
             SessionListSection(preferences: preferences)
             alerts
             AgentSoundsSection(preferences: preferences, player: sounds)
@@ -205,19 +205,49 @@ struct AgentSettings: View {
 /// Install, Update, Repair or Remove through the hub's install paths, which keep backups.
 private struct IntegrationsSection: View {
     let hub: AgentHub
+    @Bindable var preferences: Preferences
 
     var body: some View {
         Section {
             ForEach(AgentAdapters.all, id: \.source) { adapter in
                 IntegrationRow(hub: hub, adapter: adapter)
             }
+            ForEach(KnownAgents.monitorOnly) { agent in
+                MonitorRow(hub: hub, agent: agent, on: preferences.agentMonitor)
+            }
+            Toggle("Show agents without hooks", isOn: $preferences.agentMonitor)
         } header: {
             Text("Integrations")
         } footer: {
             Text(
-                "Installing adds Wisp's hooks to the agent's settings, or a plugin for OpenCode, and keeps your other settings and hooks. Each change saves the file as it was next to it. Restart running sessions afterwards. Agents without approve are monitor only: approve their requests in the terminal."
+                "Installing adds Wisp's hooks to the agent's settings, or a plugin for OpenCode, and keeps your other settings and hooks. Each change saves the file as it was next to it. Restart running sessions afterwards. Agents without approve are monitor only: approve their requests in the terminal. Agents without hooks, and hook agents not yet installed, show as Running while the Agents view is open: Wisp reads the process list every 15 seconds, on your Mac only."
             )
         }
+    }
+}
+
+/// An agent Wisp knows only by its process (`KnownAgents`): nothing to install, so no buttons.
+private struct MonitorRow: View {
+    let hub: AgentHub
+    let agent: KnownAgent
+    let on: Bool
+
+    var body: some View {
+        let status = IntegrationStatus.monitor
+        let running = hub.monitor.sessions.filter { $0.agent == agent }.count
+        LabeledContent {
+            EmptyView()
+        } label: {
+            HStack(spacing: 6) {
+                Circle().fill(on ? status.tint : Color.secondary).frame(width: 8, height: 8)
+                Text(agent.name)
+                Text(on ? status.label : "Off").foregroundStyle(.secondary)
+            }
+            Text(IntegrationStatus.monitorCapabilities.joined(separator: " · "))
+            if on, running > 0 { Text(running == 1 ? "Running now." : "\(running) running now.") }
+        }
+        .help("Wisp shows \(agent.name) as Running while it runs in a terminal, with its folder and a jump to its tab.")
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -262,7 +292,10 @@ private struct IntegrationRow: View {
             return "Its hooks point at another copy of Wisp, so this one doesn't see its sessions."
         case .ready, .connected:
             return adapter.setupNote
-        case .monitor, .notInstalled:
+        case .notInstalled:
+            return KnownAgents.all.contains { $0.adapterID == source.rawValue }
+                ? "Until it's installed, Wisp shows it as Running." : nil
+        case .monitor:
             return nil
         }
     }

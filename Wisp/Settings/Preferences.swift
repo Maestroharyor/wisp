@@ -246,6 +246,7 @@ final class Preferences {
         static let contextCriticalPercent = ContextUsage.Thresholds.criticalKey
         static let agentPrivacy = "agentPrivacy"
         static let agentToolActivity = "agentToolActivity"
+        static let agentMonitor = "agentMonitor"
         static let agentKeepAwake = "agentKeepAwake"
         static let pinnedAgentSessions = "pinnedAgentSessions"
         static let pinnedAgentProjects = "pinnedAgentProjects"
@@ -759,6 +760,8 @@ final class Preferences {
     }
     /// The tool an agent is running shows in the pill; needs Claude Code's tool hooks.
     var agentToolActivity: Bool { didSet { defaults.set(agentToolActivity, forKey: Key.agentToolActivity) } }
+    /// Coding agents without hooks show as Running sessions, found by their process.
+    var agentMonitor: Bool { didSet { defaults.set(agentMonitor, forKey: Key.agentMonitor) } }
     /// Stop the Mac sleeping while an agent is working (the display may still sleep).
     var agentKeepAwake: Bool { didSet { defaults.set(agentKeepAwake, forKey: Key.agentKeepAwake) } }
     /// Sessions and projects pinned to the top of the Agents widget's lists (`SessionOrder`).
@@ -1101,6 +1104,7 @@ final class Preferences {
             Key.contextAlert: true,
             Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
             Key.agentToolActivity: false,
+            Key.agentMonitor: true,
             Key.agentKeepAwake: false,
             Key.agentHistory: true,
             Key.agentSummaries: true,
@@ -1241,6 +1245,7 @@ final class Preferences {
         agentPrivacy =
             defaults.string(forKey: Key.agentPrivacy).flatMap(AgentPrivacy.Mode.init(rawValue:)) ?? .default
         agentToolActivity = defaults.bool(forKey: Key.agentToolActivity)
+        agentMonitor = defaults.bool(forKey: Key.agentMonitor)
         agentKeepAwake = defaults.bool(forKey: Key.agentKeepAwake)
         pinnedAgentSessions = defaults.stringArray(forKey: Key.pinnedAgentSessions) ?? []
         pinnedAgentProjects = defaults.stringArray(forKey: Key.pinnedAgentProjects) ?? []
