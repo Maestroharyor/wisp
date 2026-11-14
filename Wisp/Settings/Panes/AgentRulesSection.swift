@@ -10,6 +10,14 @@ struct AgentRulesSection: View {
     @State private var revealed = false
     @State private var removal: Removal?
     @State private var problem: String?
+    @State private var editing: Editing?
+
+    /// An allow rule being changed in place.
+    private struct Editing {
+        let rule: String
+        let file: AgentHub.RulesFile
+        var text: String
+    }
 
     private struct Removal: Identifiable {
         var id: String { file.path + "\n" + rule }
@@ -41,7 +49,7 @@ struct AgentRulesSection: View {
             Text("Rules")
         } footer: {
             Text(
-                "Always allow… on a Claude Code request saves a rule in Claude Code's settings. Claude Code checks deny rules first, then ask, then allow. Change ask and deny rules in the files themselves."
+                "Always allow on a Claude Code request saves a rule in Claude Code's settings; Edit changes an allow rule in place. Claude Code checks deny rules first, then ask, then allow. Change ask and deny rules in the files themselves."
             )
         }
         .task(id: folders) { reload() }
@@ -72,8 +80,14 @@ struct AgentRulesSection: View {
             Text("No rules").font(.caption).foregroundStyle(.secondary).padding(.leading, 12)
         } else {
             ForEach(file.lists.allow, id: \.self) { rule in
-                ruleRow(rule, kind: "Allow") {
-                    Button("Remove") { removal = Removal(rule: rule, file: file) }.controlSize(.small)
+                if let editing, editing.rule == rule, editing.file == file {
+                    editRow(editing)
+                } else {
+                    ruleRow(rule, kind: "Allow") {
+                        Button("Edit") { self.editing = Editing(rule: rule, file: file, text: rule) }
+                            .controlSize(.small)
+                        Button("Remove") { removal = Removal(rule: rule, file: file) }.controlSize(.small)
+                    }
                 }
             }
             ForEach(file.lists.ask, id: \.self) { rule in ruleRow(rule, kind: "Ask") { EmptyView() } }
@@ -93,6 +107,46 @@ struct AgentRulesSection: View {
             action()
         }
         .padding(.leading, 12)
+    }
+
+    /// The rule in a field, with Save checked by the same rules as the "Always allow" sheet.
+    private func editRow(_ item: Editing) -> some View {
+        let text = Binding(get: { editing?.text ?? item.text }, set: { editing?.text = $0 })
+        let edited = item.text.trimmingCharacters(in: .whitespaces)
+        let issue = edited == item.rule ? nil : PermissionRule.problem(in: [edited])
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                TextField("Rule", text: text)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                    .labelsHidden()
+                    .onSubmit { save(item) }
+                Button("Cancel") { editing = nil }.controlSize(.small)
+                Button("Save") { save(item) }.controlSize(.small)
+                    .disabled(issue != nil || edited.isEmpty)
+            }
+            if let issue {
+                Text(issue).font(.caption).foregroundStyle(.orange)
+            }
+        }
+        .padding(.leading, 12)
+    }
+
+    private func save(_ item: Editing) {
+        let edited = item.text.trimmingCharacters(in: .whitespaces)
+        guard edited != item.rule else {
+            editing = nil
+            return
+        }
+        guard PermissionRule.problem(in: [edited]) == nil else { return }
+        do {
+            try hub.replaceRule(item.rule, with: edited, in: item.file)
+            problem = nil
+            editing = nil
+        } catch {
+            problem = AgentHub.rulesProblem(error, path: item.file.path)
+        }
+        reload()
     }
 
     private func reload() {

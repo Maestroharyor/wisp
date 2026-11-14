@@ -26,12 +26,15 @@ struct AgentApproval: Sendable, Equatable, Identifiable {
     let cwd: String
     /// Suggested "Always allow" rules; empty when the card doesn't offer it.
     let rules: [String]
+    /// The card menu's rule choices, narrowest first; each saves its rules.
+    let ruleChoices: [[String]]
 
     init(
         id: UUID, sessionID: String, project: String, source: AgentSource, tool: String, summary: String,
         prompt: PermissionPrompt = .tool, input: JSONValue? = nil, preview: ApprovalPreview? = nil,
-        inlineDiff: InlineDiff? = nil, cwd: String = "", rules: [String] = []
+        inlineDiff: InlineDiff? = nil, cwd: String = "", rules: [String] = [], ruleChoices: [[String]] = []
     ) {
+        self.ruleChoices = ruleChoices
         self.id = id
         self.sessionID = sessionID
         self.project = project
@@ -126,6 +129,9 @@ final class AgentHub {
     @ObservationIgnored private var limitWatch = LimitWatch()
     /// Whether card shortcuts use Hyper (true) or ⌃⌥⌘, read from the hotkeys. Set by AppDelegate.
     @ObservationIgnored var keysUseHyper: @MainActor () -> Bool = { false }
+    /// The newest tool requests from the approval history, for "Always allow" match counts.
+    /// Set by AppServices.
+    @ObservationIgnored var recentRequests: @MainActor () -> [ApprovalRecord] = { [] }
     /// Connected agents whose hook file has Wisp's tool hooks.
     private(set) var toolHooks: Set<AgentSource> = []
 
@@ -448,7 +454,7 @@ final class AgentHub {
                     tool: event.toolName ?? "", input: event.rawToolInput, limit: Self.previewLines),
                 inlineDiff: event.prompt == .tool
                     ? InlineDiff.make(tool: event.toolName ?? "", input: event.rawToolInput) : nil,
-                cwd: event.cwd, rules: Self.suggestedRules(event))
+                cwd: event.cwd, rules: Self.suggestedRules(event), ruleChoices: Self.ruleChoices(event))
             pending[approval.id] = approval
             queue.enqueue(approval.id)
             waiting[approval.id] = connection

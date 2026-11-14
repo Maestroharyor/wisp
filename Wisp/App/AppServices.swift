@@ -462,6 +462,9 @@ final class AppServices {
         agents.onMoment = { [weak self] moment in self?.push.moment(moment) }
         agents.onRecord = { [weak self] record, ended in self?.agentRecorded(record, ended: ended) }
         agents.onApprovalRecord = { [weak self] record in self?.agentHistory.record(record) }
+        agents.recentRequests = { [weak self] in
+            self?.agentHistory.approvals.recentToolRequests(RuleSuggestion.window) ?? []
+        }
         // Features read `ai.isReady` to decide whether to offer AI, so check at launch and on wake.
         ai.start()
         activities.onRemove = { [weak self] slot in
