@@ -22,11 +22,16 @@ public enum AgentLooking {
         }
     }
 
+    /// Seconds without input after which nobody counts as looking, whatever is in front.
+    public static let presence: TimeInterval = 90
+
     /// `activeTTY` is the front tab's tty, nil when it can't be known; then the app is enough.
-    public static func isLooking(frontmost: String?, sessionApp: String?, sessionTTY: String?, activeTTY: String?)
-        -> Bool
-    {
-        guard let frontmost, let sessionApp, frontmost == sessionApp else { return false }
+    /// `idleSeconds` is the time since the last keyboard, mouse or trackpad input: a terminal
+    /// left in front while the user walked away isn't being looked at.
+    public static func isLooking(
+        frontmost: String?, sessionApp: String?, sessionTTY: String?, activeTTY: String?, idleSeconds: TimeInterval
+    ) -> Bool {
+        guard idleSeconds < presence, let frontmost, let sessionApp, frontmost == sessionApp else { return false }
         guard let sessionTTY, let activeTTY else { return true }
         return name(of: sessionTTY) == name(of: activeTTY)
     }

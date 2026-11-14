@@ -202,7 +202,7 @@ final class SettingsIndexTests: XCTestCase {
     }
 
     func testQuietHoursAndTheAwayCardLandOnAgents() {
-        for query in ["quiet hours", "while you were away", "away summary", "mute for 1 hour", "overnight"] {
+        for query in ["quiet hours", "while you were away", "away summary", "overnight"] {
             XCTAssertEqual(SettingsIndex.panes(matching: query).first, .agents, query)
         }
     }

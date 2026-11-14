@@ -42,14 +42,15 @@ final class AwaySummaryTests: XCTestCase {
             record("f", ended: end.addingTimeInterval(60)),
         ]
         let summary = AwaySummary.build(
-            records: records, approvals: [], waiting: ["g"], spend: 2.1, during: away)
+            records: records, approvals: [], waiting: ["g": start.addingTimeInterval(30)], spend: 2.1, during: away)
         XCTAssertEqual(summary, AwaySummary(finished: 3, failed: 1, needsYou: 1, spend: 2.1))
         XCTAssertEqual(summary.text, "While you were away: 3 finished, 1 failed, 1 needs you, $2.10")
     }
 
     func testARunThatEndedWaitingIsntFinished() {
         let summary = AwaySummary.build(
-            records: [record("a", ended: start.addingTimeInterval(60), waiting: true)], approvals: [], waiting: ["a"],
+            records: [record("a", ended: start.addingTimeInterval(60), waiting: true)], approvals: [],
+            waiting: ["a": start.addingTimeInterval(60)],
             spend: 0, during: away)
         XCTAssertEqual(summary, AwaySummary(finished: 0, failed: 0, needsYou: 1, spend: 0))
     }
@@ -62,12 +63,19 @@ final class AwaySummaryTests: XCTestCase {
             approval("c", .allowed, at: start.addingTimeInterval(100)),
             approval("d", .timedOut, at: start.addingTimeInterval(-100)),
         ]
-        let summary = AwaySummary.build(records: [], approvals: approvals, waiting: ["b"], spend: 0, during: away)
+        let summary = AwaySummary.build(
+            records: [], approvals: approvals, waiting: ["b": start.addingTimeInterval(100)], spend: 0, during: away)
         XCTAssertEqual(summary.needsYou, 2)
     }
 
+    func testASessionThatWasWaitingBeforeTheUserLeftIsntNews() {
+        let summary = AwaySummary.build(
+            records: [], approvals: [], waiting: ["a": start.addingTimeInterval(-60)], spend: 0, during: away)
+        XCTAssertTrue(summary.isEmpty)
+    }
+
     func testNothingHappenedIsEmpty() {
-        let summary = AwaySummary.build(records: [], approvals: [], waiting: [], spend: 0.001, during: away)
+        let summary = AwaySummary.build(records: [], approvals: [], waiting: [:], spend: 0.001, during: away)
         XCTAssertTrue(summary.isEmpty)
         XCTAssertFalse(AwaySummary(finished: 0, failed: 0, needsYou: 0, spend: 0.5).isEmpty)
     }
@@ -180,6 +188,16 @@ final class AwaySummaryTests: XCTestCase {
         _ = tracker.handle(.idle(AwayTracker.minimum), at: start.addingTimeInterval(AwayTracker.minimum))
         _ = tracker.handle(.locked, at: start.addingTimeInterval(1200))
         XCTAssertEqual(tracker.handle(.unlocked, at: end), away)
+    }
+
+    func testIdleStillHighJustAfterComingBackDoesntReachBeforeIt() {
+        var tracker = AwayTracker()
+        _ = tracker.handle(.locked, at: start)
+        XCTAssertEqual(tracker.handle(.unlocked, at: end), away)
+        // Unlocked without touching the keyboard: idle still counts from before the lock.
+        _ = tracker.handle(.idle(2 * 3600), at: end.addingTimeInterval(5))
+        XCTAssertEqual(tracker.since, end)
+        XCTAssertNil(tracker.handle(.idle(1), at: end.addingTimeInterval(60)))
     }
 
     func testBackWithoutBeingAwayIsNothing() {

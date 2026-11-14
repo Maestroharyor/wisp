@@ -10,33 +10,53 @@ final class AgentLookingTests: XCTestCase {
 
     func testAnotherAppInFrontMeansNotLooking() {
         XCTAssertFalse(
-            AgentLooking.isLooking(frontmost: "com.apple.Safari", sessionApp: iTerm, sessionTTY: nil, activeTTY: nil))
-        XCTAssertFalse(AgentLooking.isLooking(frontmost: nil, sessionApp: iTerm, sessionTTY: nil, activeTTY: nil))
+            AgentLooking.isLooking(
+                frontmost: "com.apple.Safari", sessionApp: iTerm, sessionTTY: nil, activeTTY: nil, idleSeconds: 0))
+        XCTAssertFalse(
+            AgentLooking.isLooking(frontmost: nil, sessionApp: iTerm, sessionTTY: nil, activeTTY: nil, idleSeconds: 0))
     }
 
     func testASessionWithoutAKnownAppIsNeverLookedAt() {
-        XCTAssertFalse(AgentLooking.isLooking(frontmost: iTerm, sessionApp: nil, sessionTTY: nil, activeTTY: nil))
+        XCTAssertFalse(
+            AgentLooking.isLooking(frontmost: iTerm, sessionApp: nil, sessionTTY: nil, activeTTY: nil, idleSeconds: 0))
     }
 
     func testTheAppInFrontIsEnoughWhenTheTabCantBeKnown() {
-        XCTAssertTrue(AgentLooking.isLooking(frontmost: iTerm, sessionApp: iTerm, sessionTTY: nil, activeTTY: nil))
         XCTAssertTrue(
-            AgentLooking.isLooking(frontmost: iTerm, sessionApp: iTerm, sessionTTY: "/dev/ttys003", activeTTY: nil))
+            AgentLooking.isLooking(frontmost: iTerm, sessionApp: iTerm, sessionTTY: nil, activeTTY: nil, idleSeconds: 0)
+        )
+        XCTAssertTrue(
+            AgentLooking.isLooking(
+                frontmost: iTerm, sessionApp: iTerm, sessionTTY: "/dev/ttys003", activeTTY: nil, idleSeconds: 0))
     }
 
     func testTheActiveTabMustBeTheSessions() {
         XCTAssertTrue(
             AgentLooking.isLooking(
-                frontmost: terminal, sessionApp: terminal, sessionTTY: "/dev/ttys003", activeTTY: "/dev/ttys003"))
+                frontmost: terminal, sessionApp: terminal, sessionTTY: "/dev/ttys003", activeTTY: "/dev/ttys003",
+                idleSeconds: 0))
         XCTAssertFalse(
             AgentLooking.isLooking(
-                frontmost: terminal, sessionApp: terminal, sessionTTY: "/dev/ttys003", activeTTY: "/dev/ttys004"))
+                frontmost: terminal, sessionApp: terminal, sessionTTY: "/dev/ttys003", activeTTY: "/dev/ttys004",
+                idleSeconds: 0))
     }
 
     func testAnActiveTTYWithSpacesOrABareNameStillMatches() {
         XCTAssertTrue(
             AgentLooking.isLooking(
-                frontmost: terminal, sessionApp: terminal, sessionTTY: "/dev/ttys003", activeTTY: " ttys003\n"))
+                frontmost: terminal, sessionApp: terminal, sessionTTY: "/dev/ttys003", activeTTY: " ttys003\n",
+                idleSeconds: 0))
+    }
+
+    func testNobodyThereMeansNotLooking() {
+        XCTAssertFalse(
+            AgentLooking.isLooking(
+                frontmost: iTerm, sessionApp: iTerm, sessionTTY: nil, activeTTY: nil,
+                idleSeconds: AgentLooking.presence))
+        XCTAssertTrue(
+            AgentLooking.isLooking(
+                frontmost: iTerm, sessionApp: iTerm, sessionTTY: nil, activeTTY: nil,
+                idleSeconds: AgentLooking.presence - 1))
     }
 
     // MARK: Probe

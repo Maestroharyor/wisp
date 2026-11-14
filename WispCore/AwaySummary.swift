@@ -20,18 +20,20 @@ public struct AwaySummary: Equatable, Sendable {
     }
 
     /// Runs from the session history that ended inside `during` (a quit without ending is a
-    /// failure, a run that ended waiting is counted under needs you instead), `waiting` (live
-    /// sessions waiting on the user now) and requests from the approval log that timed out.
+    /// failure; a run that ended waiting isn't a finish), `waiting` (live sessions waiting on the
+    /// user now, with when the wait began; only waits that began while away count) and requests
+    /// from the approval log that timed out. A run counts once however many turns it finished.
     public static func build(
-        records: [SessionRecord], approvals: [ApprovalRecord], waiting: Set<String>, spend: Double,
+        records: [SessionRecord], approvals: [ApprovalRecord], waiting: [String: Date], spend: Double,
         during: DateInterval
     ) -> AwaySummary {
         let ended = records.filter { during.contains($0.ended) }
         let failed = ended.filter { $0.exited == true }.count
         let finished = ended.filter { $0.exited != true && !$0.endedWaiting }.count
         let timedOut = approvals.filter { $0.outcome == .timedOut && during.contains($0.date) }.map(\.sessionID)
+        let newWaits = waiting.filter { during.contains($0.value) }.keys
         return AwaySummary(
-            finished: finished, failed: failed, needsYou: waiting.union(timedOut).count, spend: max(spend, 0))
+            finished: finished, failed: failed, needsYou: Set(newWaits).union(timedOut).count, spend: max(spend, 0))
     }
 
     /// Spend under a cent rounds to nothing, so it alone doesn't make a card.
@@ -117,6 +119,9 @@ public struct AwayTracker: Sendable {
     public private(set) var since: Date?
     private var asleep = false
     private var locked = false
+    /// The last return, so idle time that still reaches back before it (no input since) can't
+    /// start a time away that overlaps the one just reported.
+    private var lastReturn: Date?
 
     public init() {}
 
@@ -140,7 +145,8 @@ public struct AwayTracker: Sendable {
             return back(at: now)
         case .idle(let seconds):
             if seconds >= Self.minimum {
-                since = since ?? now.addingTimeInterval(-seconds)
+                let left = now.addingTimeInterval(-seconds)
+                since = since ?? lastReturn.map { max(left, $0) } ?? left
             } else if since != nil {
                 return back(at: now)
             }
@@ -151,6 +157,7 @@ public struct AwayTracker: Sendable {
     private mutating func back(at now: Date) -> DateInterval? {
         guard !asleep, !locked, let left = since else { return nil }
         since = nil
+        lastReturn = now
         guard now.timeIntervalSince(left) >= Self.minimum else { return nil }
         return DateInterval(start: left, end: now)
     }
