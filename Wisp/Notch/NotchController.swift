@@ -262,7 +262,9 @@ final class NotchController {
     func update(layout: NotchLayout) {
         let from = settleFrom
         settleFrom = nil
-        guard layout != model.layout || panelMoved else { return }
+        // A display change that kept this layout can still have left the panel elsewhere (the
+        // system moving windows as displays come and go), so the frame counts too.
+        guard layout != model.layout || panelMoved || panel.frame != layout.panelFrame else { return }
         panelMoved = false
         // The shell may have moved out from under a still pointer (a drop, Move back).
         defer { resyncPointer() }
@@ -701,9 +703,9 @@ final class NotchController {
         panel.orderFrontRegardless()
     }
 
-    /// Brings the panel back in front and has it draw again. `update(layout:)` skips a display
-    /// change that left this display's layout as it was, and then the panel could sit on what
-    /// it drew before, missing an activity that arrived meanwhile.
+    /// Brings the panel back in front and has it draw again after a display change.
+    /// `update(layout:)` now puts a moved panel back on its frame; this stays as a cheap guard
+    /// because the idle panel seen after an unplug hasn't been reproduced since.
     func redraw() {
         panel.orderFrontRegardless()
         panel.contentView?.needsLayout = true
