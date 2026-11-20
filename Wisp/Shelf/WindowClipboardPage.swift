@@ -6,7 +6,8 @@ import WispCore
 
 /// Clipboard history in the window: a searchable list (pinned first, then newest) with a
 /// preview column beside it when the window is wide enough. Return copies, ⌘⌫ removes and,
-/// without the preview column, Space opens a preview.
+/// without the preview column, Space opens a preview. ⌘-click, ⇧-click or ⌘A pick several,
+/// which copy together as one, a line each.
 struct ClipboardPage: View {
     let store: ClipboardStore
     let preferences: Preferences
@@ -14,7 +15,7 @@ struct ClipboardPage: View {
 
     @State private var query = ""
     @State private var kind: ClipKind?
-    @State private var selection: ClipItem.ID?
+    @State private var selection: Set<ClipItem.ID> = []
     @State private var confirmingClear = false
     @State private var quickLook: URL?
     @State private var previewing: ClipItem?
@@ -22,7 +23,8 @@ struct ClipboardPage: View {
 
     var body: some View {
         let items = store.history.filtered(kind: kind, query: query)
-        let selected = items.first { $0.id == selection }
+        let picked = items.filter { selection.contains($0.id) }
+        let selected = picked.count == 1 ? picked.first : nil
         GeometryReader { proxy in
             let wide = WindowLayout.showsInspector(width: proxy.size.width)
             if items.isEmpty {
@@ -32,14 +34,22 @@ struct ClipboardPage: View {
                     list(items, wide: wide)
                     if wide {
                         Divider()
-                        ClipPreview(item: selected, imageURL: selected.flatMap(store.imageURL(for:)))
+                        if picked.count > 1 {
+                            ContentUnavailableView(
+                                "\(picked.count) items", systemImage: "doc.on.doc",
+                                description: Text("Press Return to copy them together, a line each.")
+                            )
                             .frame(width: WindowLayout.inspectorWidth)
+                        } else {
+                            ClipPreview(item: selected, imageURL: selected.flatMap(store.imageURL(for:)))
+                                .frame(width: WindowLayout.inspectorWidth)
+                        }
                     }
                 }
             }
         }
         .searchable(text: $query, placement: .toolbar, prompt: "Search clipboard")
-        .toolbar { toolbar(selected) }
+        .toolbar { toolbar(selected, picked: picked) }
         .confirmationDialog("Clear clipboard history?", isPresented: $confirmingClear) {
             Button("Clear history", role: .destructive) { store.clear() }
         } message: {
@@ -74,28 +84,45 @@ struct ClipboardPage: View {
             }
         }
         .contextMenu(forSelectionType: ClipItem.ID.self) { ids in
-            if let item = ids.first.flatMap(item(id:)) {
+            let many = ordered(ids, in: items)
+            if many.count > 1 {
+                Button("Copy together") { copyTogether(many) }
+                Divider()
+                // Pinned items stay; they're unpinned first to be removed.
+                let unpinned = many.filter { !$0.pinned }
+                Button("Remove \(unpinned.count) items", role: .destructive) { unpinned.forEach(remove) }
+                    .disabled(unpinned.isEmpty)
+            } else if let item = ids.first.flatMap(item(id:)) {
                 Button("Copy") { copy(item) }
                 Button(item.pinned ? "Unpin" : "Pin") { store.togglePin(item) }
                 Divider()
                 Button("Remove", role: .destructive) { remove(item) }
             }
         } primaryAction: { ids in
-            if let item = ids.first.flatMap(item(id:)) { copy(item) }
+            let many = ordered(ids, in: items)
+            if many.count > 1 { copyTogether(many) } else if let item = many.first { copy(item) }
         }
         .onKeyPress(.return) {
-            guard let item = selection.flatMap(item(id:)) else { return .ignored }
-            copy(item)
+            let many = ordered(selection, in: items)
+            if many.count > 1 {
+                copyTogether(many)
+            } else if let item = many.first {
+                copy(item)
+            } else {
+                return .ignored
+            }
             return .handled
         }
         .onKeyPress(.space) {
-            guard !wide, let item = selection.flatMap(item(id:)) else { return .ignored }
+            guard !wide, selection.count == 1, let item = selection.first.flatMap(item(id:)) else { return .ignored }
             if let url = store.imageURL(for: item) { quickLook = url } else { previewing = item }
             return .handled
         }
         .onKeyPress(keys: [.delete], phases: .down) { press in
-            guard press.modifiers.contains(.command), let item = selection.flatMap(item(id:)) else { return .ignored }
-            remove(item)
+            let many = ordered(selection, in: items)
+            guard press.modifiers.contains(.command), !many.isEmpty else { return .ignored }
+            // One item goes even when pinned, as before; several leave the pinned ones.
+            if many.count == 1 { many.forEach(remove) } else { many.filter { !$0.pinned }.forEach(remove) }
             return .handled
         }
     }
@@ -136,7 +163,7 @@ struct ClipboardPage: View {
         }
     }
 
-    @ToolbarContentBuilder private func toolbar(_ selected: ClipItem?) -> some ToolbarContent {
+    @ToolbarContentBuilder private func toolbar(_ selected: ClipItem?, picked: [ClipItem]) -> some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             Menu {
                 Picker("Type", selection: $kind) {
@@ -161,11 +188,11 @@ struct ClipboardPage: View {
             }
             .disabled(selected == nil)
             .help(selected?.pinned == true ? "Unpin" : "Pin")
-            Button("Copy", systemImage: "doc.on.doc") {
-                if let selected { copy(selected) }
+            Button(picked.count > 1 ? "Copy together" : "Copy", systemImage: "doc.on.doc") {
+                if picked.count > 1 { copyTogether(picked) } else if let selected { copy(selected) }
             }
-            .disabled(selected == nil)
-            .help("Copy")
+            .disabled(picked.isEmpty || (picked.count > 1 && picked.allSatisfy { $0.text == nil }))
+            .help(picked.count > 1 ? "Copy together, a line each (images are left out)" : "Copy")
             Button("Clear history", systemImage: "trash") { confirmingClear = true }
                 .disabled(store.history.items.allSatisfy(\.pinned))
                 .help("Clear history")
@@ -185,8 +212,19 @@ struct ClipboardPage: View {
         }
     }
 
+    /// The picked items in the order the list shows them.
+    private func ordered(_ ids: Set<ClipItem.ID>, in items: [ClipItem]) -> [ClipItem] {
+        let pinned = items.filter(\.pinned) + items.filter { !$0.pinned }
+        return pinned.filter { ids.contains($0.id) }
+    }
+
+    private func copyTogether(_ items: [ClipItem]) {
+        guard store.copyTogether(items) else { return }
+        selection = []
+    }
+
     private func remove(_ item: ClipItem) {
-        if selection == item.id { selection = nil }
+        selection.remove(item.id)
         store.remove(item)
     }
 }

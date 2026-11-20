@@ -10,6 +10,8 @@ final class ClipboardPanelModel {
     var kind: ClipKind?
     var query = ""
     var selectedID: UUID?
+    /// Cards ⌘-clicked to paste together, in the order picked.
+    var picked: [UUID] = []
 
     let store: ClipboardStore
     /// Reads the text in an image item and copies it (the card menu's Copy text).
@@ -25,7 +27,23 @@ final class ClipboardPanelModel {
         items.first { $0.id == selectedID } ?? items.first
     }
 
+    /// ⌘-click: adds the card to the ones to paste together, or takes it out again. The
+    /// selection follows the last card still picked.
+    func togglePick(_ item: ClipItem) {
+        if let index = picked.firstIndex(of: item.id) { picked.remove(at: index) } else { picked.append(item.id) }
+        selectedID = picked.last ?? item.id
+    }
+
+    /// The picked cards the current tab and search still show, in the order picked; cards that
+    /// were deleted or are filtered out aren't pasted.
+    var pickedItems: [ClipItem] {
+        let shown = items
+        return picked.compactMap { id in shown.first { $0.id == id } }
+    }
+
     func move(by offset: Int) {
+        // Moving on with the keys is choosing one card again.
+        picked = []
         let items = items
         guard !items.isEmpty else { return }
         let index = items.firstIndex { $0.id == selectedItem?.id } ?? 0
@@ -67,6 +85,7 @@ final class ClipboardPanelController {
         hiding = false
         model.query = ""
         model.selectedID = model.items.first?.id
+        model.picked = []
         services.aiActions.refresh()
 
         let mouse = NSEvent.mouseLocation
@@ -112,6 +131,17 @@ final class ClipboardPanelController {
         }
     }
 
+    /// Copies the picked cards as one, a line each, closes the panel and sends ⌘V.
+    func pasteTogether(_ items: [ClipItem]) {
+        guard services.clipboard.copyTogether(items) else { return }
+        hide()
+        guard AccessibilityPermission.isTrusted else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(120))
+            PasteShortcut.send()
+        }
+    }
+
     /// Closes the panel, so the card under the notch shows, and runs the task on the item.
     func runAI(_ task: AITask, on item: ClipItem) {
         hide()
@@ -124,6 +154,7 @@ final class ClipboardPanelController {
             model: model,
             ai: services.aiActions,
             paste: { [weak self] in self?.paste($0) },
+            pasteTogether: { [weak self] in self?.pasteTogether($0) },
             runAI: { [weak self] in self?.runAI($0, on: $1) },
             close: { [weak self] in self?.hide() }
         )
@@ -173,7 +204,12 @@ final class ClipboardPanelController {
         case 124:  // Right
             model.move(by: 1)
         case 36, 76:  // Return, Enter
-            if let item = model.selectedItem { paste(item) }
+            let picked = model.pickedItems
+            if picked.count > 1 {
+                pasteTogether(picked)
+            } else if let item = picked.first ?? model.selectedItem {
+                paste(item)
+            }
         case let key where commandOnly && Self.digitKeys.contains(key):  // ⌘1 to ⌘8: AI tasks
             let actions = services.aiActions
             guard actions.isEnabled, let index = Self.digitKeys.firstIndex(of: key),
