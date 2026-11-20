@@ -57,11 +57,20 @@ public enum AirDropFilter {
 /// Files that arrive together make one card: "3 items" in their folder, not a card per file
 /// replacing the last.
 public enum AirDropArrivals {
+    /// The deepest folder holding them all.
+    static func commonFolder(_ folders: [String]) -> String {
+        let paths = folders.map { ($0 as NSString).pathComponents }
+        guard var shared = paths.first else { return "/" }
+        for path in paths.dropFirst() {
+            shared = Array(zip(shared, path).prefix { $0 == $1 }.map(\.0))
+        }
+        return shared.isEmpty ? "/" : NSString.path(withComponents: shared)
+    }
+
     public static func combine(_ files: [FinishedDownload]) -> FinishedDownload? {
         guard let first = files.first else { return nil }
         guard files.count > 1 else { return first }
-        let folders = Set(files.map(\.folder))
-        let folder = folders.count == 1 ? first.folder : (first.folder as NSString).deletingLastPathComponent
+        let folder = commonFolder(files.map(\.folder))
         return FinishedDownload(
             folder: folder, name: "\(files.count) items", size: files.reduce(0) { $0 + $1.size }, origin: .airDrop,
             itemCount: files.count)
@@ -96,7 +105,14 @@ public struct AirDropTracker: Sendable {
 
     /// Takes every transfer published now and returns the ones that just arrived.
     public mutating func update(_ snapshots: [AirDropSnapshot], now: Date) -> [FinishedDownload] {
-        let current = Dictionary(snapshots.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        // In the order given, so transfers first seen together are ordered the same every time;
+        // a repeated id keeps its last reading.
+        var order: [String] = []
+        var current: [String: AirDropSnapshot] = [:]
+        for snapshot in snapshots {
+            if current[snapshot.id] == nil { order.append(snapshot.id) }
+            current[snapshot.id] = snapshot
+        }
         var finished: [FinishedDownload] = []
 
         // A transfer is withdrawn when it ends; it arrived if it had everything by then.
@@ -106,7 +122,8 @@ public struct AirDropTracker: Sendable {
         }
         settled.formIntersection(current.keys)
 
-        for (id, snapshot) in current where !settled.contains(id) {
+        for id in order where !settled.contains(id) {
+            guard let snapshot = current[id] else { continue }
             if snapshot.isCancelled || snapshot.isFinished {
                 tracked[id] = nil
                 settled.insert(id)

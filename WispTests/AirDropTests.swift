@@ -223,6 +223,16 @@ final class AirDropTrackerEdgeTests: XCTestCase {
         XCTAssertEqual(tracker.summary(now: at(32))?.primary.isStalled, false)
     }
 
+    func testTransfersFirstSeenInOneReadKeepTheirGivenOrder() {
+        for _ in 0..<20 {
+            var tracker = AirDropTracker()
+            _ = tracker.update(
+                [snap("1", 10, name: "one.jpg"), snap("2", 10, name: "two.jpg"), snap("3", 10, name: "three.jpg")],
+                now: at(0))
+            XCTAssertEqual(tracker.summary(now: at(0))?.primary.name, "three.jpg")
+        }
+    }
+
     func testTransfersSeenTogetherPutTheLaterOneFirst() {
         var tracker = AirDropTracker()
         _ = tracker.update([snap("9", 10, name: "nine.jpg")], now: at(0))
@@ -254,6 +264,17 @@ final class AirDropArrivalsTests: XCTestCase {
         XCTAssertEqual(AirDropArrivals.combine([file("a.jpg", 5)]), file("a.jpg", 5))
     }
 
+    func testFilesFromDifferentFoldersShareTheirDeepestCommonFolder() {
+        let batch = AirDropArrivals.combine([
+            FinishedDownload(folder: folder, name: "a.jpg", size: 1, origin: .airDrop),
+            FinishedDownload(folder: folder + "/Photos/Trip", name: "b.jpg", size: 1, origin: .airDrop),
+            FinishedDownload(folder: folder + "/Photos", name: "c.jpg", size: 1, origin: .airDrop),
+        ])
+        XCTAssertEqual(batch?.path, folder)
+        XCTAssertEqual(AirDropArrivals.commonFolder(["/a/b/c", "/a/b/d"]), "/a/b")
+        XCTAssertEqual(AirDropArrivals.commonFolder(["/x", "/y"]), "/")
+    }
+
     func testSeveralFilesMakeOneCardForTheirFolder() {
         let batch = AirDropArrivals.combine([file("a.jpg", 5), file("b.jpg", 7), file("c.jpg", 1)])
         XCTAssertEqual(batch?.name, "3 items")
@@ -272,14 +293,27 @@ final class BannerRuleTests: XCTestCase {
 
     func testABannerWithAcceptAndDeclineStays() {
         let actions = ["AXPress", "Name:Close\nTarget:0x0", "Name:Accept\nTarget:0x0", "Name:Decline\nTarget:0x0"]
-        XCTAssertTrue(BannerRule.keepsBanner(actions: actions))
+        XCTAssertTrue(BannerRule.keepsBanner(labels: actions))
         XCTAssertNil(BannerRule.closeAction(in: actions))
+    }
+
+    func testAcceptOnAButtonBelowKeepsTheBanner() {
+        let actions = ["AXPress", "Name:Close\nTarget:0x0"]
+        XCTAssertNil(BannerRule.closeAction(in: actions, labels: ["AXPress", "Accept…", "Decline"]))
+    }
+
+    func testAnswersMatchByStartAndCase() {
+        XCTAssertTrue(BannerRule.isAnswer("accept and open"))
+        XCTAssertTrue(BannerRule.isAnswer(" Decline"))
+        XCTAssertFalse(BannerRule.isAnswer("Unaccepted"))
+        XCTAssertFalse(BannerRule.isAnswer("Reply"))
     }
 
     func testAnOrdinaryBannerCloses() {
         let actions = ["AXPress", "Name:Show Details\nTarget:0x0", "Name:Close\nTarget:0x0"]
-        XCTAssertFalse(BannerRule.keepsBanner(actions: actions))
-        XCTAssertEqual(BannerRule.closeAction(in: actions), "Name:Close\nTarget:0x0")
+        XCTAssertFalse(BannerRule.keepsBanner(labels: actions))
+        XCTAssertEqual(
+            BannerRule.closeAction(in: actions, labels: ["Messages", "Reply"]), "Name:Close\nTarget:0x0")
     }
 
     func testABannerWithoutCloseHasNothingToPress() {

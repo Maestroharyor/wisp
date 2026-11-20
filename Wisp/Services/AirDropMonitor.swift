@@ -74,7 +74,10 @@ final class AirDropMonitor {
 
     private func read() {
         let now = Date.now
+        let expired = published.expiredCount
         let finished = tracker.update(published.snapshots(now: now), now: now)
+        let givenUp = published.expiredCount - expired
+        if givenUp > 0 { log.info("Gave up on \(givenUp, privacy: .public) unclassified file progress") }
         if !finished.isEmpty { arrive(finished) }
         let summary = tracker.summary(now: now)
         guard summary != lastSummary else { return }
@@ -82,12 +85,16 @@ final class AirDropMonitor {
         onChange(summary)
     }
 
-    /// Several files sent together finish one after another; one card says they're all in.
+    /// Several files sent together finish one after another; one card says they're all in, once
+    /// nothing else is still arriving.
     private func arrive(_ files: [FinishedDownload]) {
         arrivals += files
         arrivalTask?.cancel()
         arrivalTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(800))
+            while let self, !Task.isCancelled, self.tracker.isWatching {
+                try? await Task.sleep(for: .milliseconds(500))
+            }
             guard !Task.isCancelled, let self else { return }
             let batch = self.arrivals
             self.arrivals = []
@@ -114,6 +121,11 @@ private final class PublishedTransfers: @unchecked Sendable {
     /// even when it finished between two reads.
     private var withdrawn: [AirDropSnapshot] = []
     private var nextID = 0
+    /// File progress given up on while its operation was still unknown, for the log: if real
+    /// AirDrops land here, the wait is too short.
+    private var expired = 0
+
+    var expiredCount: Int { lock.withLock { expired } }
 
     var isEmpty: Bool { lock.withLock { items.isEmpty && withdrawn.isEmpty } }
 
@@ -153,13 +165,16 @@ private final class PublishedTransfers: @unchecked Sendable {
         lock.withLock {
             var all = withdrawn
             withdrawn.removeAll()
-            for (id, entry) in items {
+            for (id, entry) in items.sorted(by: { $0.key < $1.key }) {
                 switch AirDropFilter.classify(kind: entry.progress.kind, operation: Self.operation(of: entry.progress))
                 {
                 case .receiving:
                     if let snapshot = Self.snapshot(id, entry.progress) { all.append(snapshot) }
                 case .pending:
-                    if now.timeIntervalSince(entry.added) > AirDropFilter.pendingFor { items[id] = nil }
+                    if now.timeIntervalSince(entry.added) > AirDropFilter.pendingFor {
+                        items[id] = nil
+                        expired += 1
+                    }
                 case .ignored:
                     items[id] = nil
                 }
