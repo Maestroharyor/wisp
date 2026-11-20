@@ -1,8 +1,10 @@
 import AppKit
 import ApplicationServices
+import WispCore
 
 /// Closes the macOS notification banner once Wisp shows its own, through the
-/// Accessibility API on the Notification Center process.
+/// Accessibility API on the Notification Center process. A banner asking to Accept or Decline
+/// (an AirDrop request) is left alone whichever notification set this off.
 @MainActor
 enum BannerSuppressor {
     private static let bundleID = "com.apple.notificationcenterui"
@@ -30,17 +32,44 @@ enum BannerSuppressor {
         return closed
     }
 
-    /// Banners expose a "Close" action on one of their groups; find and press it.
+    /// Banners expose a "Close" action on one of their groups; find and press it, unless that
+    /// banner asks a question. Searching goes on past a banner that stays.
     private static func pressClose(in element: AXUIElement, depth: Int) -> Bool {
         guard depth < 8 else { return false }
-        var names: CFArray?
-        if AXUIElementCopyActionNames(element, &names) == .success,
-            let actions = names as? [String],
-            let close = actions.first(where: { $0.contains("Close") })
-        {
+        let actions = actionNames(of: element)
+        if actions.contains(where: { BannerRule.title(of: $0).contains("Close") }) {
+            guard let close = BannerRule.closeAction(in: actions, labels: labelsBelow(element, levels: 6)) else {
+                return false
+            }
             return AXUIElementPerformAction(element, close as CFString) == .success
         }
         return children(of: element, attribute: kAXChildrenAttribute).contains { pressClose(in: $0, depth: depth + 1) }
+    }
+
+    private static func actionNames(of element: AXUIElement) -> [String] {
+        var names: CFArray?
+        guard AXUIElementCopyActionNames(element, &names) == .success else { return [] }
+        // AX returns a CFArray of strings; bridging it is a checked conversion.
+        return names as? [String] ?? []
+    }
+
+    /// Everything inside a banner that could name an answer: its parts' actions, and its
+    /// buttons' titles and descriptions, since Accept can be a button whose only action is
+    /// a plain press. `levels` counts down from the banner, wherever it sits in the tree.
+    private static func labelsBelow(_ element: AXUIElement, levels: Int) -> [String] {
+        guard levels > 0 else { return [] }
+        return children(of: element, attribute: kAXChildrenAttribute).flatMap {
+            actionNames(of: $0)
+                + [text(of: $0, kAXTitleAttribute), text(of: $0, kAXDescriptionAttribute)].compactMap(\.self)
+                + labelsBelow($0, levels: levels - 1)
+        }
+    }
+
+    private static func text(of element: AXUIElement, _ attribute: String) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
+        // Titles and descriptions are CFStrings; bridging one is a checked conversion.
+        return value as? String
     }
 
     private static func children(of element: AXUIElement, attribute: String) -> [AXUIElement] {

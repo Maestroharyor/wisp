@@ -96,7 +96,7 @@ private struct PocketView: View {
             }
             GridRow {
                 DropTile(symbol: "doc.zipper", title: "Zip") { tray.zip($0) }
-                DropTile(symbol: "airplayaudio", title: "AirDrop") { tray.airDrop($0) }
+                DropTile(symbol: AirDropGlyph.symbol, title: "AirDrop") { tray.airDrop($0) }
             }
         }
         .padding(10)

@@ -100,30 +100,44 @@ public struct DownloadProgress: Sendable, Equatable, Identifiable {
     }
 }
 
+/// Where a file came from, so the pill and the finished card can say so.
+public enum DownloadOrigin: String, Sendable, Equatable {
+    case browser
+    case airDrop
+}
+
 /// The newest download plus how many are running.
 public struct DownloadSummary: Sendable, Equatable {
     public let primary: DownloadProgress
     public let count: Int
+    public let origin: DownloadOrigin
 
-    public init(primary: DownloadProgress, count: Int) {
+    public init(primary: DownloadProgress, count: Int, origin: DownloadOrigin = .browser) {
         self.primary = primary
         self.count = count
+        self.origin = origin
     }
 }
 
-/// A download whose partial file turned into its final file.
+/// A download whose partial file turned into its final file, or what arrived by AirDrop: one
+/// file, or several that came together (then `name` says how many).
 public struct FinishedDownload: Sendable, Equatable {
     public let folder: String
     public let name: String
     public let size: Int64
+    public let origin: DownloadOrigin
+    public let itemCount: Int
 
-    public init(folder: String, name: String, size: Int64) {
+    public init(folder: String, name: String, size: Int64, origin: DownloadOrigin = .browser, itemCount: Int = 1) {
         self.folder = folder
         self.name = name
         self.size = size
+        self.origin = origin
+        self.itemCount = itemCount
     }
 
-    public var path: String { (folder as NSString).appendingPathComponent(name) }
+    /// The file, or the folder for several.
+    public var path: String { itemCount > 1 ? folder : (folder as NSString).appendingPathComponent(name) }
 }
 
 /// Follows partial files across folder listings: progress, rate, stalls and completion.

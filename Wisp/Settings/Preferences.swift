@@ -349,6 +349,7 @@ final class Preferences {
         static let deviceActivity = "deviceActivity"
         static let accessoryBatteries = "accessoryBatteries"
         static let downloadActivity = "downloadActivity"
+        static let airDropActivity = "airDropActivity"
         static let downloadFolders = "downloadFolders"
         static let scriptInterval = "scriptInterval"
         static let doNotDisturbShortcut = "doNotDisturbShortcut"
@@ -736,6 +737,9 @@ final class Preferences {
     /// A progress pill while a browser downloads into Downloads or a chosen folder. Off by
     /// default: turning it on can make macOS ask for access to the Downloads folder.
     var downloadActivity: Bool { didSet { defaults.set(downloadActivity, forKey: Key.downloadActivity) } }
+    /// A progress pill while a file arrives by AirDrop, then a card to open it. It follows the
+    /// progress macOS publishes for the file and never lists or reads the folder.
+    var airDropActivity: Bool { didSet { defaults.set(airDropActivity, forKey: Key.airDropActivity) } }
     /// Folders watched besides Downloads, as plain paths (Wisp isn't sandboxed).
     var downloadFolders: [String] { didSet { defaults.set(downloadFolders, forKey: Key.downloadFolders) } }
     var capsLockHUD: Bool { didSet { defaults.set(capsLockHUD, forKey: Key.capsLockHUD) } }
@@ -1120,6 +1124,7 @@ final class Preferences {
             Key.batteryHUD: true,
             Key.capsLockHUD: true,
             Key.mediaActivity: true,
+            Key.airDropActivity: true,
             Key.terminalBarMode: TerminalBarMode.wisp.rawValue,
             Key.contextAlert: true,
             Key.agentPrivacy: AgentPrivacy.Mode.default.rawValue,
@@ -1380,6 +1385,7 @@ final class Preferences {
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
         accessoryBatteries = defaults.bool(forKey: Key.accessoryBatteries)
         downloadActivity = defaults.bool(forKey: Key.downloadActivity)
+        airDropActivity = defaults.bool(forKey: Key.airDropActivity)
         downloadFolders = defaults.stringArray(forKey: Key.downloadFolders) ?? []
         scriptInterval = ScriptOutput.clampedInterval(defaults.double(forKey: Key.scriptInterval))
         ringConfig =
