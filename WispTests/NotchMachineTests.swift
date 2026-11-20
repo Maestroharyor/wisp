@@ -159,3 +159,30 @@ final class NotchMachineTests: XCTestCase {
         XCTAssertEqual(ShelfClosing(storedValue: "never", legacyAutoClose: true), .never)
     }
 }
+
+final class NotchPullTests: XCTestCase {
+    func testAPullLetGoShortOfOpenGoesBackToPeeking() {
+        var machine = NotchMachine(opensOnHover: false)
+        _ = machine.handle(.pointerEntered)
+        _ = machine.handle(.clicked)
+        XCTAssertEqual(machine.phase, .open)
+        let effects = machine.handle(.pullCancelled)
+        XCTAssertEqual(machine.phase, .peek)
+        XCTAssertEqual(effects, [.cancelDwell, .cancelClose])
+    }
+
+    func testCancellingAPullOnlyMattersWhileOpen() {
+        var machine = NotchMachine()
+        XCTAssertEqual(machine.handle(.pullCancelled), [])
+        XCTAssertEqual(machine.phase, .closed)
+    }
+
+    func testACancelledPullDoesntLeaveTheShelfPinned() {
+        var machine = NotchMachine()
+        _ = machine.handle(.hotkey)
+        _ = machine.handle(.pullCancelled)
+        _ = machine.handle(.clicked)
+        XCTAssertEqual(machine.phase, .open)
+        XCTAssertFalse(machine.pinned)
+    }
+}

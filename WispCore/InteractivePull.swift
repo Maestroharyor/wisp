@@ -105,3 +105,60 @@ public struct PullTracker: Sendable {
         return Release(opens: resting > travel / 2, velocity: velocity / travel, progress: progress)
     }
 }
+
+extension Swipe {
+    /// How far a scroll moved in this direction (negative when it went the other way). Uses the
+    /// same signs as `SwipeDetector`: dy is positive for up, dx for right.
+    public func amount(dx: Double, dy: Double) -> Double {
+        switch self {
+        case .up: dy
+        case .down: -dy
+        case .right: dx
+        case .left: -dx
+        }
+    }
+}
+
+/// Decides early in a two-finger scroll whether it's a pull to open, so the shelf can follow the
+/// fingers from the start. A few points of travel, mostly in the opening direction, make it a
+/// pull; anything else is left to the swipe detector (skipping a track, dismissing a card).
+public struct PullGate: Sendable {
+    public enum Decision: Equatable, Sendable {
+        case undecided
+        /// A pull, with the distance already travelled toward open.
+        case pull(Double)
+        case other
+    }
+
+    public let direction: Swipe
+    public let slop: Double
+    private var dx: Double = 0
+    private var dy: Double = 0
+    private var decided = false
+
+    public init(direction: Swipe, slop: Double = 6) {
+        self.direction = direction
+        self.slop = slop
+    }
+
+    public mutating func add(dx: Double, dy: Double) -> Decision {
+        guard !decided else { return .other }
+        self.dx += dx
+        self.dy += dy
+        let along = direction.amount(dx: self.dx, dy: self.dy)
+        let across = direction.isVertical ? abs(self.dx) : abs(self.dy)
+        guard max(abs(along), across) >= slop else { return .undecided }
+        decided = true
+        return along > 0 && along >= 1.5 * across ? .pull(along) : .other
+    }
+
+    public mutating func reset() {
+        dx = 0
+        dy = 0
+        decided = false
+    }
+}
+
+extension Swipe {
+    var isVertical: Bool { self == .up || self == .down }
+}

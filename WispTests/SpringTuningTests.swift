@@ -209,3 +209,38 @@ final class InteractivePullTests: XCTestCase {
         XCTAssertEqual(SpringHandoff.relativeVelocity(3, from: 1, to: 1), 0)
     }
 }
+
+final class PullGateTests: XCTestCase {
+    func testAmountsFollowTheSwipeDetectorsSigns() {
+        XCTAssertEqual(Swipe.down.amount(dx: 0, dy: -5), 5)
+        XCTAssertEqual(Swipe.up.amount(dx: 0, dy: -5), -5)
+        XCTAssertEqual(Swipe.right.amount(dx: 3, dy: 0), 3)
+        XCTAssertEqual(Swipe.left.amount(dx: 3, dy: 0), -3)
+    }
+
+    func testSmallMovementsWait() {
+        var gate = PullGate(direction: .down)
+        XCTAssertEqual(gate.add(dx: 1, dy: -2), .undecided)
+    }
+
+    func testMovingTheOpeningWayIsAPull() {
+        var gate = PullGate(direction: .down)
+        _ = gate.add(dx: 0, dy: -3)
+        XCTAssertEqual(gate.add(dx: 1, dy: -4), .pull(7))
+    }
+
+    func testSidewaysOrBackwardsIsLeftToSwipes() {
+        var sideways = PullGate(direction: .down)
+        XCTAssertEqual(sideways.add(dx: 8, dy: -2), .other)
+        var backwards = PullGate(direction: .down)
+        XCTAssertEqual(backwards.add(dx: 0, dy: 8), .other)
+    }
+
+    func testTheGateDecidesOncePerGesture() {
+        var gate = PullGate(direction: .down)
+        XCTAssertEqual(gate.add(dx: 8, dy: 0), .other)
+        XCTAssertEqual(gate.add(dx: 0, dy: -50), .other)
+        gate.reset()
+        XCTAssertEqual(gate.add(dx: 0, dy: -8), .pull(8))
+    }
+}
