@@ -133,6 +133,16 @@ public enum ClipClassifier {
         text.utf8.count <= maxTextBytes && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Apps whose copies never go into history unless the user says otherwise: password
+    /// managers that don't mark what they copy as concealed.
+    public static let defaultExcluded: Set<String> = ["com.apple.keychainaccess", "com.apple.Passwords"]
+
+    /// Whether a copy made in the app with `bundleID` belongs in history.
+    public static func keeps(from bundleID: String?, excluding excluded: Set<String>) -> Bool {
+        guard let bundleID else { return true }
+        return !excluded.contains(bundleID)
+    }
+
     public static func kind(for text: String) -> ClipKind {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if rgb(fromHex: trimmed) != nil { return .color }
@@ -156,5 +166,13 @@ public enum ClipClassifier {
         if hex.count == 3 { hex = hex.map { "\($0)\($0)" }.joined() }
         guard let value = UInt32(hex.prefix(6), radix: 16) else { return nil }
         return (Int((value >> 16) & 0xFF), Int((value >> 8) & 0xFF), Int(value & 0xFF))
+    }
+}
+
+/// Several clips copied as one: their text, one per line, in the order picked.
+public enum ClipMerge {
+    public static func join(_ texts: [String]) -> String? {
+        let kept = texts.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return kept.isEmpty ? nil : kept.joined(separator: "\n")
     }
 }
