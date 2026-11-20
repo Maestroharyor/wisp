@@ -24,6 +24,8 @@ struct WindowWidgetDetail: View {
         case .pomodoro: PomodoroPage(store: services.timers, preferences: services.preferences)
         case .nowPlaying: WindowMediaPage(model: model)
         case .calendar: CalendarPage(store: services.calendar)
+        case .reminders:
+            WindowWidgetPage(width: .readable) { _ in RemindersWidget(store: services.reminders) }
         case .timer: TimerPage(store: services.timers)
         case .battery:
             BatteryPage(

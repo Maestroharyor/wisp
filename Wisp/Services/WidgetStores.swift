@@ -215,6 +215,231 @@ final class CalendarStore {
     }
 }
 
+/// The Reminders widget: open reminders, overdue first. Ticking one off saves it straight
+/// away and keeps it on screen, struck through with Undo, for a few seconds. Titles and due
+/// dates are read into memory only.
+@MainActor
+@Observable
+final class RemindersStore {
+    private(set) var items: [ReminderItem] = []
+    /// Reminders just ticked off, still shown so they can be put back.
+    private(set) var justDone: Set<String> = []
+    private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
+
+    @ObservationIgnored private let reader = RemindersReader()
+    @ObservationIgnored private var observer: NSObjectProtocol?
+    @ObservationIgnored private var lastRefresh: Date?
+    @ObservationIgnored private var dirty = false
+    @ObservationIgnored private var fetching = false
+    @ObservationIgnored private var refetch = false
+    @ObservationIgnored private var clearTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var lastSave: Task<Void, Never>?
+    @ObservationIgnored private var hadAccess = false
+    /// Times access went away, so the reader makes a fresh store after a new grant.
+    @ObservationIgnored private var revocations = 0
+
+    private static let undoFor = Duration.seconds(4)
+
+    func requestAccess() {
+        Task {
+            _ = try? await EKEventStore().requestFullAccessToReminders()
+            access = EKEventStore.authorizationStatus(for: .reminder)
+            refresh()
+        }
+    }
+
+    func refreshIfStale() {
+        let changed = dirty || EKEventStore.authorizationStatus(for: .reminder) != access
+        guard RefreshRule.calendar.isDue(lastRefresh: lastRefresh, now: .now, dirty: changed) else { return }
+        refresh()
+    }
+
+    func refresh() {
+        access = EKEventStore.authorizationStatus(for: .reminder)
+        dirty = false
+        guard access == .fullAccess else {
+            items = []
+            justDone = []
+            lastRefresh = nil
+            if hadAccess { revocations += 1 }
+            hadAccess = false
+            return
+        }
+        lastRefresh = .now
+        hadAccess = true
+        if observer == nil {
+            observer = NotificationCenter.default.addObserver(
+                forName: .EKEventStoreChanged, object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.dirty = true
+                    self?.refreshIfStale()
+                }
+            }
+        }
+        guard !fetching else {
+            refetch = true
+            return
+        }
+        fetching = true
+        let revocations = revocations
+        Task {
+            let fetched = await reader.open(revocations: revocations)
+            fetching = false
+            if access == .fullAccess {
+                items = Self.merge(ReminderList.ordered(fetched, now: .now), keeping: justDone, from: items)
+            }
+            if refetch {
+                refetch = false
+                refresh()
+            }
+        }
+    }
+
+    /// Ones just ticked off stay where they were until their Undo runs out, rather than jumping
+    /// to the end of the list.
+    private static func merge(_ fresh: [ReminderItem], keeping done: Set<String>, from old: [ReminderItem])
+        -> [ReminderItem]
+    {
+        var merged = fresh.filter { !done.contains($0.id) }
+        for (index, item) in old.enumerated() where done.contains(item.id) {
+            merged.insert(item, at: min(index, merged.count))
+        }
+        return merged
+    }
+
+    /// Saves to Reminders one after another, so an Undo clicked straight after a tick is
+    /// always saved after it.
+    private func save(_ id: String, done: Bool) async -> Bool {
+        let previous = lastSave
+        let save = Task { [reader] in
+            await previous?.value
+            return await reader.setCompleted(id, done)
+        }
+        lastSave = Task { _ = await save.value }
+        return await save.value
+    }
+
+    func complete(_ item: ReminderItem) {
+        justDone.insert(item.id)
+        Task {
+            // Not saved (the reminder went meanwhile): it comes back as it is in Reminders.
+            if await !save(item.id, done: true) { tickFailed(item) }
+        }
+        clearTasks[item.id]?.cancel()
+        clearTasks[item.id] = Task { [weak self] in
+            try? await Task.sleep(for: Self.undoFor)
+            guard !Task.isCancelled, let self else { return }
+            self.justDone.remove(item.id)
+            self.items.removeAll { $0.id == item.id }
+            self.clearTasks[item.id] = nil
+        }
+    }
+
+    func undo(_ item: ReminderItem) {
+        clearTasks[item.id]?.cancel()
+        clearTasks[item.id] = nil
+        justDone.remove(item.id)
+        Task {
+            _ = await save(item.id, done: false)
+            refresh()
+        }
+    }
+
+    private func tickFailed(_ item: ReminderItem) {
+        clearTasks[item.id]?.cancel()
+        clearTasks[item.id] = nil
+        justDone.remove(item.id)
+        refresh()
+    }
+
+    /// Opens Reminders.
+    func openApp() {
+        if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.reminders") {
+            NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
+        }
+    }
+}
+
+/// EventKit hands fetched reminders to a callback on its own queue. `@unchecked Sendable` is
+/// safe here: the array is built by EventKit, passed over once, and only touched inside
+/// `RemindersReader` afterwards, never by the callback again.
+private final class FetchedReminders: @unchecked Sendable {
+    let reminders: [EKReminder]
+
+    init(_ reminders: [EKReminder]) {
+        self.reminders = reminders
+    }
+}
+
+/// Reads and ticks off reminders off the main actor. It keeps the reminders it last read, so
+/// ticking one off changes that very reminder, and the ones it ticked off, since a later read
+/// (of open reminders only) no longer has them for Undo. Its store is made again after access
+/// went, as `CalendarReader`'s is.
+private actor RemindersReader {
+    private var store: EKEventStore?
+    private var storeRevocations = 0
+    private var reminders: [String: EKReminder] = [:]
+    private var ticked: [String: EKReminder] = [:]
+    /// Counts reads: one that started before a later one finishes is dropped, so an older
+    /// copy of a reminder never replaces a newer one.
+    private var reads = 0
+
+    func open(revocations: Int) async -> [ReminderItem] {
+        if storeRevocations != revocations {
+            store = nil
+            reminders = [:]
+            ticked = [:]
+            storeRevocations = revocations
+        }
+        let store = self.store ?? EKEventStore()
+        self.store = store
+        reads += 1
+        let read = reads
+        let predicate = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: nil)
+        let batch: FetchedReminders = await withCheckedContinuation { continuation in
+            store.fetchReminders(matching: predicate) { continuation.resume(returning: FetchedReminders($0 ?? [])) }
+        }
+        let fetched = batch.reminders
+        if read == reads {
+            reminders = Dictionary(
+                fetched.map { ($0.calendarItemIdentifier, $0) }, uniquingKeysWith: { first, _ in first })
+        }
+        return fetched.map(Self.item)
+    }
+
+    /// False when the reminder isn't known or couldn't be saved.
+    func setCompleted(_ id: String, _ done: Bool) -> Bool {
+        guard let store, let reminder = done ? reminders[id] : ticked[id] ?? reminders[id] else { return false }
+        reminder.isCompleted = done
+        do {
+            try store.save(reminder, commit: true)
+        } catch {
+            reminder.isCompleted = !done
+            return false
+        }
+        if done { ticked[id] = reminder } else { ticked[id] = nil }
+        return true
+    }
+
+    private static func item(_ reminder: EKReminder) -> ReminderItem {
+        ReminderItem(
+            id: reminder.calendarItemIdentifier, title: reminder.title ?? "Reminder", due: due(of: reminder),
+            isCompleted: reminder.isCompleted)
+    }
+
+    /// A reminder due on a day with no time is due by the end of that day, so it isn't
+    /// overdue all morning.
+    private static func due(of reminder: EKReminder) -> Date? {
+        guard let components = reminder.dueDateComponents, let date = Calendar.current.date(from: components) else {
+            return nil
+        }
+        guard components.hour == nil else { return date }
+        let start = Calendar.current.startOfDay(for: date)
+        return Calendar.current.date(byAdding: DateComponents(day: 1, second: -1), to: start) ?? date
+    }
+}
+
 /// Runs the synchronous week query off the main actor. Its store is made on first use, after
 /// access is granted, and made again after access went, so a later grant starts from a fresh one.
 private actor CalendarReader {

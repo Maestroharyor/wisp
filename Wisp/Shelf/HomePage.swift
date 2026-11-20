@@ -40,7 +40,7 @@ struct HomePage: View {
                         .frame(height: Self.windowCardHeight)
                         .card()
                         .overlay { if model.editingHome { editOverlay(kind) } }
-                        .onDrag { NSItemProvider(object: NSString(string: kind.rawValue)) }
+                        .onDrag { Self.cardDrag(kind) }
                         .onDrop(of: [.plainText], isTargeted: nil) { providers in
                             reorder(providers, onto: kind)
                         }
@@ -97,7 +97,7 @@ struct HomePage: View {
                         .frame(width: preferences.size(of: kind).width, height: rowHeight)
                         .clipped()
                         .overlay { if model.editingHome { editOverlay(kind) } }
-                        .onDrag { NSItemProvider(object: NSString(string: kind.rawValue)) }
+                        .onDrag { Self.cardDrag(kind) }
                         .onDrop(of: [.plainText], isTargeted: nil) { providers in
                             reorder(providers, onto: kind)
                         }
@@ -230,12 +230,29 @@ struct HomePage: View {
 
     private func endEditing() { model.endHomeEditing() }
 
+    private static let cardPrefix = "wisp-widget:"
+
+    static func cardDrag(_ kind: WidgetKind) -> NSItemProvider {
+        NSItemProvider(object: NSString(string: cardPrefix + kind.rawValue))
+    }
+
+    private static func cardID(_ text: String) -> String? {
+        text.hasPrefix(cardPrefix) ? String(text.dropFirst(cardPrefix.count)) : nil
+    }
+
     private func reorder(_ providers: [NSItemProvider], onto target: WidgetKind) -> Bool {
         guard let provider = providers.first else { return false }
         _ = provider.loadObject(ofClass: String.self) { raw, _ in
             Task { @MainActor in
                 guard let raw else { return }
-                preferences.homeLayout.move(raw, before: target.rawValue)
+                // Cards drag their widget's id behind a prefix, so a reminder titled "notes" is
+                // still a reminder; anything else dropped on the Pomodoro says what its focus
+                // session is for.
+                guard let id = Self.cardID(raw) else {
+                    if target == .pomodoro { model.services.timers.setFocusLabel(from: raw) }
+                    return
+                }
+                preferences.homeLayout.move(id, before: target.rawValue)
             }
         }
         return true
@@ -458,7 +475,7 @@ extension WidgetKind {
     /// to the usual height, so a taller shelf would only add empty space.
     var fillsTallShelf: Bool {
         switch self {
-        case .agents, .calendar, .clipboard, .shortcuts, .notes: true
+        case .agents, .calendar, .reminders, .clipboard, .shortcuts, .notes: true
         // World Clocks and Script show a set number of rows.
         case .nowPlaying, .timer, .pomodoro, .battery, .systemStats, .weather, .quickToggles, .mirror,
             .dayProgress, .quickInput, .worldClocks, .script:
@@ -474,6 +491,7 @@ extension WidgetKind {
         switch self {
         case .nowPlaying: .pink
         case .calendar: .red
+        case .reminders: .orange
         case .timer: .orange
         case .pomodoro: .mint
         case .battery: .green

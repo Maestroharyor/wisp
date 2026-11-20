@@ -91,6 +91,7 @@ enum PocketTrigger: String, CaseIterable, Identifiable {
 enum WidgetKind: String, CaseIterable, Identifiable, Codable {
     case nowPlaying
     case calendar
+    case reminders
     case timer
     case pomodoro
     case battery
@@ -113,6 +114,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .nowPlaying: "Now Playing"
         case .calendar: "Calendar"
+        case .reminders: "Reminders"
         case .timer: "Timer"
         case .pomodoro: "Pomodoro"
         case .battery: "Battery"
@@ -138,7 +140,8 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
     var defaultSize: WidgetSize {
         switch self {
         case .nowPlaying: .large
-        case .calendar, .systemStats, .notes, .quickToggles, .shortcuts, .clipboard, .dayProgress, .agents, .script,
+        case .calendar, .reminders, .systemStats, .notes, .quickToggles, .shortcuts, .clipboard, .dayProgress, .agents,
+            .script,
             .quickInput:
             .medium
         case .timer, .pomodoro, .battery, .weather, .mirror, .worldClocks: .small
@@ -149,6 +152,7 @@ enum WidgetKind: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .nowPlaying: "music.note"
         case .calendar: "calendar"
+        case .reminders: "checklist"
         case .timer: "timer"
         case .pomodoro: "brain.head.profile"
         case .battery: "battery.75percent"
@@ -325,6 +329,7 @@ final class Preferences {
         static let activityDisplay = "activityDisplay"
         static let clipboardEnabled = "clipboardEnabled"
         static let clipboardLimit = "clipboardLimit"
+        static let clipboardExcludedApps = "clipboardExcludedApps"
         static let notificationsEnabled = "notificationsEnabled"
         static let hideSystemBanners = "hideSystemBanners"
         static let notificationDuration = "notificationDuration"
@@ -1082,6 +1087,10 @@ final class Preferences {
 
     var clipboardEnabled: Bool { didSet { defaults.set(clipboardEnabled, forKey: Key.clipboardEnabled) } }
     var clipboardLimit: Int { didSet { defaults.set(clipboardLimit, forKey: Key.clipboardLimit) } }
+    /// Bundle ids of apps whose copies never go into history.
+    var clipboardExcludedApps: [String] {
+        didSet { defaults.set(clipboardExcludedApps, forKey: Key.clipboardExcludedApps) }
+    }
 
     /// Show notifications in the notch (needs Full Disk Access).
     var notificationsEnabled: Bool {
@@ -1190,6 +1199,7 @@ final class Preferences {
             Key.activityDisplay: ActivityDisplayTarget.pointer.rawValue,
             Key.clipboardEnabled: true,
             Key.clipboardLimit: 200,
+            Key.clipboardExcludedApps: ClipClassifier.defaultExcluded.sorted(),
             Key.notificationsEnabled: true,
             Key.hideSystemBanners: true,
             Key.notificationDuration: NotificationDuration.standard.rawValue,
@@ -1371,6 +1381,7 @@ final class Preferences {
             defaults.string(forKey: Key.activityDisplay).flatMap(ActivityDisplayTarget.init(rawValue:)) ?? .pointer
         clipboardEnabled = defaults.bool(forKey: Key.clipboardEnabled)
         clipboardLimit = max(defaults.integer(forKey: Key.clipboardLimit), 20)
+        clipboardExcludedApps = defaults.stringArray(forKey: Key.clipboardExcludedApps) ?? []
         notificationsEnabled = defaults.bool(forKey: Key.notificationsEnabled)
         hideSystemBanners = defaults.bool(forKey: Key.hideSystemBanners)
         notificationDuration =

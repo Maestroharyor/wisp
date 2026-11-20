@@ -96,7 +96,7 @@ targets:
         NSHumanReadableCopyright: "© 2026 Ayomide Odewale"
         NSAppleEventsUsageDescription: Wisp reads what is playing in Music and Spotify, shows what's next in Music, controls playback from the notch, and brings a coding agent's terminal tab forward.
         NSCalendarsFullAccessUsageDescription: Wisp shows your next events in the Calendar widget and adds the events you ask for in Quick add.
-        NSRemindersFullAccessUsageDescription: Wisp adds the reminders you ask for in Quick add.
+        NSRemindersFullAccessUsageDescription: Wisp shows your reminders in its Reminders widget and adds the ones you ask for in Quick add.
         NSLocationUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSLocationWhenInUseUsageDescription: Wisp uses your approximate location for the Weather widget.
         NSContactsUsageDescription: Wisp shows contact photos on notifications.
