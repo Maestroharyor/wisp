@@ -22,6 +22,10 @@ final class NotchController {
     private var dragEndTask: Task<Void, Never>?
     private var motionObserver: NSObjectProtocol?
     private var swipe = SwipeDetector()
+    /// Whether the two-finger scroll under way is a pull to open the shelf.
+    private var pullGate = PullGate(direction: .down)
+    /// The pull under way, while the shelf follows the fingers.
+    private var pullTracker: PullTracker?
     /// The card whose countdown is paused because the pointer is on it.
     private var heldSlot: ActivitySlot?
     /// A press on the closed shell. It acts on mouse-up, so dragging the shell moves it instead.
@@ -266,6 +270,8 @@ final class NotchController {
         // system moving windows as displays come and go), so the frame counts too.
         guard layout != model.layout || panelMoved || panel.frame != layout.panelFrame else { return }
         panelMoved = false
+        // A pull's starting rect belongs to the old layout.
+        dropPull(animated: false)
         // The shell may have moved out from under a still pointer (a drop, Move back).
         defer { resyncPointer() }
         model.layout = layout
@@ -296,14 +302,21 @@ final class NotchController {
         settleFrom = point
     }
 
-    /// The notch stretching toward the pointer while it's pulled.
+    /// The notch stretching toward the pointer while it's pulled, with a rubber band's give:
+    /// it follows at first and stiffens toward the tear-off point. `amount` is 1 there.
     func setPull(_ amount: CGFloat) {
-        model.pull = min(max(amount, 0), 1)
+        model.pull = CGFloat(RubberBand.offset(Double(min(max(amount, 0), 1)), limit: 0.7, coefficient: 1.4))
     }
 
     func releasePull() {
         guard model.pull > 0 else { return }
-        withAnimation(model.reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.55)) { model.pull = 0 }
+        withAnimation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) { model.pull = 0 }
+    }
+
+    /// A small swell as the shelf window flies back in, as if the notch caught it.
+    func receivePulse() {
+        guard !model.reduceMotion else { return }
+        model.receivePulses += 1
     }
 
     /// Springs the shell up from smaller after it changed form.
@@ -395,6 +408,10 @@ final class NotchController {
         if model.contains(location) {
             if machine.phase != .open {
                 pendingPress = true
+                // A press may become a pull; the hover delay mustn't open the shelf under it.
+                // Letting go without moving still opens it as a click.
+                dwellTask?.cancel()
+                dwellTask = nil
                 return
             }
             // Let text fields (notes, search) and Esc reach the shelf without activating
@@ -502,10 +519,20 @@ final class NotchController {
     /// and sideways on the music pill skips tracks. An open shelf ignores swipes, since its
     /// lists scroll.
     func scrolled(_ scroll: PointerMonitor.Scroll, at location: CGPoint) {
-        if scroll.boundary { swipe.reset() }
-        guard machine.phase != .open, model.contains(location),
-            let direction = swipe.add(dx: scroll.dx, dy: scroll.dy)
-        else { return }
+        if pullTracker != nil {
+            followPull(scroll)
+            return
+        }
+        if scroll.boundary {
+            swipe.reset()
+            pullGate = PullGate(direction: layout.edge.openingSwipe)
+        }
+        guard machine.phase != .open, model.contains(location) else { return }
+        if canPullOpen, case .pull(let travelled) = pullGate.add(dx: scroll.dx, dy: scroll.dy) {
+            beginPull(travelled: travelled)
+            return
+        }
+        guard let direction = swipe.add(dx: scroll.dx, dy: scroll.dy) else { return }
         if direction == layout.edge.openingSwipe {
             if services.shelfWindow.opensUnderShell { send(.clicked) } else { services.shelfWindow.activateShell() }
             return
@@ -519,6 +546,124 @@ final class NotchController {
         default: break
         }
     }
+
+    // MARK: Pull to open
+
+    /// A pull follows the fingers only where it opens the shelf here, in the notch; Reduce Motion
+    /// keeps the plain swipe, which opens it in one step.
+    private var canPullOpen: Bool {
+        machine.phase == .peek && services.shelfWindow.opensUnderShell && !model.reduceMotion && !isOrb
+    }
+
+    /// Opens the shelf at once but draws it only as far as the fingers have pulled.
+    private func beginPull(travelled: Double) {
+        let from = model.surfaceRect
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            model.pullFrom = from
+            model.pullProgress = 0
+            send(.clicked)
+        }
+        guard machine.phase == .open else {
+            withTransaction(transaction) { model.pullProgress = nil }
+            return
+        }
+        let open = model.targetSurfaceRect
+        let travel = layout.edge.isSide ? abs(open.width - from.width) : abs(open.height - from.height)
+        // About as far as the shelf grows, within reach of a comfortable two-finger pull.
+        var tracker = PullTracker(travel: min(max(travel * 0.6, 90), 180))
+        let progress = tracker.add(travelled, at: .now)
+        pullTracker = tracker
+        withTransaction(transaction) { model.pullProgress = CGFloat(progress) }
+    }
+
+    private func followPull(_ scroll: PointerMonitor.Scroll) {
+        guard var tracker = pullTracker else { return }
+        // A new gesture began without this one's end arriving: settle the pull where it is.
+        if scroll.boundary, !scroll.ended {
+            endPull()
+            return
+        }
+        let delta = layout.edge.openingSwipe.amount(dx: scroll.dx, dy: scroll.dy)
+        let progress = tracker.add(delta, at: .now)
+        pullTracker = tracker
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { model.pullProgress = CGFloat(progress) }
+        if scroll.ended { endPull() }
+    }
+
+    /// Lets go: the spring takes over at the fingers' speed and settles open, or folds back to
+    /// peeking when the throw falls short.
+    private func endPull() {
+        guard let tracker = pullTracker else { return }
+        pullTracker = nil
+        swipe.reset()
+        let release = tracker.release(now: .now)
+        let target: Double = release.opens ? 1 : 0
+        let spring = SpringTuning.surface(
+            move: release.opens ? .grow : .shrink, speedScale: model.speed.scale, reduceMotion: false)
+        let velocity = SpringHandoff.relativeVelocity(release.velocity, from: release.progress, to: target)
+        let animation = Animation.interpolatingSpring(
+            Spring(response: spring.response, dampingRatio: spring.dampingFraction), initialVelocity: velocity)
+        withAnimation(animation, completionCriteria: .logicallyComplete) {
+            model.pullProgress = CGFloat(target)
+        } completion: { [weak self] in
+            guard let self, self.pullTracker == nil, self.model.pullProgress != nil else { return }
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                self.model.pullProgress = nil
+                if !release.opens, self.machine.phase == .open {
+                    self.send(.pullCancelled)
+                    // The pointer may have left while the shelf folded back.
+                    if !self.pointerInside { self.send(.pointerExited) }
+                }
+            }
+        }
+    }
+
+    /// Ends any pull at once: its tracking stops, and the shell goes to the rect for what it
+    /// now shows, on the surface spring when `animated`.
+    private func dropPull(animated: Bool) {
+        pullTracker = nil
+        guard model.pullProgress != nil else { return }
+        if animated, !model.reduceMotion {
+            withAnimation(model.motion.surfaceClose) { model.pullProgress = nil }
+        } else {
+            model.pullProgress = nil
+        }
+    }
+
+    #if DEBUG
+        /// A scripted pull through the same path as the trackpad: down 70 points over about a
+        /// fifth of a second, then either let go or flicked back up first.
+        func debugPull(flickBack: Bool) {
+            let at = CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY)
+            if machine.phase == .closed { send(.pointerEntered) }
+            let opening = layout.edge.openingSwipe
+            func scroll(_ amount: Double, boundary: Bool = false, ended: Bool = false) -> PointerMonitor.Scroll {
+                let dx = opening == .right ? amount : opening == .left ? -amount : 0
+                let dy = opening == .up ? amount : opening == .down ? -amount : 0
+                return PointerMonitor.Scroll(dx: dx, dy: dy, boundary: boundary, ended: ended)
+            }
+            Task { @MainActor [weak self] in
+                self?.scrolled(scroll(0, boundary: true), at: at)
+                for _ in 0..<12 {
+                    try? await Task.sleep(for: .milliseconds(16))
+                    self?.scrolled(scroll(70.0 / 12), at: at)
+                }
+                if flickBack {
+                    for _ in 0..<5 {
+                        try? await Task.sleep(for: .milliseconds(16))
+                        self?.scrolled(scroll(-9), at: at)
+                    }
+                }
+                self?.scrolled(scroll(0, boundary: true, ended: true), at: at)
+            }
+        }
+    #endif
 
     func rightMouseDown(at location: CGPoint) {
         guard model.contains(location) else { return }
@@ -713,6 +858,7 @@ final class NotchController {
     }
 
     func tearDown() {
+        dropPull(animated: false)
         // A display unplugged mid-reply must not leave notifications held back forever.
         if isReplying { services.endReply(sentText: nil) }
         // A card held under the pointer on an unplugged display would otherwise never expire.
@@ -755,9 +901,6 @@ final class NotchController {
         machine.closing = preferences.shelfClosing
         model.speed = preferences.animationSpeed
         model.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        if let screen = NSScreen.screens.first(where: { $0.displayUUID == screenUUID }) {
-            model.framesPerSecond = screen.maximumFramesPerSecond
-        }
     }
 
     private func send(_ event: NotchEvent) {
@@ -766,6 +909,9 @@ final class NotchController {
         for effect in machine.handle(event) {
             apply(effect)
         }
+        // Closed under a pull (the shortcut, Esc, a click elsewhere, the close timer): the pull
+        // ends and the shell springs to where it belongs rather than following the fingers.
+        if wasOpen, machine.phase != .open { dropPull(animated: true) }
         render(wasOpen: wasOpen)
     }
 

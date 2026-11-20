@@ -202,3 +202,27 @@ final class ShelfSizeTests: XCTestCase {
         }
     }
 }
+
+final class SurfaceBlendTests: XCTestCase {
+    private let peek = CGRect(x: 600, y: 900, width: 200, height: 40)
+    private let open = CGRect(x: 400, y: 640, width: 600, height: 300)
+
+    func testTheEndsAreTheTwoShapes() {
+        XCTAssertEqual(SurfaceSizing.blend(peek, open, progress: 0), peek)
+        XCTAssertEqual(SurfaceSizing.blend(peek, open, progress: 1), open)
+    }
+
+    func testHalfwayKeepsTheTopEdgeAndCentre() {
+        let half = SurfaceSizing.blend(peek, open, progress: 0.5)
+        XCTAssertEqual(half.maxY, peek.maxY)
+        XCTAssertEqual(half.midX, peek.midX)
+        XCTAssertEqual(half.width, 400)
+    }
+
+    func testAStretchPastTheStartNeverTurnsNegative() {
+        let tiny = CGRect(x: 0, y: 0, width: 10, height: 10)
+        let blended = SurfaceSizing.blend(tiny, open, progress: -1)
+        XCTAssertGreaterThanOrEqual(blended.width, 0)
+        XCTAssertGreaterThanOrEqual(blended.height, 0)
+    }
+}

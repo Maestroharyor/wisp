@@ -332,3 +332,15 @@ public enum SurfaceSizing {
         return layout.surfaceRect(size: CGSize(width: width, height: height))
     }
 }
+
+extension SurfaceSizing {
+    /// The surface part way through a pull, from where it started (`progress` 0) to the open
+    /// shelf (1). Both shapes hang from the same edge, so blending their frames keeps that edge
+    /// in place. A pull stretched past either end carries on a little beyond it.
+    public static func blend(_ from: CGRect, _ to: CGRect, progress: CGFloat) -> CGRect {
+        func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * progress }
+        return CGRect(
+            x: mix(from.minX, to.minX), y: mix(from.minY, to.minY), width: max(mix(from.width, to.width), 0),
+            height: max(mix(from.height, to.height), 0))
+    }
+}

@@ -23,6 +23,9 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     /// Set by the notch coordinator: the closed shell nearest a frame, which the window
     /// leaves toward and comes back out of.
     var shellRect: @MainActor (CGRect) -> CGRect? = { _ in nil }
+    /// The window has flown back into the shell near `frame`: the shell answers with a pulse.
+    var shellReceived: @MainActor (CGRect) -> Void = { _ in }
+    private let flight = WindowFlight()
 
     /// The sidebar's selection, which pills, menus and tearing off point at a row.
     private let navigation: WindowNavigation
@@ -183,12 +186,26 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         let tornOff = tearAnchor != nil
         animating = !tornOff
         window.setFrame(frame, display: false)
-        if !tornOff { window.setFrameOrigin(nudge(frame, toward: shellRect(frame)).origin) }
         window.alphaValue = 0
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
-        syncFrameRate()
         installKeyMonitor()
+        // Drawn once now, so the picture that flies out isn't empty.
+        window.displayIfNeeded()
+        // Out of the notch on the surface spring, as the notch's own shelf grows out of it.
+        if !tornOff, !model.reduceMotion, let shell = shellRect(frame),
+            flight.flyOut(
+                window, from: shell, to: frame,
+                spring: SpringTuning.surface(
+                    move: .grow, speedScale: model.speed.scale, reduceMotion: false),
+                done: { [weak self, weak window] in
+                    window?.alphaValue = 1
+                    self?.animating = false
+                })
+        {
+            return
+        }
+        if !tornOff { window.setFrameOrigin(nudge(frame, toward: shellRect(frame)).origin) }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -251,6 +268,23 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         hiding = true
         animating = true
         let frame = window.frame
+        // Back into the notch it came from, which answers as it arrives.
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, let shell = shellRect(frame),
+            flight.flyIn(
+                window, to: shell,
+                spring: SpringTuning.surface(
+                    move: .shrink, speedScale: model?.speed.scale ?? 1, reduceMotion: false),
+                arrive: { [weak self] in self?.shellReceived(frame) },
+                done: { [weak self] in
+                    guard let self else { return }
+                    self.hiding = false
+                    self.animating = false
+                })
+        {
+            window.orderOut(nil)
+            finishHiding()
+            return
+        }
         let to = nudge(frame, toward: shellRect(frame))
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.18
@@ -335,14 +369,6 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     func windowDidMove(_ notification: Notification) { saveFrame() }
 
     func windowDidEndLiveResize(_ notification: Notification) { saveFrame() }
-
-    func windowDidChangeScreen(_ notification: Notification) { syncFrameRate() }
-
-    /// Tunes the page springs to the display the window is on, as the notch does for its screen.
-    private func syncFrameRate() {
-        guard let model, let screen = window?.screen ?? NSScreen.main else { return }
-        model.framesPerSecond = screen.maximumFramesPerSecond
-    }
 }
 
 /// A window whose minimise button goes back to the shell instead of the Dock.

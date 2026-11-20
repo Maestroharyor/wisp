@@ -83,7 +83,7 @@ struct BubbleLayer: View {
             pill = rect
             return
         }
-        withAnimation(model.surfaceAnimation) { pill = rect }
+        withAnimation(model.surfaceAnimation(from: pill.size, to: rect.size)) { pill = rect }
     }
 
     private var pinch: Animation {

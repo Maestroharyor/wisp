@@ -36,6 +36,7 @@ final class NotchCoordinator {
             self?.controllers.values.filter { $0.phase == .open }.forEach { $0.dismiss() }
         }
         services.shelfWindow.shellRect = { [weak self] frame in self?.shellRect(near: frame) }
+        services.shelfWindow.shellReceived = { [weak self] frame in self?.controller(near: frame)?.receivePulse() }
         services.suspendShells = { [weak self] in self?.suspend() }
         services.resumeShells = { [weak self] in self?.resume() }
         rebuild()
@@ -86,6 +87,15 @@ final class NotchCoordinator {
         target?.toggle()
     }
 
+    #if DEBUG
+        /// Plays a two-finger pull on the display with a camera notch, for checking the motion
+        /// without synthetic input.
+        func debugPull(flickBack: Bool) {
+            let notched = NSScreen.screens.first { $0.safeAreaInsets.top > 0 }?.displayUUID
+            (notched.flatMap { controllers[$0] } ?? targetController())?.debugPull(flickBack: flickBack)
+        }
+    #endif
+
     func openShelf(page: ShelfPage) {
         targetController()?.open(page: page)
     }
@@ -114,9 +124,12 @@ final class NotchCoordinator {
 
     /// The closed shell on the display holding most of `frame`, for the window to leave toward.
     private func shellRect(near frame: CGRect) -> CGRect? {
+        controller(near: frame)?.layout.closedRect
+    }
+
+    private func controller(near frame: CGRect) -> NotchController? {
         let screen = NSScreen.screens.max { area($0.frame.intersection(frame)) < area($1.frame.intersection(frame)) }
-        let controller = screen?.displayUUID.flatMap { controllers[$0] } ?? targetController()
-        return controller?.layout.closedRect
+        return screen?.displayUUID.flatMap { controllers[$0] } ?? targetController()
     }
 
     private func area(_ rect: CGRect) -> CGFloat { rect.isNull ? 0 : rect.width * rect.height }

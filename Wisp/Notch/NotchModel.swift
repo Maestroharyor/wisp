@@ -78,7 +78,6 @@ final class NotchModel {
     private(set) var hoverPulses = 0
     var layout: NotchLayout
     var speed: AnimationSpeed = .standard
-    var framesPerSecond = 60
     var reduceMotion = false
     /// Choosing any tab, including Widgets again, returns the Widgets page to its grid.
     var page: ShelfPage = .home {
@@ -255,8 +254,16 @@ final class NotchModel {
     var isOrb: Bool { layout.placement == .floating }
     /// How far a pull on the notch has gone toward tearing it off, 0 to 1 (a rubber band).
     var pull: CGFloat = 0
+    /// How far a two-finger pull has opened the shelf, 0 (where it started) to 1 (open), or nil
+    /// when no pull is under way. Set without animation while the fingers move, so the shell
+    /// follows them.
+    var pullProgress: CGFloat?
+    /// Where the surface was when the pull began.
+    var pullFrom: CGRect = .zero
     /// Counts form changes; each one springs the shell up from smaller.
     var pops = 0
+    /// Counts the shelf window flying back in; each one swells the shell a little.
+    var receivePulses = 0
     /// The orb is shrinking away before it docks.
     var vanishing = false
     /// Where the orb sits in the current surface: content blooms out of and back into it.
@@ -339,6 +346,12 @@ final class NotchModel {
     }
 
     var surfaceRect: CGRect {
+        guard let pullProgress else { return targetSurfaceRect }
+        return SurfaceSizing.blend(pullFrom, targetSurfaceRect, progress: pullProgress)
+    }
+
+    /// Where the surface settles for what it shows now, ignoring a pull under way.
+    var targetSurfaceRect: CGRect {
         let look = preferences.appearance
         return SurfaceSizing.rect(
             for: spec, in: layout, contentScale: look.shelfSize.scale, peekStrength: look.hoverStrength,
@@ -511,16 +524,23 @@ final class NotchModel {
     }
 
     var motion: NotchMotion {
-        .preset(speed, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)
+        .preset(speed, reduceMotion: reduceMotion)
     }
 
     /// Glow and glass tint: the playing album's colour when allowed, otherwise Wisp's violet.
     var accent: Color { services.accent }
     var glow: Color { services.glow }
 
-    /// Bouncier when growing, damped when settling back to the plain notch.
-    var surfaceAnimation: Animation {
-        spec == .closed ? motion.surfaceClose : motion.surfaceOpen
+    /// The surface's settled size before its latest change, so the next change can tell growing
+    /// from shrinking. `NotchView` updates it after each change of size.
+    @ObservationIgnored var settledSurface: CGSize = .zero
+
+    /// A small bounce when growing, none when shrinking, whatever the shape lands on: closing
+    /// the shelf onto a live pill settles like closing it onto the bare notch.
+    var surfaceAnimation: Animation { surfaceAnimation(from: settledSurface, to: targetSurfaceRect.size) }
+
+    func surfaceAnimation(from old: CGSize, to new: CGSize) -> Animation {
+        SurfaceMove.between(old, new) == .grow ? motion.surfaceOpen : motion.surfaceClose
     }
 }
 

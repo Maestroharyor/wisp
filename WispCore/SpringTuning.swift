@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// A spring described the way SwiftUI's `spring(response:dampingFraction:)` takes it.
@@ -15,36 +16,36 @@ public struct SpringSpec: Equatable, Sendable {
     public var damping: Double { 4 * .pi * dampingFraction / response }
 }
 
-/// Notch surface timing. The surface opens on a lively spring with a little overshoot,
-/// so the shelf feels like it swells out of the notch, and closes on a firmer one with
-/// almost none, so it tucks back in without bouncing.
+/// Whether the surface is getting bigger or smaller, which picks its spring. Closing to a live
+/// pill shrinks just like closing to the bare notch, so it must not get the opening bounce.
+public enum SurfaceMove: Sendable, Equatable {
+    case grow
+    case shrink
+
+    /// By area, so a shape that gets wider but much shorter still settles without a bounce. No
+    /// change in size counts as settling.
+    public static func between(_ old: CGSize, _ new: CGSize) -> SurfaceMove {
+        new.width * new.height > old.width * old.height ? .grow : .shrink
+    }
+}
+
+/// Notch surface timing, after Apple's own: growing carries a small bounce, like the Dynamic
+/// Island swelling open; shrinking is a little quicker and critically damped, so it tucks
+/// away without wobbling. The timing is the same on every display, whatever its refresh rate.
 public enum SpringTuning {
-    public static let surfaceOpen = SpringSpec(response: 0.47, dampingFraction: 0.76)
-    public static let surfaceClose = SpringSpec(response: 0.54, dampingFraction: 0.9)
+    public static let surfaceOpen = SpringSpec(response: 0.42, dampingFraction: 0.8)
+    public static let surfaceClose = SpringSpec(response: 0.36, dampingFraction: 1)
     /// Reduce Motion: short and critically damped, no overshoot.
     public static let reducedMotion = SpringSpec(response: 0.3, dampingFraction: 1)
+    /// Content showing inside the growing shell: no delay, so it's carried by the shell rather
+    /// than popping in after it.
+    public static let contentIn = SpringSpec(response: 0.3, dampingFraction: 1)
+    /// Content clearing, quicker than the shell so the shell is seen folding away empty.
+    public static let contentOut = SpringSpec(response: 0.16, dampingFraction: 1)
 
-    /// Low refresh rates show fewer frames per spring, so stretch the response a little
-    /// to keep the motion from looking choppy.
-    public static func refreshScale(framesPerSecond: Int) -> Double {
-        switch framesPerSecond {
-        case 100...: 1
-        case 75..<100: 1.1
-        default: 1.18
-        }
-    }
-
-    public static func surface(
-        opening: Bool,
-        speedScale: Double,
-        framesPerSecond: Int,
-        reduceMotion: Bool
-    ) -> SpringSpec {
-        let refresh = refreshScale(framesPerSecond: framesPerSecond)
-        if reduceMotion {
-            return SpringSpec(response: reducedMotion.response * refresh, dampingFraction: 1)
-        }
-        let base = opening ? surfaceOpen : surfaceClose
-        return SpringSpec(response: base.response * speedScale * refresh, dampingFraction: base.dampingFraction)
+    public static func surface(move: SurfaceMove, speedScale: Double, reduceMotion: Bool) -> SpringSpec {
+        if reduceMotion { return reducedMotion }
+        let base = move == .grow ? surfaceOpen : surfaceClose
+        return SpringSpec(response: base.response * speedScale, dampingFraction: base.dampingFraction)
     }
 }

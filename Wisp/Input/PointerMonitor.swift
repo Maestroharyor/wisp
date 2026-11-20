@@ -40,6 +40,8 @@ final class PointerMonitor {
         var dy: Double
         /// A new gesture began, or the last one ended.
         var boundary: Bool
+        /// The fingers lifted (or the gesture was cancelled).
+        var ended: Bool
     }
 
     /// Two-finger trackpad scrolls only; mouse wheels and momentum are ignored.
@@ -50,7 +52,8 @@ final class PointerMonitor {
             let scroll = Scroll(
                 dx: inverted ? event.scrollingDeltaX : -event.scrollingDeltaX,
                 dy: inverted ? -event.scrollingDeltaY : event.scrollingDeltaY,
-                boundary: !event.phase.isDisjoint(with: [.began, .ended, .cancelled]))
+                boundary: !event.phase.isDisjoint(with: [.began, .ended, .cancelled]),
+                ended: !event.phase.isDisjoint(with: [.ended, .cancelled]))
             MainActor.assumeIsolated { handler(scroll, NSEvent.mouseLocation) }
         }
         let global = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel, handler: report)

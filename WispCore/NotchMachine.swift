@@ -17,6 +17,9 @@ public enum NotchEvent: Sendable, Equatable {
     case escape
     /// A file drag reached the notch: open without pinning so leaving closes it.
     case dragEntered
+    /// A pull that opened the shelf as it went was let go short of open: back to peeking, as
+    /// the pointer is still on the notch.
+    case pullCancelled
 }
 
 /// Timers the owner must start or cancel after an event.
@@ -100,6 +103,11 @@ public struct NotchMachine: Sendable, Equatable {
 
         case (.open, .dragEntered):
             return [.cancelClose]
+
+        case (.open, .pullCancelled):
+            _ = close()
+            phase = .peek
+            return [.cancelDwell, .cancelClose]
 
         case (.open, .hotkey), (_, .escape):
             return phase == .closed ? [] : close()
