@@ -78,7 +78,7 @@ struct TrayPage: View {
             TrayAction(symbol: allSelected ? "checkmark.circle.fill" : "checkmark.circle") { tray.toggleSelectAll() }
                 .hoverHint(allSelected ? "Deselect all" : "Select all")
                 .accessibilityLabel(allSelected ? "Deselect all" : "Select all")
-            TrayAction(symbol: "airplayaudio", title: "AirDrop") { tray.airDrop(list.actionTargets) }
+            TrayAction(symbol: AirDropGlyph.symbol, title: "AirDrop") { tray.airDrop(list.actionTargets) }
             TrayAction(symbol: "wand.and.stars", title: "Transform") {
                 model.services.openTransform(list.actionTargets)
             }
@@ -257,7 +257,7 @@ struct DropTiles: View {
             DropTile(symbol: "tray.and.arrow.down.fill", title: "Drop") { tray.add($0) }
             DropTile(symbol: "wand.and.stars", title: "Transform") { model.services.openTransform($0) }
             DropTile(symbol: "doc.zipper", title: "Zip") { tray.zip($0) }
-            DropTile(symbol: "airplayaudio", title: "AirDrop") { tray.airDrop($0) }
+            DropTile(symbol: AirDropGlyph.symbol, title: "AirDrop") { tray.airDrop($0) }
             ForEach(model.preferences.dropActions.prefix(SurfaceSizing.maxDropActionTiles)) { action in
                 DropTile(symbol: action.symbol, title: action.name) { urls in
                     model.services.dropActions.run(action, on: urls)
