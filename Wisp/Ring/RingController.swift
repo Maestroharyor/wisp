@@ -77,6 +77,7 @@ final class RingController {
     func show(at point: CGPoint, holding: Bool = false, dropping: Bool = false) {
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         guard let screen else { return }
+        services.orbDock.hide()
         RingIconCache.shared.retryMissing()
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         model.set = services.preferences.ringConfig.set(forFrontApp: front)

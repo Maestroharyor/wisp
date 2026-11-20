@@ -28,6 +28,7 @@ struct RingSection: View {
                 LabeledContent("Status", value: trigger.status.message)
             }
             Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
+            Toggle("Show the ring's apps beside the orb", isOn: $preferences.orbDock)
             LabeledContent("Actions") {
                 Button("Edit ring…") { editorShown = true }
                     // On the button, not the Section: a Form can apply a Section's modifiers per row.
@@ -36,7 +37,7 @@ struct RingSection: View {
                     }
             }
             Text(
-                "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring. With Hyper on, Hyper+R opens it at the pointer."
+                "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring. With the orb dock on, hovering the orb shows up to five apps from the ring. With Hyper on, Hyper+R opens it at the pointer."
             )
             .font(.caption).foregroundStyle(.secondary)
         } header: {

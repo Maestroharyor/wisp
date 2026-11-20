@@ -841,6 +841,7 @@ final class NotchController {
         // No pointer reaches a hidden panel, so a card held under it would never be let go.
         if let heldSlot { services.activities.release(heldSlot) }
         heldSlot = nil
+        services.orbDock.orb(on: screenUUID, peekingAt: nil)
         panel.orderOut(nil)
     }
 
@@ -869,6 +870,7 @@ final class NotchController {
         closeTask?.cancel()
         dragEndTask?.cancel()
         if let motionObserver { NSWorkspace.shared.notificationCenter.removeObserver(motionObserver) }
+        services.orbDock.orb(on: screenUUID, peekingAt: nil)
         panel.orderOut(nil)
         panel.close()
     }
@@ -947,6 +949,7 @@ final class NotchController {
     private func render(wasOpen: Bool) {
         model.phase = machine.phase
         updateCardHover()
+        reportOrbPeek()
         // Click-through while closed, so the menu bar under the panel keeps working.
         updateClickThrough()
 
@@ -975,6 +978,14 @@ final class NotchController {
             pointerInside = model.contains(NSEvent.mouseLocation)
             resyncPointer()
         }
+    }
+
+    /// The orb's dock shows beside it while it peeks with nothing else on it, and goes as soon as
+    /// the orb opens.
+    private func reportOrbPeek() {
+        if isOrb, machine.phase == .open { services.orbDock.hide() }
+        let peeking = isOrb && machine.phase == .peek && model.activity == nil && !model.dragging
+        services.orbDock.orb(on: screenUUID, peekingAt: peeking ? layout.closedRect : nil)
     }
 
     /// Re-reads where the pointer is after the shape changed under it, so a shell that moved
