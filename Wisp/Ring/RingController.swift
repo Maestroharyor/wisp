@@ -16,6 +16,10 @@ final class RingModel {
     /// Apps running when the ring opened, for the dots under app segments.
     var running: Set<String> = []
     var frontmost: String?
+    /// What's been typed on the open ring, and what it finds.
+    var query = ""
+    var results: [RingSearch.Result] = []
+    var selectedResult = 0
     var hover: RingHit = .none
     var expanded: Int?
     /// Files being dragged over the ring; segments that can't take them dim.
@@ -62,11 +66,14 @@ final class RingController {
     private var listing: Set<String> = []
     /// Opened by holding a mouse button; letting go picks.
     private var holding = false
+    /// Where the press that opened the ring was, for telling a flick from a press.
+    private var pressPoint: CGPoint = .zero
 
     private static let side = (RingGeometry.subOuter + RingGeometry.margin * 2) * 2
 
     init(services: AppServices) {
         self.services = services
+        services.appCatalog.onChange = { [weak self] in self?.search() }
     }
 
     /// Showing and not on its way out.
@@ -90,6 +97,11 @@ final class RingController {
         model.hover = .none
         model.expanded = nil
         model.picked = nil
+        model.query = ""
+        model.results = []
+        model.selectedResult = 0
+        pressPoint = point
+        services.appCatalog.refreshIfStale()
         closeTask?.cancel()
         closeTask = nil
         // Start folded, then open on the next pass so the wedges animate out.
@@ -158,7 +170,14 @@ final class RingController {
     func released(at point: CGPoint) {
         guard holding, isVisible else { return }
         holding = false
-        switch RingGesture.release(after: Date.now.timeIntervalSince(openedAt), on: hit(atGlobal: point)) {
+        // Typing took over from the mouse: the search card decides, not where the button went up.
+        guard model.query.isEmpty else { return }
+        let centre = panel.map { CGPoint(x: $0.frame.midX, y: $0.frame.midY) } ?? pressPoint
+        let outcome = RingFlick.release(
+            after: Date.now.timeIntervalSince(openedAt), from: pressPoint, to: point, centre: centre,
+            hit: hit(atGlobal: point), slots: model.set.slots.count, expanded: model.expanded,
+            subItems: model.expandedItems.count)
+        switch outcome {
         case .stayOpen: break
         case .pick(let hit): pick(hit, files: [])
         case .close: hide()
@@ -347,7 +366,11 @@ final class RingController {
         stopMonitors()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let keyCode = event.keyCode
-            let handled = MainActor.assumeIsolated { self?.handleKey(keyCode) ?? false }
+            let characters = event.characters ?? ""
+            let modified = !event.modifierFlags.intersection([.command, .control]).isEmpty
+            let handled = MainActor.assumeIsolated {
+                self?.handleKey(keyCode, characters: characters, modified: modified) ?? false
+            }
             return handled ? nil : event
         }
         // A click anywhere else puts the ring away.
@@ -360,18 +383,90 @@ final class RingController {
         }
     }
 
-    /// Esc closes the ring; 1 to 8 pick a segment.
-    private func handleKey(_ keyCode: UInt16) -> Bool {
+    /// Esc closes the ring (or clears what's typed), 1 to 8 pick a segment, the arrows move
+    /// round it and Return picks; typing anything else searches the ring and the Mac's apps.
+    private func handleKey(_ keyCode: UInt16, characters: String, modified: Bool) -> Bool {
         guard isVisible else { return false }
-        if keyCode == KeyCodes.escape {
+        let command = RingTyping.command(
+            keyCode: keyCode, characters: characters, modified: modified, query: model.query)
+        switch command {
+        case .ignore:
+            // Shortcuts go on to other apps; any other key is the ring's while it's open, so a
+            // stray one doesn't beep.
+            return !modified
+        case .close:
             hide()
-            return true
+        case .clearQuery:
+            model.query = ""
+            search()
+        case .type(let text):
+            model.query = text
+            model.results = []
+            search()
+        case .moveResult(let step):
+            guard !model.results.isEmpty else { break }
+            model.selectedResult = min(max(model.selectedResult + step, 0), model.results.count - 1)
+        case .move(let key):
+            let cursor = RingKeys.move(
+                key, from: RingCursor(hover: model.hover, expanded: model.expanded), slots: model.set.slots.count
+            ) { [model] in model.subItems(of: $0).count }
+            model.hover = cursor.hover
+            model.expanded = cursor.expanded
+        case .pickSlot(let index):
+            guard index < model.set.slots.count else { return true }
+            pick(.slot(index), files: [])
+        case .submit:
+            submit()
         }
-        guard let digit = KeyCodes.digit(forKeyCode: keyCode), digit >= 1, digit <= model.set.slots.count else {
-            return false
-        }
-        pick(.slot(digit - 1), files: [])
         return true
+    }
+
+    private func submit() {
+        if !model.query.isEmpty {
+            pickResult(model.selectedResult)
+            return
+        }
+        switch model.hover {
+        case .slot, .sub: pick(model.hover, files: [])
+        case .centre, .none: break
+        }
+    }
+
+    /// Runs a search result: something on the ring, or an app.
+    func pickResult(_ index: Int) {
+        guard model.results.indices.contains(index) else { return }
+        let action = model.results[index].action
+        hide()
+        run(action, files: [])
+    }
+
+    #if DEBUG
+        /// Types `text` as key presses; a newline presses Return.
+        func debugType(_ text: String) {
+            for character in text {
+                if character == "\n" {
+                    _ = handleKey(RingTyping.returnKey, characters: "\r", modified: false)
+                } else {
+                    _ = handleKey(0, characters: String(character), modified: false)
+                }
+            }
+        }
+    #endif
+
+    private func search() {
+        let apps = services.appCatalog.apps
+        let names = Dictionary(apps.map { ($0.bundleID, $0.name) }, uniquingKeysWith: { first, _ in first })
+        // An app put on the ring without a name is found by the name it has on the Mac.
+        let ring = model.set.slots.flatMap { [$0.action] + $0.group }.map { action in
+            guard action.kind == .app, action.label == nil, let name = action.value.flatMap({ names[$0] }) else {
+                return action
+            }
+            return RingAction(.app, value: action.value, label: name)
+        }
+        let selected = model.results[safe: model.selectedResult]?.id
+        model.results = RingSearch.results(model.query, ring: ring, apps: apps)
+        // A list that arrives while you're choosing keeps your place.
+        model.selectedResult = selected.flatMap { id in model.results.firstIndex { $0.id == id } } ?? 0
     }
 
     private func stopMonitors() {
@@ -404,6 +499,7 @@ final class RingController {
             model: model,
             onHover: { [weak self] hit, distance in self?.hovered(hit, distance: distance) },
             onPick: { [weak self] hit, files in self?.pick(hit, files: files) },
+            onPickResult: { [weak self] index in self?.pickResult(index) },
             onDragOut: { [weak self] in self?.draggingOut() })
         panel.contentView = NSHostingView(rootView: view)
         return panel

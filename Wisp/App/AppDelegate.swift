@@ -96,6 +96,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.services.ring.toggle(at: NSEvent.mouseLocation) }
             }
+            // Types the notification's object into the open ring, as if from the keyboard.
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.ringType"), object: nil, queue: .main
+            ) { [weak self] note in
+                let text = note.object as? String ?? ""
+                MainActor.assumeIsolated { self?.services.ring.debugType(text) }
+            }
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.cycleForm"), object: nil, queue: .main
             ) { [weak self] _ in
