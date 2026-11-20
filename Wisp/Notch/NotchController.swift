@@ -296,14 +296,15 @@ final class NotchController {
         settleFrom = point
     }
 
-    /// The notch stretching toward the pointer while it's pulled.
+    /// The notch stretching toward the pointer while it's pulled, with a rubber band's give:
+    /// it follows at first and stiffens toward the tear-off point. `amount` is 1 there.
     func setPull(_ amount: CGFloat) {
-        model.pull = min(max(amount, 0), 1)
+        model.pull = CGFloat(RubberBand.offset(Double(min(max(amount, 0), 1)), limit: 0.7, coefficient: 1.4))
     }
 
     func releasePull() {
         guard model.pull > 0 else { return }
-        withAnimation(model.reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.55)) { model.pull = 0 }
+        withAnimation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) { model.pull = 0 }
     }
 
     /// Springs the shell up from smaller after it changed form.
@@ -395,6 +396,10 @@ final class NotchController {
         if model.contains(location) {
             if machine.phase != .open {
                 pendingPress = true
+                // A press may become a pull; the hover delay mustn't open the shelf under it.
+                // Letting go without moving still opens it as a click.
+                dwellTask?.cancel()
+                dwellTask = nil
                 return
             }
             // Let text fields (notes, search) and Esc reach the shelf without activating

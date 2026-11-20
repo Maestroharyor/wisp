@@ -12,6 +12,11 @@ struct NotchView: View {
         let surface = model.local(model.surfaceRect)
         let flare = model.drawsNotch ? radii.top : 0
         let side = model.layout.edge.isSide
+        // A pulled notch stretches its shape down from the edge it hangs from; the content
+        // inside keeps its size rather than being smeared with it.
+        let stretch = CGSize(
+            width: (surface.width + (side ? 0 : flare * 2)) * model.pull * 0.12,
+            height: surface.height * model.pull * 0.45)
 
         ZStack(alignment: .topLeading) {
             // Under the shell, so bubbles split out from behind the pill's ends.
@@ -24,9 +29,10 @@ struct NotchView: View {
             SurfaceView(model: model, radii: radii)
                 // The flares run along the edge: sideways at the top, up and down on the sides.
                 .frame(
-                    width: surface.width + (side ? 0 : flare * 2), height: surface.height + (side ? flare * 2 : 0)
+                    width: surface.width + (side ? 0 : flare * 2) + stretch.width,
+                    height: surface.height + (side ? flare * 2 : 0) + stretch.height
                 )
-                .position(x: surface.midX, y: surface.midY)
+                .position(x: surface.midX, y: surface.midY + stretch.height / 2)
                 .modifier(FormChange(model: model))
 
             if model.isOrb {
@@ -563,10 +569,7 @@ private struct FormChange: ViewModifier {
         let anchor =
             panel.width > 0 && panel.height > 0
             ? UnitPoint(x: closed.midX / panel.width, y: closed.midY / panel.height) : .center
-        // A pulled notch stretches down from the top edge it hangs from.
-        let top = panel.height > 0 ? UnitPoint(x: anchor.x, y: closed.minY / panel.height) : .top
         content
-            .scaleEffect(x: 1 + model.pull * 0.12, y: 1 + model.pull * 0.45, anchor: top)
             .scaleEffect(model.vanishing ? 0.2 : 1, anchor: anchor)
             .opacity(model.vanishing ? 0 : 1)
             // Keyframes start from the small size themselves, so the spring always shows
@@ -574,8 +577,8 @@ private struct FormChange: ViewModifier {
             .keyframeAnimator(initialValue: CGFloat(1), trigger: model.pops) { view, scale in
                 view.scaleEffect(scale, anchor: anchor)
             } keyframes: { _ in
-                LinearKeyframe(0.5, duration: 0.001)
-                SpringKeyframe(1, duration: 0.5, spring: Spring(response: 0.38, dampingRatio: 0.62))
+                LinearKeyframe(0.85, duration: 0.001)
+                SpringKeyframe(1, duration: 0.5, spring: Spring(response: 0.38, dampingRatio: 0.8))
                 // A spring cut off by its duration can stop short of 1, leaving the shell a hair
                 // small and off its screen edge; this lands it exactly.
                 LinearKeyframe(1, duration: 0.05)
