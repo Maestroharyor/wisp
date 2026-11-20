@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.7](https://github.com/Maestroharyor/wisp/compare/v0.2.6...v0.2.7) (2026-11-20)
+
+
+### Features
+
+* apps, links and folders in the ring, with an orb dock ([#107](https://github.com/Maestroharyor/wisp/issues/107)) ([bbb3aa3](https://github.com/Maestroharyor/wisp/commit/bbb3aa31f52577353759fdef4a18b1c89dfc8e5f))
+
+
+### Bug fixes
+
+* make the notch move like Apple's, with pull to open ([#105](https://github.com/Maestroharyor/wisp/issues/105)) ([cc43bee](https://github.com/Maestroharyor/wisp/commit/cc43bee0be7a915bd20f1cfefa4a4fd45fa40e93))
+* show AirDrop progress and keep AirDrop's request banner ([#104](https://github.com/Maestroharyor/wisp/issues/104)) ([f05d5a5](https://github.com/Maestroharyor/wisp/commit/f05d5a5c68bb0a3bbb651f751883ac370385d284))
+
 ## [0.2.6](https://github.com/Maestroharyor/wisp/compare/v0.2.5...v0.2.6) (2026-11-14)
 
 
