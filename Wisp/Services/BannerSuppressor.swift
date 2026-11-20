@@ -38,8 +38,7 @@ enum BannerSuppressor {
         guard depth < 8 else { return false }
         let actions = actionNames(of: element)
         if actions.contains(where: { BannerRule.title(of: $0).contains("Close") }) {
-            let banner = actions + actionsBelow(element, depth: depth + 1)
-            guard !BannerRule.keepsBanner(actions: banner), let close = BannerRule.closeAction(in: actions) else {
+            guard let close = BannerRule.closeAction(in: actions, labels: labelsBelow(element, levels: 6)) else {
                 return false
             }
             return AXUIElementPerformAction(element, close as CFString) == .success
@@ -54,13 +53,23 @@ enum BannerSuppressor {
         return names as? [String] ?? []
     }
 
-    /// Every action inside a banner, since its buttons can sit on children of the group that
-    /// closes it.
-    private static func actionsBelow(_ element: AXUIElement, depth: Int) -> [String] {
-        guard depth < 8 else { return [] }
+    /// Everything inside a banner that could name an answer: its parts' actions, and its
+    /// buttons' titles and descriptions, since Accept can be a button whose only action is
+    /// a plain press. `levels` counts down from the banner, wherever it sits in the tree.
+    private static func labelsBelow(_ element: AXUIElement, levels: Int) -> [String] {
+        guard levels > 0 else { return [] }
         return children(of: element, attribute: kAXChildrenAttribute).flatMap {
-            actionNames(of: $0) + actionsBelow($0, depth: depth + 1)
+            actionNames(of: $0)
+                + [text(of: $0, kAXTitleAttribute), text(of: $0, kAXDescriptionAttribute)].compactMap(\.self)
+                + labelsBelow($0, levels: levels - 1)
         }
+    }
+
+    private static func text(of element: AXUIElement, _ attribute: String) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
+        // Titles and descriptions are CFStrings; bridging one is a checked conversion.
+        return value as? String
     }
 
     private static func children(of element: AXUIElement, attribute: String) -> [AXUIElement] {
