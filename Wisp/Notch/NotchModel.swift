@@ -254,6 +254,12 @@ final class NotchModel {
     var isOrb: Bool { layout.placement == .floating }
     /// How far a pull on the notch has gone toward tearing it off, 0 to 1 (a rubber band).
     var pull: CGFloat = 0
+    /// How far a two-finger pull has opened the shelf, 0 (where it started) to 1 (open), or nil
+    /// when no pull is under way. Set without animation while the fingers move, so the shell
+    /// follows them.
+    var pullProgress: CGFloat?
+    /// Where the surface was when the pull began.
+    var pullFrom: CGRect = .zero
     /// Counts form changes; each one springs the shell up from smaller.
     var pops = 0
     /// The orb is shrinking away before it docks.
@@ -339,9 +345,11 @@ final class NotchModel {
 
     var surfaceRect: CGRect {
         let look = preferences.appearance
-        return SurfaceSizing.rect(
+        let rect = SurfaceSizing.rect(
             for: spec, in: layout, contentScale: look.shelfSize.scale, peekStrength: look.hoverStrength,
             extraHeight: requestedShelfExtra)
+        guard let pullProgress else { return rect }
+        return SurfaceSizing.blend(pullFrom, rect, progress: pullProgress)
     }
 
     // MARK: Shelf height

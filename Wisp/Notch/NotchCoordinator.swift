@@ -86,6 +86,15 @@ final class NotchCoordinator {
         target?.toggle()
     }
 
+    #if DEBUG
+        /// Plays a two-finger pull on the built-in display's notch, for checking the motion
+        /// without synthetic input.
+        func debugPull(flickBack: Bool) {
+            (controllers.values.first { $0.layout.style == .notch } ?? controllers.values.first)?
+                .debugPull(flickBack: flickBack)
+        }
+    #endif
+
     func openShelf(page: ShelfPage) {
         targetController()?.open(page: page)
     }
@@ -114,9 +123,12 @@ final class NotchCoordinator {
 
     /// The closed shell on the display holding most of `frame`, for the window to leave toward.
     private func shellRect(near frame: CGRect) -> CGRect? {
+        controller(near: frame)?.layout.closedRect
+    }
+
+    private func controller(near frame: CGRect) -> NotchController? {
         let screen = NSScreen.screens.max { area($0.frame.intersection(frame)) < area($1.frame.intersection(frame)) }
-        let controller = screen?.displayUUID.flatMap { controllers[$0] } ?? targetController()
-        return controller?.layout.closedRect
+        return screen?.displayUUID.flatMap { controllers[$0] } ?? targetController()
     }
 
     private func area(_ rect: CGRect) -> CGFloat { rect.isNull ? 0 : rect.width * rect.height }

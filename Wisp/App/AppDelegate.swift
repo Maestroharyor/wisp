@@ -101,6 +101,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.services.cycleForm() }
             }
+            for (name, back) in [("pull", false), ("pullBack", true)] {
+                DistributedNotificationCenter.default().addObserver(
+                    forName: Notification.Name("com.ayomideodewale.wisp.debug.\(name)"), object: nil, queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.coordinator.debugPull(flickBack: back) }
+                }
+            }
             // Toggle stand-in activities, to film show, hide and bubble motion.
             for kind in ["timer", "agent", "card"] {
                 DistributedNotificationCenter.default().addObserver(

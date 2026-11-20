@@ -22,6 +22,10 @@ final class NotchController {
     private var dragEndTask: Task<Void, Never>?
     private var motionObserver: NSObjectProtocol?
     private var swipe = SwipeDetector()
+    /// Whether the two-finger scroll under way is a pull to open the shelf.
+    private var pullGate = PullGate(direction: .down)
+    /// The pull under way, while the shelf follows the fingers.
+    private var pullTracker: PullTracker?
     /// The card whose countdown is paused because the pointer is on it.
     private var heldSlot: ActivitySlot?
     /// A press on the closed shell. It acts on mouse-up, so dragging the shell moves it instead.
@@ -507,10 +511,20 @@ final class NotchController {
     /// and sideways on the music pill skips tracks. An open shelf ignores swipes, since its
     /// lists scroll.
     func scrolled(_ scroll: PointerMonitor.Scroll, at location: CGPoint) {
-        if scroll.boundary { swipe.reset() }
-        guard machine.phase != .open, model.contains(location),
-            let direction = swipe.add(dx: scroll.dx, dy: scroll.dy)
-        else { return }
+        if pullTracker != nil {
+            followPull(scroll)
+            return
+        }
+        if scroll.boundary {
+            swipe.reset()
+            pullGate = PullGate(direction: layout.edge.openingSwipe)
+        }
+        guard machine.phase != .open, model.contains(location) else { return }
+        if canPullOpen, case .pull(let travelled) = pullGate.add(dx: scroll.dx, dy: scroll.dy) {
+            beginPull(travelled: travelled)
+            return
+        }
+        guard let direction = swipe.add(dx: scroll.dx, dy: scroll.dy) else { return }
         if direction == layout.edge.openingSwipe {
             if services.shelfWindow.opensUnderShell { send(.clicked) } else { services.shelfWindow.activateShell() }
             return
@@ -524,6 +538,103 @@ final class NotchController {
         default: break
         }
     }
+
+    // MARK: Pull to open
+
+    /// A pull follows the fingers only where it opens the shelf here, in the notch; Reduce Motion
+    /// keeps the plain swipe, which opens it in one step.
+    private var canPullOpen: Bool {
+        machine.phase == .peek && services.shelfWindow.opensUnderShell && !model.reduceMotion && !isOrb
+    }
+
+    /// Opens the shelf at once but draws it only as far as the fingers have pulled.
+    private func beginPull(travelled: Double) {
+        let from = model.surfaceRect
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            model.pullFrom = from
+            model.pullProgress = 0
+            send(.clicked)
+        }
+        guard machine.phase == .open else {
+            withTransaction(transaction) { model.pullProgress = nil }
+            return
+        }
+        let open = model.surfaceRect
+        let travel = layout.edge.isSide ? abs(open.width - from.width) : abs(open.height - from.height)
+        // About as far as the shelf grows, within reach of a comfortable two-finger pull.
+        var tracker = PullTracker(travel: min(max(travel * 0.6, 90), 180))
+        let progress = tracker.add(travelled, at: .now)
+        pullTracker = tracker
+        withTransaction(transaction) { model.pullProgress = CGFloat(progress) }
+    }
+
+    private func followPull(_ scroll: PointerMonitor.Scroll) {
+        guard var tracker = pullTracker else { return }
+        let delta = layout.edge.openingSwipe.amount(dx: scroll.dx, dy: scroll.dy)
+        let progress = tracker.add(delta, at: .now)
+        pullTracker = tracker
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { model.pullProgress = CGFloat(progress) }
+        if scroll.ended { endPull() }
+    }
+
+    /// Lets go: the spring takes over at the fingers' speed and settles open, or folds back to
+    /// peeking when the throw falls short.
+    private func endPull() {
+        guard let tracker = pullTracker else { return }
+        pullTracker = nil
+        swipe.reset()
+        let release = tracker.release(now: .now)
+        let target: Double = release.opens ? 1 : 0
+        let spring = SpringTuning.surface(
+            move: release.opens ? .grow : .shrink, speedScale: model.speed.scale, reduceMotion: false)
+        let velocity = SpringHandoff.relativeVelocity(release.velocity, from: release.progress, to: target)
+        let animation = Animation.interpolatingSpring(
+            Spring(response: spring.response, dampingRatio: spring.dampingFraction), initialVelocity: velocity)
+        withAnimation(animation, completionCriteria: .logicallyComplete) {
+            model.pullProgress = CGFloat(target)
+        } completion: { [weak self] in
+            guard let self, self.pullTracker == nil, self.model.pullProgress != nil else { return }
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                self.model.pullProgress = nil
+                if !release.opens, self.machine.phase == .open { self.send(.pullCancelled) }
+            }
+        }
+    }
+
+    #if DEBUG
+        /// A scripted pull through the same path as the trackpad: down 70 points over about a
+        /// fifth of a second, then either let go or flicked back up first.
+        func debugPull(flickBack: Bool) {
+            let at = CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY)
+            if machine.phase == .closed { send(.pointerEntered) }
+            let opening = layout.edge.openingSwipe
+            func scroll(_ amount: Double, boundary: Bool = false, ended: Bool = false) -> PointerMonitor.Scroll {
+                let dx = opening == .right ? amount : opening == .left ? -amount : 0
+                let dy = opening == .up ? amount : opening == .down ? -amount : 0
+                return PointerMonitor.Scroll(dx: dx, dy: dy, boundary: boundary, ended: ended)
+            }
+            Task { @MainActor [weak self] in
+                self?.scrolled(scroll(0, boundary: true), at: at)
+                for _ in 0..<12 {
+                    try? await Task.sleep(for: .milliseconds(16))
+                    self?.scrolled(scroll(70.0 / 12), at: at)
+                }
+                if flickBack {
+                    for _ in 0..<5 {
+                        try? await Task.sleep(for: .milliseconds(16))
+                        self?.scrolled(scroll(-9), at: at)
+                    }
+                }
+                self?.scrolled(scroll(0, boundary: true, ended: true), at: at)
+            }
+        }
+    #endif
 
     func rightMouseDown(at location: CGPoint) {
         guard model.contains(location) else { return }
