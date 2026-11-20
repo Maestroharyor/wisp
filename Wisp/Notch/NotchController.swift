@@ -311,6 +311,12 @@ final class NotchController {
         withAnimation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) { model.pull = 0 }
     }
 
+    /// A small swell as the shelf window flies back in, as if the notch caught it.
+    func receivePulse() {
+        guard !model.reduceMotion else { return }
+        model.receivePulses += 1
+    }
+
     /// Springs the shell up from smaller after it changed form.
     func popIn() {
         guard !model.reduceMotion else { return }

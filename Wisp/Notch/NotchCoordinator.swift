@@ -36,6 +36,7 @@ final class NotchCoordinator {
             self?.controllers.values.filter { $0.phase == .open }.forEach { $0.dismiss() }
         }
         services.shelfWindow.shellRect = { [weak self] frame in self?.shellRect(near: frame) }
+        services.shelfWindow.shellReceived = { [weak self] frame in self?.controller(near: frame)?.receivePulse() }
         services.suspendShells = { [weak self] in self?.suspend() }
         services.resumeShells = { [weak self] in self?.resume() }
         rebuild()

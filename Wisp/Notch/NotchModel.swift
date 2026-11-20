@@ -262,6 +262,8 @@ final class NotchModel {
     var pullFrom: CGRect = .zero
     /// Counts form changes; each one springs the shell up from smaller.
     var pops = 0
+    /// Counts the shelf window flying back in; each one swells the shell a little.
+    var receivePulses = 0
     /// The orb is shrinking away before it docks.
     var vanishing = false
     /// Where the orb sits in the current surface: content blooms out of and back into it.

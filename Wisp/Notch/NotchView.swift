@@ -585,5 +585,12 @@ private struct FormChange: ViewModifier {
                 // small and off its screen edge; this lands it exactly.
                 LinearKeyframe(1, duration: 0.05)
             }
+            .keyframeAnimator(initialValue: CGFloat(1), trigger: model.receivePulses) { view, scale in
+                view.scaleEffect(scale, anchor: anchor)
+            } keyframes: { _ in
+                SpringKeyframe(1.06, duration: 0.12, spring: Spring(response: 0.2, dampingRatio: 1))
+                SpringKeyframe(1, duration: 0.35, spring: Spring(response: 0.3, dampingRatio: 0.7))
+                LinearKeyframe(1, duration: 0.05)
+            }
     }
 }
