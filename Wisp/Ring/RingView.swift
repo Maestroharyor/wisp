@@ -10,6 +10,7 @@ struct RingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onHover: @MainActor (RingHit, CGFloat) -> Void
     let onPick: @MainActor (RingHit, [URL]) -> Void
+    let onPickResult: @MainActor (Int) -> Void
     /// A file started dragging out of a folder's sub-ring.
     let onDragOut: @MainActor () -> Void
 
@@ -32,7 +33,7 @@ struct RingView: View {
                 )
                 // Each wedge flies out from the centre in turn, and back in on close.
                 .scaleEffect(shown || reduceMotion ? 1 : 0.3, anchor: unit(model.centre))
-                .opacity(shown ? 1 : 0)
+                .opacity(shown ? (searching ? 0.15 : 1) : 0)
                 .animation(
                     shown
                         ? .spring(response: 0.34, dampingFraction: 0.72).delay(RingGeometry.delay(for: index))
@@ -48,19 +49,33 @@ struct RingView: View {
             centre
                 .position(model.centre)
                 .scaleEffect(shown || reduceMotion ? 1 : 0.5, anchor: unit(model.centre))
-                .opacity(shown ? 1 : 0)
+                .opacity(shown && !searching ? 1 : 0)
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shown)
+            if searching, shown {
+                RingSearchCard(model: model, onPick: onPickResult)
+                    .position(model.centre)
+                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+            }
         }
+        .animation(.spring(response: 0.26, dampingFraction: 0.85), value: searching)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.22, dampingFraction: 0.8), value: model.hover)
         .contentShape(Rectangle())
         .onContinuousHover { phase in
             switch phase {
-            case .active(let location): onHover(hit(at: location), distance(to: location))
+            case .active(let location):
+                // While searching, the ring under the card is asleep.
+                if searching {
+                    onHover(.none, .greatestFiniteMagnitude)
+                } else {
+                    onHover(hit(at: location), distance(to: location))
+                }
             case .ended: onHover(.none, .greatestFiniteMagnitude)
             }
         }
-        .onTapGesture(coordinateSpace: .local) { location in onPick(hit(at: location), []) }
+        .onTapGesture(coordinateSpace: .local) { location in
+            if !searching { onPick(hit(at: location), []) }
+        }
         .onDrop(
             of: [.fileURL],
             delegate: RingDropDelegate(hit: hit(at:), distance: distance(to:), onHover: onHover, onPick: onPick)
@@ -68,6 +83,8 @@ struct RingView: View {
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
     }
+
+    private var searching: Bool { !model.query.isEmpty }
 
     private var disc: some View {
         let size = RingGeometry.ringOuter * 2 + 16
@@ -151,6 +168,55 @@ struct RingView: View {
         return RingGeometry.hit(
             up, centre: model.centre, slots: model.set.slots.count, expanded: model.expanded,
             subItems: model.expandedItems.count)
+    }
+}
+
+/// Typing on the ring: what was typed, and the ring actions and apps it finds. Return or a
+/// click runs the highlighted one.
+private struct RingSearchCard: View {
+    let model: RingModel
+    let onPick: @MainActor (Int) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+                Text(model.query).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.head)
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
+            if model.results.isEmpty {
+                Text("Nothing found").font(.system(size: 12)).foregroundStyle(.white.opacity(0.5))
+                    .padding(.horizontal, 8).padding(.vertical, 6)
+            }
+            ForEach(Array(model.results.enumerated()), id: \.element.id) { index, result in
+                Button {
+                    onPick(index)
+                } label: {
+                    HStack(spacing: 8) {
+                        RingIconView(icon: result.action.icon, size: 11).frame(width: 20, height: 20)
+                        Text(result.action.title).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(index == model.selectedResult ? Color.wispViolet : .clear)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(8)
+        .frame(width: 210, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(white: 0.11).opacity(0.96))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.12)))
+        .animation(.spring(response: 0.22, dampingFraction: 0.85), value: model.selectedResult)
     }
 }
 
