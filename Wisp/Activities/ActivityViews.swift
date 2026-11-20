@@ -79,7 +79,7 @@ struct CompactActivityView: View {
             }
         case .download(let summary):
             HStack(spacing: ActivityMetrics.contentSpacing) {
-                DownloadGlyph(progress: summary.primary)
+                DownloadGlyph(progress: summary.primary, origin: summary.origin)
                 Text(summary.primary.name).lineLimit(1).truncationMode(.middle)
             }
         case .meeting(let status):
@@ -369,7 +369,7 @@ struct ActivityGlyph: View {
         case .device(let device):
             Image(systemName: device.symbol)
         case .download(let summary):
-            DownloadGlyph(progress: summary.primary, size: 18)
+            DownloadGlyph(progress: summary.primary, origin: summary.origin, size: 18)
         case .meeting:
             Image(systemName: model.services.microphone.muted ? "mic.slash.fill" : "mic.fill")
                 .foregroundStyle(model.services.microphone.muted ? Color.secondaryText : .red)

@@ -115,7 +115,8 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .ai: "sparkle"
         case .shortcut: "square.stack.3d.up"
         case .dropAction: "terminal"
-        case .airDrop: "airplayaudio"
+        // SF Symbols has no AirDrop symbol; this one has its dot and waves.
+        case .airDrop: "dot.radiowaves.up.forward"
         case .transform: "wand.and.stars"
         case .zip: "doc.zipper"
         case .form: "circle.circle"

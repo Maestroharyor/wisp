@@ -64,6 +64,7 @@ struct ActivitySettings: View {
                 Toggle("Headphones connecting, with their battery", isOn: $preferences.deviceActivity)
             }
             Section("Downloads") {
+                Toggle("AirDrop progress, with Open when it arrives", isOn: $preferences.airDropActivity)
                 Toggle("Download progress, with Open when it's done", isOn: $preferences.downloadActivity)
                 LabeledContent("Downloads") {
                     Text("Always watched").foregroundStyle(.secondary)
