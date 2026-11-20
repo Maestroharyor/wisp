@@ -188,7 +188,7 @@ enum AppIcon {
         NSSharingService(named: .sendViaAirDrop)?.image ?? app(SystemSenders.airDropApp)
     }
 
-    private static func app(_ bundleID: String) -> NSImage? {
+    static func app(_ bundleID: String) -> NSImage? {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
             .map { NSWorkspace.shared.icon(forFile: $0.path) }
     }

@@ -74,7 +74,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 // The ring, which had its own pane before; its name stays a keyword.
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "hyper r",
                 "per app", "edit ring", "ring shortcut", "capture text", "ocr", "qr code", "barcode", "ai action",
-                "quick add",
+                "quick add", "dock", "apps", "launch", "launcher", "open app", "link", "website", "folder",
+                "orb dock",
             ]
         case .appearance:
             [

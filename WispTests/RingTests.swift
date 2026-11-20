@@ -341,3 +341,164 @@ final class QuickInputRingTests: XCTestCase {
         XCTAssertFalse(action.opensChoices)
     }
 }
+
+final class RingDockTests: XCTestCase {
+    func testAppsLinksAndFoldersTitleThemselves() {
+        XCTAssertEqual(RingAction(.app, value: "com.apple.Safari").title, "Safari")
+        XCTAssertEqual(RingAction(.app, value: "com.apple.Safari", label: "Browser").title, "Browser")
+        XCTAssertEqual(RingAction(.app).title, "App")
+        XCTAssertEqual(RingAction(.link, value: "https://www.github.com/x").title, "github.com")
+        XCTAssertEqual(RingAction(.link, value: "https://a.com", label: "Docs").title, "Docs")
+        XCTAssertEqual(RingAction(.link, value: "news.ycombinator.com").title, "news.ycombinator.com")
+        XCTAssertEqual(RingAction(.link, value: "javascript:x").title, "Link")
+        XCTAssertEqual(RingAction(.folder, value: "/Users/me/Downloads").title, "Downloads")
+        XCTAssertEqual(RingAction(.folder, value: "/Users/me/Downloads", label: "  ").title, "Downloads")
+    }
+
+    func testIconsComeFromTheAppOrFile() {
+        XCTAssertEqual(RingAction(.app, value: "com.apple.Safari").icon, .app(bundleID: "com.apple.Safari"))
+        XCTAssertEqual(RingAction(.app).icon, .symbol("app"))
+        XCTAssertEqual(RingAction(.folder, value: "/tmp").icon, .file(path: "/tmp"))
+        XCTAssertEqual(RingAction(.link, value: "https://a.com").icon, .symbol("link"))
+        XCTAssertEqual(RingAction(.home).icon, .symbol("house"))
+    }
+
+    func testAppsAndFoldersTakeFiles() {
+        XCTAssertTrue(RingAction(.app, value: "com.apple.Preview").acceptsFiles)
+        XCTAssertTrue(RingAction(.folder, value: "/tmp").acceptsFiles)
+        XCTAssertFalse(RingAction(.link, value: "https://a.com").acceptsFiles)
+    }
+
+    func testFoldersOpenTheirNewestFiles() {
+        XCTAssertTrue(RingAction(.folder, value: "/tmp").opensChoices)
+        XCTAssertFalse(RingAction(.app, value: "x").opensChoices)
+    }
+
+    func testLabelsRoundTripAndOldActionsHaveNone() throws {
+        let action = RingAction(.link, value: "https://a.com", label: "Docs")
+        let decoded = try JSONDecoder().decode(RingAction.self, from: JSONEncoder().encode(action))
+        XCTAssertEqual(decoded, action)
+        let old = try JSONDecoder().decode(RingAction.self, from: Data(#"{"kind":"home"}"#.utf8))
+        XCTAssertNil(old.label)
+    }
+
+    func testLinksGainHTTPS() {
+        XCTAssertEqual(RingLinks.normalised("github.com/foo")?.absoluteString, "https://github.com/foo")
+        XCTAssertEqual(RingLinks.normalised("  http://a.com ")?.absoluteString, "http://a.com")
+        XCTAssertEqual(RingLinks.normalised("localhost:3000")?.absoluteString, "https://localhost:3000")
+        XCTAssertEqual(RingLinks.normalised("mailto:me@a.com")?.absoluteString, "mailto:me@a.com")
+        XCTAssertEqual(RingLinks.normalised("obsidian://open?vault=x")?.scheme, "obsidian")
+        XCTAssertEqual(
+            RingLinks.normalised("example.com/r?to=https://x")?.absoluteString, "https://example.com/r?to=https://x")
+    }
+
+    func testLinksRejectFilesScriptsAndNonsense() {
+        XCTAssertNil(RingLinks.normalised(""))
+        XCTAssertNil(RingLinks.normalised("file:///etc/passwd"))
+        XCTAssertNil(RingLinks.normalised("javascript:alert(1)"))
+        XCTAssertNil(RingLinks.normalised("JavaScript:alert(1)"))
+        XCTAssertNil(RingLinks.normalised("data:text/html,hi"))
+        XCTAssertNil(RingLinks.normalised("not a link"))
+        XCTAssertNil(RingLinks.normalised("https://"))
+    }
+
+    private func entry(_ name: String, _ age: TimeInterval, hidden: Bool = false) -> FolderEntry {
+        FolderEntry(
+            name: name, path: "/f/\(name)", modified: Date(timeIntervalSinceReferenceDate: 1_000 - age),
+            isHidden: hidden)
+    }
+
+    func testFolderPeekIsNewestFirstAndSkipsHiddenFiles() {
+        let entries = [
+            entry("old.pdf", 50), entry(".DS_Store", 0), entry("new.png", 1), entry("secret", 2, hidden: true),
+        ]
+        XCTAssertEqual(FolderPeek.newest(entries).map(\.name), ["new.png", "old.pdf"])
+    }
+
+    func testFolderPeekIsCappedAndStable() {
+        let entries = (0..<20).map { entry("f\($0)", 5) }
+        let newest = FolderPeek.newest(entries)
+        XCTAssertEqual(newest.count, FolderPeek.limit)
+        XCTAssertEqual(newest.first?.name, "f0")
+        XCTAssertEqual(FolderPeek.newest(entries.reversed()).map(\.name), newest.map(\.name))
+    }
+
+    func testFolderChoicesCarryTheirFile() {
+        let choices = FolderPeek.choices(for: [entry("a.txt", 1)])
+        XCTAssertEqual(choices.first?.title, "a.txt")
+        XCTAssertEqual(choices.first?.icon, .file(path: "/f/a.txt"))
+        XCTAssertEqual(choices.first.flatMap(FolderPeek.path(of:)), "/f/a.txt")
+        XCTAssertNil(FolderPeek.path(of: RingChoice(id: "form:notch", title: "Notch", symbol: "x")))
+    }
+
+    func testSymbolChoicesKeepTheirSymbolAsIcon() {
+        XCTAssertEqual(RingChoice(id: "a", title: "A", symbol: "star").icon, .symbol("star"))
+    }
+
+    func testRunningDots() {
+        let running: Set<String> = ["com.apple.Safari", "com.apple.Mail"]
+        XCTAssertEqual(
+            RingRunState.dot(
+                for: RingAction(.app, value: "com.apple.Safari"), running: running, frontmost: "com.apple.Mail"),
+            .running)
+        XCTAssertEqual(
+            RingRunState.dot(
+                for: RingAction(.app, value: "com.apple.Mail"), running: running, frontmost: "com.apple.Mail"),
+            .frontmost)
+        XCTAssertEqual(
+            RingRunState.dot(for: RingAction(.app, value: "com.apple.Notes"), running: running, frontmost: nil), .none)
+        XCTAssertEqual(RingRunState.dot(for: RingAction(.home), running: running, frontmost: nil), .none)
+    }
+
+    func testCopiesIntoAFolderKeepTheirNameUnlessTaken() {
+        XCTAssertEqual(FolderDrop.name(for: "report.pdf", existing: []), "report.pdf")
+        XCTAssertEqual(FolderDrop.name(for: "report.pdf", existing: ["report.pdf"]), "report 2.pdf")
+        XCTAssertEqual(
+            FolderDrop.name(for: "report.pdf", existing: ["report.pdf", "report 2.pdf"]), "report 3.pdf")
+        XCTAssertEqual(FolderDrop.name(for: "Notes", existing: ["Notes"]), "Notes 2")
+        XCTAssertEqual(FolderDrop.name(for: "Report.pdf", existing: ["report.pdf"]), "Report 2.pdf")
+        XCTAssertEqual(FolderDrop.name(for: "a.tar.gz", existing: ["a.tar.gz"]), "a.tar 2.gz")
+    }
+
+    func testFilesTakenTogetherDontClashWithEachOther() {
+        XCTAssertEqual(FolderDrop.names(for: ["a.txt", "a.txt"], existing: ["a.txt"]), ["a 2.txt", "a 3.txt"])
+    }
+
+    func testDockAppsComeFromTheRingsAppSlotsInOrder() {
+        let set = RingSet(
+            name: "D",
+            slots: [
+                RingSlot(
+                    RingAction(.app, value: "a"), group: [RingAction(.app, value: "b"), RingAction(.app, value: "a")]),
+                RingSlot(RingAction(.home)),
+                RingSlot(RingAction(.app, value: "c")),
+                RingSlot(RingAction(.app)),
+            ])
+        XCTAssertEqual(RingDock.apps(in: set, limit: 5).map(\.value), ["a", "c", "b"])
+        XCTAssertEqual(RingDock.apps(in: set, limit: 2).count, 2)
+    }
+
+    private let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+
+    func testTheDockSitsBesideTheOrbCentredOnIt() {
+        let orb = CGRect(x: 600, y: 400, width: 44, height: 44)
+        let frame = OrbDockGeometry.frame(orb: orb, count: 3, in: screen)
+        XCTAssertEqual(frame.minX, orb.maxX + OrbDockGeometry.gap)
+        XCTAssertEqual(frame.midY, orb.midY, accuracy: 0.001)
+        XCTAssertEqual(
+            frame.width, OrbDockGeometry.padding * 2 + 3 * OrbDockGeometry.icon + 2 * OrbDockGeometry.spacing)
+    }
+
+    func testTheDockGoesLeftNearTheRightEdge() {
+        let orb = CGRect(x: 1380, y: 400, width: 44, height: 44)
+        let frame = OrbDockGeometry.frame(orb: orb, count: 5, in: screen)
+        XCTAssertEqual(frame.maxX, orb.minX - OrbDockGeometry.gap)
+    }
+
+    func testTheDockStaysOnScreen() {
+        let orb = CGRect(x: 600, y: 2, width: 44, height: 44)
+        let frame = OrbDockGeometry.frame(orb: orb, count: 5, in: screen)
+        XCTAssertGreaterThanOrEqual(frame.minY, screen.minY)
+        XCTAssertTrue(screen.contains(frame))
+    }
+}
