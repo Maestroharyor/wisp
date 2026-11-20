@@ -506,6 +506,17 @@ struct PomodoroPage: View {
                 }
             }
         }
+        // A reminder dragged here from the Reminders widget says what the session is for.
+        .onDrop(of: [.plainText], isTargeted: nil) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: String.self) { text, _ in
+                Task { @MainActor in
+                    // Home cards dragged from the shelf carry their widget id; that isn't a label.
+                    if let text, !text.hasPrefix("wisp-widget:") { store.setFocusLabel(from: text) }
+                }
+            }
+            return true
+        }
         .toolbar { toolbar }
     }
 
@@ -514,7 +525,9 @@ struct PomodoroPage: View {
         return VStack(spacing: 20) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 CountdownRing(
-                    countdown: countdown, title: store.phase.title, now: context.date, animated: !reduceMotion)
+                    countdown: countdown,
+                    title: store.phase == .focus ? store.focusLabel ?? store.phase.title : store.phase.title,
+                    now: context.date, animated: !reduceMotion)
             }
             .frame(width: 260, height: 260)
             HStack(spacing: 8) {
@@ -571,9 +584,13 @@ struct PomodoroPage: View {
                         ForEach(sessions.reversed()) { session in
                             HStack {
                                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.wispViolet)
-                                Text(
-                                    "\(session.start.formatted(date: .omitted, time: .shortened)) to \(session.end.formatted(date: .omitted, time: .shortened))"
-                                )
+                                VStack(alignment: .leading, spacing: 1) {
+                                    if let label = session.label { Text(label).lineLimit(1) }
+                                    Text(
+                                        "\(session.start.formatted(date: .omitted, time: .shortened)) to \(session.end.formatted(date: .omitted, time: .shortened))"
+                                    )
+                                    .foregroundStyle(session.label == nil ? .primary : Color.secondaryText)
+                                }
                                 Spacer()
                                 Text("\(session.minutes) min").foregroundStyle(Color.secondaryText)
                             }

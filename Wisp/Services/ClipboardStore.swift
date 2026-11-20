@@ -76,6 +76,20 @@ final class ClipboardStore {
         save()
     }
 
+    /// Several clips' text as one copy, one per line in the order given; images are left out.
+    /// What's copied goes into history as a new item. False when none had text.
+    @discardableResult
+    func copyTogether(_ items: [ClipItem]) -> Bool {
+        guard let text = ClipMerge.join(items.compactMap(\.text)), ClipClassifier.keeps(text: text) else {
+            return false
+        }
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        lastChangeCount = pasteboard.changeCount
+        record(ClipItem(kind: ClipClassifier.kind(for: text), text: text, date: .now), source: (nil, nil))
+        return true
+    }
+
     func remove(_ item: ClipItem) {
         if let removed = history.remove(id: item.id) { deleteFiles(of: [removed]) }
         save()
@@ -101,6 +115,9 @@ final class ClipboardStore {
         let types = Set((pasteboard.types ?? []).map(\.rawValue))
         guard types.isDisjoint(with: ClipClassifier.privateTypes) else { return }
         let app = NSWorkspace.shared.frontmostApplication
+        // Apps the user keeps out of history (password managers by default).
+        guard ClipClassifier.keeps(from: app?.bundleIdentifier, excluding: Set(preferences.clipboardExcludedApps))
+        else { return }
 
         let source = (name: app?.localizedName, bundleID: app?.bundleIdentifier)
         let copied = Date.now

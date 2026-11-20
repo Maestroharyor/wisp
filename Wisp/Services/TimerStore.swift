@@ -20,7 +20,10 @@ final class TimerStore {
     private(set) var timer: Countdown
     private(set) var pomodoro: Countdown
     private(set) var phase: PomodoroPhase = .focus
-    /// Today's finished focus sessions (times only), kept across relaunches.
+    /// What the focus session is for, from a dropped reminder; shown in the pill and saved with
+    /// the session when it finishes.
+    private(set) var focusLabel: String?
+    /// Today's finished focus sessions, kept across relaunches.
     private(set) var log: PomodoroLog {
         didSet { if let data = try? JSONEncoder().encode(log) { defaults.set(data, forKey: Self.logKey) } }
     }
@@ -48,6 +51,8 @@ final class TimerStore {
         log =
             defaults.data(forKey: Self.logKey).flatMap { try? JSONDecoder().decode(PomodoroLog.self, from: $0) }
             ?? PomodoroLog()
+        // What earlier days' sessions were for isn't kept past their day.
+        log.dropOldDays(now: .now)
     }
 
     // MARK: Timer
@@ -102,8 +107,23 @@ final class TimerStore {
         update()
     }
 
+    /// Says what the focus session is for; text that makes no label is ignored.
+    func setFocusLabel(from text: String) {
+        guard let label = PomodoroLabel.from(text) else { return }
+        // The pill's label tells the plain timer from the Pomodoro, so one can't read "Timer".
+        focusLabel = label == Self.timerLabel ? "\(label) focus" : label
+        update()
+    }
+
+    func clearFocusLabel() {
+        focusLabel = nil
+        update()
+    }
+
     /// Moves on to the other phase without counting this one as done.
     func skipPhase() {
+        // A skipped focus session wasn't done, so what it was for doesn't carry over.
+        if phase == .focus { focusLabel = nil }
         setPhase(phase == .focus ? .rest : .focus)
     }
 
@@ -118,6 +138,7 @@ final class TimerStore {
     /// follow; replaces a Pomodoro already going. For the Focus chips in the Agents view.
     func startFocus(minutes focus: Int, rest: Int) {
         pomodoro.reset()
+        focusLabel = nil
         focusMinutes = focus
         breakMinutes = rest
         phase = .focus
@@ -130,7 +151,8 @@ final class TimerStore {
 
     private func update() {
         let now = Date.now
-        let running = [(Self.timerLabel, timer), (phase.title, pomodoro)]
+        let pomodoroLabel = phase == .focus ? focusLabel ?? phase.title : phase.title
+        let running = [(Self.timerLabel, timer), (pomodoroLabel, pomodoro)]
             .filter { $0.1.isRunning }
             .min { $0.1.remaining(now: now) < $1.1.remaining(now: now) }
         onActivity(running.map { Activity.timer(label: $0.0, countdown: $0.1) })
@@ -155,7 +177,8 @@ final class TimerStore {
             if finished == .focus {
                 // When it ran out, not when this tick noticed (the Mac may have slept).
                 let end = now.addingTimeInterval(pomodoro.duration - pomodoro.elapsed(now: now))
-                log.record(start: end.addingTimeInterval(-pomodoro.duration), end: end)
+                log.record(start: end.addingTimeInterval(-pomodoro.duration), end: end, label: focusLabel)
+                focusLabel = nil
             }
             setPhase(finished == .focus ? .rest : .focus)
             onFinished(finished == .focus ? "Focus done" : "Break over", finished == .focus)

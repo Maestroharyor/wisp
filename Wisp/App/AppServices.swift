@@ -14,6 +14,7 @@ final class AppServices {
     let battery = BatteryMonitor()
     let stats = SystemStatsStore()
     let calendar = CalendarStore()
+    let reminders = RemindersStore()
     let weather = WeatherStore()
     let notes = NotesStore()
     let shortcuts = ShortcutsRunner()

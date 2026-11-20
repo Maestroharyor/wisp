@@ -18,6 +18,7 @@ struct WidgetCard: View {
             switch kind {
             case .nowPlaying: NowPlayingWidget(monitor: services.nowPlaying)
             case .calendar: CalendarWidget(store: services.calendar)
+            case .reminders: RemindersWidget(store: services.reminders)
             case .timer: TimerWidget(store: services.timers)
             case .pomodoro: PomodoroWidget(store: services.timers, preferences: services.preferences)
             case .battery:
@@ -294,6 +295,101 @@ struct CalendarWidget: View {
     }
 }
 
+// MARK: Reminders
+
+/// Open reminders, overdue first. The circle ticks one off (with Undo for a moment); a row can
+/// be dragged onto the Pomodoro to say what the session is for.
+struct RemindersWidget: View {
+    let store: RemindersStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("REMINDERS").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.secondaryText)
+                Spacer()
+                Button {
+                    store.openApp()
+                } label: {
+                    Image(systemName: "arrow.up.forward.app").font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.secondaryText)
+                .help("Open Reminders")
+            }
+            if store.access == .fullAccess {
+                if store.items.isEmpty {
+                    Text("All done").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(alignment: .leading, spacing: 5) {
+                            ForEach(store.items) { item in
+                                ReminderRow(item: item, done: store.justDone.contains(item.id), store: store)
+                            }
+                        }
+                        .padding(.bottom, 14)
+                    }
+                    .mask(
+                        LinearGradient(
+                            stops: [.init(color: .white, location: 0.82), .init(color: .clear, location: 1)],
+                            startPoint: .top, endPoint: .bottom))
+                }
+            } else {
+                VStack(spacing: 6) {
+                    Text("See your reminders here").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                    Button("Allow Reminders Access") { store.requestAccess() }.controlSize(.small)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .onAppear { store.refreshIfStale() }
+    }
+}
+
+private struct ReminderRow: View {
+    let item: ReminderItem
+    let done: Bool
+    let store: RemindersStore
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Button {
+                if done { store.undo(item) } else { store.complete(item) }
+            } label: {
+                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(done ? Color.wispViolet : Color.secondaryText)
+            }
+            .buttonStyle(.plain)
+            .help(done ? "Mark as not done" : "Mark as done")
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.title)
+                    .font(.system(size: 12, weight: .medium))
+                    .strikethrough(done)
+                    .foregroundStyle(done ? Color.secondaryText : .primary)
+                    .lineLimit(1)
+                if let due = item.due {
+                    // Redrawn each minute, so a reminder turns red as it falls due.
+                    TimelineView(.everyMinute) { context in
+                        Text(due, format: .relative(presentation: .named))
+                            .font(.system(size: 10))
+                            .foregroundStyle(
+                                ReminderList.isOverdue(item, now: context.date) ? Color.red : Color.secondaryText)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            if done {
+                Button("Undo") { store.undo(item) }.buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.wispViolet)
+            }
+        }
+        .contentShape(Rectangle())
+        // Dropped on the Pomodoro, the title says what the session is for.
+        .onDrag { NSItemProvider(object: NSString(string: item.title)) }
+    }
+}
+
 private struct EventRow: View {
     let event: CalendarStore.Event
 
@@ -391,6 +487,20 @@ struct PomodoroWidget: View {
             HStack(spacing: 6) {
                 phasePill(.focus)
                 phasePill(.rest)
+            }
+            if let label = store.focusLabel {
+                HStack(spacing: 4) {
+                    Image(systemName: "checklist").font(.system(size: 9))
+                    Text(label).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                    Button {
+                        store.clearFocusLabel()
+                    } label: {
+                        Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear what this session is for")
+                }
+                .foregroundStyle(Color.wispAmber)
             }
             RulerScrubber(
                 value: Binding(

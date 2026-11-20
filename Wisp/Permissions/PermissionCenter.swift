@@ -47,7 +47,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .contacts: "Photos and names on notifications"
         case .automation: "Replying in Messages, meeting controls, Up Next in Music, Music fallback"
         case .calendars: "Calendar and Day Progress widgets, and events from Quick add"
-        case .reminders: "Reminders from Quick add, asked the first time you add one"
+        case .reminders: "Reminders widget, and reminders from Quick add"
         case .camera: "Mirror widget"
         case .microphone: "Dictation, only while you hold the key"
         case .speechRecognition: "Dictation, transcribed on this Mac"

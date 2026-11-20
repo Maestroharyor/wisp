@@ -7,6 +7,7 @@ struct ClipboardView: View {
     @Bindable var model: ClipboardPanelModel
     let ai: AITextActions
     let paste: (ClipItem) -> Void
+    let pasteTogether: ([ClipItem]) -> Void
     let runAI: (AITask, ClipItem) -> Void
     let close: () -> Void
 
@@ -14,11 +15,13 @@ struct ClipboardView: View {
 
     init(
         model: ClipboardPanelModel, ai: AITextActions, paste: @escaping (ClipItem) -> Void,
-        runAI: @escaping (AITask, ClipItem) -> Void, close: @escaping () -> Void
+        pasteTogether: @escaping ([ClipItem]) -> Void, runAI: @escaping (AITask, ClipItem) -> Void,
+        close: @escaping () -> Void
     ) {
         self.model = model
         self.ai = ai
         self.paste = paste
+        self.pasteTogether = pasteTogether
         self.runAI = runAI
         self.close = close
     }
@@ -100,21 +103,38 @@ struct ClipboardView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 12) {
                             ForEach(items) { item in
-                                ClipCard(item: item, store: model.store, selected: item.id == selected)
-                                    .id(item.id)
-                                    .onTapGesture(count: 2) { paste(item) }
-                                    .onTapGesture { model.selectedID = item.id }
-                                    .contextMenu {
-                                        Button("Paste") { paste(item) }
-                                        Button("Copy") { model.store.copy(item) }
-                                        Button(item.pinned ? "Unpin" : "Pin") { model.store.togglePin(item) }
-                                        if item.kind == .image {
-                                            Button("Copy text") { model.copyText(item) }
-                                        }
-                                        aiMenu(for: item)
-                                        Divider()
-                                        Button("Delete") { model.store.remove(item) }
+                                ClipCard(
+                                    item: item, store: model.store,
+                                    selected: item.id == selected || model.picked.contains(item.id),
+                                    pickNumber: model.pickedItems.firstIndex { $0.id == item.id }.map { $0 + 1 }
+                                )
+                                .id(item.id)
+                                .onTapGesture(count: 2) { paste(item) }
+                                .onTapGesture {
+                                    // ⌘-click picks several to paste together; a plain click starts over.
+                                    if NSEvent.modifierFlags.contains(.command) {
+                                        model.togglePick(item)
+                                    } else {
+                                        model.picked = []
+                                        model.selectedID = item.id
                                     }
+                                }
+                                .contextMenu {
+                                    let picked = model.pickedItems
+                                    if picked.count > 1, model.picked.contains(item.id) {
+                                        Button("Paste \(picked.count) together") { pasteTogether(picked) }
+                                        Divider()
+                                    }
+                                    Button("Paste") { paste(item) }
+                                    Button("Copy") { model.store.copy(item) }
+                                    Button(item.pinned ? "Unpin" : "Pin") { model.store.togglePin(item) }
+                                    if item.kind == .image {
+                                        Button("Copy text") { model.copyText(item) }
+                                    }
+                                    aiMenu(for: item)
+                                    Divider()
+                                    Button("Delete") { model.store.remove(item) }
+                                }
                             }
                         }
                         .padding(.horizontal, 2)
@@ -154,6 +174,8 @@ private struct ClipCard: View {
     let item: ClipItem
     let store: ClipboardStore
     let selected: Bool
+    /// Its place among cards picked to paste together.
+    var pickNumber: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -168,6 +190,15 @@ private struct ClipCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2)
         )
+        .overlay(alignment: .topTrailing) {
+            if let pickNumber {
+                Text("\(pickNumber)")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 20, height: 20)
+                    .background(Circle().fill(Color.wispViolet))
+                    .offset(x: 6, y: -6)
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 

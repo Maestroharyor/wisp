@@ -352,4 +352,10 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "full disk access").contains(.notifications))
         XCTAssertTrue(SettingsIndex.panes(matching: "engine").contains(.ai))
     }
+
+    func testRemindersAndClipboardExtrasAreFoundInShelf() {
+        for query in ["reminders", "excluded apps", "copy together"] {
+            XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.shelf), query)
+        }
+    }
 }
