@@ -10,6 +10,8 @@ struct RingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onHover: @MainActor (RingHit, CGFloat) -> Void
     let onPick: @MainActor (RingHit, [URL]) -> Void
+    /// A file started dragging out of a folder's sub-ring.
+    let onDragOut: @MainActor () -> Void
 
     var body: some View {
         let slots = model.set.slots
@@ -24,9 +26,9 @@ struct RingView: View {
                 let wedge = RingGeometry.sector(index, count: slots.count)
                 RingWedge(
                     start: wedge.start, end: wedge.end, inner: RingGeometry.ringInner, outer: RingGeometry.ringOuter,
-                    centre: model.centre, symbol: slot.action.symbol, fill: fill(for: index, slot: slot),
+                    centre: model.centre, icon: slot.action.icon, fill: fill(for: index, slot: slot),
                     dimmed: model.dropping && !slot.action.acceptsFiles,
-                    hasMore: !model.subItems(of: index).isEmpty
+                    hasMore: !model.subItems(of: index).isEmpty, dot: model.dot(for: slot.action)
                 )
                 // Each wedge flies out from the centre in turn, and back in on close.
                 .scaleEffect(shown || reduceMotion ? 1 : 0.3, anchor: unit(model.centre))
@@ -38,8 +40,10 @@ struct RingView: View {
                     value: shown)
             }
             if let expanded = model.expanded, shown {
-                SubRing(model: model, parent: expanded, count: slots.count, reduceMotion: reduceMotion)
-                    .id(expanded)
+                SubRing(
+                    model: model, parent: expanded, count: slots.count, reduceMotion: reduceMotion, onDragOut: onDragOut
+                )
+                .id(expanded)
             }
             centre
                 .position(model.centre)
@@ -156,6 +160,7 @@ private struct SubRing: View {
     let parent: Int
     let count: Int
     let reduceMotion: Bool
+    let onDragOut: @MainActor () -> Void
 
     @State private var fanned = false
 
@@ -171,9 +176,16 @@ private struct SubRing: View {
                 RingWedge(
                     start: open ? wedge.start : parentAngle - half, end: open ? wedge.end : parentAngle + half,
                     inner: RingGeometry.subInner, outer: RingGeometry.subOuter, centre: model.centre,
-                    symbol: item.symbol, fill: fill(item, index: index), dimmed: false, hasMore: false, small: true
+                    icon: item.icon, fill: fill(item, index: index), dimmed: false, hasMore: false, small: true
                 )
                 .opacity(fanned ? 1 : 0)
+                .modifier(
+                    FileDragOut(
+                        path: FolderPeek.path(of: item),
+                        shape: SectorShape(
+                            start: wedge.start, end: wedge.end, inner: RingGeometry.subInner,
+                            outer: RingGeometry.subOuter, centre: model.centre),
+                        onDragOut: onDragOut))
             }
         }
         .onAppear {
@@ -186,7 +198,28 @@ private struct SubRing: View {
         switch item.tint {
         case .allow: return Color.green.opacity(hovered ? 0.9 : 0.4)
         case .deny: return Color.red.opacity(hovered ? 0.9 : 0.4)
-        case .plain: return hovered ? .wispViolet : .white.opacity(0.1)
+        // Dark like the disc, since the sub-ring lies outside it over whatever is behind.
+        case .plain: return hovered ? .wispViolet : Color(white: 0.13).opacity(0.94)
+        }
+    }
+}
+
+/// Lets a folder's file be dragged out of its wedge, like from a Finder window.
+private struct FileDragOut: ViewModifier {
+    let path: String?
+    let shape: SectorShape
+    let onDragOut: @MainActor () -> Void
+
+    func body(content: Content) -> some View {
+        if let path {
+            content
+                .contentShape(shape)
+                .onDrag {
+                    onDragOut()
+                    return NSItemProvider(contentsOf: URL(fileURLWithPath: path)) ?? NSItemProvider()
+                }
+        } else {
+            content
         }
     }
 }
@@ -198,10 +231,11 @@ struct RingWedge: View {
     let inner: CGFloat
     let outer: CGFloat
     let centre: CGPoint
-    let symbol: String
+    let icon: RingIcon
     let fill: Color
     let dimmed: Bool
     let hasMore: Bool
+    var dot: RingRunState = .none
     var small = false
 
     var body: some View {
@@ -210,9 +244,13 @@ struct RingWedge: View {
         ZStack {
             shape.fill(fill)
             shape.stroke(.white.opacity(0.08), lineWidth: 1)
-            Image(systemName: symbol)
-                .font(.system(size: small ? 15 : 18, weight: .semibold))
+            RingIconView(icon: icon, size: small ? 15 : 18)
                 .position(position(angle: middle, radius: (inner + outer) / 2))
+            if dot != .none {
+                // Like the Dock: a dot under a running app, violet for the one in front.
+                Circle().fill(dot == .frontmost ? Color.wispViolet : .white.opacity(0.8)).frame(width: 4, height: 4)
+                    .position(position(angle: middle, radius: (inner + outer) / 2 - (small ? 15 : 20)))
+            }
             if hasMore {
                 Circle().fill(.white.opacity(0.55)).frame(width: 4, height: 4)
                     .position(position(angle: middle, radius: outer - 8))

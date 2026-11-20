@@ -28,6 +28,7 @@ struct RingSection: View {
                 LabeledContent("Status", value: trigger.status.message)
             }
             Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
+            Toggle("Show the ring's apps beside the orb", isOn: $preferences.orbDock)
             LabeledContent("Actions") {
                 Button("Edit ring…") { editorShown = true }
                     // On the button, not the Section: a Form can apply a Section's modifiers per row.
@@ -36,7 +37,7 @@ struct RingSection: View {
                     }
             }
             Text(
-                "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring. With Hyper on, Hyper+R opens it at the pointer."
+                "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring. With the orb dock on, hovering the orb shows up to five apps from the ring. With Hyper on, Hyper+R opens it at the pointer."
             )
             .font(.caption).foregroundStyle(.secondary)
         } header: {
@@ -135,7 +136,7 @@ private struct RingEditorSheet: View {
         guard panel.runModal() == .OK, let url = panel.url, let bundle = Bundle(url: url),
             let id = bundle.bundleIdentifier
         else { return }
-        let name = FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+        let name = (FileManager.default.displayName(atPath: url.path) as NSString).deletingPathExtension
         let set = RingSet(name: name, slots: preferences.ringConfig.standard.slots, bundleIDs: [id])
         preferences.ringConfig.perApp.append(set)
         editing = set.id
@@ -177,7 +178,7 @@ private struct RingSetEditor: View {
                 let wedge = RingGeometry.sector(index, count: slots.count)
                 RingWedge(
                     start: wedge.start, end: wedge.end, inner: RingGeometry.ringInner * Self.scale,
-                    outer: RingGeometry.ringOuter * Self.scale, centre: centre, symbol: slot.action.symbol,
+                    outer: RingGeometry.ringOuter * Self.scale, centre: centre, icon: slot.action.icon,
                     fill: index == selected ? .wispViolet : .white.opacity(0.08), dimmed: false,
                     hasMore: !slot.group.isEmpty || slot.action.opensChoices, small: true
                 )
@@ -336,10 +337,48 @@ private struct RingActionPicker: View {
                 }
                 .labelsHidden()
                 .disabled(dropActions.isEmpty)
+            case .app:
+                Button(action.value == nil ? "Choose app…" : "Change…") { chooseApp() }
+            case .link:
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("Address", text: value(default: ""), prompt: Text("example.com"))
+                    TextField("Name", text: label, prompt: Text(action.title))
+                    if let link = action.value, !link.isEmpty, RingLinks.normalised(link) == nil {
+                        Text("Wisp can't open this link.").font(.caption).foregroundStyle(.orange)
+                    }
+                }
+            case .folder:
+                Button(action.value == nil ? "Choose folder…" : "Change…") { chooseFolder() }
             default:
                 EmptyView()
             }
         }
+    }
+
+    private var label: Binding<String> {
+        Binding(get: { action.label ?? "" }, set: { action.label = $0.isEmpty ? nil : $0 })
+    }
+
+    private func chooseApp() {
+        let panel = NSOpenPanel()
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.allowedContentTypes = [.application]
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK, let url = panel.url, let id = Bundle(url: url)?.bundleIdentifier else { return }
+        let name = (FileManager.default.displayName(atPath: url.path) as NSString).deletingPathExtension
+        action = RingAction(.app, value: id, label: name)
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.directoryURL =
+            action.value.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        action = RingAction(.folder, value: url.path)
     }
 
     private var kind: Binding<RingAction.Kind> {

@@ -87,6 +87,8 @@ Since then: the agent timeline and spend, Allow All, prompt drafts, lyrics and t
 
 Since 2026-11-06: the floating orb, the ring and staying clear of the Dynamic Island on the OLED MacBook Pro. The ring is Wisp's own take on a radial action menu (the idea is common to pie-menu utilities and mouse makers' software); no names or assets were borrowed.
 
+Since 2026-11-20: apps, links and folders in the ring and an opt-in dock beside the orb. Launching apps from a radial menu or a row by the pointer is common to launchers; the behaviour here is Wisp's own and built on the ring it already had.
+
 Since 2026-11-07: window mode, now a native Mac window with a sidebar (Wisp's pages, each widget and live activities), a unified toolbar and Light and Dark mode, with every page filling the window.
 
 ## Still planned

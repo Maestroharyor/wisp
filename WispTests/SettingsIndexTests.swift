@@ -79,10 +79,11 @@ final class SettingsIndexTests: XCTestCase {
     }
 
     func testRingControlsAreFoundInNotch() {
-        for query in ["ring", "edit ring", "per app", "segments", "middle click"] {
+        for query in ["ring", "edit ring", "per app", "segments", "middle click", "dock", "orb dock", "folder"] {
             XCTAssertEqual(SettingsIndex.panes(matching: query).first, .notch, query)
         }
         XCTAssertTrue(SettingsIndex.panes(matching: "hyper r").contains(.notch))
+        XCTAssertTrue(SettingsIndex.panes(matching: "launch").contains(.notch))
     }
 
     func testNotchControlsAreFoundByNewAndOldNames() {

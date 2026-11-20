@@ -47,19 +47,29 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case form
         /// Opens the quick add field ("25 min", "remind me to call Sam at 5").
         case quickInput
+        /// Opens or brings forward an app; `value` is its bundle identifier.
+        case app
+        /// Opens a web address or app link; `value` is the URL.
+        case link
+        /// Opens a folder in Finder, and fans out its newest files; `value` is its path.
+        case folder
         case none
     }
 
     public var kind: Kind
     public var value: String?
+    /// A name the user gave it, shown instead of the one Wisp works out.
+    public var label: String?
 
-    public init(_ kind: Kind, value: String? = nil) {
+    public init(_ kind: Kind, value: String? = nil, label: String? = nil) {
         self.kind = kind
         self.value = value
+        self.label = label
     }
 
     public var title: String {
-        switch kind {
+        if let label = label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty { return label }
+        return switch kind {
         case .home: "Home"
         case .tray: "Tray"
         case .mediaPage: "Media"
@@ -87,8 +97,16 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .zip: "Zip"
         case .form: "Form"
         case .quickInput: "Quick add"
+        case .app: value.flatMap { $0.split(separator: ".").last.map(String.init) } ?? "App"
+        case .link: value.flatMap(Self.host) ?? "Link"
+        case .folder: value.map { ($0 as NSString).lastPathComponent }.flatMap { $0.isEmpty ? nil : $0 } ?? "Folder"
         case .none: "Nothing"
         }
+    }
+
+    private static func host(of link: String) -> String? {
+        guard let host = RingLinks.normalised(link)?.host(), !host.isEmpty else { return nil }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
     }
 
     public var symbol: String {
@@ -121,20 +139,34 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .zip: "doc.zipper"
         case .form: "circle.circle"
         case .quickInput: "text.badge.plus"
+        case .app: "app"
+        case .link: "link"
+        case .folder: "folder"
         case .none: "circle.dashed"
         }
+    }
+
+    /// What its segment shows: the app's or folder's own icon where there is one.
+    public var icon: RingIcon {
+        switch kind {
+        case .app: if let value, !value.isEmpty { return .app(bundleID: value) }
+        case .folder: if let value, !value.isEmpty { return .file(path: value) }
+        default: break
+        }
+        return .symbol(symbol)
     }
 
     /// Takes files dropped on it.
     public var acceptsFiles: Bool {
         switch kind {
-        case .tray, .airDrop, .transform, .zip, .dropAction: true
+        case .tray, .airDrop, .transform, .zip, .dropAction, .app, .folder: true
         default: false
         }
     }
 
-    /// Picking it opens its sub-ring of choices made when the ring opens (sessions, forms).
-    public var opensChoices: Bool { kind == .agents || kind == .form }
+    /// Picking it opens its sub-ring of choices made when the ring opens (sessions, forms, a
+    /// folder's newest files).
+    public var opensChoices: Bool { kind == .agents || kind == .form || kind == .folder }
 
     /// The timer length, 25 minutes when unset or unreadable, and within what a link may start.
     public var minutes: Int {
@@ -242,13 +274,17 @@ public struct RingChoice: Equatable, Sendable, Identifiable {
 
     public let id: String
     public let title: String
-    public let symbol: String
+    public let icon: RingIcon
     public let tint: Tint
 
     public init(id: String, title: String, symbol: String, tint: Tint = .plain) {
+        self.init(id: id, title: title, icon: .symbol(symbol), tint: tint)
+    }
+
+    public init(id: String, title: String, icon: RingIcon, tint: Tint = .plain) {
         self.id = id
         self.title = title
-        self.symbol = symbol
+        self.icon = icon
         self.tint = tint
     }
 }

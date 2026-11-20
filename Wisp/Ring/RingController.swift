@@ -11,6 +11,11 @@ final class RingModel {
     var set = RingConfig.defaults.standard
     var agentChoices: [RingChoice] = []
     var formChoices: [RingChoice] = []
+    /// The newest files of each folder segment, by segment, filled in once they're listed.
+    var folderChoices: [Int: [RingChoice]] = [:]
+    /// Apps running when the ring opened, for the dots under app segments.
+    var running: Set<String> = []
+    var frontmost: String?
     var hover: RingHit = .none
     var expanded: Int?
     /// Files being dragged over the ring; segments that can't take them dim.
@@ -28,12 +33,17 @@ final class RingModel {
         let slot = set.slots[index]
         if slot.action.kind == .agents { return agentChoices }
         if slot.action.kind == .form { return formChoices }
+        if slot.action.kind == .folder { return folderChoices[index] ?? [] }
         return slot.group.enumerated().map { offset, action in
-            RingChoice(id: "action:\(offset)", title: action.title, symbol: action.symbol)
+            RingChoice(id: "action:\(offset)", title: action.title, icon: action.icon)
         }
     }
 
     var expandedItems: [RingChoice] { expanded.map(subItems) ?? [] }
+
+    func dot(for action: RingAction) -> RingRunState {
+        RingRunState.dot(for: action, running: running, frontmost: frontmost)
+    }
 }
 
 /// The radial ring: opens at the pointer or around the orb, runs the segment picked, and
@@ -47,6 +57,9 @@ final class RingController {
     private var clickMonitor: Any?
     private var openedAt = Date.now
     private var dropEndTask: Task<Void, Never>?
+    private var dragOutTask: Task<Void, Never>?
+    /// Folders still being listed, so a slow share isn't asked again on every opening.
+    private var listing: Set<String> = []
     /// Opened by holding a mouse button; letting go picks.
     private var holding = false
 
@@ -64,11 +77,16 @@ final class RingController {
     func show(at point: CGPoint, holding: Bool = false, dropping: Bool = false) {
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         guard let screen else { return }
+        services.orbDock.hide()
+        RingIconCache.shared.retryMissing()
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         model.set = services.preferences.ringConfig.set(forFrontApp: front)
         model.agentChoices = RingAgentChoices.choices(for: agentEntries())
         let state = services.formUnderPointer()
         model.formChoices = RingFormChoices.choices(current: state.form, systemIsland: state.systemIsland)
+        model.running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        model.frontmost = front
+        listFolders()
         model.hover = .none
         model.expanded = nil
         model.picked = nil
@@ -88,6 +106,9 @@ final class RingController {
 
         let panel = panel ?? makePanel()
         self.panel = panel
+        dragOutTask?.cancel()
+        dragOutTask = nil
+        panel.ignoresMouseEvents = false
         panel.setFrame(frame, display: true)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
@@ -172,6 +193,7 @@ final class RingController {
         if case .sub = hit { model.picked = hit }
         let agentChoices = model.agentChoices
         let formChoices = model.formChoices
+        let folderChoices = model.expandedItems
         hide()
         switch outcome {
         case .openShelf: services.openShelf(.home)
@@ -183,6 +205,8 @@ final class RingController {
                 runAgentChoice(agentChoices[safe: item])
             } else if slots[index].action.kind == .form {
                 runFormChoice(formChoices[safe: item])
+            } else if slots[index].action.kind == .folder {
+                openFolderChoice(folderChoices[safe: item], in: slots[index].action, files: files)
             } else if let action = slots[index].group[safe: item] {
                 run(action, files: files)
             }
@@ -206,6 +230,92 @@ final class RingController {
             uniquingKeysWith: { first, _ in first })
         return agents.sessions.list.map { session in
             RingAgentEntry(sessionID: session.id, project: session.project, approvalID: waiting[session.id])
+        }
+    }
+
+    /// Lists each folder segment's newest files off the main thread; a folder that's slow to
+    /// list (a network share) just has no sub-ring until it answers.
+    private func listFolders() {
+        model.folderChoices = [:]
+        let paths = Set(model.set.slots.compactMap { $0.action.kind == .folder ? $0.action.value : nil })
+        for path in paths where !path.isEmpty && !listing.contains(path) {
+            listing.insert(path)
+            Task { [weak self] in
+                let entries = await Self.entries(in: path)
+                guard let self else { return }
+                self.listing.remove(path)
+                // Whichever opening is showing now gets it, so a listing that outlasts a quick
+                // close and reopen still lands, on every segment for that folder.
+                let choices = FolderPeek.choices(for: FolderPeek.newest(entries))
+                for (index, slot) in self.model.set.slots.enumerated()
+                where slot.action.kind == .folder && slot.action.value == path {
+                    self.model.folderChoices[index] = choices
+                }
+            }
+        }
+    }
+
+    /// On a dispatch queue rather than the shared task pool: listing a dead network share can
+    /// block for a long time, and it mustn't hold up Wisp's other background work.
+    private nonisolated static func entries(in path: String) async -> [FolderEntry] {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: listEntries(in: path))
+            }
+        }
+    }
+
+    private nonisolated static func listEntries(in path: String) -> [FolderEntry] {
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .isHiddenKey]
+        let urls =
+            (try? FileManager.default.contentsOfDirectory(
+                at: URL(fileURLWithPath: path, isDirectory: true), includingPropertiesForKeys: keys)) ?? []
+        return urls.map { url in
+            let values = try? url.resourceValues(forKeys: Set(keys))
+            return FolderEntry(
+                name: url.lastPathComponent, path: url.path,
+                modified: values?.contentModificationDate ?? .distantPast,
+                isHidden: values?.isHidden ?? false)
+        }
+    }
+
+    /// A file from a folder's sub-ring: opens it. Files dropped on it open with it when it's an
+    /// app, and otherwise go into the folder, as a drop on the folder itself would.
+    private func openFolderChoice(_ choice: RingChoice?, in folder: RingAction, files: [URL]) {
+        guard let path = choice.flatMap(FolderPeek.path(of:)) else { return }
+        let url = URL(fileURLWithPath: path)
+        if files.isEmpty {
+            NSWorkspace.shared.open(url)
+        } else if url.pathExtension == "app" {
+            NSWorkspace.shared.open(files, withApplicationAt: url, configuration: NSWorkspace.OpenConfiguration())
+        } else if url.hasDirectoryPath || (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
+            // A folder inside takes them, as it would in Finder.
+            run(RingAction(.folder, value: path), files: files)
+        } else {
+            run(folder, files: files)
+        }
+    }
+
+    /// A file is being dragged out of a folder's sub-ring. The ring goes invisible rather than
+    /// away, since taking the panel away would end the drag; it leaves once the button is up.
+    func draggingOut() {
+        guard let panel else { return }
+        stopMonitors()
+        holding = false
+        panel.alphaValue = 0
+        panel.ignoresMouseEvents = true
+        dragOutTask?.cancel()
+        dragOutTask = Task { [weak self] in
+            while !Task.isCancelled, NSEvent.pressedMouseButtons != 0 {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.dragOutTask = nil
+            panel.orderOut(nil)
+            panel.ignoresMouseEvents = false
+            panel.alphaValue = 1
+            self.model.visible = false
+            self.model.dropping = false
         }
     }
 
@@ -293,7 +403,8 @@ final class RingController {
         let view = RingView(
             model: model,
             onHover: { [weak self] hit, distance in self?.hovered(hit, distance: distance) },
-            onPick: { [weak self] hit, files in self?.pick(hit, files: files) })
+            onPick: { [weak self] hit, files in self?.pick(hit, files: files) },
+            onDragOut: { [weak self] in self?.draggingOut() })
         panel.contentView = NSHostingView(rootView: view)
         return panel
     }

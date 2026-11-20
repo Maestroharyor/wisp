@@ -343,6 +343,7 @@ final class Preferences {
         static let dropActions = "dropActions"
         static let ringConfig = "ringConfig"
         static let ringOnOrbClick = "ringOnOrbClick"
+        static let orbDock = "orbDock"
         static let ringButton = "ringButton"
         static let ringHotkey = "ringHotkey"
         static let scriptCommand = "scriptCommand"
@@ -638,6 +639,8 @@ final class Preferences {
     }
     /// Clicking the orb opens the ring rather than the shelf (the ring's centre opens the shelf).
     var ringOnOrbClick: Bool { didSet { defaults.set(ringOnOrbClick, forKey: Key.ringOnOrbClick) } }
+    /// Hovering the orb shows the ring's apps beside it, as a small dock.
+    var orbDock: Bool { didSet { defaults.set(orbDock, forKey: Key.orbDock) } }
     /// The extra mouse button that opens the ring; off until chosen, since it takes the
     /// button away from every app.
     var ringButton: RingButton { didSet { defaults.set(ringButton.rawValue, forKey: Key.ringButton) } }
@@ -1392,6 +1395,7 @@ final class Preferences {
             defaults.data(forKey: Key.ringConfig).flatMap { try? JSONDecoder().decode(RingConfig.self, from: $0) }
             ?? RingConfig.defaults
         ringOnOrbClick = defaults.bool(forKey: Key.ringOnOrbClick)
+        orbDock = defaults.bool(forKey: Key.orbDock)
         ringButton = defaults.string(forKey: Key.ringButton).flatMap(RingButton.init(rawValue:)) ?? .off
         ringHotkey = defaults.string(forKey: Key.ringHotkey).flatMap(Hotkey.init(string:))
         dropActions =
