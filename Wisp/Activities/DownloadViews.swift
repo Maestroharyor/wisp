@@ -68,13 +68,21 @@ struct DownloadDoneCard: View {
                         .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                 }
                 Spacer(minLength: 8)
-                CapsuleButton("Show in Finder") {
-                    NSWorkspace.shared.activateFileViewerSelecting([url])
-                    model.services.activities.remove(.downloadDone)
-                }
-                CapsuleButton("Open", prominent: true) {
-                    NSWorkspace.shared.open(url)
-                    model.services.activities.remove(.downloadDone)
+                if download.itemCount > 1 {
+                    // Several files: their folder is the one thing to open.
+                    CapsuleButton("Show in Finder", prominent: true) {
+                        NSWorkspace.shared.open(url)
+                        model.services.activities.remove(.downloadDone)
+                    }
+                } else {
+                    CapsuleButton("Show in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                        model.services.activities.remove(.downloadDone)
+                    }
+                    CapsuleButton("Open", prominent: true) {
+                        NSWorkspace.shared.open(url)
+                        model.services.activities.remove(.downloadDone)
+                    }
                 }
             }
             .padding(.horizontal, 18)

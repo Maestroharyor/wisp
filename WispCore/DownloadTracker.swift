@@ -119,21 +119,25 @@ public struct DownloadSummary: Sendable, Equatable {
     }
 }
 
-/// A download whose partial file turned into its final file, or an AirDrop that arrived.
+/// A download whose partial file turned into its final file, or what arrived by AirDrop: one
+/// file, or several that came together (then `name` says how many).
 public struct FinishedDownload: Sendable, Equatable {
     public let folder: String
     public let name: String
     public let size: Int64
     public let origin: DownloadOrigin
+    public let itemCount: Int
 
-    public init(folder: String, name: String, size: Int64, origin: DownloadOrigin = .browser) {
+    public init(folder: String, name: String, size: Int64, origin: DownloadOrigin = .browser, itemCount: Int = 1) {
         self.folder = folder
         self.name = name
         self.size = size
         self.origin = origin
+        self.itemCount = itemCount
     }
 
-    public var path: String { (folder as NSString).appendingPathComponent(name) }
+    /// The file, or the folder for several.
+    public var path: String { itemCount > 1 ? folder : (folder as NSString).appendingPathComponent(name) }
 }
 
 /// Follows partial files across folder listings: progress, rate, stalls and completion.

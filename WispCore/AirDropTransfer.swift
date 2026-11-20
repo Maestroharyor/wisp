@@ -10,9 +10,12 @@ public struct AirDropSnapshot: Sendable, Equatable {
     public let total: Int64?
     public let isFinished: Bool
     public let isCancelled: Bool
+    /// Published before Wisp was watching, so its arrival isn't news.
+    public let isOld: Bool
 
     public init(
-        id: String, name: String, folder: String, completed: Int64, total: Int64?, isFinished: Bool, isCancelled: Bool
+        id: String, name: String, folder: String, completed: Int64, total: Int64?, isFinished: Bool, isCancelled: Bool,
+        isOld: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -21,14 +24,47 @@ public struct AirDropSnapshot: Sendable, Equatable {
         self.total = total
         self.isFinished = isFinished
         self.isCancelled = isCancelled
+        self.isOld = isOld
     }
 }
 
 /// Which published file progress is an incoming AirDrop. Safari publishes `.downloading`,
 /// which the download monitor already follows, and Finder publishes copies.
 public enum AirDropFilter {
+    public enum Intake: Sendable, Equatable {
+        case receiving
+        /// A file progress whose operation hasn't arrived yet: one from another process gets
+        /// it a moment after it's published.
+        case pending
+        /// Something else: dropped, so a browser download doesn't keep Wisp reading.
+        case ignored
+    }
+
+    /// How long a file progress may stay `pending` before it's given up on.
+    public static let pendingFor: TimeInterval = 3
+
     public static func accepts(kind: ProgressKind?, operation: Progress.FileOperationKind?) -> Bool {
-        kind == .file && operation == .receiving
+        classify(kind: kind, operation: operation) == .receiving
+    }
+
+    public static func classify(kind: ProgressKind?, operation: Progress.FileOperationKind?) -> Intake {
+        guard kind == .file else { return .ignored }
+        guard let operation else { return .pending }
+        return operation == .receiving ? .receiving : .ignored
+    }
+}
+
+/// Files that arrive together make one card: "3 items" in their folder, not a card per file
+/// replacing the last.
+public enum AirDropArrivals {
+    public static func combine(_ files: [FinishedDownload]) -> FinishedDownload? {
+        guard let first = files.first else { return nil }
+        guard files.count > 1 else { return first }
+        let folders = Set(files.map(\.folder))
+        let folder = folders.count == 1 ? first.folder : (first.folder as NSString).deletingLastPathComponent
+        return FinishedDownload(
+            folder: folder, name: "\(files.count) items", size: files.reduce(0) { $0 + $1.size }, origin: .airDrop,
+            itemCount: files.count)
     }
 }
 
@@ -41,6 +77,8 @@ public struct AirDropTracker: Sendable {
     private struct Tracked: Sendable {
         var snapshot: AirDropSnapshot
         let firstSeen: Date
+        /// Breaks ties between transfers first seen together, oldest first.
+        let order: Int
         var lastChange: Date
         var samples: [(date: Date, completed: Int64)]
     }
@@ -49,6 +87,7 @@ public struct AirDropTracker: Sendable {
     /// Transfers already reported as finished or cancelled, so a lingering snapshot isn't
     /// shown or reported again.
     private var settled = Set<String>()
+    private var seen = 0
 
     public init(stallAfter: TimeInterval = 30, rateWindow: TimeInterval = 5) {
         self.stallAfter = stallAfter
@@ -63,7 +102,7 @@ public struct AirDropTracker: Sendable {
         // A transfer is withdrawn when it ends; it arrived if it had everything by then.
         for (id, item) in tracked where current[id] == nil {
             tracked[id] = nil
-            if Self.isComplete(item.snapshot) { finished.append(Self.finished(item.snapshot)) }
+            if Self.isComplete(item.snapshot), !item.snapshot.isOld { finished.append(Self.finished(item.snapshot)) }
         }
         settled.formIntersection(current.keys)
 
@@ -71,7 +110,9 @@ public struct AirDropTracker: Sendable {
             if snapshot.isCancelled || snapshot.isFinished {
                 tracked[id] = nil
                 settled.insert(id)
-                if snapshot.isFinished, !snapshot.isCancelled { finished.append(Self.finished(snapshot)) }
+                if snapshot.isFinished, !snapshot.isCancelled, !snapshot.isOld {
+                    finished.append(Self.finished(snapshot))
+                }
                 continue
             }
             if var item = tracked[id] {
@@ -84,8 +125,10 @@ public struct AirDropTracker: Sendable {
                 item.samples.removeAll { now.timeIntervalSince($0.date) > rateWindow }
                 tracked[id] = item
             } else {
+                seen += 1
                 tracked[id] = Tracked(
-                    snapshot: snapshot, firstSeen: now, lastChange: now, samples: [(now, snapshot.completed)])
+                    snapshot: snapshot, firstSeen: now, order: seen, lastChange: now,
+                    samples: [(now, snapshot.completed)])
             }
         }
         return finished.sorted { $0.name < $1.name }
@@ -94,7 +137,7 @@ public struct AirDropTracker: Sendable {
     /// Transfers in progress, newest first.
     public func transfers(now: Date) -> [DownloadProgress] {
         tracked
-            .sorted { ($0.value.firstSeen, $0.key) > ($1.value.firstSeen, $1.key) }
+            .sorted { ($0.value.firstSeen, $0.value.order) > ($1.value.firstSeen, $1.value.order) }
             .map { id, item in
                 let stalled = now.timeIntervalSince(item.lastChange) >= stallAfter
                 return DownloadProgress(

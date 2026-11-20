@@ -90,7 +90,7 @@ final class NotificationMonitor {
             NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(folder))
             return
         }
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: sender?.iconAppID ?? item.appID)
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: sender?.appID ?? item.appID)
         else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
