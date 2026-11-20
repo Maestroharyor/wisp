@@ -13,6 +13,8 @@ final class RingModel {
     var formChoices: [RingChoice] = []
     /// The newest files of each folder segment, by segment, filled in once they're listed.
     var folderChoices: [Int: [RingChoice]] = [:]
+    /// The windows of each running app segment, by segment, when it has more than one.
+    var windowChoices: [Int: [RingChoice]] = [:]
     /// Apps running when the ring opened, for the dots under app segments.
     var running: Set<String> = []
     var frontmost: String?
@@ -38,6 +40,10 @@ final class RingModel {
         if slot.action.kind == .agents { return agentChoices }
         if slot.action.kind == .form { return formChoices }
         if slot.action.kind == .folder { return folderChoices[index] ?? [] }
+        // A sub-ring the user set up for the segment comes first; windows fill an empty one.
+        if slot.action.kind == .app, slot.group.isEmpty, let windows = windowChoices[index], !windows.isEmpty {
+            return windows
+        }
         return slot.group.enumerated().map { offset, action in
             RingChoice(id: "action:\(offset)", title: action.title, icon: action.icon)
         }
@@ -64,6 +70,8 @@ final class RingController {
     private var dragOutTask: Task<Void, Never>?
     /// Folders still being listed, so a slow share isn't asked again on every opening.
     private var listing: Set<String> = []
+    /// Counts window listings, so a late answer from an earlier opening is dropped.
+    private var windowListings = 0
     /// Opened by holding a mouse button; letting go picks.
     private var holding = false
     /// Where the press that opened the ring was, for telling a flick from a press.
@@ -94,6 +102,7 @@ final class RingController {
         model.running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
         model.frontmost = front
         listFolders()
+        listWindows()
         model.hover = .none
         model.expanded = nil
         model.picked = nil
@@ -213,6 +222,7 @@ final class RingController {
         let agentChoices = model.agentChoices
         let formChoices = model.formChoices
         let folderChoices = model.expandedItems
+        let windowChoices = model.windowChoices
         hide()
         switch outcome {
         case .openShelf: services.openShelf(.home)
@@ -226,6 +236,10 @@ final class RingController {
                 runFormChoice(formChoices[safe: item])
             } else if slots[index].action.kind == .folder {
                 openFolderChoice(folderChoices[safe: item], in: slots[index].action, files: files)
+            } else if slots[index].action.kind == .app, slots[index].group.isEmpty,
+                let windows = windowChoices[index], !windows.isEmpty
+            {
+                openWindowChoice(windows[safe: item], of: slots[index].action, files: files)
             } else if let action = slots[index].group[safe: item] {
                 run(action, files: files)
             }
@@ -271,6 +285,45 @@ final class RingController {
                     self.model.folderChoices[index] = choices
                 }
             }
+        }
+    }
+
+    /// Lists the windows of each running app on the ring, through Accessibility. Nothing is
+    /// asked for when Accessibility isn't granted; the segments just have no window sub-ring.
+    private func listWindows() {
+        model.windowChoices = [:]
+        windowListings += 1
+        let listing = windowListings
+        guard services.preferences.ringAppWindows, AccessibilityPermission.isTrusted else { return }
+        for (index, slot) in model.set.slots.enumerated() where slot.action.kind == .app && slot.group.isEmpty {
+            guard let id = slot.action.value,
+                let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first
+            else { continue }
+            let pid = app.processIdentifier
+            let name = slot.action.title
+            Task { [weak self] in
+                let windows = await AXWindows.list(pid: pid)
+                // Only for this opening, and never under a sub-ring that's already open, so what's
+                // under the pointer doesn't change.
+                guard let self, self.windowListings == listing, self.model.expanded != index else { return }
+                self.model.windowChoices[index] = AppWindows.choices(appName: name, windows: windows)
+            }
+        }
+    }
+
+    /// A window from an app's sub-ring: brought forward, out of the Dock if minimised, with its
+    /// app. The count of the rest opens the app; files dropped anywhere on it open with the app.
+    private func openWindowChoice(_ choice: RingChoice?, of app: RingAction, files: [URL]) {
+        guard files.isEmpty, let target = choice.flatMap(AppWindows.target(of:)),
+            let id = app.value, let running = NSRunningApplication.runningApplications(withBundleIdentifier: id).first
+        else {
+            run(app, files: files)
+            return
+        }
+        let pid = running.processIdentifier
+        Task { [weak self] in
+            _ = await AXWindows.raise(pid: pid, target: target)
+            self?.run(app, files: [])
         }
     }
 

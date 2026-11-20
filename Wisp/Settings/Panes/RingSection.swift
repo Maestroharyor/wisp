@@ -29,6 +29,7 @@ struct RingSection: View {
             }
             Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
             Toggle("Show the ring's apps beside the orb", isOn: $preferences.orbDock)
+            Toggle("Show an app's windows around its segment", isOn: $preferences.ringAppWindows)
             LabeledContent("Actions") {
                 Button("Edit ring…") { editorShown = true }
                     // On the button, not the Section: a Form can apply a Section's modifiers per row.

@@ -75,7 +75,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "ring", "radial", "pie", "wheel", "mouse button", "middle click", "actions", "segments", "hyper r",
                 "per app", "edit ring", "ring shortcut", "capture text", "ocr", "qr code", "barcode", "ai action",
                 "quick add", "dock", "apps", "launch", "launcher", "open app", "link", "website", "folder",
-                "orb dock", "type to find", "search apps", "flick", "arrow keys",
+                "orb dock", "type to find", "search apps", "flick", "arrow keys", "windows", "switch windows",
+                "app windows",
             ]
         case .appearance:
             [

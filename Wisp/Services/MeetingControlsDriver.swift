@@ -354,11 +354,7 @@ enum AXProbe {
     /// An array attribute's elements (windows, menus, items). Bridging the CFArray to
     /// `[AnyObject]` is checked; each entry then goes through `axElement`.
     private static func children(of element: AXUIElement, attribute: String) -> [AXUIElement] {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-            let list = value as? [AnyObject]
-        else { return [] }
-        return list.compactMap(axElement)
+        AXTree.children(of: element, attribute: attribute, timeout: timeout)
     }
 
     /// A single element attribute (focused window, focused element, parent).
@@ -370,14 +366,10 @@ enum AXProbe {
         return axElement(value)
     }
 
-    /// Swift can't check a CF type with `as?`, so the type id is compared first; after that the
-    /// downcast is exact. Every element handed out gets the short messaging timeout, since a
-    /// timeout set on the application element doesn't carry over to its children.
+    /// Every element handed out gets the short messaging timeout, since a timeout set on the
+    /// application element doesn't carry over to its children.
     private static func axElement(_ value: AnyObject) -> AXUIElement? {
-        guard CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        let element = unsafeDowncast(value, to: AXUIElement.self)
-        AXUIElementSetMessagingTimeout(element, timeout)
-        return element
+        AXTree.axElement(value, timeout: timeout)
     }
 
     private static func string(of element: AXUIElement, attribute: String) -> String? {
