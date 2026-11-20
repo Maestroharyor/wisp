@@ -2,9 +2,11 @@ import AppKit
 import SwiftUI
 import WispCore
 
-/// A ring while the total is known; otherwise an arrow, since a guessed ring would lie.
+/// A ring while the total is known; otherwise an arrow (AirDrop's waves for an AirDrop), since a
+/// guessed ring would lie.
 struct DownloadGlyph: View {
     let progress: DownloadProgress
+    var origin: DownloadOrigin = .browser
     var size: CGFloat = 16
 
     var body: some View {
@@ -13,11 +15,24 @@ struct DownloadGlyph: View {
             ProgressRing(progress: fraction, tint: tint, lineWidth: 2.5)
                 .frame(width: size, height: size)
         } else {
-            Image(systemName: progress.isStalled ? "pause.circle" : "arrow.down.circle")
+            Image(systemName: progress.isStalled ? "pause.circle" : symbol)
                 .foregroundStyle(tint)
                 .frame(width: size, height: size)
         }
     }
+
+    private var symbol: String {
+        switch origin {
+        case .browser: "arrow.down.circle"
+        case .airDrop: AirDropGlyph.symbol
+        }
+    }
+}
+
+/// AirDrop's mark where a one-colour glyph fits (buttons, tiles, the ring). SF Symbols has no
+/// AirDrop symbol, and this one has its dot and waves.
+enum AirDropGlyph {
+    static let symbol = "dot.radiowaves.up.forward"
 }
 
 /// The pill's value: percent, speed or size, and how many more are running.
@@ -46,14 +61,10 @@ struct DownloadDoneCard: View {
         VStack(spacing: 0) {
             Color.clear.frame(height: model.isNotchStyle ? model.notchHeight : 8)
             HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.wispViolet)
-                    .frame(width: 38, height: 38)
-                    .background(Circle().fill(Color.wispViolet.opacity(0.18)))
+                icon
                 VStack(alignment: .leading, spacing: 3) {
                     Text(download.name).font(.system(size: 13, weight: .bold)).lineLimit(1).truncationMode(.middle)
-                    Text("Downloaded, \(DownloadText.bytes(download.size))")
+                    Text("\(caption), \(DownloadText.bytes(download.size))")
                         .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                 }
                 Spacer(minLength: 8)
@@ -75,4 +86,23 @@ struct DownloadDoneCard: View {
     }
 
     private var url: URL { URL(fileURLWithPath: download.path) }
+
+    private var caption: String {
+        switch download.origin {
+        case .browser: "Downloaded"
+        case .airDrop: "Received with AirDrop"
+        }
+    }
+
+    @ViewBuilder private var icon: some View {
+        if download.origin == .airDrop, let airDrop = AppIcon.airDrop {
+            Image(nsImage: airDrop).resizable().frame(width: 38, height: 38)
+        } else {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.wispViolet)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(Color.wispViolet.opacity(0.18)))
+        }
+    }
 }

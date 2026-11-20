@@ -37,6 +37,7 @@ final class AppServices {
     let headphones = HeadphoneMonitor()
     let accessories = AccessoryBatteryStore()
     let downloads = DownloadMonitor()
+    let airDrop = AirDropMonitor()
     let sounds: SoundPlayer
     let updater = Updater()
     /// Bumped for each confetti burst; the notch watches it.
@@ -662,6 +663,18 @@ final class AppServices {
             self?.activities.post(.downloadDone(download), slot: .downloadDone, duration: 8)
         }
         syncDownloads()
+        airDrop.onChange = { [weak self] summary in
+            guard let self else { return }
+            if let summary {
+                self.activities.post(.download(summary), slot: .airDrop, duration: nil)
+            } else {
+                self.activities.remove(.airDrop)
+            }
+        }
+        airDrop.onFinish = { [weak self] file in
+            self?.activities.post(.downloadDone(file), slot: .downloadDone, duration: 8)
+        }
+        syncAirDrop()
         syncAppVolume()
         dropActions.onNotice = { [weak self] symbol, text in
             self?.activities.post(.notice(symbol: symbol, text: text), slot: .notice, duration: 2)
@@ -778,6 +791,16 @@ final class AppServices {
         } else {
             downloads.stop()
         }
+    }
+
+    /// Follows incoming AirDrops only while the switch is on.
+    private func syncAirDrop() {
+        let enabled = withObservationTracking {
+            preferences.airDropActivity
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.syncAirDrop() }
+        }
+        if enabled { airDrop.start() } else { airDrop.stop() }
     }
 
     /// Per-app volume runs only while its switch is on; turning it off hands every app back.
