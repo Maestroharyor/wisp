@@ -190,6 +190,8 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         installKeyMonitor()
+        // Drawn once now, so the picture that flies out isn't empty.
+        window.displayIfNeeded()
         // Out of the notch on the surface spring, as the notch's own shelf grows out of it.
         if !tornOff, !model.reduceMotion, let shell = shellRect(frame),
             flight.flyOut(
@@ -267,7 +269,7 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         animating = true
         let frame = window.frame
         // Back into the notch it came from, which answers as it arrives.
-        if model?.reduceMotion == false, let shell = shellRect(frame),
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, let shell = shellRect(frame),
             flight.flyIn(
                 window, to: shell,
                 spring: SpringTuning.surface(

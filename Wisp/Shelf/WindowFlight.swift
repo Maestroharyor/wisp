@@ -9,6 +9,9 @@ import WispCore
 @MainActor
 final class WindowFlight {
     private var ghost: NSPanel?
+    /// Counts flights, so a flight that was cut short never runs its ending.
+    private var flights = 0
+    private var arrival: Task<Void, Never>?
 
     /// Flies `window` from its frame into `shell`. `arrive` runs as it reaches the shell, for the
     /// notch to answer; `done` runs once the picture has gone. Returns false when there was no
@@ -28,8 +31,12 @@ final class WindowFlight {
         fly(window, between: frame, and: shell, inward: false, spring: spring, arrive: {}, done: done)
     }
 
-    /// Drops a flight under way, leaving the real window as its caller sets it.
+    /// Drops a flight under way, leaving the real window as its caller sets it. Its `arrive`
+    /// and `done` don't run.
     func cancel() {
+        flights += 1
+        arrival?.cancel()
+        arrival = nil
         ghost?.orderOut(nil)
         ghost = nil
     }
@@ -85,11 +92,14 @@ final class WindowFlight {
 
         panel.orderFrontRegardless()
         ghost = panel
+        let flight = flights
         CATransaction.begin()
-        CATransaction.setCompletionBlock { [weak self, weak panel] in
+        CATransaction.setCompletionBlock { [weak self] in
             MainActor.assumeIsolated {
-                panel?.orderOut(nil)
-                if let panel, self?.ghost === panel { self?.ghost = nil }
+                panel.orderOut(nil)
+                guard let self, self.flights == flight else { return }
+                self.ghost = nil
+                self.arrival = nil
                 done()
             }
         }
@@ -99,8 +109,9 @@ final class WindowFlight {
         CATransaction.commit()
 
         if inward {
-            Task { @MainActor in
+            arrival = Task { @MainActor in
                 try? await Task.sleep(for: .seconds(duration * 0.55))
+                guard !Task.isCancelled else { return }
                 arrive()
             }
         }
@@ -119,6 +130,19 @@ final class WindowFlight {
         return animation
     }
 
+    /// Whether a picture has visible pixels, sampled on a coarse grid.
+    private static func showsSomething(_ rep: NSBitmapImageRep) -> Bool {
+        let step = max(min(rep.pixelsWide, rep.pixelsHigh) / 24, 1)
+        var visible = 0
+        for y in stride(from: 0, to: rep.pixelsHigh, by: step) {
+            for x in stride(from: 0, to: rep.pixelsWide, by: step) {
+                if let colour = rep.colorAt(x: x, y: y), colour.alphaComponent > 0.05 { visible += 1 }
+                if visible > 40 { return true }
+            }
+        }
+        return false
+    }
+
     /// The window as drawn now, title bar included.
     private static func picture(of window: NSWindow) -> NSImage? {
         window.contentView?.layoutSubtreeIfNeeded()
@@ -126,6 +150,9 @@ final class WindowFlight {
             let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
         else { return nil }
         view.cacheDisplay(in: view.bounds, to: rep)
+        // Materials and content not yet drawn can come out clear; flying nothing would look like
+        // the window vanishing, so the caller fades instead.
+        guard showsSomething(rep) else { return nil }
         let image = NSImage(size: view.bounds.size)
         image.addRepresentation(rep)
         return image
