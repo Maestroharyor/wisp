@@ -151,10 +151,7 @@ struct NotificationAvatar: View {
         }
     }
 
-    private var appIcon: NSImage? {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: item.appID)
-            .map { NSWorkspace.shared.icon(forFile: $0.path) }
-    }
+    private var appIcon: NSImage? { AppIcon.image(forAppID: item.appID) }
 }
 
 /// The close button drawn in a card's top trailing corner while the pointer is on it. The

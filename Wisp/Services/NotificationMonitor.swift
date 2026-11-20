@@ -85,7 +85,13 @@ final class NotificationMonitor {
     }
 
     func openApp(for item: NotificationItem) {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: item.appID) else { return }
+        let sender = SystemSenders.identity(for: item.appID)
+        if let folder = sender?.homeFolder {
+            NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(folder))
+            return
+        }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: sender?.iconAppID ?? item.appID)
+        else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 
@@ -151,6 +157,7 @@ final class NotificationMonitor {
 
     private func appName(for bundleID: String) -> String {
         if let known = seenApps[bundleID] { return known }
+        if let sender = SystemSenders.identity(for: bundleID) { return sender.displayName }
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return bundleID }
         return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
     }

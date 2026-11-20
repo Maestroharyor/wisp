@@ -171,3 +171,19 @@ extension ValueFont {
         }
     }
 }
+
+/// An app's icon by bundle identifier, standing in for system services that have no app of
+/// their own (AirDrop's requests come from a background service).
+enum AppIcon {
+    static func image(forAppID appID: String) -> NSImage? {
+        if appID == "com.apple.sharingd", let airDrop = NSSharingService(named: .sendViaAirDrop)?.image {
+            return airDrop
+        }
+        let id = SystemSenders.identity(for: appID)?.iconAppID ?? appID
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
+            .map { NSWorkspace.shared.icon(forFile: $0.path) }
+    }
+
+    /// AirDrop's own coloured icon, for cards about an AirDrop.
+    static var airDrop: NSImage? { image(forAppID: "com.apple.sharingd") }
+}

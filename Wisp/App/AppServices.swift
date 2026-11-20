@@ -923,7 +923,9 @@ final class AppServices {
             return
         }
         activities.post(.notification(item), slot: .notification, duration: preferences.notificationDuration.seconds)
-        if preferences.hideSystemBanners { BannerSuppressor.closeBanners() }
+        if preferences.hideSystemBanners, !SystemSenders.keepsSystemBanner(appID: item.appID) {
+            BannerSuppressor.closeBanners()
+        }
     }
 
     private func mediaChanged(_ info: NowPlayingInfo?) {
