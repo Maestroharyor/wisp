@@ -755,9 +755,6 @@ final class NotchController {
         machine.closing = preferences.shelfClosing
         model.speed = preferences.animationSpeed
         model.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        if let screen = NSScreen.screens.first(where: { $0.displayUUID == screenUUID }) {
-            model.framesPerSecond = screen.maximumFramesPerSecond
-        }
     }
 
     private func send(_ event: NotchEvent) {

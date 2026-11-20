@@ -78,7 +78,6 @@ final class NotchModel {
     private(set) var hoverPulses = 0
     var layout: NotchLayout
     var speed: AnimationSpeed = .standard
-    var framesPerSecond = 60
     var reduceMotion = false
     /// Choosing any tab, including Widgets again, returns the Widgets page to its grid.
     var page: ShelfPage = .home {
@@ -511,16 +510,21 @@ final class NotchModel {
     }
 
     var motion: NotchMotion {
-        .preset(speed, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)
+        .preset(speed, reduceMotion: reduceMotion)
     }
 
     /// Glow and glass tint: the playing album's colour when allowed, otherwise Wisp's violet.
     var accent: Color { services.accent }
     var glow: Color { services.glow }
 
-    /// Bouncier when growing, damped when settling back to the plain notch.
+    /// The surface's size when it last settled on a spec, so the next change can tell growing
+    /// from shrinking. `NotchView` updates it after each change of spec.
+    @ObservationIgnored var settledSurface: CGSize = .zero
+
+    /// A small bounce when growing, none when shrinking, whatever the shape lands on: closing
+    /// the shelf onto a live pill settles like closing it onto the bare notch.
     var surfaceAnimation: Animation {
-        spec == .closed ? motion.surfaceClose : motion.surfaceOpen
+        SurfaceMove.between(settledSurface, surfaceRect.size) == .grow ? motion.surfaceOpen : motion.surfaceClose
     }
 }
 

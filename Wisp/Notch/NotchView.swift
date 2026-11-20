@@ -66,7 +66,10 @@ struct NotchView: View {
                 .allowsHitTesting(false)
         }
         .frame(width: panel.width, height: panel.height, alignment: .topLeading)
+        // The one surface animation for the shell and everything that moves with it.
         .animation(model.surfaceAnimation, value: model.spec)
+        // After the change, so the body that picked the animation still saw the old size.
+        .onChange(of: model.spec, initial: true) { model.settledSurface = model.surfaceRect.size }
         .environment(\.colorScheme, .dark)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
         .environment(\.contextThresholds, model.preferences.contextThresholds)
@@ -192,9 +195,6 @@ private struct SurfaceView: View {
             radius: isOpen ? look.shadow.radius : (model.isOrb ? 10 : 6), y: isOpen ? 8 : (model.isOrb ? 4 : 2)
         )
         .modifier(HoverWobble(model: model))
-        // The shell rides the same spring as the frame, so closing visibly folds back
-        // into the notch in both directions instead of snapping shut.
-        .animation(model.surfaceAnimation, value: model.spec)
         .contentShape(shape)
     }
 

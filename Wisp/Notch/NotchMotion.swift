@@ -7,7 +7,7 @@ import WispCore
 struct NotchMotion {
     /// Surface spring when growing (peek, activity or open).
     let surfaceOpen: Animation
-    /// Surface spring when shrinking back to closed.
+    /// Surface spring when shrinking, to a pill or back to closed.
     let surfaceClose: Animation
     /// Shelf content fading in once the shell has mostly grown, so nothing shows while
     /// the box is still small and cutting it off.
@@ -26,11 +26,9 @@ struct NotchMotion {
     /// Off for Reduce Motion: no drift, scale or slide.
     let expands: Bool
 
-    static func preset(_ speed: AnimationSpeed, framesPerSecond: Int, reduceMotion: Bool) -> NotchMotion {
-        let open = SpringTuning.surface(
-            opening: true, speedScale: speed.scale, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)
-        let close = SpringTuning.surface(
-            opening: false, speedScale: speed.scale, framesPerSecond: framesPerSecond, reduceMotion: reduceMotion)
+    static func preset(_ speed: AnimationSpeed, reduceMotion: Bool) -> NotchMotion {
+        let open = SpringTuning.surface(move: .grow, speedScale: speed.scale, reduceMotion: reduceMotion)
+        let close = SpringTuning.surface(move: .shrink, speedScale: speed.scale, reduceMotion: reduceMotion)
         if reduceMotion {
             return NotchMotion(
                 surfaceOpen: open.animation,
