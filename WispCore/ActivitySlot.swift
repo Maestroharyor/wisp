@@ -19,6 +19,8 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
     case meetingSoon
     case device
     case download
+    /// A file arriving by AirDrop.
+    case airDrop
     case downloadDone
     /// Posted by a script, Shortcut or link (`wisp activity`, `wisp://activity`).
     case external
@@ -44,6 +46,7 @@ public enum ActivitySlot: String, CaseIterable, Sendable {
         case .regionWatch: 18
         case .timer: 20
         case .download: 22
+        case .airDrop: 23
         case .meeting: 25
         case .tray: 30
         case .battery: 40
