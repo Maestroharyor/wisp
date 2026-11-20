@@ -73,9 +73,6 @@ enum BannerSuppressor {
     }
 
     private static func children(of element: AXUIElement, attribute: String) -> [AXUIElement] {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return [] }
-        // AX returns a CFArray of AXUIElement; bridging it is a checked conversion.
-        return value as? [AXUIElement] ?? []
+        AXTree.children(of: element, attribute: attribute)
     }
 }
