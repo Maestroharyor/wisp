@@ -270,6 +270,8 @@ final class NotchController {
         // system moving windows as displays come and go), so the frame counts too.
         guard layout != model.layout || panelMoved || panel.frame != layout.panelFrame else { return }
         panelMoved = false
+        // A pull's starting rect belongs to the old layout.
+        dropPull(animated: false)
         // The shell may have moved out from under a still pointer (a drop, Move back).
         defer { resyncPointer() }
         model.layout = layout
@@ -567,7 +569,7 @@ final class NotchController {
             withTransaction(transaction) { model.pullProgress = nil }
             return
         }
-        let open = model.surfaceRect
+        let open = model.targetSurfaceRect
         let travel = layout.edge.isSide ? abs(open.width - from.width) : abs(open.height - from.height)
         // About as far as the shelf grows, within reach of a comfortable two-finger pull.
         var tracker = PullTracker(travel: min(max(travel * 0.6, 90), 180))
@@ -578,6 +580,11 @@ final class NotchController {
 
     private func followPull(_ scroll: PointerMonitor.Scroll) {
         guard var tracker = pullTracker else { return }
+        // A new gesture began without this one's end arriving: settle the pull where it is.
+        if scroll.boundary, !scroll.ended {
+            endPull()
+            return
+        }
         let delta = layout.edge.openingSwipe.amount(dx: scroll.dx, dy: scroll.dy)
         let progress = tracker.add(delta, at: .now)
         pullTracker = tracker
@@ -608,8 +615,24 @@ final class NotchController {
             transaction.disablesAnimations = true
             withTransaction(transaction) {
                 self.model.pullProgress = nil
-                if !release.opens, self.machine.phase == .open { self.send(.pullCancelled) }
+                if !release.opens, self.machine.phase == .open {
+                    self.send(.pullCancelled)
+                    // The pointer may have left while the shelf folded back.
+                    if !self.pointerInside { self.send(.pointerExited) }
+                }
             }
+        }
+    }
+
+    /// Ends any pull at once: its tracking stops, and the shell goes to the rect for what it
+    /// now shows, on the surface spring when `animated`.
+    private func dropPull(animated: Bool) {
+        pullTracker = nil
+        guard model.pullProgress != nil else { return }
+        if animated, !model.reduceMotion {
+            withAnimation(model.motion.surfaceClose) { model.pullProgress = nil }
+        } else {
+            model.pullProgress = nil
         }
     }
 
@@ -835,6 +858,7 @@ final class NotchController {
     }
 
     func tearDown() {
+        dropPull(animated: false)
         // A display unplugged mid-reply must not leave notifications held back forever.
         if isReplying { services.endReply(sentText: nil) }
         // A card held under the pointer on an unplugged display would otherwise never expire.
@@ -885,6 +909,9 @@ final class NotchController {
         for effect in machine.handle(event) {
             apply(effect)
         }
+        // Closed under a pull (the shortcut, Esc, a click elsewhere, the close timer): the pull
+        // ends and the shell springs to where it belongs rather than following the fingers.
+        if wasOpen, machine.phase != .open { dropPull(animated: true) }
         render(wasOpen: wasOpen)
     }
 

@@ -346,12 +346,16 @@ final class NotchModel {
     }
 
     var surfaceRect: CGRect {
+        guard let pullProgress else { return targetSurfaceRect }
+        return SurfaceSizing.blend(pullFrom, targetSurfaceRect, progress: pullProgress)
+    }
+
+    /// Where the surface settles for what it shows now, ignoring a pull under way.
+    var targetSurfaceRect: CGRect {
         let look = preferences.appearance
-        let rect = SurfaceSizing.rect(
+        return SurfaceSizing.rect(
             for: spec, in: layout, contentScale: look.shelfSize.scale, peekStrength: look.hoverStrength,
             extraHeight: requestedShelfExtra)
-        guard let pullProgress else { return rect }
-        return SurfaceSizing.blend(pullFrom, rect, progress: pullProgress)
     }
 
     // MARK: Shelf height
@@ -527,14 +531,16 @@ final class NotchModel {
     var accent: Color { services.accent }
     var glow: Color { services.glow }
 
-    /// The surface's size when it last settled on a spec, so the next change can tell growing
-    /// from shrinking. `NotchView` updates it after each change of spec.
+    /// The surface's settled size before its latest change, so the next change can tell growing
+    /// from shrinking. `NotchView` updates it after each change of size.
     @ObservationIgnored var settledSurface: CGSize = .zero
 
     /// A small bounce when growing, none when shrinking, whatever the shape lands on: closing
     /// the shelf onto a live pill settles like closing it onto the bare notch.
-    var surfaceAnimation: Animation {
-        SurfaceMove.between(settledSurface, surfaceRect.size) == .grow ? motion.surfaceOpen : motion.surfaceClose
+    var surfaceAnimation: Animation { surfaceAnimation(from: settledSurface, to: targetSurfaceRect.size) }
+
+    func surfaceAnimation(from old: CGSize, to new: CGSize) -> Animation {
+        SurfaceMove.between(old, new) == .grow ? motion.surfaceOpen : motion.surfaceClose
     }
 }
 

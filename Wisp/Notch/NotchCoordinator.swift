@@ -88,11 +88,11 @@ final class NotchCoordinator {
     }
 
     #if DEBUG
-        /// Plays a two-finger pull on the built-in display's notch, for checking the motion
+        /// Plays a two-finger pull on the display with a camera notch, for checking the motion
         /// without synthetic input.
         func debugPull(flickBack: Bool) {
-            (controllers.values.first { $0.layout.style == .notch } ?? controllers.values.first)?
-                .debugPull(flickBack: flickBack)
+            let notched = NSScreen.screens.first { $0.safeAreaInsets.top > 0 }?.displayUUID
+            (notched.flatMap { controllers[$0] } ?? targetController())?.debugPull(flickBack: flickBack)
         }
     #endif
 

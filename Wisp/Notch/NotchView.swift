@@ -75,7 +75,7 @@ struct NotchView: View {
         // The one surface animation for the shell and everything that moves with it.
         .animation(model.surfaceAnimation, value: model.spec)
         // After the change, so the body that picked the animation still saw the old size.
-        .onChange(of: model.spec, initial: true) { model.settledSurface = model.surfaceRect.size }
+        .onChange(of: model.targetSurfaceRect.size, initial: true) { _, size in model.settledSurface = size }
         .environment(\.colorScheme, .dark)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
         .environment(\.contextThresholds, model.preferences.contextThresholds)
