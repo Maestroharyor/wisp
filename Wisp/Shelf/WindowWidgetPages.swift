@@ -62,8 +62,6 @@ extension AppServices {
     }
 }
 
-/// The scaffold for a widget page in the window: content from the top leading corner inside
-/// the page margins, scrolling when it runs long. `content` gets the width it has to lay out in.
 /// Reminders in the window: the open ones as a plain list, without the shelf card's header and
 /// fade, which a page that scrolls doesn't need. Rows tick off, undo and drag as on the card.
 struct RemindersPage: View {
@@ -95,33 +93,6 @@ struct RemindersPage: View {
             Button("Open Reminders", systemImage: "arrow.up.forward.app", action: store.openApp)
         }
         .onAppear { store.refreshIfStale() }
-    }
-}
-
-struct WindowWidgetPage<Content: View>: View {
-    enum Width {
-        /// Uses the whole detail, for grids.
-        case full
-        /// Stops at a readable width, for lists and text.
-        case readable
-    }
-
-    var width: Width = .full
-    @ViewBuilder let content: (CGFloat) -> Content
-
-    var body: some View {
-        GeometryReader { proxy in
-            let available = proxy.size.width
-            let inner =
-                width == .readable
-                ? WindowLayout.readableWidth(available: available) : max(available - 2 * WindowLayout.margin, 0)
-            ScrollView(.vertical) {
-                content(inner)
-                    .frame(width: inner, alignment: .topLeading)
-                    .padding(WindowLayout.margin)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-        }
     }
 }
 

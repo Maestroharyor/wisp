@@ -13,33 +13,43 @@ struct WindowHome: View {
     private var services: AppServices { model.services }
     private var cards: [HomeCard] { model.preferences.windowHomeCards }
 
+    /// The content's width, for the number of card columns.
+    @State private var width: CGFloat = 0
+
     var body: some View {
-        GeometryReader { proxy in
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: WindowLayout.spacing) {
-                    WindowHero(model: model)
-                    WeekStripView(store: services.calendar, selection: $day)
-                    if cards.isEmpty {
-                        ContentUnavailableView(
-                            "No cards on Home", systemImage: "square.grid.2x2",
-                            description: Text("Choose Customise Home in the toolbar to add some."))
-                    } else {
-                        let columns = WindowLayout.dashboardColumns(width: proxy.size.width - 2 * WindowLayout.margin)
-                        LazyVGrid(
-                            columns: Array(
-                                repeating: GridItem(.flexible(), spacing: WindowLayout.spacing, alignment: .top),
-                                count: columns),
-                            alignment: .leading, spacing: WindowLayout.spacing
-                        ) {
-                            ForEach(cards) { card in
-                                cardView(card).frame(minHeight: 220, alignment: .top)
-                            }
+        // The scroll view is the page's root, so the toolbar's scroll edge sees it and keeps
+        // scrolled cards from showing under its buttons.
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: WindowLayout.spacing) {
+                WindowHero(model: model)
+                WeekStripView(store: services.calendar, selection: $day)
+                if cards.isEmpty {
+                    WindowEmptyState(
+                        symbol: "square.grid.2x2", title: "No cards on Home",
+                        message: "Choose Customise Home in the toolbar to add some."
+                    )
+                    .windowCardBackground()
+                } else {
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: WindowLayout.spacing, alignment: .top),
+                            count: WindowLayout.dashboardColumns(width: width)),
+                        alignment: .leading, spacing: WindowLayout.spacing
+                    ) {
+                        ForEach(cards) { card in
+                            cardView(card).frame(minHeight: 220, alignment: .top)
                         }
                     }
                 }
-                .padding(WindowLayout.margin)
+            }
+            .padding(WindowLayout.margin)
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width - 2 * WindowLayout.margin
+            } action: {
+                width = $0
             }
         }
+        .windowScrollEdge()
         .onAppear {
             services.calendar.refreshIfStale()
             services.reminders.refreshIfStale()
