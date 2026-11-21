@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.13](https://github.com/Maestroharyor/wisp/compare/v0.2.12...v0.2.13) (2026-11-21)
+
+
+### Features
+
+* a Home dashboard for the window ([#134](https://github.com/Maestroharyor/wisp/issues/134)) ([97239c9](https://github.com/Maestroharyor/wisp/commit/97239c9669c8ae23a0c2b9104d195ccc054e6588))
+* haptics, optional interface sounds and loading states ([#133](https://github.com/Maestroharyor/wisp/issues/133)) ([f995499](https://github.com/Maestroharyor/wisp/commit/f9954996e3ea0870a2a89d7fa1ba7432710a741b))
+* VoiceOver, contrast, larger targets and page keys ([#131](https://github.com/Maestroharyor/wisp/issues/131)) ([4caca49](https://github.com/Maestroharyor/wisp/commit/4caca49d47a470643e1f4f05a7dbaf276172ca19))
+
 ## [0.2.12](https://github.com/Maestroharyor/wisp/compare/v0.2.11...v0.2.12) (2026-11-21)
 
 
