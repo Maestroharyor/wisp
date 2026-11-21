@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.8](https://github.com/Maestroharyor/wisp/compare/v0.2.7...v0.2.8) (2026-11-20)
+
+
+### Features
+
+* Reminders widget, Pomodoro labels and clipboard extras ([#111](https://github.com/Maestroharyor/wisp/issues/111)) ([035b1be](https://github.com/Maestroharyor/wisp/commit/035b1be3d6343722a3b163e0496c9da65754f296))
+* show an app's windows around its ring segment ([#109](https://github.com/Maestroharyor/wisp/issues/109)) ([6afdd58](https://github.com/Maestroharyor/wisp/commit/6afdd58954f53b0a2893ecc2731d2ebffa0f50f4))
+* type to find, arrow keys and flicks on the ring ([#108](https://github.com/Maestroharyor/wisp/issues/108)) ([f76b273](https://github.com/Maestroharyor/wisp/commit/f76b2735437d8da78dcb7c5f796986df2a32d373))
+
 ## [0.2.7](https://github.com/Maestroharyor/wisp/compare/v0.2.6...v0.2.7) (2026-11-20)
 
 
