@@ -73,7 +73,7 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .home: "Home"
         case .tray: "Tray"
         case .mediaPage: "Media"
-        case .widget: value ?? "Widget"
+        case .widget: value.flatMap(Self.spelledOut) ?? "Widget"
         case .agents: "Agents"
         case .playPause: "Play or pause"
         case .nextTrack: "Next"
@@ -102,6 +102,17 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         case .folder: value.map { ($0 as NSString).lastPathComponent }.flatMap { $0.isEmpty ? nil : $0 } ?? "Folder"
         case .none: "Nothing"
         }
+    }
+
+    /// A widget id as words, for rings saved before widget segments kept their name:
+    /// "dayProgress" reads "Day progress".
+    private static func spelledOut(_ id: String) -> String? {
+        guard let first = id.first else { return nil }
+        var words = String(first).uppercased()
+        for character in id.dropFirst() {
+            words += character.isUppercase ? " " + character.lowercased() : String(character)
+        }
+        return words
     }
 
     private static func host(of link: String) -> String? {
