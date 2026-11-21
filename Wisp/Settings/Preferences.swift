@@ -359,6 +359,7 @@ final class Preferences {
         static let widgetGridRows = "widgetGridRows"
         static let introducedWidgets = "introducedWidgets"
         static let favouriteShortcuts = "favouriteShortcuts"
+        static let windowHomeCards = "windowHomeCards"
         static let dropActions = "dropActions"
         static let ringConfig = "ringConfig"
         static let ringOnOrbClick = "ringOnOrbClick"
@@ -683,6 +684,11 @@ final class Preferences {
     var scriptCommand: String { didSet { defaults.set(scriptCommand, forKey: Key.scriptCommand) } }
     /// Seconds between runs while the widget is on screen.
     var scriptInterval: Double { didSet { defaults.set(scriptInterval, forKey: Key.scriptInterval) } }
+
+    /// The cards on the window's Home, in order. The notch's Home has its own layout.
+    var windowHomeCards: [HomeCard] {
+        didSet { defaults.set(windowHomeCards.map(\.rawValue), forKey: Key.windowHomeCards) }
+    }
 
     /// Shortcuts shown in the Shortcuts widget, in order.
     var favouriteShortcuts: [String] {
@@ -1417,6 +1423,7 @@ final class Preferences {
             (defaults.stringArray(forKey: Key.widgetGridOrder) ?? []).compactMap(WidgetKind.init(rawValue:))
         widgetGridRows = WidgetGrid.clampedRows(defaults.integer(forKey: Key.widgetGridRows))
         favouriteShortcuts = defaults.stringArray(forKey: Key.favouriteShortcuts) ?? []
+        windowHomeCards = HomeCard.read(defaults.stringArray(forKey: Key.windowHomeCards))
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
         accessoryBatteries = defaults.bool(forKey: Key.accessoryBatteries)

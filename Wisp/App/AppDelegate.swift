@@ -112,6 +112,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.services.ring.hovered(.slot(index), distance: RingGeometry.ringRadius)
                 }
             }
+            // Opens the shelf window on Home, for checking the window's pages.
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.openWindow"), object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.services.shelfWindow.openAsWindow(view: .page(.home)) }
+            }
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.cycleForm"), object: nil, queue: .main
             ) { [weak self] _ in

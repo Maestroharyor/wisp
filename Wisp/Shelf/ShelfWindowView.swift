@@ -29,6 +29,8 @@ final class WindowNavigation {
     /// A widget opened that isn't switched on (a timer pill, say): listed until it's left.
     private(set) var visitor: String?
     var columns: NavigationSplitViewVisibility = .all
+    /// The window Home's card picker is showing.
+    var customisingHome = false
 
     init(preferences: Preferences) {
         self.preferences = preferences
@@ -155,6 +157,9 @@ private struct WindowDetail: View {
             .toolbarBackground(.visible, for: .windowToolbar)
             .modifier(HardTopScrollEdge())
             .onChange(of: selection, initial: true) { _, row in previous = row }
+            .sheet(isPresented: Bindable(navigation).customisingHome) {
+                HomeCardsSheet(preferences: model.preferences)
+            }
     }
 
     /// Widget pages put their own items in the toolbar; a fade would show both pages' items for
@@ -218,13 +223,9 @@ private struct WindowDetail: View {
         if selection == .home {
             ToolbarItem(placement: .primaryAction) {
                 Button("Customise Home", systemImage: "square.grid.2x2") {
-                    model.homeSnapshot = (
-                        model.preferences.homeLayout, model.preferences.enabledWidgets, model.preferences.homeProfile
-                    )
-                    model.editingHome = true
+                    navigation.customisingHome = true
                 }
-                .disabled(model.editingHome)
-                .help("Customise Home")
+                .help("Choose the cards on Home")
             }
         }
         ToolbarItem(placement: .primaryAction) {
@@ -283,7 +284,14 @@ private struct WindowSidebarRow: View {
         Label {
             Text(WindowRow.title(of: row, services: services))
         } icon: {
-            IconTile(symbol: WindowRow.symbol(of: row, services: services), tint: WindowRow.tint(of: row))
+            // Tinted symbols, as Notes and Reminders list theirs; a live activity keeps a filled
+            // tile so it stands out while it runs.
+            if case .live = row {
+                IconTile(symbol: WindowRow.symbol(of: row, services: services), tint: WindowRow.tint(of: row))
+            } else {
+                Image(systemName: WindowRow.symbol(of: row, services: services))
+                    .foregroundStyle(WindowRow.tint(of: row))
+            }
         }
     }
 }

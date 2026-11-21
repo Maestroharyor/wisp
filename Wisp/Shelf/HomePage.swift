@@ -19,59 +19,9 @@ struct HomePage: View {
         }
     }
 
-    /// In the window: a grid of cards, each opening its own sidebar row.
+    /// In the window: the dashboard, with its own cards.
     private var windowBody: some View {
-        let widgets = preferences.homeWidgets
-        return ScrollView(.vertical) {
-            VStack(spacing: 16) {
-                if widgets.isEmpty {
-                    emptyHint.frame(height: Self.windowCardHeight)
-                }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 16)], spacing: 16) {
-                    ForEach(widgets) { kind in
-                        VStack(alignment: .leading, spacing: 6) {
-                            windowCardHeader(kind)
-                            WidgetCard(kind: kind, model: model)
-                        }
-                        .padding(
-                            model.editingHome
-                                ? EdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 18) : Self.cardInsets
-                        )
-                        .frame(height: Self.windowCardHeight)
-                        .card()
-                        .overlay { if model.editingHome { editOverlay(kind) } }
-                        .onDrag { Self.cardDrag(kind) }
-                        .dropDestination(for: String.self) { texts, _ in drop(texts, onto: kind) }
-                    }
-                }
-                if model.editingHome { pickerRow }
-            }
-            .padding(20)
-        }
-        .animation(
-            model.reduceMotion ? nil : .wispSmooth, value: preferences.homeLayout)
-    }
-
-    private static let windowCardHeight: CGFloat = 200
-    private static let cardInsets = EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)
-
-    private func windowCardHeader(_ kind: WidgetKind) -> some View {
-        Button {
-            openRow(.widget(kind.rawValue))
-        } label: {
-            HStack(spacing: 6) {
-                IconTile(symbol: kind.symbol, tint: kind.tint, size: 16)
-                Text(kind.title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.secondaryText)
-                Spacer(minLength: 4)
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.secondaryText)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(model.editingHome)
-        .help("Open \(kind.title)")
-        .accessibilityLabel("Open \(kind.title)")
+        WindowHome(model: model)
     }
 
     @ViewBuilder private var notchBody: some View {
@@ -110,11 +60,8 @@ struct HomePage: View {
     private var emptyHint: some View {
         VStack(spacing: 6) {
             Image(systemName: "square.grid.2x2").font(.system(size: 18))
-            Text(
-                host == .window
-                    ? "Choose Customise Home in the toolbar" : "Right-click the notch and choose Tools › Customise Home"
-            )
-            .font(.subheadline).foregroundStyle(Color.secondaryText).multilineTextAlignment(.center)
+            Text("Right-click the notch and choose Tools › Customise Home")
+                .font(.subheadline).foregroundStyle(Color.secondaryText).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
