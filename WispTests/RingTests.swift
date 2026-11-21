@@ -379,8 +379,10 @@ final class RingDockTests: XCTestCase {
     }
 
     func testTwelveIconsFitTheBandWithRoomForTheHalo() {
+        // Airy, as on the reference launcher: big icons with a clear gap, about half an icon.
         let gap = 2 * .pi * RingGeometry.ringRadius / 12 - RingGeometry.iconSize
-        XCTAssertGreaterThanOrEqual(gap, 14)
+        XCTAssertGreaterThanOrEqual(gap, 24)
+        XCTAssertGreaterThanOrEqual(RingGeometry.iconSize, 52)
         XCTAssertLessThan(RingGeometry.ringRadius + RingGeometry.iconSize / 2, RingGeometry.ringOuter)
         XCTAssertGreaterThan(RingGeometry.ringRadius - RingGeometry.iconSize / 2, RingGeometry.innerRadius)
     }
