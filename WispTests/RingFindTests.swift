@@ -93,7 +93,8 @@ final class RingFlickTests: XCTestCase {
     }
 
     func testAThrowAcrossRatherThanOutIsNotAnOvershoot() {
-        XCTAssertEqual(release(to: CGPoint(x: 700, y: 660), held: 0.6, from: CGPoint(x: 400, y: 640)), .close)
+        // Past the whole ring (sub-ring included), moving mostly sideways.
+        XCTAssertEqual(release(to: CGPoint(x: 760, y: 690), held: 0.6, from: CGPoint(x: 400, y: 680)), .close)
     }
 
     func testOvershootingAnOpenSubRingPicksItsItem() {

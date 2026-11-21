@@ -386,19 +386,19 @@ public enum RingHit: Equatable, Sendable {
 public enum RingGeometry {
     /// The pill in the middle that names what's under the pointer and opens the shelf.
     /// Anywhere past it picks by direction.
-    public static let centreRadius: CGFloat = 36
+    public static let centreRadius: CGFloat = 40
     /// The lighter disc inside the band of icons.
-    public static let innerRadius: CGFloat = 84
+    public static let innerRadius: CGFloat = 104
     /// The band of icons: from `ringInner` to `ringOuter`, icons centred on `ringRadius`.
     public static let ringInner: CGFloat = innerRadius
-    public static let ringOuter: CGFloat = 156
+    public static let ringOuter: CGFloat = 196
     public static let ringRadius: CGFloat = (ringInner + ringOuter) / 2
     /// An icon on the band, and on the sub-ring outside it.
-    public static let iconSize: CGFloat = 44
-    public static let subIconSize: CGFloat = 34
+    public static let iconSize: CGFloat = 52
+    public static let subIconSize: CGFloat = 38
     /// The sub-ring: an arc of smaller icons outside the band.
-    public static let subInner: CGFloat = 172
-    public static let subOuter: CGFloat = 220
+    public static let subInner: CGFloat = 214
+    public static let subOuter: CGFloat = 268
     public static let subRadius: CGFloat = (subInner + subOuter) / 2
     /// Angle each sub-ring item spans.
     public static let subStep: CGFloat = 22

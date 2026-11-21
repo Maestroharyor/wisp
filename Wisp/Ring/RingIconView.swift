@@ -67,6 +67,11 @@ struct RingTileIcon: View {
                 RoundedRectangle(cornerRadius: side * 0.225, style: .continuous)
                     .strokeBorder(.white.opacity(0.18), lineWidth: 0.5)
             )
+            // A soft highlight across the top, as app icons have, so the tiles sit with them.
+            .overlay(
+                RoundedRectangle(cornerRadius: side * 0.225, style: .continuous)
+                    .fill(LinearGradient(colors: [.white.opacity(0.22), .clear], startPoint: .top, endPoint: .center))
+            )
             .overlay(
                 Image(systemName: name).font(.system(size: side * 0.44, weight: .semibold)).foregroundStyle(.white)
             )
