@@ -318,7 +318,7 @@ final class DictationEngine {
 /// The request the microphone tap feeds. The tap appends on an audio thread while the main
 /// actor may swap in a fresh request (after an early final result); the lock guards that one
 /// reference, which is why this can be `@unchecked Sendable`.
-private final class AudioFeed: @unchecked Sendable {
+final class AudioFeed: @unchecked Sendable {
     private let lock = NSLock()
     private var request: SFSpeechAudioBufferRecognitionRequest
 
