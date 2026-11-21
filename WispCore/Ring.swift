@@ -157,6 +157,26 @@ public struct RingAction: Codable, Equatable, Hashable, Sendable {
         }
     }
 
+    /// The colour of the tile a built-in action's symbol sits on, so actions read as icons
+    /// beside real apps. Apps, files and folders show their own icon instead.
+    public var tileHex: String {
+        switch kind {
+        case .home, .agents, .ai, .form: "#7A6BFF"
+        case .tray, .airDrop, .link, .folder: "#0A84FF"
+        case .mediaPage, .playPause, .nextTrack, .previousTrack, .miniPlayer, .shortcut: "#FF375F"
+        case .widget, .focus: "#5E5CE6"
+        case .clipboard, .zip, .app, .none: "#8E8E93"
+        case .timer, .quickInput: "#FF9F0A"
+        case .keepAwake: "#A2845E"
+        case .darkMode, .lockScreen: "#48484A"
+        case .screenshot: "#636366"
+        case .pickColour, .transform: "#BF5AF2"
+        case .watchRegion: "#30B0C7"
+        case .captureText: "#32ADE6"
+        case .dropAction: "#30D158"
+        }
+    }
+
     /// What its segment shows: the app's or folder's own icon where there is one.
     public var icon: RingIcon {
         switch kind {
@@ -217,7 +237,7 @@ public struct RingSlot: Codable, Equatable, Hashable, Sendable, Identifiable {
 
 /// A full ring. The default one, or one for a list of apps.
 public struct RingSet: Codable, Equatable, Hashable, Sendable, Identifiable {
-    public static let maxSlots = 8
+    public static let maxSlots = 12
 
     public var id: UUID
     public var name: String
@@ -276,6 +296,11 @@ public struct RingConfig: Codable, Equatable, Sendable {
                 RingSlot(RingAction(.tray)),
                 RingSlot(RingAction(.focus)),
                 RingSlot(RingAction(.form)),
+                // A few of the Mac's own apps, so a new ring is a dock from the start.
+                RingSlot(RingAction(.app, value: "com.apple.finder", label: "Finder")),
+                RingSlot(RingAction(.app, value: "com.apple.Safari", label: "Safari")),
+                RingSlot(RingAction(.app, value: "com.apple.mail", label: "Mail")),
+                RingSlot(RingAction(.app, value: "com.apple.Notes", label: "Notes")),
             ]))
 }
 
@@ -359,18 +384,24 @@ public enum RingHit: Equatable, Sendable {
 /// The ring's shape: a centre button, a band of segments around it, and a sub-ring arc
 /// outside the segment that owns it. Angles run clockwise from 12 o'clock, in degrees.
 public enum RingGeometry {
-    /// The centre button.
-    public static let centreRadius: CGFloat = 40
-    /// The band of segments: wedges from `ringInner` to `ringOuter`, icons on `ringRadius`.
-    public static let ringInner: CGFloat = 46
-    public static let ringOuter: CGFloat = 128
+    /// The pill in the middle that names what's under the pointer and opens the shelf.
+    /// Anywhere past it picks by direction.
+    public static let centreRadius: CGFloat = 36
+    /// The lighter disc inside the band of icons.
+    public static let innerRadius: CGFloat = 84
+    /// The band of icons: from `ringInner` to `ringOuter`, icons centred on `ringRadius`.
+    public static let ringInner: CGFloat = innerRadius
+    public static let ringOuter: CGFloat = 156
     public static let ringRadius: CGFloat = (ringInner + ringOuter) / 2
-    /// The sub-ring: an arc of smaller wedges outside the band.
-    public static let subInner: CGFloat = 136
-    public static let subOuter: CGFloat = 188
+    /// An icon on the band, and on the sub-ring outside it.
+    public static let iconSize: CGFloat = 44
+    public static let subIconSize: CGFloat = 34
+    /// The sub-ring: an arc of smaller icons outside the band.
+    public static let subInner: CGFloat = 172
+    public static let subOuter: CGFloat = 220
     public static let subRadius: CGFloat = (subInner + subOuter) / 2
     /// Angle each sub-ring item spans.
-    public static let subStep: CGFloat = 30
+    public static let subStep: CGFloat = 22
     /// Gap between neighbouring wedges, in degrees.
     public static let gap: CGFloat = 3
     public static let margin: CGFloat = 12

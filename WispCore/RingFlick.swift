@@ -6,7 +6,7 @@ import Foundation
 /// still picks the segment in that direction; a throw far past the ring is a change of mind.
 public enum RingFlick {
     public static let deadZone: CGFloat = 14
-    public static let cancelBeyond: CGFloat = 320
+    public static let cancelBeyond: CGFloat = 380
 
     /// `start` is where the press began and `centre` the ring's centre, which differ when the
     /// ring was moved to stay on screen. Landing on the ring always picks what's there; only a
@@ -138,6 +138,7 @@ public enum RingTyping {
     public static let right: UInt16 = 124
     public static let down: UInt16 = 125
     public static let up: UInt16 = 126
+    public static let zero: UInt16 = 29
     public static let maxQuery = 40
 
     public static func command(keyCode: UInt16, characters: String, modified: Bool, query: String) -> RingCommand {
@@ -157,6 +158,8 @@ public enum RingTyping {
         }
         guard !modified else { return .ignore }
         if !searching, let digit = KeyCodes.digit(forKeyCode: keyCode) { return .pickSlot(digit - 1) }
+        // 0 is the tenth, as on a keyboard's number row.
+        if !searching, keyCode == zero { return .pickSlot(9) }
         // Function and navigation keys send characters from a private range; they aren't text.
         guard !characters.isEmpty, !KeyCodes.isFunctionKey(keyCode),
             characters.unicodeScalars.allSatisfy({

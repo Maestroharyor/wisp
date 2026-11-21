@@ -158,7 +158,7 @@ private struct RingSetEditor: View {
     @State private var selected = 0
 
     private static let scale: CGFloat = 0.62
-    private static let side: CGFloat = RingGeometry.ringOuter * 2 * scale + 12
+    private static let side: CGFloat = (RingGeometry.ringOuter + 8) * 2 * scale
 
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
@@ -179,22 +179,29 @@ private struct RingSetEditor: View {
         let centre = CGPoint(x: Self.side / 2, y: Self.side / 2)
         let slots = set.slots
         return ZStack {
-            Circle().fill(Color.black.opacity(0.85))
+            Circle().fill(.regularMaterial)
+                .overlay(Circle().fill(Color.wispViolet.opacity(0.07)))
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.1)))
                 .frame(width: Self.side, height: Self.side)
+            Circle().fill(Color.wispViolet.opacity(0.08))
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.08)))
+                .frame(
+                    width: RingGeometry.innerRadius * 2 * Self.scale, height: RingGeometry.innerRadius * 2 * Self.scale)
             ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
-                let wedge = RingGeometry.sector(index, count: slots.count)
-                RingWedge(
-                    start: wedge.start, end: wedge.end, inner: RingGeometry.ringInner * Self.scale,
-                    outer: RingGeometry.ringOuter * Self.scale, centre: centre, icon: slot.action.icon,
-                    fill: index == selected ? .wispViolet : .white.opacity(0.08), dimmed: false,
-                    hasMore: !slot.group.isEmpty || slot.action.opensChoices, small: true
+                let angle = RingGeometry.slotAngle(index, count: slots.count)
+                let radians = angle * .pi / 180
+                let radius = RingGeometry.ringRadius * Self.scale
+                RingIconCell(
+                    icon: slot.action.icon, tileHex: slot.action.tileHex, side: RingGeometry.iconSize * Self.scale,
+                    angle: angle, lit: index == selected, dimmed: false,
+                    hasMore: !slot.group.isEmpty || slot.action.opensChoices
                 )
+                .position(x: centre.x + radius * sin(radians), y: centre.y - radius * cos(radians))
             }
             Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit().frame(width: 16, height: 16)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(Color.wispViolet.opacity(0.75))
         }
         .frame(width: Self.side, height: Self.side)
-        .foregroundStyle(.white)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: selected)
         .contentShape(Circle())
         .onTapGesture(coordinateSpace: .local) { location in

@@ -118,8 +118,8 @@ final class RingConfigTests: XCTestCase {
     }
 
     func testSetsAndGroupsAreCapped() {
-        let many = Array(repeating: RingSlot(RingAction(.home)), count: 12)
-        XCTAssertEqual(RingSet(name: "x", slots: many).slots.count, 8)
+        let many = Array(repeating: RingSlot(RingAction(.home)), count: 16)
+        XCTAssertEqual(RingSet(name: "x", slots: many).slots.count, 12)
         let group = Array(repeating: RingAction(.zip), count: 12)
         XCTAssertEqual(RingSlot(RingAction(.zip), group: group).group.count, 9)
     }
@@ -353,6 +353,34 @@ final class RingDockTests: XCTestCase {
         XCTAssertEqual(RingAction(.link, value: "javascript:x").title, "Link")
         XCTAssertEqual(RingAction(.folder, value: "/Users/me/Downloads").title, "Downloads")
         XCTAssertEqual(RingAction(.folder, value: "/Users/me/Downloads", label: "  ").title, "Downloads")
+    }
+
+    func testEveryActionHasATileColour() {
+        for kind in RingAction.Kind.allCases {
+            let hex = RingAction(kind).tileHex
+            XCTAssertNotNil(ClipClassifier.rgb(fromHex: hex), "\(kind): \(hex)")
+        }
+        XCTAssertNotEqual(RingAction(.timer).tileHex, RingAction(.clipboard).tileHex)
+    }
+
+    func testARingHoldsTwelve() {
+        XCTAssertEqual(RingSet.maxSlots, 12)
+        let slots = (0..<14).map { _ in RingSlot(RingAction(.home)) }
+        XCTAssertEqual(RingSet(name: "Big", slots: slots).slots.count, 12)
+    }
+
+    func testTwelveIconsFitTheBandWithRoomForTheHalo() {
+        let gap = 2 * .pi * RingGeometry.ringRadius / 12 - RingGeometry.iconSize
+        XCTAssertGreaterThanOrEqual(gap, 14)
+        XCTAssertLessThan(RingGeometry.ringRadius + RingGeometry.iconSize / 2, RingGeometry.ringOuter)
+        XCTAssertGreaterThan(RingGeometry.ringRadius - RingGeometry.iconSize / 2, RingGeometry.innerRadius)
+    }
+
+    func testPointingFromTheMiddlePicksBySide() {
+        // Past the small centre pill, the direction from the middle decides.
+        let centre = CGPoint(x: 500, y: 500)
+        let right = CGPoint(x: 500 + RingGeometry.centreRadius + 6, y: 500)
+        XCTAssertEqual(RingGeometry.hit(right, centre: centre, slots: 4), .slot(1))
     }
 
     func testWidgetsWithoutANameSpellTheirIdOut() {

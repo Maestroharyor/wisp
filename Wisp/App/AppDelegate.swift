@@ -103,6 +103,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let text = note.object as? String ?? ""
                 MainActor.assumeIsolated { self?.services.ring.debugType(text) }
             }
+            // Hovers the open ring's segment numbered by the notification's object.
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.ringHover"), object: nil, queue: .main
+            ) { [weak self] note in
+                let index = (note.object as? String).flatMap(Int.init) ?? 0
+                MainActor.assumeIsolated {
+                    self?.services.ring.hovered(.slot(index), distance: RingGeometry.ringRadius)
+                }
+            }
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.cycleForm"), object: nil, queue: .main
             ) { [weak self] _ in
