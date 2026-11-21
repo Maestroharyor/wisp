@@ -41,9 +41,7 @@ struct HomePage: View {
                         .card()
                         .overlay { if model.editingHome { editOverlay(kind) } }
                         .onDrag { Self.cardDrag(kind) }
-                        .onDrop(of: [.plainText], isTargeted: nil) { providers in
-                            reorder(providers, onto: kind)
-                        }
+                        .dropDestination(for: String.self) { texts, _ in drop(texts, onto: kind) }
                     }
                 }
                 if model.editingHome { pickerRow }
@@ -98,9 +96,7 @@ struct HomePage: View {
                         .clipped()
                         .overlay { if model.editingHome { editOverlay(kind) } }
                         .onDrag { Self.cardDrag(kind) }
-                        .onDrop(of: [.plainText], isTargeted: nil) { providers in
-                            reorder(providers, onto: kind)
-                        }
+                        .dropDestination(for: String.self) { texts, _ in drop(texts, onto: kind) }
                 }
             }
             if model.editingHome {
@@ -234,21 +230,17 @@ struct HomePage: View {
         NSItemProvider(object: NSString(string: WidgetDrag.text(for: kind)))
     }
 
-    private func reorder(_ providers: [NSItemProvider], onto target: WidgetKind) -> Bool {
-        guard let provider = providers.first else { return false }
-        _ = provider.loadObject(ofClass: String.self) { raw, _ in
-            Task { @MainActor in
-                guard let raw else { return }
-                // Cards drag their widget's id behind a prefix, so a reminder titled "notes" is
-                // still a reminder; anything else dropped on the Pomodoro says what its focus
-                // session is for.
-                guard let id = WidgetDrag.id(from: raw) else {
-                    if target == .pomodoro { model.services.timers.setFocusLabel(from: raw) }
-                    return
-                }
-                preferences.homeLayout.move(id, before: target.rawValue)
-            }
+    /// Cards drag their widget's id behind a prefix, so a reminder titled "notes" is still a
+    /// reminder. Other text only lands on the Pomodoro, where it says what the session is for;
+    /// every other card turns it away.
+    private func drop(_ texts: [String], onto target: WidgetKind) -> Bool {
+        guard let raw = texts.first else { return false }
+        if let id = WidgetDrag.id(from: raw) {
+            preferences.homeLayout.move(id, before: target.rawValue)
+            return true
         }
+        guard target == .pomodoro else { return false }
+        model.services.timers.setFocusLabel(from: raw)
         return true
     }
 }
@@ -405,6 +397,14 @@ private struct SoloWidgetView: View {
         Group {
             if kind == .agents {
                 AgentsDetail(hub: model.services.agents, cloud: model.services.cloud, model: model)
+            } else if kind == .pomodoro {
+                // A reminder dragged here says what the session is for, as on the Home card.
+                WidgetCard(kind: kind, model: model)
+                    .dropDestination(for: String.self) { texts, _ in
+                        guard let raw = texts.first, WidgetDrag.id(from: raw) == nil else { return false }
+                        model.services.timers.setFocusLabel(from: raw)
+                        return true
+                    }
             } else {
                 WidgetCard(kind: kind, model: model)
             }
