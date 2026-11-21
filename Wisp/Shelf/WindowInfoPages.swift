@@ -3,71 +3,6 @@ import EventKit
 import SwiftUI
 import WispCore
 
-// MARK: Calendar
-
-/// The calendar in the window: today and the next six days, each with its events (calendar
-/// colour, time, title and Join for a call). Clicking an event opens it in Calendar.
-struct CalendarPage: View {
-    let store: CalendarStore
-
-    var body: some View {
-        Group {
-            if store.access != .fullAccess {
-                ContentUnavailableView {
-                    Label("Calendar access needed", systemImage: "calendar")
-                } description: {
-                    Text("Allow Calendar to see the coming week here.")
-                } actions: {
-                    // macOS asks only once; after a denial the switch is in System Settings.
-                    if store.access == .notDetermined {
-                        Button("Allow Calendar") { store.requestAccess() }
-                    } else {
-                        Button("Open System Settings") { Permission.calendars.openSettings() }
-                    }
-                }
-            } else if !store.loaded {
-                LoadingLabel("Loading…")
-            } else if store.weekEvents.isEmpty {
-                ContentUnavailableView(
-                    "Nothing in the next week", systemImage: "calendar",
-                    description: Text("Events from your calendars show up here."))
-            } else {
-                WindowWidgetPage(width: .readable) { _ in
-                    TimelineView(.everyMinute) { context in
-                        VStack(alignment: .leading, spacing: 22) {
-                            ForEach(CalendarDays.week(store.weekEvents, date: \.start, now: context.date), id: \.label)
-                            {
-                                day in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    WindowSectionTitle(day.label)
-                                    if day.items.isEmpty {
-                                        Text("Nothing planned")
-                                            .font(.callout).foregroundStyle(Color.secondaryText)
-                                    } else {
-                                        ForEach(day.items) { event in
-                                            DayEventRow(event: event) { store.open(event) }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Open Calendar", systemImage: "calendar") {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Calendar.app"))
-                }
-                .help("Open Calendar")
-            }
-        }
-        .onAppear { store.refreshIfStale() }
-    }
-}
-
 // MARK: Battery
 
 /// Batteries in the window: the Mac's as a large card, then each accessory as a card with
@@ -82,45 +17,80 @@ struct BatteryPage: View {
     let openSettings: () -> Void
 
     var body: some View {
-        Group {
-            if monitor.state == nil, accessories.isEmpty {
-                ContentUnavailableView {
-                    Label("No batteries", systemImage: "battery.0percent")
-                } description: {
-                    Text(
-                        showsAccessories
-                            ? "This Mac has no battery, and no accessory reports one."
-                            : "This Mac has no battery. Mice, keyboards and trackpads can show here too.")
-                } actions: {
-                    if !showsAccessories { Button("Show accessories", action: openSettings) }
-                }
-            } else {
-                WindowWidgetPage { width in
-                    VStack(alignment: .leading, spacing: 12) {
-                        if let state = monitor.state {
-                            WindowSectionTitle("This Mac")
-                            MacBatteryCard(state: state, minutes: monitor.minutesRemaining)
-                        }
-                        if !accessories.isEmpty {
-                            WindowSectionTitle("Accessories").padding(.top, 12)
-                            LazyVGrid(columns: windowGridColumns(width: width), spacing: WindowLayout.spacing) {
-                                ForEach(sortedAccessories, id: \.address) {
-                                    AccessoryBatteryCard(device: $0, lowLevel: lowLevel)
-                                }
-                            }
-                        } else if !showsAccessories {
-                            HStack(spacing: 10) {
-                                Text("Mice, keyboards and trackpads can show here too.")
-                                    .font(.body).foregroundStyle(Color.secondaryText)
-                                Button("Show accessories", action: openSettings)
-                            }
-                            .padding(.top, 12)
-                        }
+        WindowWidgetPage {
+            WindowPageHeader(
+                symbol: "battery.75percent", tint: .green, title: "Battery",
+                subtitle: "This Mac and the accessories paired with it",
+                count: monitor.state.map { "\($0.percent)%" }
+            ) {
+                Button("Battery settings", systemImage: "gearshape", action: openSettings)
+                    .labelStyle(.iconOnly)
+                    .help("Battery settings")
+            }
+        } content: { width in
+            VStack(alignment: .leading, spacing: WindowLayout.spacing) {
+                if let state = monitor.state {
+                    HStack(alignment: .top, spacing: WindowLayout.spacing) {
+                        MacBatteryCard(state: state, minutes: monitor.minutesRemaining)
+                        if width > 640 { details(state).frame(width: 300) }
+                    }
+                    if width <= 640 { details(state) }
+                } else {
+                    WindowCard(title: "This Mac", symbol: "desktopcomputer", tint: .gray) {
+                        WindowEmptyState(
+                            symbol: "powerplug", title: "No battery",
+                            message: "This Mac runs on power. Accessories with batteries show below.")
                     }
                 }
+                accessoriesCard(width: width)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func details(_ state: BatteryState) -> some View {
+        WindowCard(title: "Details", symbol: "info.circle", tint: .blue, minHeight: 150) {
+            VStack(alignment: .leading, spacing: 8) {
+                detail("Power", state.isPluggedIn ? "Power adapter" : "Battery")
+                detail("Status", BatteryText.status(state))
+                detail("Warns at", "\(lowLevel)%")
+            }
+        }
+    }
+
+    private func detail(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).foregroundStyle(Color.secondaryText)
+            Spacer()
+            Text(value).fontWeight(.medium)
+        }
+        .font(.callout)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func accessoriesCard(width: CGFloat) -> some View {
+        WindowCard(
+            title: "Accessories", symbol: "keyboard", tint: .indigo,
+            count: accessories.isEmpty ? nil : accessories.count
+        ) {
+            if !accessories.isEmpty {
+                LazyVGrid(columns: windowGridColumns(width: width - 32), spacing: 12) {
+                    ForEach(sortedAccessories, id: \.address) {
+                        AccessoryBatteryCard(device: $0, lowLevel: lowLevel)
+                    }
+                }
+            } else if !showsAccessories {
+                WindowEmptyState(
+                    symbol: "computermouse", title: "Accessories are hidden",
+                    message: "Mice, keyboards and trackpads can show their batteries here."
+                ) {
+                    WindowPrimaryButton(title: "Show accessories", symbol: "eye", action: openSettings)
+                }
+            } else {
+                WindowEmptyState(
+                    symbol: "computermouse", title: "No accessories",
+                    message: "Bluetooth mice, keyboards and trackpads that report a battery show here.")
+            }
+        }
     }
 
     private var sortedAccessories: [BluetoothDevice] {
@@ -149,8 +119,8 @@ private struct MacBatteryCard: View {
             Spacer(minLength: 0)
         }
         .padding(18)
-        .frame(maxWidth: 520, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous).fill(.ink.opacity(0.05)))
+        .frame(maxWidth: .infinity, minHeight: 150, alignment: .leading)
+        .windowCardBackground()
         .accessibilityElement(children: .combine)
     }
 }
@@ -193,7 +163,8 @@ private struct AccessoryBatteryCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous).fill(.ink.opacity(0.05)))
+        .background(
+            RoundedRectangle(cornerRadius: SurfaceRadius.row + 2, style: .continuous).fill(.primary.opacity(0.05)))
     }
 }
 
@@ -205,7 +176,11 @@ struct SystemStatsPage: View {
     let store: SystemStatsStore
 
     var body: some View {
-        WindowWidgetPage { width in
+        WindowWidgetPage {
+            WindowPageHeader(
+                symbol: "cpu", tint: .teal, title: "System Stats",
+                subtitle: "How busy this Mac is, sampled every second while you watch")
+        } content: { width in
             VStack(alignment: .leading, spacing: 12) {
                 LazyVGrid(columns: windowGridColumns(width: width, minimum: 300), spacing: WindowLayout.spacing) {
                     StatCard(
@@ -215,6 +190,7 @@ struct SystemStatsPage: View {
                         title: "Memory", symbol: "memorychip", value: store.memory.fraction,
                         history: store.memoryHistory, detail: memoryText, tint: SystemStatsWidget.ramTint, filled: true)
                 }
+                MacInfoCard(memory: store.memory)
                 Text("The charts show about the last 40 seconds.")
                     .font(.subheadline).foregroundStyle(Color.secondaryText)
             }
@@ -227,6 +203,46 @@ struct SystemStatsPage: View {
         let used = ByteCountFormatter.string(fromByteCount: Int64(store.memory.usedBytes), countStyle: .memory)
         let total = ByteCountFormatter.string(fromByteCount: Int64(store.memory.totalBytes), countStyle: .memory)
         return "\(used) of \(total)"
+    }
+}
+
+/// What the Mac is: its chip's cores, memory, macOS version, how long it's been up and how warm.
+private struct MacInfoCard: View {
+    let memory: MemoryUsage
+
+    var body: some View {
+        let info = ProcessInfo.processInfo
+        WindowCard(title: "This Mac", symbol: "laptopcomputer", tint: .gray) {
+            TimelineView(.everyMinute) { _ in
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12, alignment: .leading)], spacing: 12) {
+                    fact("Cores", "\(info.activeProcessorCount)")
+                    fact(
+                        "Memory",
+                        ByteCountFormatter.string(fromByteCount: Int64(memory.totalBytes), countStyle: .memory))
+                    fact("macOS", info.operatingSystemVersionString.replacingOccurrences(of: "Version ", with: ""))
+                    fact("Up for", AccessibilityText.duration(info.systemUptime))
+                    fact("Temperature", thermal(info.thermalState))
+                }
+            }
+        }
+    }
+
+    private func fact(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.subheadline).foregroundStyle(Color.secondaryText)
+            Text(value).font(.body.weight(.semibold)).lineLimit(1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func thermal(_ state: ProcessInfo.ThermalState) -> String {
+        switch state {
+        case .nominal: "Normal"
+        case .fair: "Warm"
+        case .serious: "Hot"
+        case .critical: "Very hot"
+        @unknown default: "Unknown"
+        }
     }
 }
 
@@ -269,7 +285,7 @@ private struct StatCard: View {
             .foregroundStyle(Color.secondaryText)
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous).fill(.ink.opacity(0.05)))
+        .windowCardBackground()
         .accessibilityElement(children: .combine)
     }
 }
@@ -282,39 +298,44 @@ struct WeatherPage: View {
     let store: WeatherStore
 
     var body: some View {
-        Group {
+        WindowWidgetPage(width: .readable) {
+            WindowPageHeader(
+                symbol: "cloud.sun.fill", tint: .cyan, title: "Weather",
+                subtitle: store.reading.map { $0.place.isEmpty ? "Where you are" : $0.place } ?? "Where you are"
+            ) {
+                Button("Refresh", systemImage: "arrow.clockwise") { store.retry() }
+                    .labelStyle(.iconOnly)
+                    .help("Refresh")
+                    .disabled(store.loading)
+            }
+        } content: { width in
             if let reading = store.reading {
-                WindowWidgetPage(width: .readable) { width in
-                    VStack(alignment: .leading, spacing: 24) {
-                        current(reading)
-                        if !reading.hours.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                WindowSectionTitle("Next hours")
-                                LazyVGrid(
-                                    columns: windowGridColumns(width: width, minimum: 100),
-                                    spacing: WindowLayout.spacing
-                                ) {
-                                    ForEach(reading.hours) { hour in hourCard(hour) }
-                                }
+                VStack(alignment: .leading, spacing: WindowLayout.spacing) {
+                    current(reading)
+                    if !reading.hours.isEmpty {
+                        WindowCard(title: "Next hours", symbol: "clock", tint: .blue) {
+                            LazyVGrid(
+                                columns: windowGridColumns(width: width - 32, minimum: 100), spacing: 12
+                            ) {
+                                ForEach(reading.hours) { hour in hourCard(hour) }
                             }
                         }
                     }
                 }
             } else {
-                if store.loading {
-                    LoadingLabel(store.status)
-                } else {
-                    ContentUnavailableView {
-                        Label("No weather yet", systemImage: "cloud.sun")
-                    } description: {
-                        Text(store.status)
-                    } actions: {
-                        if store.failed { Button("Try again") { store.retry() } }
+                WindowCard(title: "Today", symbol: "cloud.sun", tint: .cyan) {
+                    if store.loading {
+                        LoadingLabel(store.status).frame(minHeight: 200)
+                    } else {
+                        WindowEmptyState(symbol: "cloud.sun", title: "No weather yet", message: store.status) {
+                            if store.failed {
+                                WindowPrimaryButton(title: "Try again", symbol: "arrow.clockwise") { store.retry() }
+                            }
+                        }
                     }
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { store.refreshIfStale() }
     }
 
@@ -332,12 +353,12 @@ struct WeatherPage: View {
                 Text("\(Int(reading.temperature.rounded()))°")
                     .font(.system(size: 60, weight: .regular, design: .rounded))
                 Text("\(now.title) · H:\(Int(reading.high.rounded()))° L:\(Int(reading.low.rounded()))°")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.body.weight(.medium))
             }
             Spacer(minLength: 0)
         }
         .padding(20)
-        .background(RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous).fill(.ink.opacity(0.05)))
+        .windowCardBackground()
         .accessibilityElement(children: .combine)
     }
 
@@ -353,7 +374,7 @@ struct WeatherPage: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
-        .background(RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous).fill(.ink.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous).fill(.primary.opacity(0.05)))
         .accessibilityElement(children: .combine)
     }
 }

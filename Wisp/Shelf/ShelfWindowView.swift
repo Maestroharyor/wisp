@@ -152,10 +152,12 @@ private struct WindowDetail: View {
         detail(selection)
             .navigationTitle(WindowRow.title(of: selection, services: services))
             .toolbar { toolbar(selection) }
+            // Each page draws its own header, so the toolbar doesn't repeat the title.
+            .modifier(HiddenToolbarTitle())
             // The titlebar is transparent so the sidebar reaches the top edge; without a bar
             // behind the detail's toolbar, scrolled rows would show through its buttons.
             .toolbarBackground(.visible, for: .windowToolbar)
-            .modifier(HardTopScrollEdge())
+            .windowScrollEdge()
             .onChange(of: selection, initial: true) { _, row in previous = row }
             .sheet(isPresented: Bindable(navigation).customisingHome) {
                 HomeCardsSheet(preferences: model.preferences)
@@ -193,6 +195,7 @@ private struct WindowDetail: View {
                     .padding(.bottom, 12)
             }
         }
+        .background(WindowCanvas())
         .hoverHintHost()
         .environment(\.shelfHost, .window)
         .environment(\.openWindowRow, OpenWindowRow { [navigation] in navigation.select($0) })
@@ -208,14 +211,31 @@ private struct WindowDetail: View {
                 WindowWidgetDetail(kind: kind, model: model)
             }
         case .live(let live):
-            Group {
-                switch live {
-                case .regionWatch: RegionWatchDetail(watch: services.regionWatch)
-                case .downloads: DownloadsDetail(monitor: services.downloads)
-                case .external: ExternalActivityDetail(automation: services.automation)
+            WindowPageFrame {
+                WindowPageHeader(
+                    symbol: WindowRow.symbol(of: destination, services: services),
+                    tint: WindowRow.tint(of: destination),
+                    title: WindowRow.title(of: destination, services: services), subtitle: liveSubtitle(live))
+            } content: {
+                Group {
+                    switch live {
+                    case .regionWatch: RegionWatchDetail(watch: services.regionWatch)
+                    case .downloads: DownloadsDetail(monitor: services.downloads)
+                    case .external: ExternalActivityDetail(automation: services.automation)
+                    }
                 }
+                .padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .windowCardBackground()
             }
-            .padding(24)
+        }
+    }
+
+    private func liveSubtitle(_ live: WindowLive) -> String {
+        switch live {
+        case .regionWatch: "A part of a window, watched for changes while you do something else"
+        case .downloads: "Files downloading now, with how far along each one is"
+        case .external: "An activity another app or script sent to Wisp"
         }
     }
 
@@ -336,14 +356,27 @@ private enum WindowRow {
     }
 }
 
-/// On macOS 26 and later, rows scrolling under the toolbar fade out behind a hard edge rather
-/// than meeting the toolbar's buttons.
-private struct HardTopScrollEdge: ViewModifier {
+/// Keeps the window's title for the Window menu and Mission Control, but out of the toolbar.
+private struct HiddenToolbarTitle: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            content.scrollEdgeEffectStyle(.hard, for: .top)
+        if #available(macOS 15, *) {
+            content.toolbar(removing: .title)
         } else {
             content
+        }
+    }
+}
+
+/// The page area behind the cards: a light grey in Light mode so white cards stand off it, and
+/// the window's own dark background in Dark mode.
+private struct WindowCanvas: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        if scheme == .dark {
+            Color.clear
+        } else {
+            Color(white: 0.955).ignoresSafeArea()
         }
     }
 }

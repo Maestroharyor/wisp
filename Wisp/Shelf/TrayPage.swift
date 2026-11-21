@@ -12,6 +12,85 @@ struct TrayPage: View {
     private var tray: TrayStore { model.services.tray }
 
     var body: some View {
+        if host == .window {
+            windowBody
+        } else {
+            notchBody
+        }
+    }
+
+    /// In the window: a header with the tray's actions, then the files as cards, or a large
+    /// place to drop them.
+    private var windowBody: some View {
+        let list = tray.list
+        let allSelected = !list.urls.isEmpty && list.selected.count == list.urls.count
+        return WindowPageFrame {
+            WindowPageHeader(
+                symbol: "tray.fill", tint: .blue, title: "Tray",
+                subtitle: "Park files here, then AirDrop, zip or convert them in one go",
+                count: list.urls.isEmpty ? nil : tray.header
+            ) {
+                if !list.urls.isEmpty {
+                    Button(
+                        allSelected ? "Deselect all" : "Select all",
+                        systemImage: allSelected ? "checkmark.circle.fill" : "checkmark.circle"
+                    ) { tray.toggleSelectAll() }
+                    .labelStyle(.iconOnly)
+                    .help(allSelected ? "Deselect all" : "Select all")
+                    Button(list.selected.isEmpty ? "Clear tray" : "Remove selected", systemImage: "trash") {
+                        tray.removeSelectedOrAll()
+                    }
+                    .labelStyle(.iconOnly)
+                    .help(list.selected.isEmpty ? "Clear tray" : "Remove selected")
+                    Button("Zip", systemImage: "doc.zipper") { tray.zip(list.actionTargets) }
+                    Button("Transform", systemImage: "wand.and.stars") {
+                        model.services.openTransform(list.actionTargets)
+                    }
+                    WindowPrimaryButton(title: "AirDrop", symbol: AirDropGlyph.symbol) {
+                        tray.airDrop(list.actionTargets)
+                    }
+                }
+            }
+        } content: {
+            Group {
+                if list.urls.isEmpty {
+                    WindowEmptyState(
+                        symbol: "tray.and.arrow.down", title: "Drop files here",
+                        message:
+                            "Drag files from Finder or any app to keep them handy. They stay put until you clear the tray, and you can drag them out again anywhere."
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous)
+                            .fill(targeted ? Color.wispViolet.opacity(0.12) : .primary.opacity(0.03))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous)
+                            .strokeBorder(
+                                targeted ? Color.wispViolet : .primary.opacity(0.2),
+                                style: StrokeStyle(lineWidth: 1.5, dash: [7, 5])))
+                } else {
+                    ScrollView(.vertical) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 230), spacing: 12)], spacing: 12)
+                        {
+                            ForEach(list.urls, id: \.self) { url in
+                                TrayCard(url: url, tray: tray, services: model.services, metrics: .window)
+                            }
+                            DropMoreCard(active: targeted, width: nil)
+                                .frame(height: TrayCardMetrics.window.thumbnail + 56)
+                        }
+                        .padding(12)
+                    }
+                    .scrollFade()
+                    .windowCardBackground()
+                }
+            }
+            .contentShape(Rectangle())
+            .onDrop(of: [.fileURL], isTargeted: $targeted, perform: FileDrop.handler { tray.add($0) })
+        }
+    }
+
+    private var notchBody: some View {
         Group {
             if tray.list.urls.isEmpty {
                 VStack(spacing: 6) {
@@ -21,20 +100,6 @@ struct TrayPage: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(DropOutline(active: targeted, cornerRadius: ShellMetrics.widgetCornerRadius))
-            } else if host == .window {
-                VStack(alignment: .leading, spacing: 12) {
-                    header
-                    ScrollView(.vertical) {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12)], spacing: 12)
-                        {
-                            ForEach(tray.list.urls, id: \.self) { url in
-                                TrayCard(url: url, tray: tray, services: model.services, metrics: .window)
-                            }
-                            DropMoreCard(active: targeted, width: nil)
-                                .frame(height: TrayCardMetrics.window.thumbnail + 52)
-                        }
-                    }
-                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     header
@@ -48,7 +113,6 @@ struct TrayPage: View {
                 }
             }
         }
-        .modifier(WindowPageFill(host: host))
         .onDrop(of: [.fileURL], isTargeted: $targeted, perform: FileDrop.handler { tray.add($0) })
     }
 
@@ -92,24 +156,6 @@ struct TrayPage: View {
     }
 }
 
-/// In the window the page fills the detail with a margin, so the whole of it takes drops.
-/// Under the shell it keeps its own size.
-private struct WindowPageFill: ViewModifier {
-    let host: ShelfHost
-
-    func body(content: Content) -> some View {
-        switch host {
-        case .notch:
-            content
-        case .window:
-            content
-                .padding(20)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .contentShape(Rectangle())
-        }
-    }
-}
-
 /// Card sizes: small in the notch's row, larger in the window's grid.
 struct TrayCardMetrics {
     /// Nil fills the grid cell.
@@ -119,7 +165,7 @@ struct TrayCardMetrics {
     let detailSize: CGFloat
 
     static let notch = TrayCardMetrics(width: TrayPage.cardWidth, thumbnail: 50, nameSize: 10, detailSize: 9)
-    static let window = TrayCardMetrics(width: nil, thumbnail: 110, nameSize: 12, detailSize: 10)
+    static let window = TrayCardMetrics(width: nil, thumbnail: 120, nameSize: 13, detailSize: 11)
 }
 
 /// A small capsule button for the tray header: an icon, with a label when there is room for one.

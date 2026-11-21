@@ -72,6 +72,18 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         }
     }
 
+    #if DEBUG
+        /// Selects a sidebar row by its saved name ("widget:calendar"), for checking pages.
+        func debugSelect(_ raw: String) {
+            if let destination = WindowDestination(rawValue: raw) { navigation.open(destination) }
+        }
+
+        /// Resizes the window's content, for checking pages at other sizes.
+        func debugResize(_ size: CGSize) {
+            window?.setContentSize(size)
+        }
+    #endif
+
     /// "Open as Window" from the menu, on what the shelf shows.
     func openAsWindow(view: ShelfView) {
         prepare(view)
@@ -348,8 +360,9 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         host.sizingOptions = []
         host.sceneBridgingOptions = [.toolbars, .title]
         window.contentViewController = host
-        // As in Settings: the sidebar runs to the top edge under a unified toolbar.
-        window.titlebarAppearsTransparent = true
+        // The sidebar runs to the top edge under a unified toolbar. The titlebar isn't made
+        // transparent: that would drop the toolbar's scroll edge, and scrolled pages would show
+        // through its title and buttons.
         window.toolbarStyle = .unified
         window.contentMinSize = ShelfWindowFrame.minimumSize
         return window

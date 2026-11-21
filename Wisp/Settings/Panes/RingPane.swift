@@ -30,6 +30,31 @@ struct RingSettings: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Look") {
+                Picker("Glass", selection: $preferences.ringLook.glass) {
+                    ForEach(PanelGlass.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                LabeledContent("Size") {
+                    HStack {
+                        Slider(value: $preferences.ringLook.size, in: RingLook.sizeRange, step: 0.05)
+                        Text("\(Int((preferences.ringLook.size * 100).rounded()))%")
+                            .monospacedDigit().foregroundStyle(.secondary).frame(width: 44, alignment: .trailing)
+                    }
+                }
+                LabeledContent("Violet tint") {
+                    Slider(value: $preferences.ringLook.tint, in: 0...1)
+                }
+                HStack {
+                    Spacer()
+                    Button("Reset look") { preferences.ringLook = .standard }
+                        .disabled(preferences.ringLook == .standard)
+                }
+                Text(
+                    "Clear shows the most through, Frosted is easiest to read. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Apps and actions") {
                 LabeledContent("Segments") {
                     Button("Edit ring…") { editorShown = true }

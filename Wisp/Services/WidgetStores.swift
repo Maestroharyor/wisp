@@ -2,6 +2,7 @@ import CoreLocation
 import Darwin
 import EventKit
 import Foundation
+import OSLog
 import Observation
 import SwiftUI
 import WispCore
@@ -113,6 +114,9 @@ final class CalendarStore {
     /// leave its last days looking empty. Filtered when read, like `events`.
     var weekEvents: [Event] { week.filter { $0.end > .now } }
     private var week: [Event] = []
+    /// The seven days from the start of today, finished events included, for the window's
+    /// Day and Week grids.
+    private(set) var wholeWeek: [Event] = []
     /// Every timed event today, including finished ones, for the Day Progress widget.
     private(set) var dayEvents: [ClosedRange<Date>] = []
     /// Every event today with its title, finished and all-day ones included, for the window's
@@ -121,6 +125,10 @@ final class CalendarStore {
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
     /// The first read since access has landed, so an empty week isn't claimed before it has.
     private(set) var loaded = false
+    #if DEBUG
+        /// Showing made-up events (`debugFillSample`), which a refresh mustn't replace.
+        @ObservationIgnored var usesSample = false
+    #endif
 
     /// Asks for access. Queries go through `reader`, whose own store runs them off the main actor.
     @ObservationIgnored private let store = EKEventStore()
@@ -163,6 +171,9 @@ final class CalendarStore {
     }
 
     func refresh() {
+        #if DEBUG
+            if usesSample { return }
+        #endif
         access = EKEventStore.authorizationStatus(for: .event)
         dirty = false
         guard access == .fullAccess else {
@@ -171,6 +182,7 @@ final class CalendarStore {
             week = []
             dayEvents = []
             todayEvents = []
+            wholeWeek = []
             loaded = false
             lastRefresh = nil
             if hadAccess { revocations += 1 }
@@ -205,6 +217,7 @@ final class CalendarStore {
                 self.week = week.all
                 dayEvents = week.day
                 todayEvents = week.today
+                wholeWeek = week.whole
                 loaded = true
                 onWeekLoaded()
             }
@@ -244,6 +257,10 @@ final class RemindersStore {
     /// their row until a read that started after the save has them, so they don't blink out.
     @ObservationIgnored private var undoing: [String: Date?] = [:]
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
+    #if DEBUG
+        /// Showing made-up reminders (`debugFillSample`), which a refresh mustn't replace.
+        @ObservationIgnored var usesSample = false
+    #endif
 
     @ObservationIgnored private let reader = RemindersReader()
     @ObservationIgnored private var observer: NSObjectProtocol?
@@ -279,6 +296,9 @@ final class RemindersStore {
     }
 
     func refresh() {
+        #if DEBUG
+            if usesSample { return }
+        #endif
         access = EKEventStore.authorizationStatus(for: .reminder)
         dirty = false
         guard access == .fullAccess else {
@@ -469,7 +489,13 @@ private actor RemindersReader {
     private static func item(_ reminder: EKReminder) -> ReminderItem {
         ReminderItem(
             id: reminder.calendarItemIdentifier, title: reminder.title ?? "Reminder", due: due(of: reminder),
-            isCompleted: reminder.isCompleted)
+            isCompleted: reminder.isCompleted, list: reminder.calendar?.title ?? "",
+            listColor: reminder.calendar?.color.flatMap(Self.rgb))
+    }
+
+    private static func rgb(_ color: NSColor) -> RGB? {
+        guard let srgb = color.usingColorSpace(.sRGB) else { return nil }
+        return RGB(red: srgb.redComponent, green: srgb.greenComponent, blue: srgb.blueComponent)
     }
 
     /// A reminder due on a day with no time is due by the end of that day, so it isn't
@@ -493,6 +519,8 @@ private actor CalendarReader {
         let all: [CalendarStore.Event]
         let day: [ClosedRange<Date>]
         let today: [CalendarStore.Event]
+        /// The whole seven days, finished events included, for the window's hour grid.
+        let whole: [CalendarStore.Event]
     }
 
     private var store: EKEventStore?
@@ -514,7 +542,8 @@ private actor CalendarReader {
         let all = week.filter { $0.endDate > now }.map(Self.event)
         let upcoming = all.prefix(30)
         let today = week.filter { $0.startDate < tomorrow && $0.startDate <= $0.endDate }.prefix(50).map(Self.event)
-        return Week(upcoming: Array(upcoming), all: all, day: day, today: Array(today))
+        let whole = week.prefix(300).map(Self.event)
+        return Week(upcoming: Array(upcoming), all: all, day: day, today: Array(today), whole: whole)
     }
 
     private static func event(_ event: EKEvent) -> CalendarStore.Event {
@@ -699,11 +728,188 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
 @MainActor
 @Observable
 final class NotesStore {
-    var text: String {
-        didSet { UserDefaults.standard.set(text, forKey: "notesText") }
-    }
+    /// Every note. Kept on this Mac, in Application Support, and never logged.
+    private(set) var book: NoteBook
+    /// The note the widget and the window's editor show.
+    var selectedID: UUID?
+
+    @ObservationIgnored private var saveTask: Task<Void, Never>?
 
     init() {
-        text = UserDefaults.standard.string(forKey: "notesText") ?? ""
+        let read = Self.read()
+        if let read {
+            book = read
+        } else {
+            // First run of the notebook: the old single note becomes the first note.
+            book = NoteBook.migrated(fromSingle: UserDefaults.standard.string(forKey: "notesText") ?? "", at: .now)
+            saveNow()
+            UserDefaults.standard.removeObject(forKey: "notesText")
+        }
+        selectedID = book.sorted.first?.id
+    }
+
+    var selected: Note? { selectedID.flatMap(book.note) }
+
+    /// The selected note's text, for the editors. Typing with no note starts one.
+    var text: String {
+        get { selected?.body ?? "" }
+        set {
+            if let id = selectedID, book.note(id) != nil {
+                book.update(id, body: newValue, at: .now)
+            } else {
+                guard !newValue.isEmpty else { return }
+                selectedID = book.add(body: newValue, at: .now)
+            }
+            save()
+        }
+    }
+
+    @discardableResult
+    func newNote() -> UUID {
+        // An empty note already waiting is reused rather than piling up blank ones.
+        if let blank = book.notes.first(where: \.isEmpty) {
+            selectedID = blank.id
+            return blank.id
+        }
+        let id = book.add(at: .now)
+        selectedID = id
+        save()
+        return id
+    }
+
+    /// Removes a note and returns it, for Undo.
+    @discardableResult
+    func remove(_ id: UUID) -> Note? {
+        let note = book.note(id)
+        book.remove(id)
+        if selectedID == id { selectedID = book.sorted.first?.id }
+        save()
+        return note
+    }
+
+    func restore(_ note: Note) {
+        book.restore(note)
+        selectedID = note.id
+        save()
+    }
+
+    func togglePin(_ id: UUID) {
+        book.togglePin(id)
+        save()
+    }
+
+    // MARK: Saving
+
+    private static var file: URL {
+        let base =
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent(AppSupport.folderName(bundleID: Bundle.main.bundleIdentifier))
+            .appendingPathComponent("notes.json")
+    }
+
+    private static func read() -> NoteBook? {
+        guard let data = try? Data(contentsOf: file) else { return nil }
+        return try? JSONDecoder().decode(NoteBook.self, from: data)
+    }
+
+    /// Saves half a second after typing stops, so each key press isn't a write.
+    private func save() {
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.saveNow()
+        }
+    }
+
+    private func saveNow() {
+        let url = Self.file
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONEncoder().encode(book).write(to: url, options: .atomic)
+        } catch {
+            Logger(subsystem: "com.ayomideodewale.wisp", category: "Notes")
+                .error("Couldn't save notes: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
+
+#if DEBUG
+    // Made-up events and reminders, so the window's pages can be checked without Calendar or
+    // Reminders access. Never in release builds.
+    extension CalendarStore {
+        func debugFillSample() {
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: .now)
+            func at(_ day: Int, _ hour: Double) -> Date {
+                today.addingTimeInterval(Double(day) * 86_400 + hour * 3_600)
+            }
+            let samples: [(String, Int, Double, Double, Color)] = [
+                ("Morning focus", 0, 8, 8.5, .green), ("Design review", 0, 9, 10, .purple),
+                ("Lunch", 0, 13, 14, .blue), ("Gym", 0, 16, 17, .orange), ("Standup", 1, 9.5, 9.75, .purple),
+                ("Pairing", 1, 11, 12.5, .purple), ("Dentist", 2, 15, 16, .orange), ("1:1", 2, 15.5, 16.5, .blue),
+                ("Planning", 3, 10, 12, .green), ("Guitar", 4, 18, 19, .blue), ("Review", 5, 14, 15, .red),
+            ]
+            let events = samples.enumerated().map { index, sample in
+                Event(
+                    id: "sample-\(index)", eventID: "sample-\(index)", title: sample.0, start: at(sample.1, sample.2),
+                    end: at(sample.1, sample.3), isAllDay: false, color: sample.4,
+                    link: index == 1 ? URL(string: "https://example.com") : nil)
+            }
+            let allDay = Event(
+                id: "sample-day", eventID: "sample-day", title: "Holiday", start: at(2, 0), end: at(3, 0),
+                isAllDay: true, color: .teal, link: nil)
+            usesSample = true
+            access = .fullAccess
+            wholeWeek = events + [allDay]
+            week = wholeWeek
+            upcoming = wholeWeek.filter { $0.end > .now }
+            todayEvents = events.filter { calendar.isDateInToday($0.start) }
+            loaded = true
+        }
+    }
+
+    extension RemindersStore {
+        func debugFillSample() {
+            let now = Date.now
+            usesSample = true
+            access = .fullAccess
+            loaded = true
+            let work = RGB(red: 1, green: 0.55, blue: 0.2)
+            let personal = RGB(red: 0.55, green: 0.45, blue: 1)
+            items = [
+                ReminderItem(
+                    id: "r1", title: "Send invoice", due: now.addingTimeInterval(-86_400), isCompleted: false,
+                    list: "Work", listColor: work),
+                ReminderItem(
+                    id: "r2", title: "Call the bank", due: now.addingTimeInterval(3_600), isCompleted: false,
+                    list: "Personal", listColor: personal),
+                ReminderItem(
+                    id: "r3", title: "Book flights", due: now.addingTimeInterval(4 * 86_400), isCompleted: false,
+                    list: "Travel", listColor: RGB(red: 0.3, green: 0.6, blue: 1)),
+                ReminderItem(
+                    id: "r4", title: "Read 20 pages", due: nil, isCompleted: false, list: "Personal",
+                    listColor: personal),
+            ]
+        }
+    }
+#endif
+
+#if DEBUG
+    extension NotesStore {
+        /// A few made-up notes in the Dev app's notebook when it has none, for checking pages.
+        func debugFillSample() {
+            guard book.notes.isEmpty else { return }
+            for body in [
+                "Trip plan\nTwo weeks, three stops, beaches last.\n- Book flights\n- Reserve the hotel",
+                "Product ideas\nA notch timer that knows your meetings.",
+                "Reading list\nDeep Work, The Design of Everyday Things",
+            ] {
+                newNote()
+                text = body
+            }
+        }
+    }
+#endif

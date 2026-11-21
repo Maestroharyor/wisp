@@ -1355,6 +1355,22 @@ private struct SessionBar: View {
 
 /// The Agents widget opened on its own: sessions on the left; the selected one's history,
 /// tokens and a prompt draft on the right.
+/// A column of the Agents page in the window: padded, on a card. The notch keeps the bare layout.
+private struct WindowColumn: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if active {
+            content
+                .padding(12)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .windowCardBackground()
+        } else {
+            content
+        }
+    }
+}
+
 struct AgentsDetail: View {
     let hub: AgentHub
     let cloud: CloudAgentStore
@@ -1408,7 +1424,9 @@ struct AgentsDetail: View {
                     .scrollFade()
                 }
             }
-            .frame(width: 190)
+            .frame(width: host == .window ? WindowLayout.masterWidth : 190)
+            // In the window the list and the detail are cards side by side.
+            .modifier(WindowColumn(active: host == .window))
 
             if showingHistory {
                 AgentHistoryView(
@@ -1418,7 +1436,17 @@ struct AgentsDetail: View {
                 SessionDetail(
                     session: selected, hub: hub, hidden: hub.detailsHidden, draft: draft(for: selected.id),
                     note: $note, listening: listening(to: selected.id),
-                    approvals: model.services.agentHistory.approvals.filtered(session: selected.id, outcome: nil))
+                    approvals: model.services.agentHistory.approvals.filtered(session: selected.id, outcome: nil)
+                )
+                .modifier(WindowColumn(active: host == .window))
+            } else if host == .window {
+                WindowEmptyState(
+                    symbol: "sparkles", title: "No session selected",
+                    message:
+                        "Start Claude Code or Codex in a terminal. Its sessions show up on the left while they run."
+                )
+                .frame(maxHeight: .infinity)
+                .windowCardBackground()
             } else {
                 Spacer()
             }

@@ -13,33 +13,43 @@ struct WindowHome: View {
     private var services: AppServices { model.services }
     private var cards: [HomeCard] { model.preferences.windowHomeCards }
 
+    /// The content's width, for the number of card columns.
+    @State private var width: CGFloat = 0
+
     var body: some View {
-        GeometryReader { proxy in
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: WindowLayout.spacing) {
-                    WindowHero(model: model)
-                    WeekStripView(store: services.calendar, selection: $day)
-                    if cards.isEmpty {
-                        ContentUnavailableView(
-                            "No cards on Home", systemImage: "square.grid.2x2",
-                            description: Text("Choose Customise Home in the toolbar to add some."))
-                    } else {
-                        let columns = WindowLayout.dashboardColumns(width: proxy.size.width - 2 * WindowLayout.margin)
-                        LazyVGrid(
-                            columns: Array(
-                                repeating: GridItem(.flexible(), spacing: WindowLayout.spacing, alignment: .top),
-                                count: columns),
-                            alignment: .leading, spacing: WindowLayout.spacing
-                        ) {
-                            ForEach(cards) { card in
-                                cardView(card).frame(minHeight: 220, alignment: .top)
-                            }
+        // The scroll view is the page's root, so the toolbar's scroll edge sees it and keeps
+        // scrolled cards from showing under its buttons.
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: WindowLayout.spacing) {
+                WindowHero(model: model)
+                WeekStripView(store: services.calendar, selection: $day)
+                if cards.isEmpty {
+                    WindowEmptyState(
+                        symbol: "square.grid.2x2", title: "No cards on Home",
+                        message: "Choose Customise Home in the toolbar to add some."
+                    )
+                    .windowCardBackground()
+                } else {
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: WindowLayout.spacing, alignment: .top),
+                            count: WindowLayout.dashboardColumns(width: width)),
+                        alignment: .leading, spacing: WindowLayout.spacing
+                    ) {
+                        ForEach(cards) { card in
+                            cardView(card)
                         }
                     }
                 }
-                .padding(WindowLayout.margin)
+            }
+            .padding(WindowLayout.margin)
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width - 2 * WindowLayout.margin
+            } action: {
+                width = $0
             }
         }
+        .windowScrollEdge()
         .onAppear {
             services.calendar.refreshIfStale()
             services.reminders.refreshIfStale()
@@ -241,7 +251,8 @@ private struct EventsCard: View {
     var body: some View {
         WindowCard(
             title: Calendar.current.isDateInToday(day) ? "Today's events" : day.formatted(.dateTime.weekday(.wide)),
-            symbol: "calendar", tint: .red, count: store.access == .fullAccess ? events.count : nil, open: open
+            symbol: "calendar", tint: .red, count: store.access == .fullAccess ? events.count : nil, open: open,
+            minHeight: 240
         ) {
             if store.access != .fullAccess {
                 CardMessage(text: "Allow Calendar to see your events here.") {
@@ -269,7 +280,7 @@ private struct RemindersCard: View {
     var body: some View {
         WindowCard(
             title: "Reminders", symbol: "checklist", tint: .orange,
-            count: store.access == .fullAccess ? store.items.count : nil, open: open
+            count: store.access == .fullAccess ? store.items.count : nil, open: open, minHeight: 240
         ) {
             if store.access != .fullAccess {
                 CardMessage(text: "Allow Reminders to tick them off here.") {
@@ -300,7 +311,9 @@ private struct AgentsCard: View {
 
     var body: some View {
         let sessions = hub.sessions.list
-        WindowCard(title: "Agents", symbol: "sparkles", tint: .purple, count: sessions.count, open: open) {
+        WindowCard(
+            title: "Agents", symbol: "sparkles", tint: .purple, count: sessions.count, open: open, minHeight: 240
+        ) {
             if sessions.isEmpty {
                 CardMessage(text: "Claude Code and Codex sessions show up here while they run.")
             } else {
@@ -353,15 +366,36 @@ private struct NotesCard: View {
     let open: () -> Void
 
     var body: some View {
-        WindowCard(title: "Notes", symbol: "note.text", tint: .yellow, open: open) {
-            let text = store.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.isEmpty {
-                CardMessage(text: "A scratch note for anything. Open Notes to write.")
+        let notes = Array(store.book.sorted.filter { !$0.isEmpty }.prefix(4))
+        WindowCard(
+            title: "Recent notes", symbol: "note.text", tint: .yellow,
+            count: notes.isEmpty ? nil : store.book.notes.count,
+            open: open, minHeight: 240
+        ) {
+            if notes.isEmpty {
+                CardMessage(text: "Notes you write in Wisp show up here.")
             } else {
-                Text(text)
-                    .font(.body)
-                    .lineLimit(10)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(notes.enumerated()), id: \.element.id) { index, note in
+                        if index > 0 { Divider() }
+                        Button {
+                            store.selectedID = note.id
+                            open()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(note.title).font(.body.weight(.semibold)).lineLimit(1)
+                                if !note.preview.isEmpty {
+                                    Text(note.preview).font(.subheadline).foregroundStyle(Color.secondaryText)
+                                        .lineLimit(2)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
     }

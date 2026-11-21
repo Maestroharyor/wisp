@@ -4,17 +4,24 @@ import QuickLook
 import SwiftUI
 import WispCore
 
-/// Clipboard history in the window: a searchable list (pinned first, then newest) with a
-/// preview column beside it when the window is wide enough. Return copies, ⌘⌫ removes and,
-/// without the preview column, Space opens a preview. ⌘-click, ⇧-click or ⌘A pick several,
-/// which copy together as one, a line each.
+/// Clipboard history in the window: the apps clips came from down the side, filters and a
+/// search on top, and the clips as cards. Click picks one, ⌘-click picks several to copy
+/// together, a line each; double-click or Return copies, Space previews, ⌘⌫ removes.
 struct ClipboardPage: View {
     let store: ClipboardStore
     let preferences: Preferences
     let openSettings: () -> Void
 
+    /// What the chips at the top show.
+    enum Show: Hashable {
+        case all
+        case pinned
+        case kind(ClipKind)
+    }
+
     @State private var query = ""
-    @State private var kind: ClipKind?
+    @State private var show: Show = .all
+    @State private var app: String?
     @State private var selection: Set<ClipItem.ID> = []
     /// The selection in the order it was picked, so Copy together keeps that order.
     @State private var pickOrder: [ClipItem.ID] = []
@@ -22,39 +29,54 @@ struct ClipboardPage: View {
     @State private var quickLook: URL?
     @State private var previewing: ClipItem?
     @State private var copied: ClipItem.ID?
+    @State private var width: CGFloat = 0
+    @FocusState private var gridFocused: Bool
+
+    /// What the filters, the app and the search leave.
+    private var items: [ClipItem] {
+        let kind: ClipKind? = if case .kind(let kind) = show { kind } else { nil }
+        return store.history.filtered(kind: kind, query: query).filter { item in
+            (show != .pinned || item.pinned) && (app == nil || item.sourceApp == app)
+        }
+    }
 
     var body: some View {
-        let items = store.history.filtered(kind: kind, query: query)
+        let items = items
         let picked = ordered(selection, in: items)
-        let selected = picked.count == 1 ? picked.first : nil
-        GeometryReader { proxy in
-            let wide = WindowLayout.showsInspector(width: proxy.size.width)
-            if items.isEmpty {
-                emptyState.frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                HStack(spacing: 0) {
-                    list(items, wide: wide)
-                    if wide {
-                        Divider()
-                        if picked.count > 1 {
-                            ContentUnavailableView(
-                                "\(picked.count) items", systemImage: "doc.on.doc",
-                                description: Text("Press Return to copy them together, a line each.")
-                            )
-                            .frame(width: WindowLayout.inspectorWidth)
-                        } else {
-                            ClipPreview(item: selected, imageURL: selected.flatMap(store.imageURL(for:)))
-                                .frame(width: WindowLayout.inspectorWidth)
-                        }
-                    }
+        let all = store.history.items
+        WindowPageFrame {
+            WindowPageHeader(
+                symbol: "doc.on.clipboard", tint: .gray, title: "Clipboard",
+                subtitle: "Copy once, paste any time. Everything stays on this Mac.",
+                count: all.count == 1 ? "1 clip" : "\(all.count) clips"
+            ) { headerActions(picked: picked) }
+        } content: {
+            HStack(alignment: .top, spacing: WindowLayout.spacing) {
+                if WindowLayout.masterDetail(width: width), !all.isEmpty {
+                    appsColumn(all).frame(width: 230)
                 }
+                VStack(alignment: .leading, spacing: 12) {
+                    filterBar(all)
+                    searchField(count: all.count)
+                    if items.isEmpty {
+                        emptyState.frame(maxHeight: .infinity).windowCardBackground()
+                    } else {
+                        grid(items)
+                    }
+                    Label("Everything here is stored only on this Mac.", systemImage: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.secondaryText)
+                }
+            }
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width
+            } action: {
+                width = $0
             }
         }
         .onChange(of: selection) { _, picks in
-            pickOrder = PickOrder.update(pickOrder, selection: picks, listOrder: listed(items).map(\.id))
+            pickOrder = PickOrder.update(pickOrder, selection: picks, listOrder: items.map(\.id))
         }
-        .searchable(text: $query, placement: .toolbar, prompt: "Search clipboard")
-        .toolbar { toolbar(selected, picked: picked) }
         .confirmationDialog("Clear clipboard history?", isPresented: $confirmingClear) {
             Button("Clear history", role: .destructive) { store.clear() }
         } message: {
@@ -75,38 +97,164 @@ struct ClipboardPage: View {
         }
     }
 
-    private func list(_ items: [ClipItem], wide: Bool) -> some View {
-        List(selection: $selection) {
-            let pinned = items.filter(\.pinned)
-            if !pinned.isEmpty {
-                Section("Pinned") { rows(pinned) }
+    // MARK: Header and filters
+
+    @ViewBuilder private func headerActions(picked: [ClipItem]) -> some View {
+        let selected = picked.count == 1 ? picked.first : nil
+        Button(selected?.pinned == true ? "Unpin" : "Pin", systemImage: selected?.pinned == true ? "pin.slash" : "pin")
+        {
+            if let selected { store.togglePin(selected) }
+        }
+        .labelStyle(.iconOnly)
+        .disabled(selected == nil)
+        .help(selected?.pinned == true ? "Unpin" : "Pin")
+        Button("Clear history", systemImage: "trash") { confirmingClear = true }
+            .labelStyle(.iconOnly)
+            .disabled(store.history.items.allSatisfy(\.pinned))
+            .help("Clear history (keeps pinned)")
+        WindowPrimaryButton(title: picked.count > 1 ? "Copy \(picked.count) together" : "Copy", symbol: "doc.on.doc") {
+            if picked.count > 1 { copyTogether(picked) } else if let selected { copy(selected) }
+        }
+        .disabled(picked.isEmpty || (picked.count > 1 && picked.allSatisfy { $0.text == nil }))
+    }
+
+    private func filterBar(_ all: [ClipItem]) -> some View {
+        let counts = ClipCounts(all)
+        let pinned = all.filter(\.pinned).count
+        return HStack(spacing: 4) {
+            chip("All", count: counts.all, value: .all)
+            chip("Pinned", count: pinned, value: .pinned)
+            chip("Text", count: counts[.text], value: .kind(.text))
+            chip("Links", count: counts[.link], value: .kind(.link))
+            chip("Images", count: counts[.image], value: .kind(.image))
+            chip("Colours", count: counts[.color], value: .kind(.color))
+        }
+        .padding(4)
+        .background(Capsule().fill(.primary.opacity(0.08)))
+    }
+
+    private func chip(_ title: String, count: Int, value: Show) -> some View {
+        let on = show == value
+        return Button {
+            show = value
+        } label: {
+            HStack(spacing: 5) {
+                Text(title).fontWeight(on ? .semibold : .regular)
+                Text("\(count)").foregroundStyle(on ? Color.primary.opacity(0.7) : Color.secondaryText)
             }
-            let history = items.filter { !$0.pinned }
-            if pinned.isEmpty {
-                rows(history)
-            } else if !history.isEmpty {
-                Section("History") { rows(history) }
+            .font(.callout.monospacedDigit())
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(on ? Color.primary.opacity(0.12) : .clear))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(count)")
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func searchField(count: Int) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Color.secondaryText)
+            TextField(count == 1 ? "Search 1 clip" : "Search among \(count) clips", text: $query)
+                .textFieldStyle(.plain)
+            if !query.isEmpty {
+                Button("Clear search", systemImage: "xmark.circle.fill") { query = "" }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.secondaryText)
             }
         }
-        .contextMenu(forSelectionType: ClipItem.ID.self) { ids in
-            let many = ordered(ids, in: items)
-            if many.count > 1 {
-                Button("Copy together") { copyTogether(many) }
-                Divider()
-                // Pinned items stay; they're unpinned first to be removed.
-                let unpinned = many.filter { !$0.pinned }
-                Button("Remove \(unpinned.count) items", role: .destructive) { unpinned.forEach(remove) }
-                    .disabled(unpinned.isEmpty)
-            } else if let item = ids.first.flatMap(item(id:)) {
-                Button("Copy") { copy(item) }
-                Button(item.pinned ? "Unpin" : "Pin") { store.togglePin(item) }
-                Divider()
-                Button("Remove", role: .destructive) { remove(item) }
+        .font(.body)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(.primary.opacity(0.08)))
+        .frame(maxWidth: 520)
+    }
+
+    private func appsColumn(_ all: [ClipItem]) -> some View {
+        WindowCard(title: "Apps", symbol: "square.grid.2x2", tint: .indigo, fills: true) {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 2) {
+                    appRow(name: "All apps", bundleID: nil, count: all.count, selected: app == nil) { app = nil }
+                    ForEach(ClipCounts.apps(all)) { entry in
+                        appRow(
+                            name: entry.name, bundleID: entry.bundleID, count: entry.count, selected: app == entry.name
+                        ) { app = entry.name }
+                    }
+                }
             }
-        } primaryAction: { ids in
-            let many = ordered(ids, in: items)
-            if many.count > 1 { copyTogether(many) } else if let item = many.first { copy(item) }
+            .scrollFade()
         }
+    }
+
+    private func appRow(
+        name: String, bundleID: String?, count: Int, selected: Bool, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                if let icon = bundleID.flatMap(Self.icon) {
+                    Image(nsImage: icon).resizable().frame(width: 20, height: 20)
+                } else {
+                    Image(systemName: bundleID == nil && name == "All apps" ? "asterisk" : "app")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Color.wispViolet)
+                        .frame(width: 20, height: 20)
+                }
+                Text(name).font(.body).lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(count)").font(.subheadline.monospacedDigit()).foregroundStyle(Color.secondaryText)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
+                    .fill(selected ? Color.wispViolet.opacity(0.22) : .clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(name), \(count)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private static func icon(_ bundleID: String) -> NSImage? {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).map {
+            NSWorkspace.shared.icon(forFile: $0.path)
+        }
+    }
+
+    // MARK: Grid
+
+    private func grid(_ items: [ClipItem]) -> some View {
+        let picked = ordered(selection, in: items)
+        return ScrollView(.vertical) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 200, maximum: 280), spacing: 12, alignment: .top)],
+                alignment: .leading, spacing: 12
+            ) {
+                ForEach(items) { item in
+                    ClipTile(
+                        item: item, store: store, selected: selection.contains(item.id),
+                        pickNumber: picked.count > 1 ? picked.firstIndex { $0.id == item.id }.map { $0 + 1 } : nil,
+                        copied: copied == item.id
+                    )
+                    .frame(height: 230)
+                    .onTapGesture(count: 2) { copy(item) }
+                    .onTapGesture { pick(item) }
+                    .accessibilityAction { copy(item) }
+                    .accessibilityAction(named: item.pinned ? "Unpin" : "Pin") { store.togglePin(item) }
+                    .accessibilityAction(named: "Remove") { remove(item) }
+                    .contextMenu { menu(for: item, in: items) }
+                }
+            }
+            .padding(2)
+        }
+        .scrollFade()
+        .focusable()
+        .focusEffectDisabled()
+        .focused($gridFocused)
+        .onAppear { gridFocused = true }
         .onKeyPress(.return) {
             let many = ordered(selection, in: items)
             if many.count > 1 {
@@ -119,8 +267,12 @@ struct ClipboardPage: View {
             return .handled
         }
         .onKeyPress(.space) {
-            guard !wide, selection.count == 1, let item = selection.first.flatMap(item(id:)) else { return .ignored }
+            guard selection.count == 1, let item = selection.first.flatMap(item(id:)) else { return .ignored }
             if let url = store.imageURL(for: item) { quickLook = url } else { previewing = item }
+            return .handled
+        }
+        .onKeyPress(keys: [.leftArrow, .rightArrow]) { press in
+            move(by: press.key == .leftArrow ? -1 : 1, in: items)
             return .handled
         }
         .onKeyPress(keys: [.delete], phases: .down) { press in
@@ -132,75 +284,70 @@ struct ClipboardPage: View {
         }
     }
 
-    private func rows(_ items: [ClipItem]) -> some View {
-        ForEach(items) { item in
-            ClipListRow(item: item, imageURL: store.imageURL(for: item), copied: copied == item.id)
-                .tag(item.id)
+    @ViewBuilder private func menu(for item: ClipItem, in items: [ClipItem]) -> some View {
+        let many = ordered(selection, in: items)
+        if many.count > 1, selection.contains(item.id) {
+            Button("Copy \(many.count) together") { copyTogether(many) }
+            Divider()
+            // Pinned items stay; they're unpinned first to be removed.
+            let unpinned = many.filter { !$0.pinned }
+            Button("Remove \(unpinned.count) items", role: .destructive) { unpinned.forEach(remove) }
+                .disabled(unpinned.isEmpty)
+        } else {
+            Button("Copy") { copy(item) }
+            Button(item.pinned ? "Unpin" : "Pin") { store.togglePin(item) }
+            Button("Preview") {
+                if let url = store.imageURL(for: item) { quickLook = url } else { previewing = item }
+            }
+            Divider()
+            Button("Remove", role: .destructive) { remove(item) }
         }
     }
 
-    /// Why the list is empty: history off, nothing copied, or nothing matching.
+    /// A click picks one; ⌘-click adds or takes away one, to copy several together.
+    private func pick(_ item: ClipItem) {
+        gridFocused = true
+        if NSEvent.modifierFlags.contains(.command) {
+            if selection.contains(item.id) { selection.remove(item.id) } else { selection.insert(item.id) }
+        } else {
+            selection = [item.id]
+        }
+    }
+
+    private func move(by step: Int, in items: [ClipItem]) {
+        let current = items.firstIndex { selection.contains($0.id) } ?? (step > 0 ? -1 : items.count)
+        let next = min(max(current + step, 0), items.count - 1)
+        guard items.indices.contains(next) else { return }
+        selection = [items[next].id]
+    }
+
+    /// Why there are no cards: history off, nothing copied, or nothing matching.
     @ViewBuilder private var emptyState: some View {
         if !preferences.clipboardEnabled, store.history.items.isEmpty {
-            ContentUnavailableView {
-                Label("Clipboard history is off", systemImage: "doc.on.clipboard")
-            } description: {
-                Text("Turn it on to keep what you copy.")
-            } actions: {
-                Button("Clipboard settings", action: openSettings)
+            WindowEmptyState(
+                symbol: "doc.on.clipboard", title: "Clipboard history is off",
+                message: "Turn it on to keep what you copy, on this Mac only."
+            ) {
+                WindowPrimaryButton(title: "Clipboard settings", symbol: "gearshape", action: openSettings)
             }
         } else if store.history.items.isEmpty {
-            ContentUnavailableView {
-                Label("Nothing copied yet", systemImage: "doc.on.clipboard")
-            } description: {
-                Text("Text, links, images and colours you copy show up here.")
-            }
+            WindowEmptyState(
+                symbol: "doc.on.clipboard", title: "Nothing copied yet",
+                message: "Text, links, images and colours you copy show up here.")
         } else if query.isEmpty {
-            ContentUnavailableView {
-                Label("No items of this type", systemImage: "line.3.horizontal.decrease.circle")
-            } description: {
-                Text("Nothing in the history matches this filter.")
-            } actions: {
-                Button("Show all") { kind = nil }
+            WindowEmptyState(
+                symbol: "line.3.horizontal.decrease.circle", title: "Nothing here",
+                message: "No clips match this filter."
+            ) {
+                Button("Show all") {
+                    show = .all
+                    app = nil
+                }
             }
         } else {
-            ContentUnavailableView.search(text: query)
-        }
-    }
-
-    @ToolbarContentBuilder private func toolbar(_ selected: ClipItem?, picked: [ClipItem]) -> some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Menu {
-                Picker("Type", selection: $kind) {
-                    Text("All").tag(ClipKind?.none)
-                    Text("Text").tag(ClipKind?.some(.text))
-                    Text("Links").tag(ClipKind?.some(.link))
-                    Text("Images").tag(ClipKind?.some(.image))
-                    Text("Colours").tag(ClipKind?.some(.color))
-                }
-                .pickerStyle(.inline)
-            } label: {
-                Label(
-                    "Type",
-                    systemImage: kind == nil
-                        ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-            }
-            .help("Show one type")
-            Button(
-                selected?.pinned == true ? "Unpin" : "Pin", systemImage: selected?.pinned == true ? "pin.slash" : "pin"
-            ) {
-                if let selected { store.togglePin(selected) }
-            }
-            .disabled(selected == nil)
-            .help(selected?.pinned == true ? "Unpin" : "Pin")
-            Button(picked.count > 1 ? "Copy together" : "Copy", systemImage: "doc.on.doc") {
-                if picked.count > 1 { copyTogether(picked) } else if let selected { copy(selected) }
-            }
-            .disabled(picked.isEmpty || (picked.count > 1 && picked.allSatisfy { $0.text == nil }))
-            .help(picked.count > 1 ? "Copy together, a line each (images are left out)" : "Copy")
-            Button("Clear history", systemImage: "trash") { confirmingClear = true }
-                .disabled(store.history.items.allSatisfy(\.pinned))
-                .help("Clear history")
+            WindowEmptyState(
+                symbol: "magnifyingglass", title: "No results for \u{201C}\(query)\u{201D}",
+                message: "Check the spelling or try another word.")
         }
     }
 
@@ -217,14 +364,9 @@ struct ClipboardPage: View {
         }
     }
 
-    /// The items as the list shows them: pinned first.
-    private func listed(_ items: [ClipItem]) -> [ClipItem] {
-        items.filter(\.pinned) + items.filter { !$0.pinned }
-    }
-
     /// The picked items in the order they were picked.
     private func ordered(_ ids: Set<ClipItem.ID>, in items: [ClipItem]) -> [ClipItem] {
-        let shown = listed(items)
+        let shown = items
         let byID = Dictionary(shown.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return PickOrder.update(pickOrder, selection: ids, listOrder: shown.map(\.id)).compactMap { byID[$0] }
     }
@@ -237,42 +379,6 @@ struct ClipboardPage: View {
     private func remove(_ item: ClipItem) {
         selection.remove(item.id)
         store.remove(item)
-    }
-}
-
-/// One history row: the kind's icon or a thumbnail, a one-line excerpt, the source app and
-/// how long ago it was copied.
-private struct ClipListRow: View {
-    let item: ClipItem
-    let imageURL: URL?
-    let copied: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ClipThumbnail(item: item, imageURL: imageURL, size: 28)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(ClipText.excerpt(item)).font(.system(size: 13)).lineLimit(1).truncationMode(.tail)
-                HStack(spacing: 4) {
-                    if let app = item.sourceApp {
-                        Text(app)
-                        Text("·")
-                    }
-                    Text(item.date, format: .relative(presentation: .named))
-                }
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            }
-            Spacer(minLength: 4)
-            if copied {
-                Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color.wispGreen)
-                    .accessibilityLabel("Copied")
-            } else if item.pinned {
-                Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(.secondary)
-                    .accessibilityLabel("Pinned")
-            }
-        }
-        .padding(.vertical, 3)
     }
 }
 

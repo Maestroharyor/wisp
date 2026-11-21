@@ -39,28 +39,30 @@ struct ClipboardView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Picker("Show", selection: kindSelection) {
-                Text("All").tag(ClipKind?.none)
-                Text("Text").tag(ClipKind?.some(.text))
-                Text("Links").tag(ClipKind?.some(.link))
-                Text("Images").tag(ClipKind?.some(.image))
-                Text("Colors").tag(ClipKind?.some(.color))
+        let all = model.store.history.items
+        let counts = ClipCounts(all)
+        return HStack(spacing: 10) {
+            HStack(spacing: 2) {
+                chip("All", count: counts.all, kind: nil)
+                chip("Text", count: counts[.text], kind: .text)
+                chip("Links", count: counts[.link], kind: .link)
+                chip("Images", count: counts[.image], kind: .image)
+                chip("Colours", count: counts[.color], kind: .color)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
+            .padding(3)
+            .background(Capsule().fill(.primary.opacity(0.08)))
+            appMenu(all)
             Spacer()
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Color.secondaryText)
-                TextField("Search", text: $model.query)
+                TextField(all.count == 1 ? "Search 1 clip" : "Search among \(all.count) clips", text: $model.query)
                     .textFieldStyle(.plain)
                     .focused($searchFocused)
-                    .frame(width: 180)
+                    .frame(width: 200)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Capsule().fill(.quaternary))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Capsule().fill(.primary.opacity(0.08)))
             Menu {
                 Button("Clear History (keeps pinned)") { model.store.clear() }
             } label: {
@@ -69,8 +71,61 @@ struct ClipboardView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .frame(width: 28)
+            .accessibilityLabel("More")
         }
         .font(.callout)
+    }
+
+    /// Narrows the cards to one app's clips.
+    private func appMenu(_ all: [ClipItem]) -> some View {
+        Menu {
+            Button("All apps") { pickApp(nil) }
+            Divider()
+            ForEach(ClipCounts.apps(all)) { entry in
+                Button("\(entry.name)  \(entry.count)") { pickApp(entry.name) }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "app.badge")
+                Text(model.app ?? "All apps").lineLimit(1)
+                Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(model.app == nil ? Color.primary.opacity(0.07) : Color.wispViolet.opacity(0.3)))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Show clips from one app")
+        .accessibilityLabel("App, \(model.app ?? "all apps")")
+    }
+
+    private func pickApp(_ app: String?) {
+        model.app = app
+        model.selectedID = model.items.first?.id
+    }
+
+    private func chip(_ title: String, count: Int, kind: ClipKind?) -> some View {
+        let on = model.kind == kind
+        return Button {
+            kindSelection.wrappedValue = kind
+        } label: {
+            HStack(spacing: 5) {
+                Text(title).fontWeight(on ? .semibold : .regular)
+                Text("\(count)").foregroundStyle(on ? Color.white.opacity(0.8) : Color.secondaryText)
+            }
+            .font(.callout.monospacedDigit())
+            .foregroundStyle(on ? Color.white : .primary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(on ? Color.wispViolet : .clear))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(count)")
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     /// Picking a kind starts on its first item.
@@ -99,11 +154,12 @@ struct ClipboardView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 12) {
                             ForEach(items) { item in
-                                ClipCard(
+                                ClipTile(
                                     item: item, store: model.store,
                                     selected: item.id == selected || model.picked.contains(item.id),
                                     pickNumber: model.pickedItems.firstIndex { $0.id == item.id }.map { $0 + 1 }
                                 )
+                                .frame(width: 210, height: 228)
                                 .id(item.id)
                                 .onTapGesture(count: 2) { paste(item) }
                                 .onTapGesture {
@@ -165,113 +221,5 @@ extension ClipboardView {
                 }
             }
         }
-    }
-}
-
-private struct ClipCard: View {
-    let item: ClipItem
-    let store: ClipboardStore
-    let selected: Bool
-    /// Its place among cards picked to paste together.
-    var pickNumber: Int?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            header
-            content.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            footer
-        }
-        .padding(12)
-        .frame(width: 200, height: 220)
-        .background(RoundedRectangle(cornerRadius: Self.radius, style: .continuous).fill(.quaternary.opacity(0.6)))
-        .overlay(
-            RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
-                .strokeBorder(selected ? Color.wispViolet : .clear, lineWidth: 2)
-        )
-        .overlay(alignment: .topTrailing) {
-            if let pickNumber {
-                Text("\(pickNumber)")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 20, height: 20)
-                    .background(Circle().fill(Color.wispViolet))
-                    .offset(x: 6, y: -6)
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
-    }
-
-    /// Concentric with the panel around the row of cards.
-    private static let radius = SurfaceRadius.concentric(outer: SurfaceRadius.largePanel, padding: 16)
-
-    private var header: some View {
-        HStack(spacing: 6) {
-            if let icon = appIcon {
-                Image(nsImage: icon).resizable().frame(width: 16, height: 16)
-            }
-            Text(item.sourceApp ?? "Unknown").font(.subheadline.weight(.semibold)).lineLimit(1)
-            Spacer()
-            if item.pinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(.wispAmber) }
-            TimelineView(.everyMinute) { context in
-                Text(RelativeAge.short(from: item.date, to: context.date))
-                    .font(.caption).foregroundStyle(Color.secondaryText)
-            }
-        }
-    }
-
-    @ViewBuilder private var content: some View {
-        switch item.kind {
-        case .text:
-            Text(item.text ?? "").font(.callout).lineLimit(9)
-        case .link:
-            VStack(alignment: .leading, spacing: 6) {
-                Image(systemName: "link").font(.title).foregroundStyle(Color.wispViolet)
-                Text(URL(string: item.text ?? "")?.host() ?? item.text ?? "")
-                    .font(.body.weight(.semibold)).lineLimit(1)
-                Text(item.text ?? "").font(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(4)
-            }
-        case .image:
-            if let url = store.imageURL(for: item) {
-                StoredClipImage(url: url, maxPixels: 640, mode: .fit) { Color.clear }
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        case .color:
-            let rgb = ClipClassifier.rgb(fromHex: item.text ?? "")
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(
-                    Color(
-                        red: Double(rgb?.red ?? 0) / 255, green: Double(rgb?.green ?? 0) / 255,
-                        blue: Double(rgb?.blue ?? 0) / 255)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.15)))
-        }
-    }
-
-    private var footer: some View {
-        Text(footerText)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(Color.secondaryText)
-            .lineLimit(1)
-    }
-
-    private var footerText: String {
-        switch item.kind {
-        case .text: return "\(item.text?.count ?? 0) characters"
-        case .link: return "Link"
-        case .image:
-            guard let size = item.imagePixelSize else { return "Image" }
-            return "\(Int(size.width)) × \(Int(size.height))"
-        case .color:
-            guard let rgb = ClipClassifier.rgb(fromHex: item.text ?? "") else { return item.text ?? "" }
-            return "\(item.text ?? "")  ·  RGB \(rgb.red) \(rgb.green) \(rgb.blue)"
-        }
-    }
-
-    private var appIcon: NSImage? {
-        guard let id = item.sourceBundleID, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
-        else { return nil }
-        return NSWorkspace.shared.icon(forFile: url.path)
     }
 }

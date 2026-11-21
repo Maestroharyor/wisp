@@ -91,8 +91,11 @@ enum NotchMenu {
             entry.state = form == current ? .on : .off
             submenu.addItem(entry)
         }
-        submenu.addItem(.separator())
-        submenu.addItem(item("Open as Window", symbol: "macwindow.on.rectangle", action: openAsWindow))
+        // With the Window form on, the shelf already opens as a window; a one-off would be the same.
+        if current != .window || moveBack != nil { submenu.addItem(.separator()) }
+        if current != .window {
+            submenu.addItem(item("Open as Window", symbol: "macwindow.on.rectangle", action: openAsWindow))
+        }
         if let moveBack {
             submenu.addItem(item(moveBack.title, symbol: "arrow.uturn.backward", action: moveBack.action))
         }

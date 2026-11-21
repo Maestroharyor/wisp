@@ -525,69 +525,86 @@ struct MediaPage: View {
     }
 }
 
-/// The Media page in the window: large artwork with the controls under it and lyrics beside it.
-/// The Now Playing row shows it too.
+/// The Media page in the window: the player on a card (artwork, title, progress, controls and
+/// Up Next) beside a card of lyrics. The Now Playing row shows it too.
 struct WindowMediaPage: View {
     let model: NotchModel
     @State private var showsAppVolume = false
 
     var body: some View {
         let monitor = model.services.nowPlaying
-        GeometryReader { proxy in
-            // Room under the artwork for the title and controls, and Up Next when Music plays.
-            let below: CGFloat = model.preferences.upNext && UpNext.applies(to: monitor.info) ? 300 : 190
-            let art = min(max(min(proxy.size.height - below, proxy.size.width * 0.45), 160), 340)
-            HStack(alignment: .center, spacing: 36) {
-                VStack(alignment: .leading, spacing: 14) {
-                    ArtworkView(image: monitor.artwork, size: art, radius: 16)
-                        .shadow(color: .black.opacity(0.2), radius: 12, y: 6)
-                        .onTapGesture { monitor.openPlayer() }
-                        .accessibilityLabel("Open the player")
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { monitor.openPlayer() }
-                    if let info = monitor.info {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(info.title).font(.system(size: 20, weight: .semibold)).lineLimit(2)
-                            Text(info.artist.isEmpty ? (info.appName ?? "") : info.artist)
-                                .font(.system(size: 14)).foregroundStyle(Color.secondaryText).lineLimit(1)
+        WindowPageFrame {
+            WindowPageHeader(
+                symbol: "music.note", tint: .pink, title: "Now Playing",
+                subtitle: monitor.info.flatMap(\.appName).map { "Playing in \($0)" }
+                    ?? "Whatever plays in any app or browser"
+            ) {
+                if model.preferences.appVolume {
+                    Button("App volume", systemImage: "slider.horizontal.3") { showsAppVolume.toggle() }
+                        .labelStyle(.iconOnly)
+                        .help("App volume")
+                        .popover(isPresented: $showsAppVolume, arrowEdge: .bottom) {
+                            AppVolumeMixer(store: model.services.appVolume).padding(14).frame(width: 340, height: 240)
                         }
-                        NowPlayingProgress(monitor: monitor, info: info)
-                        HStack(spacing: 12) {
-                            NowPlayingTransport(monitor: monitor, info: info)
-                            ShelfButton(symbol: "pip", size: 12, hint: "Mini player") {
-                                model.services.miniPlayer.toggle()
-                            }
-                            appVolumeButton
-                        }
-                        if model.preferences.upNext {
-                            UpNextList(monitor: monitor, store: model.services.upNext)
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Nothing playing").font(.system(size: 20, weight: .semibold))
-                            Text("Play something in any app or browser")
-                                .font(.body).foregroundStyle(Color.secondaryText)
-                        }
-                        appVolumeButton
-                    }
                 }
-                .frame(width: art)
-                if model.preferences.lyrics, monitor.info != nil {
-                    LyricLines(monitor: monitor, lyrics: model.services.lyrics, size: 24)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                }
+                Button("Mini player", systemImage: "pip") { model.services.miniPlayer.toggle() }
+                    .help("Mini player")
             }
-            .padding(32)
-            .frame(width: proxy.size.width, height: proxy.size.height)
+        } content: {
+            HStack(alignment: .top, spacing: WindowLayout.spacing) {
+                player(monitor)
+                    .frame(width: 360)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .padding(20)
+                    .windowCardBackground()
+                lyrics(monitor)
+            }
         }
     }
 
-    @ViewBuilder private var appVolumeButton: some View {
-        if model.preferences.appVolume {
-            ShelfButton(symbol: "slider.horizontal.3", size: 12, hint: "App volume") { showsAppVolume.toggle() }
-                .popover(isPresented: $showsAppVolume, arrowEdge: .bottom) {
-                    AppVolumeMixer(store: model.services.appVolume).padding(14).frame(width: 340, height: 240)
+    @ViewBuilder private func player(_ monitor: NowPlayingMonitor) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ArtworkView(image: monitor.artwork, size: 320, radius: 16)
+                .shadow(color: .black.opacity(0.2), radius: 12, y: 6)
+                .onTapGesture { monitor.openPlayer() }
+                .accessibilityLabel("Open the player")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { monitor.openPlayer() }
+            if let info = monitor.info {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(info.title).font(.title2.weight(.semibold)).lineLimit(2)
+                    Text(info.artist.isEmpty ? (info.appName ?? "") : info.artist)
+                        .font(.body).foregroundStyle(Color.secondaryText).lineLimit(1)
                 }
+                NowPlayingProgress(monitor: monitor, info: info)
+                NowPlayingTransport(monitor: monitor, info: info)
+                    .frame(maxWidth: .infinity)
+                if model.preferences.upNext {
+                    UpNextList(monitor: monitor, store: model.services.upNext)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Nothing playing").font(.title2.weight(.semibold))
+                    Text("Play something in Music, Spotify or a browser and it shows here.")
+                        .font(.body).foregroundStyle(Color.secondaryText)
+                }
+            }
+        }
+    }
+
+    private func lyrics(_ monitor: NowPlayingMonitor) -> some View {
+        WindowCard(title: "Lyrics", symbol: "quote.bubble", tint: .pink, fills: true) {
+            if !model.preferences.lyrics {
+                WindowEmptyState(
+                    symbol: "quote.bubble", title: "Lyrics are off",
+                    message: "Turn on lyrics in Settings to follow along. They come from LRCLIB.")
+            } else if monitor.info == nil {
+                WindowEmptyState(
+                    symbol: "music.note", title: "Nothing playing", message: "Lyrics show here while a song plays.")
+            } else {
+                LyricLines(monitor: monitor, lyrics: model.services.lyrics, size: 24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            }
         }
     }
 }
