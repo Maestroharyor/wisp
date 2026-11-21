@@ -1950,7 +1950,7 @@ final class AgentHub {
             // The first backup keeps the user's file from before Wisp; later ones would replace it
             // with a copy that already has Wisp's hooks, so `write` keeps those separately.
             if !latest.isEmpty, link == .none {
-                try latest.write(to: url.appendingPathExtension("wisp-backup"), options: .atomic)
+                try SettingsFileWriter.saveBackup(latest, of: url)
             }
         } catch {
             alert("Couldn't write \(path)", detail: error.localizedDescription)
