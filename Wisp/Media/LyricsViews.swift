@@ -148,23 +148,113 @@ private struct BreakDots: View {
     }
 }
 
-/// The lyrics card's content: the scrolling song once it's found, or why there's nothing.
+/// The lyrics card's content: the song's lyrics, a YouTube video's own captions, live captions
+/// made from the playing sound, or why there's nothing, in that order (`CaptionSource`).
 struct LyricsPanel: View {
-    let monitor: NowPlayingMonitor
-    let lyrics: LyricsStore
+    let services: AppServices
+
+    private var monitor: NowPlayingMonitor { services.nowPlaying }
+    private var preferences: Preferences { services.preferences }
+
+    private var source: CaptionSource {
+        CaptionSource.choose(
+            hasLyrics: preferences.lyrics && services.lyrics.lyrics != nil,
+            youTube: services.youTubeCaptions.state,
+            live: LiveCaptions.status(enabled: preferences.liveCaptions))
+    }
 
     var body: some View {
+        let source = source
         Group {
-            if let found = lyrics.lyrics {
-                LyricsScroller(monitor: monitor, lyrics: found)
-            } else {
+            switch source {
+            case .lyrics:
+                if let found = services.lyrics.lyrics { LyricsScroller(monitor: monitor, lyrics: found) }
+            case .youTube:
+                if let captions = services.youTubeCaptions.captions {
+                    VStack(alignment: .leading, spacing: 6) {
+                        SourceLabel(text: "Captions from YouTube", symbol: "captions.bubble")
+                        LyricsScroller(monitor: monitor, lyrics: captions)
+                    }
+                }
+            case .live:
+                LiveCaptionLines(captions: services.liveCaptions)
+            case .waiting:
+                LoadingLabel(services.lyrics.loading ? "Finding lyrics…" : "Finding captions…")
+            case .needsPermission:
                 WindowEmptyState(
-                    symbol: "quote.bubble", title: lyrics.loading ? "Finding lyrics…" : "No lyrics for this song",
-                    message: lyrics.loading ? "Looking it up on LRCLIB." : "LRCLIB doesn't have this one.")
+                    symbol: "captions.bubble", title: "Live captions need two permissions",
+                    message: "Allow Speech Recognition and System Audio Recording, then captions follow what's playing."
+                ) {
+                    WindowPrimaryButton(title: "Open Settings", symbol: "gearshape") {
+                        services.showSettings(pane: .activities)
+                    }
+                }
+            case .nothing:
+                WindowEmptyState(
+                    symbol: "quote.bubble",
+                    title: services.lyrics.loading ? "Finding lyrics…" : "No lyrics for this one",
+                    message: services.lyrics.loading
+                        ? "Looking it up on LRCLIB."
+                        : "Turn on YouTube captions or live captions in Settings › Live Activities to read along with videos too."
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .task(id: monitor.info?.trackID) { await lyrics.load(for: monitor.info) }
+        .task(id: "\(monitor.info?.trackID ?? "")|\(preferences.youTubeCaptions)") {
+            await services.lyrics.load(for: monitor.info)
+            let wantsCaptions = !(preferences.lyrics && services.lyrics.lyrics != nil)
+            await services.youTubeCaptions.load(
+                for: monitor.info, enabled: preferences.youTubeCaptions && wantsCaptions)
+        }
+        // Listens only while live captions are what's shown and the app is playing.
+        .task(id: "\(source == .live)|\(monitor.info?.isPlaying ?? false)|\(monitor.info?.appBundleID ?? "")") {
+            if source == .live, monitor.info?.isPlaying == true, let app = monitor.info?.appBundleID {
+                services.liveCaptions.start(app: app)
+            } else {
+                services.liveCaptions.stop()
+            }
+        }
+        .onDisappear { services.liveCaptions.stop() }
+    }
+}
+
+/// Where the words come from, above them.
+private struct SourceLabel: View {
+    let text: String
+    let symbol: String
+
+    var body: some View {
+        Label(text, systemImage: symbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.secondaryText)
+    }
+}
+
+/// Live captions as they're heard: the last three lines, the newest brightest.
+private struct LiveCaptionLines: View {
+    let captions: LiveCaptions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SourceLabel(text: "Live captions, made on this Mac", symbol: "waveform")
+            Spacer(minLength: 0)
+            if captions.lines.isEmpty {
+                Text(captions.listening ? "Listening…" : "Waiting for sound…")
+                    .font(.title2.bold())
+                    .foregroundStyle(Color.secondaryText)
+            } else {
+                ForEach(Array(captions.lines.enumerated()), id: \.offset) { index, line in
+                    Text(line)
+                        .font(.title.bold())
+                        .opacity(index == captions.lines.count - 1 ? 1 : 0.5)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .animation(reduceMotion ? nil : .wispSmooth, value: captions.lines)
+        .accessibilityElement(children: .combine)
     }
 }
 

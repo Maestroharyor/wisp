@@ -117,6 +117,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .activities:
             [
+                "captions", "subtitles", "youtube captions", "live captions", "transcribe", "read along",
                 "volume", "brightness", "battery", "hud", "overlay", "media", "music", "pointer", "display", "focus",
                 "lyrics", "lrclib", "album art", "artwork", "itunes", "lock screen", "meeting", "call", "microphone",
                 "recording",

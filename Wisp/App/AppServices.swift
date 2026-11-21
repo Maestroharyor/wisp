@@ -27,6 +27,8 @@ final class AppServices {
     let systemHUD: SystemHUD
     let notifications: NotificationMonitor
     let lyrics: LyricsStore
+    let youTubeCaptions = YouTubeCaptions()
+    let liveCaptions = LiveCaptions()
     let upNext: UpNextStore
     let appVolume: AppVolumeStore
     let microphone = MicrophoneMonitor()

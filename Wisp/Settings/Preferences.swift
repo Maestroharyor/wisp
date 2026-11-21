@@ -306,6 +306,8 @@ final class Preferences {
         static let ollamaModel = "ollamaModel"
         static let aiTranslateLanguage = "aiTranslateLanguage"
         static let lyrics = "lyrics"
+        static let youTubeCaptions = "youTubeCaptions"
+        static let liveCaptions = "liveCaptions"
         static let artworkLookup = "artworkLookup"
         static let meetingActivity = "meetingActivity"
         static let meetingControls = "meetingControls"
@@ -952,6 +954,12 @@ final class Preferences {
     var cloudChecks: Bool { didSet { defaults.set(cloudChecks, forKey: Key.cloudChecks) } }
     /// Fetch lyrics from LRCLIB for the playing song (sends title, artist and length).
     var lyrics: Bool { didSet { defaults.set(lyrics, forKey: Key.lyrics) } }
+    /// A YouTube video's own captions when it plays in Safari or a Chromium browser (reads the
+    /// tab's address through Automation and sends the video ID to YouTube).
+    var youTubeCaptions: Bool { didSet { defaults.set(youTubeCaptions, forKey: Key.youTubeCaptions) } }
+    /// Captions made on this Mac from the playing app's sound, when there are no lyrics or
+    /// YouTube captions.
+    var liveCaptions: Bool { didSet { defaults.set(liveCaptions, forKey: Key.liveCaptions) } }
     /// Look up album art on iTunes when the player gives none (sends title and artist).
     var artworkLookup: Bool { didSet { defaults.set(artworkLookup, forKey: Key.artworkLookup) } }
     /// The meeting pill while the microphone is in use, and the Join card before calls.
@@ -1383,6 +1391,8 @@ final class Preferences {
         ollamaModel = defaults.string(forKey: Key.ollamaModel) ?? ""
         aiTranslateLanguage = defaults.string(forKey: Key.aiTranslateLanguage) ?? ""
         lyrics = defaults.bool(forKey: Key.lyrics)
+        youTubeCaptions = defaults.bool(forKey: Key.youTubeCaptions)
+        liveCaptions = defaults.bool(forKey: Key.liveCaptions)
         artworkLookup = defaults.bool(forKey: Key.artworkLookup)
         meetingActivity = defaults.bool(forKey: Key.meetingActivity)
         meetingControls = defaults.bool(forKey: Key.meetingControls)

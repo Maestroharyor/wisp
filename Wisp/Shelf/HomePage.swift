@@ -594,15 +594,11 @@ struct WindowMediaPage: View {
 
     private func lyrics(_ monitor: NowPlayingMonitor) -> some View {
         WindowCard(title: "Lyrics", symbol: "quote.bubble", tint: .pink, fills: true) {
-            if !model.preferences.lyrics {
-                WindowEmptyState(
-                    symbol: "quote.bubble", title: "Lyrics are off",
-                    message: "Turn on lyrics in Settings to follow along. They come from LRCLIB.")
-            } else if monitor.info == nil {
+            if monitor.info == nil {
                 WindowEmptyState(
                     symbol: "music.note", title: "Nothing playing", message: "Lyrics show here while a song plays.")
             } else {
-                LyricsPanel(monitor: monitor, lyrics: model.services.lyrics)
+                LyricsPanel(services: model.services)
             }
         }
     }
