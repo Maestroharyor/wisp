@@ -25,7 +25,7 @@ final class TimerStore {
     private(set) var focusLabel: String?
     /// Today's finished focus sessions, kept across relaunches.
     private(set) var log: PomodoroLog {
-        didSet { if let data = try? JSONEncoder().encode(log) { defaults.set(data, forKey: Self.logKey) } }
+        didSet { save(log) }
     }
     var focusMinutes: Int {
         didSet { if !pomodoro.hasStarted, phase == .focus { pomodoro = Countdown(duration: minutes(focusMinutes)) } }
@@ -51,8 +51,14 @@ final class TimerStore {
         log =
             defaults.data(forKey: Self.logKey).flatMap { try? JSONDecoder().decode(PomodoroLog.self, from: $0) }
             ?? PomodoroLog()
-        // What earlier days' sessions were for isn't kept past their day.
+        // What earlier days' sessions were for isn't kept past their day. `didSet` doesn't run
+        // in `init`, so the trimmed log is saved here.
         log.dropOldDays(now: .now)
+        save(log)
+    }
+
+    private func save(_ log: PomodoroLog) {
+        if let data = try? JSONEncoder().encode(log) { defaults.set(data, forKey: Self.logKey) }
     }
 
     // MARK: Timer

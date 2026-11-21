@@ -512,7 +512,7 @@ struct PomodoroPage: View {
             _ = provider.loadObject(ofClass: String.self) { text, _ in
                 Task { @MainActor in
                     // Home cards dragged from the shelf carry their widget id; that isn't a label.
-                    if let text, !text.hasPrefix("wisp-widget:") { store.setFocusLabel(from: text) }
+                    if let text, WidgetDrag.id(from: text) == nil { store.setFocusLabel(from: text) }
                 }
             }
             return true
@@ -530,6 +530,12 @@ struct PomodoroPage: View {
                     now: context.date, animated: !reduceMotion)
             }
             .frame(width: 260, height: 260)
+            if let label = store.focusLabel {
+                Button("Clear “\(label)”", systemImage: "xmark.circle.fill", action: store.clearFocusLabel)
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help("Stop saying what this session is for")
+            }
             HStack(spacing: 8) {
                 ForEach(Self.presets, id: \.0) { focus, rest in
                     LengthChip(

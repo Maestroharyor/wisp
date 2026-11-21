@@ -24,8 +24,7 @@ struct WindowWidgetDetail: View {
         case .pomodoro: PomodoroPage(store: services.timers, preferences: services.preferences)
         case .nowPlaying: WindowMediaPage(model: model)
         case .calendar: CalendarPage(store: services.calendar)
-        case .reminders:
-            WindowWidgetPage(width: .readable) { _ in RemindersWidget(store: services.reminders) }
+        case .reminders: RemindersPage(store: services.reminders)
         case .timer: TimerPage(store: services.timers)
         case .battery:
             BatteryPage(
@@ -65,6 +64,40 @@ extension AppServices {
 
 /// The scaffold for a widget page in the window: content from the top leading corner inside
 /// the page margins, scrolling when it runs long. `content` gets the width it has to lay out in.
+/// Reminders in the window: the open ones as a plain list, without the shelf card's header and
+/// fade, which a page that scrolls doesn't need. Rows tick off, undo and drag as on the card.
+struct RemindersPage: View {
+    let store: RemindersStore
+
+    var body: some View {
+        Group {
+            if store.access != .fullAccess {
+                ContentUnavailableView {
+                    Label("Reminders", systemImage: "checklist")
+                } description: {
+                    Text("See your open reminders here and tick them off.")
+                } actions: {
+                    Button("Allow Reminders Access") { store.requestAccess() }
+                }
+            } else if store.items.isEmpty {
+                ContentUnavailableView(
+                    store.failed ? "Couldn't read Reminders" : store.loaded ? "All done" : "Loading…",
+                    systemImage: "checklist")
+            } else {
+                List(store.items) { item in
+                    ReminderRow(item: item, done: store.justDone.contains(item.id), store: store)
+                        .padding(.vertical, 2)
+                }
+                .listStyle(.inset)
+            }
+        }
+        .toolbar {
+            Button("Open Reminders", systemImage: "arrow.up.forward.app", action: store.openApp)
+        }
+        .onAppear { store.refreshIfStale() }
+    }
+}
+
 struct WindowWidgetPage<Content: View>: View {
     enum Width {
         /// Uses the whole detail, for grids.
