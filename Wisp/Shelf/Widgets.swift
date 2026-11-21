@@ -266,7 +266,9 @@ struct CalendarWidget: View {
                 .font(.callout.weight(.bold))
             }
             if store.access == .fullAccess {
-                if store.events.isEmpty {
+                if !store.loaded {
+                    LoadingLabel("Loading…")
+                } else if store.events.isEmpty {
                     Text("Nothing in the next week")
                         .font(.callout).foregroundStyle(Color.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -732,7 +734,8 @@ struct SystemStatsWidget: View {
     var body: some View {
         HStack(spacing: 12) {
             gauge(
-                "CPU", symbol: "cpu", value: store.cpu, history: store.cpuHistory.values, tint: Self.cpuTint,
+                "CPU", symbol: "cpu", value: store.sampled ? store.cpu : nil, history: store.cpuHistory.values,
+                tint: Self.cpuTint,
                 filled: false
             )
             gauge(
@@ -743,20 +746,21 @@ struct SystemStatsWidget: View {
         .onDisappear { store.detach() }
     }
 
-    private func gauge(_ title: String, symbol: String, value: Double, history: [Double], tint: Color, filled: Bool)
+    /// `value` is nil until the first reading, shown as a dash.
+    private func gauge(_ title: String, symbol: String, value: Double?, history: [Double], tint: Color, filled: Bool)
         -> some View
     {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 ZStack {
-                    ProgressRing(progress: value, tint: tint, lineWidth: 4)
+                    ProgressRing(progress: value ?? 0, tint: tint, lineWidth: 4)
                     Image(systemName: symbol).font(.callout.weight(.semibold)).foregroundStyle(tint)
                 }
                 .frame(width: 34, height: 34)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(title).font(.caption.weight(.semibold)).foregroundStyle(tint)
                     HStack(alignment: .firstTextBaseline, spacing: 1) {
-                        ValueText(text: "\(LevelStep.percent(value))", size: 18)
+                        ValueText(text: value.map { "\(LevelStep.percent($0))" } ?? "–", size: 18)
                         Text("%").font(.caption.weight(.semibold)).foregroundStyle(Color.secondaryText)
                     }
                 }
@@ -850,8 +854,16 @@ struct WeatherWidget: View {
                 .padding(10)
             } else {
                 VStack(spacing: 6) {
-                    Image(systemName: "cloud.sun.fill").symbolRenderingMode(.multicolor).font(.system(size: 24))
+                    if store.loading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "cloud.sun.fill").symbolRenderingMode(.multicolor).font(.system(size: 24))
+                    }
                     Text(store.status).font(.subheadline).multilineTextAlignment(.center)
+                    if store.failed {
+                        Button("Try again") { store.retry() }
+                            .controlSize(.small)
+                    }
                 }
                 .frame(maxWidth: .infinity)
             }

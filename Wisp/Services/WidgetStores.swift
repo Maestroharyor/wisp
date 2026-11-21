@@ -15,6 +15,8 @@ final class SystemStatsStore {
     /// Recent samples for the small charts.
     private(set) var cpuHistory = SampleHistory(capacity: 40)
     private(set) var memoryHistory = SampleHistory(capacity: 40)
+    /// CPU use needs two samples a second apart; until then the gauges show placeholders.
+    private(set) var sampled = false
 
     @ObservationIgnored private var previous: CPUTicks?
     @ObservationIgnored private var task: Task<Void, Never>?
@@ -44,6 +46,7 @@ final class SystemStatsStore {
             if let previous {
                 cpu = CPUTicks.usage(from: previous, to: ticks)
                 cpuHistory.append(cpu)
+                sampled = true
             }
             previous = ticks
         }
@@ -116,6 +119,8 @@ final class CalendarStore {
     /// Day Progress page.
     private(set) var todayEvents: [Event] = []
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
+    /// The first read since access has landed, so an empty week isn't claimed before it has.
+    private(set) var loaded = false
 
     /// Asks for access. Queries go through `reader`, whose own store runs them off the main actor.
     @ObservationIgnored private let store = EKEventStore()
@@ -166,6 +171,7 @@ final class CalendarStore {
             week = []
             dayEvents = []
             todayEvents = []
+            loaded = false
             lastRefresh = nil
             if hadAccess { revocations += 1 }
             hadAccess = false
@@ -199,6 +205,7 @@ final class CalendarStore {
                 self.week = week.all
                 dayEvents = week.day
                 todayEvents = week.today
+                loaded = true
                 onWeekLoaded()
             }
             if refetch {
@@ -546,6 +553,10 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
 
     private(set) var reading: Reading?
     private(set) var status = "Allow location to show weather"
+    /// Fetching for the first time, so the card says so instead of asking for location.
+    private(set) var loading = false
+    /// The last try failed, so the card offers Try again.
+    private(set) var failed = false
 
     @ObservationIgnored private let manager = CLLocationManager()
     @ObservationIgnored private var lastFetch: Date?
@@ -562,8 +573,21 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
         switch manager.authorizationStatus {
         case .notDetermined: manager.requestWhenInUseAuthorization()
         case .denied, .restricted: status = "Location access is off"
-        default: manager.requestLocation()
+        default: requestLocation()
         }
+    }
+
+    /// Asks again now, after a failure.
+    func retry() {
+        lastFetch = nil
+        refreshIfStale()
+    }
+
+    private func requestLocation() {
+        loading = true
+        failed = false
+        status = "Getting weather…"
+        manager.requestLocation()
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -573,7 +597,7 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
 
     private func authorizationChanged() {
         let status = manager.authorizationStatus
-        if status == .authorized || status == .authorizedAlways { manager.requestLocation() }
+        if status == .authorized || status == .authorizedAlways { requestLocation() }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -585,7 +609,7 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
-        MainActor.assumeIsolated { status = "Location unavailable" }
+        MainActor.assumeIsolated { fail("Couldn't find your location") }
     }
 
     private struct Response: Decodable {
@@ -626,7 +650,10 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
             URLQueryItem(name: "forecast_days", value: "1"),
             URLQueryItem(name: "timezone", value: "auto"),
         ]
-        guard let url = components?.url else { return }
+        guard let url = components?.url else {
+            fail("Couldn't get the weather")
+            return
+        }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let response = try JSONDecoder().decode(Response.self, from: data)
@@ -654,9 +681,17 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
                 place: place ?? ""
             )
             lastFetch = .now
+            loading = false
+            failed = false
         } catch {
-            status = "Weather unavailable"
+            fail("Couldn't get the weather")
         }
+    }
+
+    private func fail(_ text: String) {
+        loading = false
+        failed = true
+        status = text
     }
 }
 

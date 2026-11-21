@@ -25,6 +25,8 @@ struct CalendarPage: View {
                         Button("Open System Settings") { Permission.calendars.openSettings() }
                     }
                 }
+            } else if !store.loaded {
+                LoadingLabel("Loading…")
             } else if store.weekEvents.isEmpty {
                 ContentUnavailableView(
                     "Nothing in the next week", systemImage: "calendar",
@@ -207,7 +209,7 @@ struct SystemStatsPage: View {
             VStack(alignment: .leading, spacing: 12) {
                 LazyVGrid(columns: windowGridColumns(width: width, minimum: 300), spacing: WindowLayout.spacing) {
                     StatCard(
-                        title: "CPU", symbol: "cpu", value: store.cpu, history: store.cpuHistory,
+                        title: "CPU", symbol: "cpu", value: store.sampled ? store.cpu : nil, history: store.cpuHistory,
                         detail: nil, tint: SystemStatsWidget.cpuTint, filled: false)
                     StatCard(
                         title: "Memory", symbol: "memorychip", value: store.memory.fraction,
@@ -231,7 +233,8 @@ struct SystemStatsPage: View {
 private struct StatCard: View {
     let title: String
     let symbol: String
-    let value: Double
+    /// Nil until the first reading, shown as a dash.
+    let value: Double?
     let history: SampleHistory
     let detail: String?
     let tint: Color
@@ -249,7 +252,7 @@ private struct StatCard: View {
                 .font(.body.weight(.semibold))
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 1) {
-                    ValueText(text: "\(LevelStep.percent(value))", size: 30)
+                    ValueText(text: value.map { "\(LevelStep.percent($0))" } ?? "–", size: 30)
                     Text("%").font(.body.weight(.semibold)).foregroundStyle(Color.secondaryText)
                 }
             }
@@ -298,10 +301,16 @@ struct WeatherPage: View {
                     }
                 }
             } else {
-                ContentUnavailableView {
-                    Label("No weather yet", systemImage: "cloud.sun")
-                } description: {
-                    Text(store.status)
+                if store.loading {
+                    LoadingLabel(store.status)
+                } else {
+                    ContentUnavailableView {
+                        Label("No weather yet", systemImage: "cloud.sun")
+                    } description: {
+                        Text(store.status)
+                    } actions: {
+                        if store.failed { Button("Try again") { store.retry() } }
+                    }
                 }
             }
         }
