@@ -122,12 +122,12 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "dnd", "workday", "focus button runs this shortcut", "focus button", "do not disturb toggle runs",
                 "clipboard history", "history", "copy", "paste", "limit", "keep up to", "pinned", "clear history",
                 "reminders", "to do", "todo", "excluded apps", "never keep copies", "password manager",
-                "copy together", "paste together",
+                "copy together", "paste together", "keychain", "1password",
                 "concealed", "passwords", "ocr", "text from image", "working hours", "time zone",
                 "profiles", "profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus",
                 "save current setup", "switch profiles automatically", "switch automatically", "opens on",
                 "profile look", "look for", "keep the current look", "quick add", "quick input", "reminder",
-                "reminders", "event", "natural language",
+                "event", "natural language",
             ]
         case .notifications:
             [
