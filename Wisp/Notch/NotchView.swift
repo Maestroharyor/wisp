@@ -257,7 +257,18 @@ private struct SurfaceView: View {
     @ViewBuilder private var content: some View {
         switch model.spec {
         case .closed, .peek:
-            Color.clear
+            // The orb's face speaks for itself; the notch and islands get an element here.
+            if model.isOrb {
+                Color.clear
+            } else {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .accessibilityElement()
+                    .accessibilityLabel("Wisp")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Opens the shelf")
+                    .accessibilityAction { model.onAccessibilityOpen() }
+            }
         case .compact:
             if let activity = model.activity {
                 Group {
@@ -267,12 +278,14 @@ private struct SurfaceView: View {
                         CompactActivityView(activity: activity, model: model)
                     }
                 }
+                .modifier(PillAccessibility(activity: activity, model: model))
                 .id(activity.kindKey)
                 .transition(pillReveal)
             }
         case .medium:
             if let activity = model.activity {
                 MediumActivityView(activity: activity, model: model)
+                    .modifier(PillAccessibility(activity: activity, model: model))
                     .id(activity.kindKey)
                     .transition(reveal)
             }
@@ -382,10 +395,13 @@ struct SurfaceBackground: View {
     /// Seconds, when the glows drift slowly; nil holds them still.
     var shimmer: Double?
 
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     var body: some View {
         switch style {
         case .black: black
-        case .glass: liquidGlass
+        // With Reduce Transparency the glass is solid, like the black surface.
+        case .glass: if reduceTransparency { black } else { liquidGlass }
         case .tinted: tinted
         }
     }
@@ -535,7 +551,17 @@ private struct OrbFace: View {
             }
         }
         .animation(model.reduceMotion ? nil : .wispPopover, value: waiting)
-        .accessibilityLabel(waiting > 0 ? "Wisp, \(waiting) waiting" : "Wisp")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken(waiting: waiting, working: agents.sessions.anyWorking(now: .now)))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { model.onAccessibilityOpen() }
+        .accessibilityAction(named: "Open ring") { model.onAccessibilityRing() }
+    }
+
+    /// The sweep and the badge only show; this says the same.
+    private func spoken(waiting: Int, working: Bool) -> String {
+        if waiting > 0 { return "Wisp, \(waiting) waiting for you" }
+        return working ? "Wisp, an agent is working" : "Wisp"
     }
 }
 

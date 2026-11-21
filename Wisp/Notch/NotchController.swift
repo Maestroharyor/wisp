@@ -66,6 +66,11 @@ final class NotchController {
             }
         }
         model.onShelfResized = { [weak self] in self?.resyncPointer() }
+        model.onAccessibilityOpen = { [weak self] in
+            guard let self else { return }
+            if self.clickOpensRing { self.openRing() } else { self.openShell() }
+        }
+        model.onAccessibilityRing = { [weak self] in self?.openRing() }
         model.onKeyDone = { [weak self] in
             // An open shelf keeps its key status for its own fields.
             guard let self, self.machine.phase != .open else { return }
@@ -885,6 +890,19 @@ final class NotchController {
     }
 
     /// Up, Down and Return while the switcher shows; false leaves the key alone.
+    /// ← and → move between the open shelf's pages, unless a solo widget or a pill's view is
+    /// showing (its own content may use the arrows).
+    func handlePageKey(_ keyCode: UInt16) -> Bool {
+        guard machine.phase == .open, model.soloWidget == nil, model.activityDetail == nil, !model.editingHome,
+            let step = PageKeys.step(keyCode)
+        else { return false }
+        let pages: [ShelfPage] = [.home, .tray, .media, .widgets]
+        guard let index = pages.firstIndex(of: model.page) else { return false }
+        let next = pages[PageKeys.next(from: index, step: step, count: pages.count)]
+        if next != model.page { model.page = next }
+        return true
+    }
+
     func handleSwitcherKey(_ keyCode: UInt16) -> Bool {
         guard machine.phase == .open, model.activityDetail == .sessionSwitcher,
             let key = SessionSwitcher.key(keyCode)
