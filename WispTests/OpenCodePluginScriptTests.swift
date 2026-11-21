@@ -27,14 +27,16 @@ final class OpenCodePluginScriptTests: XCTestCase {
         return URL(fileURLWithPath: found)
     }
 
-    /// Logs what it's given, and answers permission requests the way Wisp would.
+    /// Logs what it's given, and answers permission requests the way Wisp would. Only the request
+    /// itself is held: the `permission.replied` notice names `per_wait` too, and a helper sleeping
+    /// for it would keep Node, and the test, waiting the full 30 seconds.
     private let helperScript = """
         #!/bin/sh
         input=$(cat)
         printf '%s\\n' "$input" >> "$(dirname "$0")/log.jsonl"
         case "$input" in
           *'"per_deny"'*) printf '{"message":"Denied from the Wisp notch: no","reply":"reject"}' ;;
-          *'"per_wait"'*) exec sleep 30 ;;
+          *'"permission.asked"'*'"per_wait"'*) exec sleep 30 ;;
           *'"permission.asked"'*) printf '{"reply":"once"}' ;;
         esac
 
