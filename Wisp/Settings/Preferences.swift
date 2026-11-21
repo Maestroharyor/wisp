@@ -350,6 +350,7 @@ final class Preferences {
         static let ringOnOrbClick = "ringOnOrbClick"
         static let orbDock = "orbDock"
         static let ringAppWindows = "ringAppWindows"
+        static let ringShowsRunning = "ringShowsRunning"
         static let ringButton = "ringButton"
         static let ringHotkey = "ringHotkey"
         static let scriptCommand = "scriptCommand"
@@ -649,6 +650,8 @@ final class Preferences {
     var orbDock: Bool { didSet { defaults.set(orbDock, forKey: Key.orbDock) } }
     /// A running app's segment fans out its windows, to bring one forward.
     var ringAppWindows: Bool { didSet { defaults.set(ringAppWindows, forKey: Key.ringAppWindows) } }
+    /// Apps that are open but not on the ring fill its free places, as the Dock shows them.
+    var ringShowsRunning: Bool { didSet { defaults.set(ringShowsRunning, forKey: Key.ringShowsRunning) } }
     /// The extra mouse button that opens the ring; off until chosen, since it takes the
     /// button away from every app.
     var ringButton: RingButton { didSet { defaults.set(ringButton.rawValue, forKey: Key.ringButton) } }
@@ -1412,6 +1415,7 @@ final class Preferences {
         ringOnOrbClick = defaults.bool(forKey: Key.ringOnOrbClick)
         orbDock = defaults.bool(forKey: Key.orbDock)
         ringAppWindows = defaults.bool(forKey: Key.ringAppWindows)
+        ringShowsRunning = defaults.bool(forKey: Key.ringShowsRunning)
         ringButton = defaults.string(forKey: Key.ringButton).flatMap(RingButton.init(rawValue:)) ?? .off
         ringHotkey = defaults.string(forKey: Key.ringHotkey).flatMap(Hotkey.init(string:))
         dropActions =

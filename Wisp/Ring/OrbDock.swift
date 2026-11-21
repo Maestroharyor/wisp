@@ -86,7 +86,7 @@ final class OrbDockController {
 
     private func show(beside orb: CGRect) {
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        let apps = RingDock.apps(in: services.preferences.ringConfig.set(forFrontApp: front))
+        let apps = RingDock.apps(in: RingController.shownSet(preferences: services.preferences, front: front).set)
         let screen = NSScreen.screens.first { $0.frame.intersects(orb) } ?? NSScreen.main
         guard services.preferences.orbDock, !services.ring.isVisible, !apps.isEmpty, let screen else {
             if apps.isEmpty { emptyFor = orb }
@@ -178,6 +178,8 @@ final class OrbDockController {
     }
 }
 
+/// The ring's apps in a frosted row, drawn as the ring draws them: the hovered one lifts with a
+/// halo and its name shows in a pill above it.
 private struct OrbDockView: View {
     let model: OrbDockModel
     let onPick: @MainActor (RingAction, [URL]) -> Void
@@ -186,44 +188,69 @@ private struct OrbDockView: View {
     @State private var hovered: Int?
 
     var body: some View {
-        HStack(spacing: OrbDockGeometry.spacing) {
-            ForEach(Array(model.apps.enumerated()), id: \.offset) { index, app in
-                icon(app, index: index)
+        VStack(spacing: 0) {
+            ZStack {
+                if let hovered, model.apps.indices.contains(hovered) {
+                    Text(model.apps[hovered].title)
+                        .font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Capsule().fill(.regularMaterial))
+                        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+                        .fixedSize()
+                        .offset(x: labelOffset(for: hovered))
+                        .transition(.opacity)
+                        .id(hovered)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: OrbDockGeometry.labelRoom)
+            HStack(spacing: OrbDockGeometry.spacing) {
+                ForEach(Array(model.apps.enumerated()), id: \.offset) { index, app in
+                    icon(app, index: index)
+                }
+            }
+            .padding(OrbDockGeometry.padding)
+            .background(Capsule().fill(.regularMaterial).overlay(Capsule().fill(Color.wispViolet.opacity(0.06))))
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))
+            .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
         }
-        .padding(OrbDockGeometry.padding)
-        .background(Capsule().fill(.ultraThinMaterial).overlay(Capsule().fill(.black.opacity(0.45))))
-        .overlay(Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 1))
-        .scaleEffect(model.visible || reduceMotion ? 1 : 0.85)
+        .scaleEffect(model.visible || reduceMotion ? 1 : 0.85, anchor: .bottom)
         .opacity(model.visible ? 1 : 0)
         .animation(
             model.visible ? .spring(response: 0.3, dampingFraction: 0.8) : .easeIn(duration: 0.12), value: model.visible
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .environment(\.colorScheme, .dark)
+        .animation(.spring(response: 0.22, dampingFraction: 0.72), value: hovered)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+    }
+
+    /// Centres the name over its icon.
+    private func labelOffset(for index: Int) -> CGFloat {
+        let count = CGFloat(model.apps.count)
+        let step = OrbDockGeometry.icon + OrbDockGeometry.spacing
+        return (CGFloat(index) - (count - 1) / 2) * step
     }
 
     private func icon(_ app: RingAction, index: Int) -> some View {
         let dot = RingRunState.dot(for: app, running: model.running, frontmost: model.frontmost)
-        let size = OrbDockGeometry.icon
+        let side = OrbDockGeometry.icon
+        let lit = hovered == index
         return Button {
             onPick(app, [])
         } label: {
             ZStack(alignment: .bottom) {
-                RingIconView(icon: app.icon, size: 16)
-                    .frame(width: size, height: size)
-                    .scaleEffect(hovered == index ? 1.12 : 1, anchor: .bottom)
+                RingTileIcon(icon: app.icon, tileHex: app.tileHex, side: side)
+                    .scaleEffect(lit ? 1.15 : 1, anchor: .bottom)
+                    .shadow(color: lit ? Color.wispViolet.opacity(0.45) : .clear, radius: 10)
                 if dot != .none {
-                    Circle().fill(dot == .frontmost ? Color.wispViolet : .white.opacity(0.8))
-                        .frame(width: 4, height: 4).offset(y: 4)
+                    Circle().fill(dot == .frontmost ? Color.wispViolet : Color.primary.opacity(0.55))
+                        .frame(width: 4, height: 4).offset(y: 6)
                 }
             }
+            .frame(width: side, height: side)
         }
         .buttonStyle(.plain)
-        .help(app.title)
         .accessibilityLabel(app.title)
         .onHover { inside in hovered = inside ? index : (hovered == index ? nil : hovered) }
-        .animation(.spring(response: 0.22, dampingFraction: 0.7), value: hovered)
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             FileDrop.handler { urls in onPick(app, urls) }(providers)
         }

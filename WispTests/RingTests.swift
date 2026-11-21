@@ -519,7 +519,9 @@ final class RingDockTests: XCTestCase {
         let orb = CGRect(x: 600, y: 400, width: 44, height: 44)
         let frame = OrbDockGeometry.frame(orb: orb, count: 3, in: screen)
         XCTAssertEqual(frame.minX, orb.maxX + OrbDockGeometry.gap)
-        XCTAssertEqual(frame.midY, orb.midY, accuracy: 0.001)
+        // The row is centred on the orb; the names show in the room above it.
+        XCTAssertEqual(frame.minY + OrbDockGeometry.rowHeight / 2, orb.midY, accuracy: 0.001)
+        XCTAssertEqual(frame.height, OrbDockGeometry.rowHeight + OrbDockGeometry.labelRoom)
         XCTAssertEqual(
             frame.width, OrbDockGeometry.padding * 2 + 3 * OrbDockGeometry.icon + 2 * OrbDockGeometry.spacing)
     }

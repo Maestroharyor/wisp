@@ -32,6 +32,15 @@ final class RingModel {
     var picked: RingHit?
     /// The ring's centre, in the panel's own coordinates (y down).
     var centre: CGPoint = .zero
+    /// How many of the slots are the ring's own; the rest are running apps filling free places.
+    var pinnedCount = 0
+    /// The icon being dragged to a new place, and where the pointer has it (y down).
+    var lifted: Int?
+    var liftPoint: CGPoint = .zero
+    /// The lifted icon is far enough out to come off the ring when let go.
+    var removing = false
+    /// A word in the middle after rearranging ("Removed Safari, ⌘Z to undo").
+    var hint: String?
 
     /// The sub-ring entries of a segment: agent sessions for Agents, else its group.
     func subItems(of index: Int) -> [RingChoice] {
@@ -98,7 +107,10 @@ final class RingController {
         services.orbDock.hide()
         RingIconCache.shared.retryMissing()
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        model.set = services.preferences.ringConfig.set(forFrontApp: front)
+        loadSet(front: front)
+        removed = nil
+        model.hint = nil
+        model.lifted = nil
         model.agentChoices = RingAgentChoices.choices(for: agentEntries())
         let state = services.formUnderPointer()
         model.formChoices = RingFormChoices.choices(current: state.form, systemIsland: state.systemIsland)
@@ -139,6 +151,28 @@ final class RingController {
         Task { @MainActor [model] in model.visible = true }
         if !dropping { panel.makeKey() }
         startMonitors()
+    }
+
+    /// The ring for the app in front, with running apps in its free places when that's on.
+    private func loadSet(front: String?) {
+        let shown = Self.shownSet(preferences: services.preferences, front: front)
+        model.set = shown.set
+        model.pinnedCount = shown.pinned
+    }
+
+    /// The ring as it shows for the app in front: its own slots, then running apps in the free
+    /// places when that's on. The orb's dock reads the same list, so the two always agree.
+    static func shownSet(preferences: Preferences, front: String?) -> (set: RingSet, pinned: Int) {
+        let set = preferences.ringConfig.set(forFrontApp: front)
+        guard preferences.ringShowsRunning else { return (set, set.slots.count) }
+        let own = Bundle.main.bundleIdentifier
+        let running = NSWorkspace.shared.runningApplications.compactMap { app -> RunningApp? in
+            guard app.activationPolicy == .regular, let id = app.bundleIdentifier, id != own else { return nil }
+            return RunningApp(bundleID: id, name: app.localizedName ?? id)
+        }
+        let filled = RingSet(
+            id: set.id, name: set.name, slots: RingRunning.fill(set.slots, running: running), bundleIDs: set.bundleIDs)
+        return (filled, set.slots.count)
     }
 
     /// The display a point is on. `frame.contains` leaves out a frame's top edge, where the
@@ -220,14 +254,26 @@ final class RingController {
     }
 
     func hovered(_ hit: RingHit, distance: CGFloat) {
+        // Moving on to something else clears the word left by rearranging.
+        if hit != model.hover, hit != .none { model.hint = nil }
         model.hover = hit
         model.expanded = RingInteraction.expanded(
             current: model.expanded, hit: hit, distance: distance,
             hasSubItems: { [model] in !model.subItems(of: $0).isEmpty })
     }
 
-    /// Runs what was picked; files come from a drop.
+    /// Runs what was picked; files come from a drop. Apps dropped on the ring (not on a folder)
+    /// are added to it instead.
     func pick(_ hit: RingHit, files: [URL]) {
+        if case .slot(let index) = hit, !model.set.slots.indices.contains(index) { return }
+        let target: RingAction.Kind? =
+            if case .slot(let index) = hit { model.set.slots[index].action.kind } else { nil }
+        let onSub: Bool = if case .sub = hit { true } else { false }
+        if !onSub, RingPinDrop.pins(paths: files.map(\.path), onto: target) {
+            let index: Int = if case .slot(let slot) = hit { min(slot, model.pinnedCount) } else { model.pinnedCount }
+            pin(files, at: index)
+            return
+        }
         let outcome = RingInteraction.outcome(
             of: hit, slots: model.set.slots, expanded: model.expanded, subItemCount: model.expandedItems.count,
             hasFiles: !files.isEmpty,
@@ -273,6 +319,111 @@ final class RingController {
         return RingGeometry.hit(
             point, centre: centre, slots: model.set.slots.count, expanded: model.expanded,
             subItems: model.expandedItems.count)
+    }
+
+    // MARK: Arranging
+
+    /// The ring as it was before the last removal, for ⌘Z.
+    private var removed: [RingSlot]?
+
+    /// An icon is being dragged on the open ring (a click, not a held button): it follows the
+    /// pointer, and is marked for removal once it's far enough out.
+    func lift(from hit: RingHit, to point: CGPoint) {
+        guard !holding, model.query.isEmpty, !model.dropping else { return }
+        if model.lifted == nil {
+            guard case .slot(let index) = hit, model.set.slots.indices.contains(index) else { return }
+            model.lifted = index
+            model.expanded = nil
+            model.hint = nil
+        }
+        model.liftPoint = point
+        let pinned = (model.lifted ?? 0) < model.pinnedCount
+        model.removing = pinned && distance(fromCentre: point) > RingArrange.removeBeyond
+    }
+
+    /// The dragged icon was let go: moved to where it points, taken off when far out, and a
+    /// running app dropped anywhere on the ring is pinned there.
+    func land(at point: CGPoint) {
+        guard let from = model.lifted else { return }
+        model.lifted = nil
+        model.removing = false
+        let pinned = Array(model.set.slots.prefix(model.pinnedCount))
+        let action = model.set.slots[safe: from]?.action
+        if distance(fromCentre: point) > RingArrange.removeBeyond {
+            guard from < model.pinnedCount, let action else { return }
+            removed = pinned
+            save(RingArrange.remove(pinned, at: from))
+            model.hint = "Removed \(action.title), ⌘Z to undo"
+            return
+        }
+        // y runs down in the view; angles run clockwise from 12 o'clock.
+        let angle = atan2(point.x - model.centre.x, model.centre.y - point.y) * 180 / .pi
+        let to = RingArrange.index(at: angle, count: model.set.slots.count)
+        if from < model.pinnedCount {
+            guard to != from else { return }
+            save(RingArrange.move(pinned, from: from, to: min(to, max(model.pinnedCount - 1, 0))))
+        } else if let action,
+            case .added(let slots) = RingArrange.insert(
+                [action], into: pinned, at: min(to, model.pinnedCount))
+        {
+            save(slots)
+            model.hint = "Kept \(action.title) on the ring"
+        }
+    }
+
+    /// Puts back what the last removal took.
+    private func undoRemoval() {
+        guard let removed else { return }
+        self.removed = nil
+        save(removed)
+        model.hint = nil
+    }
+
+    /// Apps dropped on the ring from Finder or the Dock join it where they land.
+    private func pin(_ urls: [URL], at index: Int) {
+        let actions = urls.compactMap { url -> RingAction? in
+            guard let id = Bundle(url: url)?.bundleIdentifier else { return nil }
+            let name = (FileManager.default.displayName(atPath: url.path) as NSString).deletingPathExtension
+            return RingAction(.app, value: id, label: name)
+        }
+        let pinned = Array(model.set.slots.prefix(model.pinnedCount))
+        let text: String
+        switch RingArrange.insert(actions, into: pinned, at: index) {
+        case .added(let slots):
+            save(slots)
+            text =
+                actions.count == 1 ? "Added \(actions[0].title) to the ring" : "Added \(actions.count) apps to the ring"
+        case .alreadyThere: text = "Already on the ring"
+        case .full: text = "The ring is full"
+        }
+        model.hint = text
+        // A ring opened by a drag closes when the drag ends, so the answer shows under the notch too.
+        if model.dropping {
+            services.activities.post(.notice(symbol: "circle.circle", text: text), slot: .notice, duration: 2)
+        }
+    }
+
+    /// Saves the ring's own slots to the set it came from and shows the result at once.
+    private func save(_ pinned: [RingSlot]) {
+        var config = services.preferences.ringConfig
+        if config.standard.id == model.set.id {
+            config.standard.setSlots(pinned)
+        } else if let index = config.perApp.firstIndex(where: { $0.id == model.set.id }) {
+            config.perApp[index].setSlots(pinned)
+        } else {
+            return
+        }
+        services.preferences.ringConfig = config
+        loadSet(front: model.frontmost)
+        model.hover = .none
+        model.expanded = nil
+        // Sub-rings are kept by position, which just changed.
+        listFolders()
+        listWindows()
+    }
+
+    private func distance(fromCentre point: CGPoint) -> CGFloat {
+        hypot(point.x - model.centre.x, point.y - model.centre.y)
     }
 
     private func agentEntries() -> [RingAgentEntry] {
@@ -441,8 +592,13 @@ final class RingController {
             let keyCode = event.keyCode
             let characters = event.characters ?? ""
             let modified = !event.modifierFlags.intersection([.command, .control]).isEmpty
+            let undo = event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "z"
             let handled = MainActor.assumeIsolated {
-                self?.handleKey(keyCode, characters: characters, modified: modified) ?? false
+                if undo, let self, self.removed != nil {
+                    self.undoRemoval()
+                    return true
+                }
+                return self?.handleKey(keyCode, characters: characters, modified: modified) ?? false
             }
             return handled ? nil : event
         }
@@ -582,7 +738,9 @@ final class RingController {
             onHover: { [weak self] hit, distance in self?.hovered(hit, distance: distance) },
             onPick: { [weak self] hit, files in self?.pick(hit, files: files) },
             onPickResult: { [weak self] index in self?.pickResult(index) },
-            onDragOut: { [weak self] in self?.draggingOut() })
+            onDragOut: { [weak self] in self?.draggingOut() },
+            onLift: { [weak self] hit, point in self?.lift(from: hit, to: point) },
+            onLand: { [weak self] point in self?.land(at: point) })
         panel.contentView = NSHostingView(rootView: view)
         return panel
     }

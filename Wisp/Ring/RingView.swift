@@ -16,6 +16,10 @@ struct RingView: View {
     let onPickResult: @MainActor (Int) -> Void
     /// A file started dragging out of a folder's sub-ring.
     let onDragOut: @MainActor () -> Void
+    /// An icon is being dragged to a new place: where the drag began, and where it is now.
+    let onLift: @MainActor (RingHit, CGPoint) -> Void
+    /// The dragged icon was let go here.
+    let onLand: @MainActor (CGPoint) -> Void
 
     var body: some View {
         let slots = model.set.slots
@@ -28,19 +32,34 @@ struct RingView: View {
                     shown ? .spring(response: 0.34, dampingFraction: 0.78) : .easeIn(duration: 0.14), value: shown)
             ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
                 let angle = RingGeometry.slotAngle(index, count: slots.count)
+                let isLifted = model.lifted == index
                 RingIconCell(
                     icon: slot.action.icon, tileHex: slot.action.tileHex, side: RingGeometry.iconSize,
-                    angle: angle, lit: lit(.slot(index)) || model.expanded == index,
+                    angle: angle, lit: lit(.slot(index)) || model.expanded == index || isLifted,
                     dimmed: model.dropping && !slot.action.acceptsFiles,
                     hasMore: !model.subItems(of: index).isEmpty, dot: model.dot(for: slot.action)
                 )
+                .overlay(alignment: .topTrailing) {
+                    if isLifted, model.removing {
+                        Image(systemName: "minus.circle.fill").font(.system(size: 18))
+                            .symbolRenderingMode(.palette).foregroundStyle(.white, Color.red)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                // Running apps that aren't the ring's own sit a little quieter.
+                .opacity(index >= model.pinnedCount ? 0.82 : 1)
+                .opacity(isLifted && model.removing ? 0.55 : 1)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(slot.action.title)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { onPick(.slot(index), []) }
                 // Each icon flies out from the middle in turn, and back in on close.
                 .scaleEffect(shown || reduceMotion ? 1 : 0.3)
-                .position(shown || reduceMotion ? place(angle, RingGeometry.ringRadius) : model.centre)
+                .position(
+                    isLifted
+                        ? model.liftPoint : shown || reduceMotion ? place(angle, RingGeometry.ringRadius) : model.centre
+                )
+                .zIndex(isLifted ? 1 : 0)
                 .opacity(shown ? (searching ? 0.15 : 1) : 0)
                 .animation(
                     shown
@@ -85,6 +104,15 @@ struct RingView: View {
         .onTapGesture(coordinateSpace: .local) { location in
             if !searching { onPick(hit(at: location), []) }
         }
+        // Dragging an icon moves it round the ring, or off it to remove it.
+        .gesture(
+            DragGesture(minimumDistance: 6, coordinateSpace: .local)
+                .onChanged { drag in
+                    guard !searching else { return }
+                    onLift(hit(at: drag.startLocation), drag.location)
+                }
+                .onEnded { drag in onLand(drag.location) }
+        )
         .onDrop(
             of: [.fileURL],
             delegate: RingDropDelegate(hit: hit(at:), distance: distance(to:), onHover: onHover, onPick: onPick)
@@ -99,7 +127,7 @@ struct RingView: View {
     /// shelf).
     @ViewBuilder private var centre: some View {
         if let hovered = hoveredTitle {
-            let onCentre = model.hover == .centre
+            let onCentre = model.hover == .centre && model.lifted == nil
             HStack(spacing: 6) {
                 Text(hovered.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 if let key = hovered.key {
@@ -129,6 +157,11 @@ struct RingView: View {
     }
 
     private var hoveredTitle: (title: String, key: String?)? {
+        if let lifted = model.lifted, model.set.slots.indices.contains(lifted) {
+            let title = model.set.slots[lifted].action.title
+            return (model.removing ? "Remove \(title)" : title, nil)
+        }
+        if model.hover == .none, let hint = model.hint { return (hint, nil) }
         switch model.hover {
         case .slot(let index):
             guard model.set.slots.indices.contains(index) else { return nil }
