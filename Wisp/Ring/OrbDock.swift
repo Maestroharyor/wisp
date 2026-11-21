@@ -194,8 +194,7 @@ private struct OrbDockView: View {
                     Text(model.apps[hovered].title)
                         .font(.system(size: 12, weight: .semibold)).lineLimit(1)
                         .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(Capsule().fill(.regularMaterial))
-                        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+                        .wispSurface(Capsule(), role: .card)
                         .fixedSize()
                         .offset(x: labelOffset(for: hovered))
                         .transition(.opacity)
@@ -210,9 +209,9 @@ private struct OrbDockView: View {
                 }
             }
             .padding(OrbDockGeometry.padding)
-            .background(Capsule().fill(.regularMaterial).overlay(Capsule().fill(Color.wispViolet.opacity(0.06))))
-            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))
-            .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
+            .background(Capsule().fill(Color.wispViolet.opacity(0.06)))
+            .wispSurface(Capsule())
+            .shadow(color: .black.opacity(0.16), radius: 10, y: 3)
         }
         .scaleEffect(model.visible || reduceMotion ? 1 : 0.85, anchor: .bottom)
         .opacity(model.visible ? 1 : 0)

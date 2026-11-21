@@ -5,7 +5,7 @@ extension AgentSession.State {
     var tint: Color {
         switch self {
         case .idle: .secondaryText
-        case .running: Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .running: .agentOrange
         case .waiting, .needsApproval: .wispAmber
         case .finished: .wispGreen
         }
@@ -825,11 +825,8 @@ struct ApprovalBar: View {
                 requestBar
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(white: 0.12))
-                .shadow(color: .black.opacity(0.5), radius: 10, y: -2)
-        )
+        .wispSurface(cornerRadius: SurfaceRadius.card, role: .card)
+        .shadow(color: .black.opacity(0.18), radius: 8, y: -1)
         .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     }
 

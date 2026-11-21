@@ -208,8 +208,8 @@ struct RingView: View {
     }
 }
 
-/// The frosted disc under the icons: a band of material with a faint violet wash, and a lighter
-/// middle, each edged with a hairline. Follows Light and Dark mode.
+/// The disc under the icons: Wisp's panel glass with a faint violet wash, and a lighter middle
+/// edged with a hairline. Follows Light and Dark mode and the panel glass setting.
 struct RingDisc: View {
     let centre: CGPoint
     let dark: Bool
@@ -218,21 +218,20 @@ struct RingDisc: View {
         let outer = (RingGeometry.ringOuter + 8) * 2
         let inner = RingGeometry.innerRadius * 2
         ZStack {
-            Circle().fill(.regularMaterial)
+            Color.clear.wispSurface(Circle())
             Circle().fill(
                 LinearGradient(
                     colors: [
                         Color.wispViolet.opacity(dark ? 0.16 : 0.08), Color.wispViolet.opacity(dark ? 0.06 : 0.02),
                     ],
                     startPoint: .top, endPoint: .bottom))
-            Circle().strokeBorder(Color.white.opacity(dark ? 0.14 : 0.6), lineWidth: 1)
             Circle()
                 .fill(Color.wispViolet.opacity(dark ? 0.14 : 0.09))
                 .overlay(Circle().strokeBorder(Color.white.opacity(dark ? 0.12 : 0.7), lineWidth: 1))
                 .frame(width: inner, height: inner)
         }
         .frame(width: outer, height: outer)
-        .shadow(color: .black.opacity(dark ? 0.45 : 0.16), radius: 28, y: 10)
+        .shadow(color: .black.opacity(dark ? 0.3 : 0.12), radius: 20, y: 8)
         .position(centre)
     }
 }
@@ -321,9 +320,8 @@ private struct RingSearchCard: View {
         }
         .padding(8)
         .frame(width: 210, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.regularMaterial))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.1)))
-        .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+        .wispSurface(cornerRadius: SurfaceRadius.card, role: .card)
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
         .animation(.wispControl, value: model.selectedResult)
     }
 }

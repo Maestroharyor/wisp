@@ -27,7 +27,7 @@ struct NavPill: View {
                     model.page = page
                 } label: {
                     Circle()
-                        .fill(model.page == page ? model.accent : .white.opacity(0.35))
+                        .fill(model.page == page ? AnyShapeStyle(model.accent) : AnyShapeStyle(.tertiary))
                         .frame(width: 7, height: 7)
                         .frame(width: 18, height: 18)
                         .contentShape(Rectangle())
@@ -39,8 +39,8 @@ struct NavPill: View {
             formMenu.scaleEffect(0.7).frame(width: 22, height: 18)
         }
         .padding(.horizontal, 6)
-        .background(Capsule().fill(Color(white: 0.2).opacity(0.92)))
-        .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
+        .wispSurface(Capsule(), role: .card)
+        .shadow(color: .black.opacity(0.22), radius: 6, y: 2)
     }
 
     private var tabs: some View {
@@ -51,16 +51,12 @@ struct NavPill: View {
             }
             tab("music.note", name: "Media", selected: model.page == .media) { model.page = .media }
             tab("square.grid.2x2.fill", name: "Widgets", selected: model.page == .widgets) { model.page = .widgets }
-            Rectangle().fill(.white.opacity(0.15)).frame(width: 1, height: 16)
+            Divider().frame(height: 16)
             formMenu
         }
         .padding(4)
-        .background(
-            Capsule().fill(Color(white: 0.32).opacity(0.92))
-                .overlay(Capsule().strokeBorder(.white.opacity(0.08), lineWidth: 1))
-        )
-        .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
-        .foregroundStyle(.white)
+        .wispSurface(Capsule(), role: .card)
+        .shadow(color: .black.opacity(0.22), radius: 6, y: 2)
     }
 
     /// Switches Wisp between notch, corner, bottom, side and orb on this display.
@@ -98,7 +94,8 @@ struct NavPill: View {
                             .monospacedDigit()
                             .padding(.horizontal, 4)
                             .frame(minWidth: 14, minHeight: 14)
-                            .background(Capsule().fill(Color.accentColor))
+                            .foregroundStyle(.white)
+                            .background(Capsule().fill(Color.wispViolet))
                             .offset(x: 2, y: -2)
                     }
                 }
