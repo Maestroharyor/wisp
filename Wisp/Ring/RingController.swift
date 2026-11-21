@@ -39,8 +39,10 @@ final class RingModel {
     var liftPoint: CGPoint = .zero
     /// The lifted icon is far enough out to come off the ring when let go.
     var removing = false
-    /// A word in the middle after rearranging ("Removed Safari, ⌘Z to undo").
+    /// A word in the middle after rearranging ("Removed Safari").
     var hint: String?
+    /// A removal can be put back: the middle reads Undo and clicking it does that.
+    var canUndo = false
 
     /// The sub-ring entries of a segment: agent sessions for Agents, else its group.
     func subItems(of index: Int) -> [RingChoice] {
@@ -109,6 +111,7 @@ final class RingController {
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         loadSet(front: front)
         removed = nil
+        model.canUndo = false
         model.hint = nil
         model.lifted = nil
         model.agentChoices = RingAgentChoices.choices(for: agentEntries())
@@ -266,6 +269,11 @@ final class RingController {
     /// are added to it instead.
     func pick(_ hit: RingHit, files: [URL]) {
         if case .slot(let index) = hit, !model.set.slots.indices.contains(index) { return }
+        // Right after a removal the middle is an Undo button, not the shelf.
+        if hit == .centre, files.isEmpty, removed != nil {
+            undoRemoval()
+            return
+        }
         let target: RingAction.Kind? =
             if case .slot(let index) = hit { model.set.slots[index].action.kind } else { nil }
         let onSub: Bool = if case .sub = hit { true } else { false }
@@ -352,8 +360,9 @@ final class RingController {
         if distance(fromCentre: point) > RingArrange.removeBeyond {
             guard from < model.pinnedCount, let action else { return }
             removed = pinned
+            model.canUndo = true
             save(RingArrange.remove(pinned, at: from))
-            model.hint = "Removed \(action.title), ⌘Z to undo"
+            model.hint = "Removed \(action.title)"
             return
         }
         // y runs down in the view; angles run clockwise from 12 o'clock.
@@ -375,6 +384,7 @@ final class RingController {
     private func undoRemoval() {
         guard let removed else { return }
         self.removed = nil
+        model.canUndo = false
         save(removed)
         model.hint = nil
     }
