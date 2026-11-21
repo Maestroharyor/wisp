@@ -31,19 +31,24 @@ public enum RingArrange {
 
     public enum Insertion: Equatable, Sendable {
         case added([RingSlot])
-        /// Every app dropped is on the ring already.
+        /// Every app, link or folder given is on the ring already.
         case alreadyThere
         case full
     }
 
-    /// The slots with `actions` added at `index`, leaving out apps already on the ring and
+    /// The slots with `actions` added at `index`, leaving out apps, links and folders already on the ring and
     /// stopping when it's full.
     public static func insert(_ actions: [RingAction], into slots: [RingSlot], at index: Int) -> Insertion {
-        let present = Set(slots.compactMap { $0.action.kind == .app ? $0.action.value : nil })
+        // Apps, links and folders are one place each; other actions can repeat.
+        func key(_ action: RingAction) -> String? {
+            guard [.app, .link, .folder].contains(action.kind), let value = action.value else { return nil }
+            return "\(action.kind.rawValue):\(value)"
+        }
+        let present = Set(slots.compactMap { key($0.action) })
         var seen = Set<String>()
         let fresh = actions.filter { action in
-            guard action.kind == .app, let id = action.value else { return true }
-            return !present.contains(id) && seen.insert(id).inserted
+            guard let key = key(action) else { return true }
+            return !present.contains(key) && seen.insert(key).inserted
         }
         guard !fresh.isEmpty else { return .alreadyThere }
         let room = RingSet.maxSlots - slots.count
