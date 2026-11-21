@@ -16,6 +16,8 @@ struct ClipboardPage: View {
     @State private var query = ""
     @State private var kind: ClipKind?
     @State private var selection: Set<ClipItem.ID> = []
+    /// The selection in the order it was picked, so Copy together keeps that order.
+    @State private var pickOrder: [ClipItem.ID] = []
     @State private var confirmingClear = false
     @State private var quickLook: URL?
     @State private var previewing: ClipItem?
@@ -23,7 +25,7 @@ struct ClipboardPage: View {
 
     var body: some View {
         let items = store.history.filtered(kind: kind, query: query)
-        let picked = items.filter { selection.contains($0.id) }
+        let picked = ordered(selection, in: items)
         let selected = picked.count == 1 ? picked.first : nil
         GeometryReader { proxy in
             let wide = WindowLayout.showsInspector(width: proxy.size.width)
@@ -47,6 +49,9 @@ struct ClipboardPage: View {
                     }
                 }
             }
+        }
+        .onChange(of: selection) { _, picks in
+            pickOrder = PickOrder.update(pickOrder, selection: picks, listOrder: listed(items).map(\.id))
         }
         .searchable(text: $query, placement: .toolbar, prompt: "Search clipboard")
         .toolbar { toolbar(selected, picked: picked) }
@@ -212,10 +217,16 @@ struct ClipboardPage: View {
         }
     }
 
-    /// The picked items in the order the list shows them.
+    /// The items as the list shows them: pinned first.
+    private func listed(_ items: [ClipItem]) -> [ClipItem] {
+        items.filter(\.pinned) + items.filter { !$0.pinned }
+    }
+
+    /// The picked items in the order they were picked.
     private func ordered(_ ids: Set<ClipItem.ID>, in items: [ClipItem]) -> [ClipItem] {
-        let pinned = items.filter(\.pinned) + items.filter { !$0.pinned }
-        return pinned.filter { ids.contains($0.id) }
+        let shown = listed(items)
+        let byID = Dictionary(shown.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return PickOrder.update(pickOrder, selection: ids, listOrder: shown.map(\.id)).compactMap { byID[$0] }
     }
 
     private func copyTogether(_ items: [ClipItem]) {

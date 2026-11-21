@@ -25,6 +25,13 @@ final class ReleaseNotesTests: XCTestCase {
         XCTAssertEqual(ReleaseNotes.note(fromBody: body(note)), note)
     }
 
+    /// Bodies edited on GitHub's website come back with Windows line endings.
+    func testReadsABodyWithCRLFLineEndings() {
+        let note = "Shows lyrics while music plays."
+        let crlf = body(note).replacingOccurrences(of: "\n", with: "\r\n")
+        XCTAssertEqual(ReleaseNotes.note(fromBody: crlf), note)
+    }
+
     func testEmptyNoneAndCommentOnlyNotesAreNil() {
         XCTAssertNil(ReleaseNotes.note(fromBody: body("")))
         XCTAssertNil(ReleaseNotes.note(fromBody: body("None")))

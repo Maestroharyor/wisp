@@ -142,7 +142,7 @@ public enum ToolLabel {
 
     private static func firstLine(_ text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? ""
+        return trimmed.split(maxSplits: 1, whereSeparator: \.isNewline).first.map(String.init) ?? ""
     }
 
     private static func fileName(_ path: String?) -> String {

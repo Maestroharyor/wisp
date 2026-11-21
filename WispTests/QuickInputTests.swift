@@ -192,6 +192,18 @@ final class QuickInputParserTests: XCTestCase {
         XCTAssertNil(model(#"{"kind":"timer"}"#))
     }
 
+    /// A model's answer is untrusted; numbers no Int can hold are refused, not a crash.
+    func testModelNumbersOutOfRangeAreRefused() {
+        XCTAssertNil(model(#"{"kind":"timer","minutes":1e20}"#))
+        XCTAssertNil(model(#"{"kind":"timer","minutes":"1e20"}"#))
+        XCTAssertNil(model(#"{"kind":"timer","minutes":"inf"}"#))
+        XCTAssertNil(model(#"{"kind":"timer","minutes":"nan"}"#))
+        // An event without a usable length gets the usual one.
+        XCTAssertEqual(
+            model(#"{"kind":"event","title":"Tea","date":"2025-11-06T10:00:00Z","minutes":-1e300}"#),
+            .event(title: "Tea", start: date(2025, 11, 6, 10, 0), minutes: 60))
+    }
+
     func testModelReminder() {
         XCTAssertEqual(
             model(#"{"kind":"reminder","title":"Call the bank","date":"2025-11-06T10:00:00+00:00"}"#),

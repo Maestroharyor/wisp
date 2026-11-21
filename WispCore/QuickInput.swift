@@ -321,11 +321,11 @@ public enum QuickInputParser {
     }
 
     /// Small models sometimes quote numbers.
+    /// Numbers no Int can hold (1e20, "inf", "nan") are nil: converting them would trap.
     private static func number(_ value: JSONValue?) -> Int? {
-        if let double = value?.doubleValue { return Int(double.rounded()) }
-        return value?.stringValue.flatMap { Double($0.trimmingCharacters(in: .whitespaces)) }.map {
-            Int($0.rounded())
-        }
+        let double =
+            value?.doubleValue ?? value?.stringValue.flatMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+        return double.flatMap { Int(exactly: $0.rounded()) }
     }
 
     private static func date(_ text: String, timeZone: TimeZone) -> Date? {

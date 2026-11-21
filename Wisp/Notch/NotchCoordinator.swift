@@ -67,6 +67,10 @@ final class NotchCoordinator {
                     guard event.window is NotchPanel else { return false }
                     return self.controllers.values.contains { $0.handleSwitcherKey(event.keyCode) }
                 }
+                // Esc typed into Settings, the clipboard panel or another Wisp window is theirs
+                // (clearing a search, cancelling a recording); only the notch's own, or one with
+                // no key window (a hover-opened shelf), closes the shelf or a card.
+                if let window = event.window, !(window is NotchPanel) { return false }
                 return self.dismissOpenShelves()
             }
             return handled ? nil : event

@@ -71,7 +71,9 @@ public struct NotchMachine: Sendable, Equatable {
             phase = .peek
             return opensOnHover ? [.scheduleDwell] : []
 
-        case (.peek, .dwellElapsed), (.peek, .clicked):
+        // A click while closed comes from a pointer that was already on the notch when the shelf
+        // closed, so no enter came; the owner only sends clicks that land on the shell.
+        case (.peek, .dwellElapsed), (.peek, .clicked), (.closed, .clicked):
             phase = .open
             return [.cancelDwell]
 
