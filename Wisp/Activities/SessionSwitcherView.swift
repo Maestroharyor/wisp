@@ -36,6 +36,7 @@ struct SessionSwitcherView: View {
                             }
                         }
                     }
+                    .scrollFade()
                     .onChange(of: selected) { _, id in
                         guard let id else { return }
                         withAnimation(model.surfaceAnimation) { proxy.scrollTo(id) }
