@@ -130,7 +130,7 @@ struct ClipboardPage: View {
             chip("Colours", count: counts[.color], value: .kind(.color))
         }
         .padding(4)
-        .background(Capsule().fill(.primary.opacity(0.06)))
+        .background(Capsule().fill(.primary.opacity(0.08)))
     }
 
     private func chip(_ title: String, count: Int, value: Show) -> some View {
@@ -168,7 +168,7 @@ struct ClipboardPage: View {
         .font(.body)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Capsule().fill(.primary.opacity(0.06)))
+        .background(Capsule().fill(.primary.opacity(0.08)))
         .frame(maxWidth: 520)
     }
 

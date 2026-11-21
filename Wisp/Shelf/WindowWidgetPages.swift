@@ -130,7 +130,7 @@ private struct FlowChips: View {
                         .font(.callout)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Capsule().fill(.primary.opacity(0.07)))
+                        .background(Capsule().fill(.primary.opacity(0.08)))
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)

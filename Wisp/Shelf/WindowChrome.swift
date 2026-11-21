@@ -68,9 +68,18 @@ private struct WindowCardBackground: ViewModifier {
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous)
+        // Light mode: solid white with a clear edge and a soft shadow, so cards stand off the
+        // light grey window; dark mode: a step up from the window with a faint edge.
+        let light = scheme != .dark
         content
-            .background(shape.fill(scheme == .dark ? Color.white.opacity(0.05) : Color.white.opacity(0.75)))
-            .overlay(shape.strokeBorder(Color.primary.opacity(contrast == .increased ? 0.35 : 0.08), lineWidth: 0.5))
+            .background(
+                shape.fill(light ? Color.white : Color.white.opacity(0.05))
+                    .shadow(color: .black.opacity(light ? 0.06 : 0), radius: 6, y: 1)
+            )
+            .overlay(
+                shape.strokeBorder(
+                    Color.primary.opacity(contrast == .increased ? 0.35 : light ? 0.12 : 0.08),
+                    lineWidth: light ? 0.75 : 0.5))
     }
 }
 
@@ -121,7 +130,7 @@ struct WindowPageHeader<Actions: View>: View {
                     .foregroundStyle(Color.secondaryText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Capsule().fill(.primary.opacity(0.07)))
+                    .background(Capsule().fill(.primary.opacity(0.08)))
             }
             HStack(spacing: 8) { actions }
                 .controlSize(.large)

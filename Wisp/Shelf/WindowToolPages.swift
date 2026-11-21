@@ -60,7 +60,7 @@ struct NotesPage: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(Capsule().fill(.primary.opacity(0.06)))
+            .background(Capsule().fill(.primary.opacity(0.08)))
             if notes.isEmpty {
                 WindowEmptyState(
                     symbol: query.isEmpty ? "note.text" : "magnifyingglass",
@@ -235,7 +235,7 @@ struct ShortcutsPage: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Capsule().fill(.primary.opacity(0.06)))
+                .background(Capsule().fill(.primary.opacity(0.08)))
                 .frame(maxWidth: 520)
                 if !runner.hasListed {
                     LoadingLabel("Reading your Shortcuts…").frame(minHeight: 200).windowCardBackground()

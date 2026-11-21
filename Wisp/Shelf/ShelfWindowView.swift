@@ -195,6 +195,7 @@ private struct WindowDetail: View {
                     .padding(.bottom, 12)
             }
         }
+        .background(WindowCanvas())
         .hoverHintHost()
         .environment(\.shelfHost, .window)
         .environment(\.openWindowRow, OpenWindowRow { [navigation] in navigation.select($0) })
@@ -362,6 +363,20 @@ private struct HiddenToolbarTitle: ViewModifier {
             content.toolbar(removing: .title)
         } else {
             content
+        }
+    }
+}
+
+/// The page area behind the cards: a light grey in Light mode so white cards stand off it, and
+/// the window's own dark background in Dark mode.
+private struct WindowCanvas: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        if scheme == .dark {
+            Color.clear
+        } else {
+            Color(white: 0.955).ignoresSafeArea()
         }
     }
 }

@@ -50,7 +50,7 @@ struct ClipboardView: View {
                 chip("Colours", count: counts[.color], kind: .color)
             }
             .padding(3)
-            .background(Capsule().fill(.primary.opacity(0.07)))
+            .background(Capsule().fill(.primary.opacity(0.08)))
             appMenu(all)
             Spacer()
             HStack(spacing: 6) {
@@ -62,7 +62,7 @@ struct ClipboardView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(Capsule().fill(.primary.opacity(0.07)))
+            .background(Capsule().fill(.primary.opacity(0.08)))
             Menu {
                 Button("Clear History (keeps pinned)") { model.store.clear() }
             } label: {
