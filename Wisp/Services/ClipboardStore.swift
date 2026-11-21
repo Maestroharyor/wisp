@@ -88,6 +88,7 @@ final class ClipboardStore {
             pasteboard.setString(text, forType: .string)
         }
         lastChangeCount = pasteboard.changeCount
+        Feedback.copied()
         var refreshed = item
         refreshed.date = .now
         history.add(refreshed)
@@ -105,6 +106,7 @@ final class ClipboardStore {
         pasteboard.setString(text, forType: .string)
         lastChangeCount = pasteboard.changeCount
         record(ClipItem(kind: ClipClassifier.kind(for: text), text: text, date: .now), source: (nil, nil))
+        Feedback.copied()
         return true
     }
 

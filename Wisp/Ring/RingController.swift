@@ -275,7 +275,10 @@ final class RingController {
 
     func hovered(_ hit: RingHit, distance: CGFloat) {
         // Moving on to something else clears the word left by rearranging.
-        if hit != model.hover, hit != .none { model.hint = nil }
+        if hit != model.hover, hit != .none {
+            model.hint = nil
+            Feedback.selection()
+        }
         model.hover = hit
         model.expanded = RingInteraction.expanded(
             current: model.expanded, hit: hit, distance: distance,
@@ -388,11 +391,13 @@ final class RingController {
         if from < model.pinnedCount {
             guard to != from else { return }
             save(RingArrange.move(pinned, from: from, to: min(to, max(model.pinnedCount - 1, 0))))
+            Feedback.landed()
         } else if let action,
             case .added(let slots) = RingArrange.insert(
                 [action], into: pinned, at: min(to, model.pinnedCount))
         {
             save(slots)
+            Feedback.landed()
             model.hint = "Kept \(action.title) on the ring"
         }
     }

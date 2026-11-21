@@ -52,7 +52,10 @@ private struct ToggleTile: View {
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            action()
+            Feedback.landed()
+        } label: {
             VStack(spacing: 3) {
                 Image(systemName: symbol)
                     .font(.callout.weight(.semibold))
