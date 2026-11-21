@@ -243,6 +243,44 @@ public struct ClipCounts: Equatable, Sendable {
     public subscript(kind: ClipKind) -> Int { byKind[kind] ?? 0 }
 }
 
+extension ClipCounts {
+    /// One source app and how many clips came from it.
+    public struct App: Equatable, Identifiable, Sendable {
+        public let name: String
+        public let bundleID: String?
+        public let count: Int
+        public var id: String { name }
+    }
+
+    /// The apps clips were copied from, most clips first, then by name. Clips with no known
+    /// source are left out.
+    public static func apps(_ items: [ClipItem]) -> [App] {
+        let groups = Dictionary(grouping: items.filter { !($0.sourceApp ?? "").isEmpty }) { $0.sourceApp ?? "" }
+        return groups.map { name, items in
+            App(name: name, bundleID: items.first { $0.sourceBundleID != nil }?.sourceBundleID, count: items.count)
+        }
+        .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
+    }
+}
+
+/// How a clip's text is shown on its card.
+public enum ClipLook {
+    /// Whether text reads as code, so its card sets it in a monospaced box: several lines with
+    /// braces, semicolons or arrows, or lines that start indented.
+    public static func isCode(_ text: String) -> Bool {
+        let lines = text.split(whereSeparator: \.isNewline)
+        guard lines.count >= 2 else {
+            return text.contains("=>") || (text.hasSuffix(";") && text.contains("("))
+        }
+        let marked = lines.filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return trimmed.hasSuffix("{") || trimmed.hasSuffix("}") || trimmed.hasSuffix(";")
+                || trimmed.hasPrefix("//") || trimmed.hasPrefix("#") || line.hasPrefix("    ") || line.hasPrefix("\t")
+        }
+        return Double(marked.count) / Double(lines.count) >= 0.4
+    }
+}
+
 // MARK: Layout
 
 extension WindowLayout {

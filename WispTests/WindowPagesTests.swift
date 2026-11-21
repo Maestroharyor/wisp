@@ -166,6 +166,26 @@ final class WindowPagesTests: XCTestCase {
         XCTAssertEqual(counts[.image], 0)
     }
 
+    func testClipsCountByApp() {
+        let items = [
+            ClipItem(kind: .text, text: "a", sourceApp: "Safari", sourceBundleID: "com.apple.Safari", date: .now),
+            ClipItem(kind: .text, text: "b", sourceApp: "Notes", date: .now),
+            ClipItem(kind: .text, text: "c", sourceApp: "Safari", date: .now),
+            ClipItem(kind: .text, text: "d", date: .now),
+        ]
+        let apps = ClipCounts.apps(items)
+        XCTAssertEqual(apps.map(\.name), ["Safari", "Notes"])
+        XCTAssertEqual(apps.first?.count, 2)
+        XCTAssertEqual(apps.first?.bundleID, "com.apple.Safari")
+    }
+
+    func testCodeLooksLikeCode() {
+        XCTAssertTrue(ClipLook.isCode("function debounce(fn, ms) {\n  let t;\n  return () => {}\n}"))
+        XCTAssertTrue(ClipLook.isCode("const f = (x) => x * 2"))
+        XCTAssertFalse(ClipLook.isCode("Looking forward to the sync tomorrow at 10."))
+        XCTAssertFalse(ClipLook.isCode("Milk\nEggs\nCoffee beans"))
+    }
+
     // MARK: Layout
 
     func testAListAndItsDetailSitSideBySideWhenThereIsRoom() {
