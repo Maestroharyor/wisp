@@ -69,4 +69,34 @@ final class LyricsTests: XCTestCase {
         XCTAssertFalse(LyricsQuery.isCacheable(status: 500))
         XCTAssertFalse(LyricsQuery.isCacheable(status: 503))
     }
+
+    // MARK: Display
+
+    private var song: Lyrics {
+        Lyrics(lines: [
+            .init(time: 10, text: "One"), .init(time: 14, text: "Two"), .init(time: 30, text: "Three"),
+            .init(time: 34, text: "Four"),
+        ])
+    }
+
+    func testTheCurrentLineIsBrightestAndOthersFade() {
+        XCTAssertEqual(LyricsDisplay.emphasis(line: 2, current: 2), 1)
+        XCTAssertEqual(LyricsDisplay.emphasis(line: 3, current: 2), 0.55)
+        XCTAssertEqual(LyricsDisplay.emphasis(line: 1, current: 2), 0.45)
+        XCTAssertEqual(LyricsDisplay.emphasis(line: 9, current: 2), 0.25)
+        XCTAssertEqual(LyricsDisplay.emphasis(line: 0, current: nil), 0.55)
+    }
+
+    func testProgressSweepsThroughTheCurrentLine() {
+        XCTAssertEqual(LyricsDisplay.progress(in: song, at: 12), 0.5, accuracy: 0.001)
+        XCTAssertEqual(LyricsDisplay.progress(in: song, at: 5), 0)
+        XCTAssertEqual(LyricsDisplay.progress(in: song, at: 40), 1)
+    }
+
+    func testALongGapBeforeTheNextLineIsAnInstrumentalBreak() {
+        XCTAssertFalse(LyricsDisplay.inGap(song, at: 12))
+        XCTAssertTrue(LyricsDisplay.inGap(song, at: 22))
+        XCTAssertTrue(LyricsDisplay.inGap(song, at: 3))
+        XCTAssertFalse(LyricsDisplay.inGap(song, at: 31))
+    }
 }

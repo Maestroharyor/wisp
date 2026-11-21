@@ -602,8 +602,7 @@ struct WindowMediaPage: View {
                 WindowEmptyState(
                     symbol: "music.note", title: "Nothing playing", message: "Lyrics show here while a song plays.")
             } else {
-                LyricLines(monitor: monitor, lyrics: model.services.lyrics, size: 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                LyricsPanel(monitor: monitor, lyrics: model.services.lyrics)
             }
         }
     }
