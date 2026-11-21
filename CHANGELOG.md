@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.11](https://github.com/Maestroharyor/wisp/compare/v0.2.10...v0.2.11) (2026-11-21)
+
+
+### Bug fixes
+
+* keep the ring's apps reachable while the orb shows a pill ([#122](https://github.com/Maestroharyor/wisp/issues/122)) ([667746b](https://github.com/Maestroharyor/wisp/commit/667746bbf05ccd1368744552cce990be24a7c946))
+* keep the solo back chevron inside island and orb shelves ([#124](https://github.com/Maestroharyor/wisp/issues/124)) ([a4672ac](https://github.com/Maestroharyor/wisp/commit/a4672acd999314731b0dd7054e5084fa516cff37))
+* open the ring from the orb's pill and stop Capture Text hanging ([#125](https://github.com/Maestroharyor/wisp/issues/125)) ([17f4ff0](https://github.com/Maestroharyor/wisp/commit/17f4ff05253049894100560dddd79d7d2443d067))
+
 ## [0.2.10](https://github.com/Maestroharyor/wisp/compare/v0.2.9...v0.2.10) (2026-11-21)
 
 
