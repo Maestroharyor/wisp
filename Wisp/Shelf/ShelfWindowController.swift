@@ -360,8 +360,9 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         host.sizingOptions = []
         host.sceneBridgingOptions = [.toolbars, .title]
         window.contentViewController = host
-        // As in Settings: the sidebar runs to the top edge under a unified toolbar.
-        window.titlebarAppearsTransparent = true
+        // The sidebar runs to the top edge under a unified toolbar. The titlebar isn't made
+        // transparent: that would drop the toolbar's scroll edge, and scrolled pages would show
+        // through its title and buttons.
         window.toolbarStyle = .unified
         window.contentMinSize = ShelfWindowFrame.minimumSize
         return window
