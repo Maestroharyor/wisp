@@ -145,6 +145,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         ? NSAppearance(named: .aqua) : name == "dark" ? NSAppearance(named: .darkAqua) : nil
                 }
             }
+            // Fills Calendar and Reminders with made-up data, for checking the window's pages.
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.sampleData"), object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.services.calendar.debugFillSample()
+                    self?.services.reminders.debugFillSample()
+                }
+            }
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.cycleForm"), object: nil, queue: .main
             ) { [weak self] _ in
