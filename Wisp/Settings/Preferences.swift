@@ -184,6 +184,20 @@ final class Preferences {
         return Preferences()
     }()
 
+    /// The shortcut map, taking in the ring shortcut saved before it existed.
+    private static func loadShortcuts(_ defaults: UserDefaults) -> ShortcutMap {
+        let saved = (defaults.dictionary(forKey: Key.shortcuts) ?? [:]).compactMapValues { $0 as? String }
+        var map = ShortcutMap(stored: saved)
+        if saved[ShortcutAction.ring.rawValue] == nil,
+            let old = defaults.string(forKey: Key.ringHotkey).flatMap(Hotkey.init(string:))
+        {
+            map.set(old, for: .ring)
+            defaults.set(map.stored, forKey: Key.shortcuts)
+        }
+        defaults.removeObject(forKey: Key.ringHotkey)
+        return map
+    }
+
     /// Copies settings saved under the old bundle ID once, before anything reads them.
     private static func importLegacyDefaults(into defaults: UserDefaults) {
         guard !defaults.bool(forKey: LegacyDefaults.importedFlagKey) else { return }
@@ -353,6 +367,7 @@ final class Preferences {
         static let ringShowsRunning = "ringShowsRunning"
         static let ringButton = "ringButton"
         static let ringHotkey = "ringHotkey"
+        static let shortcuts = "shortcuts"
         static let scriptCommand = "scriptCommand"
         static let deviceActivity = "deviceActivity"
         static let accessoryBatteries = "accessoryBatteries"
@@ -655,9 +670,9 @@ final class Preferences {
     /// The extra mouse button that opens the ring; off until chosen, since it takes the
     /// button away from every app.
     var ringButton: RingButton { didSet { defaults.set(ringButton.rawValue, forKey: Key.ringButton) } }
-    /// A shortcut that opens the ring without the Hyper key; nil when unset.
-    var ringHotkey: Hotkey? {
-        didSet { defaults.set(ringHotkey?.stringValue ?? "", forKey: Key.ringHotkey) }
+    /// Every shortcut besides the shelf's: the ring, form, clipboard and session switcher.
+    var shortcuts: ShortcutMap {
+        didSet { defaults.set(shortcuts.stored, forKey: Key.shortcuts) }
     }
 
     var dropActions: [DropAction] {
@@ -1417,7 +1432,7 @@ final class Preferences {
         ringAppWindows = defaults.bool(forKey: Key.ringAppWindows)
         ringShowsRunning = defaults.bool(forKey: Key.ringShowsRunning)
         ringButton = defaults.string(forKey: Key.ringButton).flatMap(RingButton.init(rawValue:)) ?? .off
-        ringHotkey = defaults.string(forKey: Key.ringHotkey).flatMap(Hotkey.init(string:))
+        shortcuts = Self.loadShortcuts(defaults)
         dropActions =
             defaults.data(forKey: Key.dropActions).flatMap { try? JSONDecoder().decode([DropAction].self, from: $0) }
             ?? []

@@ -7,10 +7,13 @@ extension SettingsPaneID {
     var symbol: String {
         switch self {
         case .general: "gearshape.fill"
+        case .shortcuts: "command"
         case .notch: "capsule.portrait.fill"
+        case .ring: "circle.circle.fill"
         case .appearance: "paintpalette.fill"
         case .activities: "waveform"
         case .shelf: "square.grid.2x2.fill"
+        case .clipboard: "doc.on.clipboard.fill"
         case .notifications: "bell.badge.fill"
         case .agents: "sparkle"
         case .ai: "wand.and.sparkles"
@@ -23,9 +26,9 @@ extension SettingsPaneID {
         // One violet family: darker for setup and system panes, Wisp violet for the notch and its
         // look, lighter for the Features group.
         switch self {
-        case .general, .about, .permissions: Color(red: 0.32, green: 0.27, blue: 0.62)
-        case .notch, .appearance: .wispViolet
-        case .activities, .shelf, .notifications, .agents, .ai: Color(red: 0.6, green: 0.53, blue: 1)
+        case .general, .shortcuts, .about, .permissions: Color(red: 0.32, green: 0.27, blue: 0.62)
+        case .notch, .ring, .appearance: .wispViolet
+        case .activities, .shelf, .clipboard, .notifications, .agents, .ai: Color(red: 0.6, green: 0.53, blue: 1)
         }
     }
 }

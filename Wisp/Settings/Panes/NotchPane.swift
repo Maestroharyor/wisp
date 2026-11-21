@@ -8,8 +8,6 @@ struct NotchSettings: View {
     let glow: Color
     let shortcuts: ShortcutsRunner
     let shelfWindow: ShelfWindowController
-    let ringTrigger: RingTrigger
-    let hotkeys: HotkeyCenter
 
     /// Re-read when displays are plugged in or removed while Settings is open.
     @State private var screens = NSScreen.screens
@@ -24,7 +22,7 @@ struct NotchSettings: View {
                     ForEach(Placement.allCases) { Text($0.title).tag($0) }
                 }
                 Text(
-                    "Top uses the notch. The left and right edges get a notch on its side. The corners and the bottom float an island below the menu bar or above the Dock. The floating orb goes anywhere: drag it, or pull the notch down to tear it off, and drop it at the top centre to dock it. Drag an island to move it; it stays where you drop it on that display. The shelf grows out from wherever it sits."
+                    "Top uses the notch. The bottom is the notch upside down, resting on the Dock. The left and right edges get a notch on its side. The corners float an island below the menu bar; drag one to move it, and it stays where you drop it on that display. The floating orb goes anywhere: drag it, or pull the notch down to tear it off, and drop it at the top centre to dock it. The shelf grows out from wherever it sits."
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 if hasSystemIsland {
@@ -92,7 +90,6 @@ struct NotchSettings: View {
             Section("Drop actions") {
                 DropActionsEditor(preferences: preferences, shortcuts: shortcuts)
             }
-            RingSection(preferences: preferences, trigger: ringTrigger, hotkeys: hotkeys)
             AdvancedSection {
                 Picker("Dynamic Island detection", selection: $preferences.islandSetting) {
                     ForEach(IslandSetting.allCases, id: \.self) { Text($0.title).tag($0) }

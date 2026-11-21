@@ -82,14 +82,11 @@ final class SessionSwitcherTests: XCTestCase {
     }
 
     func testTheSwitcherMovesOffAShelfShortcutThatTakesIt() {
-        XCTAssertEqual(Hotkey.switcherShortcut(shelf: .hyperSpace), Hotkey.switcherHyper)
-        XCTAssertEqual(Hotkey.switcherShortcut(shelf: Hotkey.switcherHyper), Hotkey.switcherFallback)
+        XCTAssertEqual(ShortcutMap.standard(.sessionSwitcher, shelf: .hyperSpace), Hotkey.switcherHyper)
+        XCTAssertEqual(ShortcutMap.standard(.sessionSwitcher, shelf: Hotkey.switcherHyper), Hotkey.switcherFallback)
         // Without Hyper the switcher always has ⌃⌥⌘G.
         let plain = Hotkey(keyCode: KeyCodes.space, modifiers: [.option])
-        XCTAssertEqual(Hotkey.switcherShortcut(shelf: plain), Hotkey.switcherFallback)
-        XCTAssertFalse(Hotkey.switcherClashes(shelf: .hyperSpace))
-        XCTAssertTrue(Hotkey.switcherClashes(shelf: Hotkey.switcherHyper))
-        XCTAssertFalse(Hotkey.switcherClashes(shelf: plain))
+        XCTAssertEqual(ShortcutMap.standard(.sessionSwitcher, shelf: plain), Hotkey.switcherFallback)
     }
 
     func testTheShortcuts() {

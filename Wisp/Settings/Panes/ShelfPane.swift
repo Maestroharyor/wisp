@@ -2,11 +2,10 @@ import AppKit
 import SwiftUI
 import WispCore
 
-/// Widgets, clipboard history and profiles: what the shelf holds and how it's set up.
+/// Widgets and profiles: what the shelf holds and how it's set up.
 struct ShelfSettings: View {
     @Bindable var preferences: Preferences
     let shortcuts: ShortcutsRunner
-    let clipboard: ClipboardStore
     let context: ContextEngine
 
     @State private var scriptDraft = ""
@@ -86,7 +85,6 @@ struct ShelfSettings: View {
                 Text("The notch shows the first three cities; the window shows them all.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            ClipboardSection(preferences: preferences, store: clipboard)
             ProfilesSection(preferences: preferences, context: context)
             AdvancedSection {
                 Picker("Widget rows", selection: $preferences.widgetGridRows) {
@@ -98,10 +96,6 @@ struct ShelfSettings: View {
                     "Rows of icons on the Widgets page. Five or fewer widgets always sit in one row with larger icons."
                 )
                 .font(.caption).foregroundStyle(.secondary)
-                Stepper(value: $preferences.clipboardLimit, in: 20...1000, step: 20) {
-                    LabeledContent("Clipboard keeps up to", value: "\(preferences.clipboardLimit) items")
-                }
-                .disabled(!preferences.clipboardEnabled)
             }
         }
         .formStyle(.grouped)

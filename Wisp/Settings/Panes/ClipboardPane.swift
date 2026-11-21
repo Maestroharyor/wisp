@@ -2,13 +2,26 @@ import AppKit
 import SwiftUI
 import WispCore
 
-/// The clipboard's part of the Shelf pane. How many items it keeps is under Advanced.
-struct ClipboardSection: View {
+/// The Clipboard pane: history, how much it keeps, and apps it never keeps copies from.
+struct ClipboardSettings: View {
     @Bindable var preferences: Preferences
     let store: ClipboardStore
 
     var body: some View {
-        Section("Clipboard") {
+        Form {
+            history
+            Section("Length") {
+                Stepper(value: $preferences.clipboardLimit, in: 20...1000, step: 20) {
+                    LabeledContent("Clipboard keeps up to", value: "\(preferences.clipboardLimit) items")
+                }
+                .disabled(!preferences.clipboardEnabled)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var history: some View {
+        Section("History") {
             Toggle("Keep clipboard history", isOn: $preferences.clipboardEnabled)
             Button("Clear history (keeps pinned items)", role: .destructive) { store.clear() }
             LabeledContent("Never keep copies from") {

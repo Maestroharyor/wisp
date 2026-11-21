@@ -9,6 +9,7 @@ struct GeneralSettings: View {
     let accent: Color
     let glow: Color
     let missing: [Permission]
+    let openShortcuts: () -> Void
     let fixPermissions: () -> Void
 
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
@@ -22,48 +23,10 @@ struct GeneralSettings: View {
                     HealthBanner(missing: missing, fix: fixPermissions)
                 }
             }
-            Section("Shortcut") {
-                Toggle("Open the shelf with Caps Lock + Space", isOn: usesCapsLock)
-                if !preferences.hotkey.usesHyper {
-                    LabeledContent("Shortcut") {
-                        HotkeyRecorder(hotkey: $preferences.hotkey)
-                    }
+            Section("Keyboard") {
+                LabeledContent("Shortcuts") {
+                    Button("Keyboard Shortcuts…", action: openShortcuts)
                 }
-                LabeledContent("Status") {
-                    HStack {
-                        Text(hotkeys.status.message).foregroundStyle(.secondary)
-                        if hotkeys.status == .needsAccessibility {
-                            Button("Open Accessibility Settings", action: AccessibilityPermission.openSettings)
-                        }
-                    }
-                }
-            }
-
-            Section("Keyboard shortcuts") {
-                ShortcutRow(keys: preferences.hotkey.description, action: "Open or close the shelf")
-                // Without Hyper, clipboard history has its own shortcut and profiles have none.
-                if preferences.hotkey.usesHyper {
-                    ShortcutRow(keys: Hotkey.clipboardHyper.description, action: "Clipboard history")
-                    ShortcutRow(keys: "⇪ 1–9", action: "Switch profile")
-                    ShortcutRow(keys: "⇪ Y or ⇪ N", action: "Allow or deny the request on screen")
-                    ShortcutRow(keys: "⇪ 1–9", action: "Pick an answer while a question shows")
-                    ShortcutRow(
-                        keys: Hotkey.switcherShortcut(shelf: preferences.hotkey).description,
-                        action: "Jump to an agent session")
-                    if Hotkey.switcherClashes(shelf: preferences.hotkey) {
-                        let shelf = Hotkey.switcherHyper.description
-                        let switcher = Hotkey.switcherFallback.description
-                        Text("\(shelf) opens the shelf, so the session switcher uses \(switcher).")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                } else {
-                    ShortcutRow(keys: Hotkey.clipboardFallback.description, action: "Clipboard history")
-                    ShortcutRow(keys: "⌃⌥⌘Y or ⌃⌥⌘N", action: "Allow or deny the request on screen")
-                    ShortcutRow(keys: "⌃⌥⌘1–9", action: "Pick an answer while a question shows")
-                    ShortcutRow(keys: Hotkey.switcherFallback.description, action: "Jump to an agent session")
-                }
-                ShortcutRow(keys: "Esc", action: "Back to the grid, or close the shelf")
-                ShortcutRow(keys: "Right-click the notch", action: "Menu: pages, tools, profiles, form, Settings")
             }
 
             Section("Dictation") {
@@ -120,16 +83,6 @@ struct GeneralSettings: View {
         .formStyle(.grouped)
     }
 
-    private var usesCapsLock: Binding<Bool> {
-        Binding(
-            get: { preferences.hotkey.usesHyper },
-            set: { useCaps in
-                preferences.hotkey =
-                    useCaps ? .hyperSpace : Hotkey(keyCode: KeyCodes.space, modifiers: [.command, .shift])
-            }
-        )
-    }
-
     private func setLaunchAtLogin(_ enabled: Bool) {
         do {
             try LaunchAtLogin.set(enabled)
@@ -138,21 +91,6 @@ struct GeneralSettings: View {
         } catch {
             launchError = error.localizedDescription
             launchAtLogin = LaunchAtLogin.isEnabled
-        }
-    }
-}
-
-private struct ShortcutRow: View {
-    let keys: String
-    let action: String
-
-    var body: some View {
-        LabeledContent(action) {
-            Text(keys)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(.quaternary))
         }
     }
 }
