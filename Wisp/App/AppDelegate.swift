@@ -145,6 +145,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         ? NSAppearance(named: .aqua) : name == "dark" ? NSAppearance(named: .darkAqua) : nil
                 }
             }
+            // Shows or hides the clipboard panel, for checking it.
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.clipboardPanel"), object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.clipboardPanel.toggle() }
+            }
             // Fills Calendar and Reminders with made-up data, for checking the window's pages.
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.sampleData"), object: nil, queue: .main
