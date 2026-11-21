@@ -10,6 +10,10 @@ import WispCore
 @Observable
 final class LyricsStore {
     private(set) var lyrics: Lyrics?
+    #if DEBUG
+        /// Showing made-up lyrics (`debugFillSample`), which a track change mustn't replace.
+        @ObservationIgnored var usesSample = false
+    #endif
     private(set) var trackID: String?
     private(set) var loading = false
 
@@ -25,6 +29,9 @@ final class LyricsStore {
 
     /// Fetches lyrics for `info` unless they're cached. Call from a view's `.task(id:)`.
     func load(for info: NowPlayingInfo?) async {
+        #if DEBUG
+            if usesSample { return }
+        #endif
         // An older song's lookup still running no longer owns this; only this load may set it.
         loading = false
         guard preferences.lyrics, let info else {
@@ -76,3 +83,16 @@ final class LyricsStore {
         return task
     }
 }
+
+#if DEBUG
+    extension LyricsStore {
+        /// Made-up timed lyrics, a line every four seconds, for checking the lyrics views.
+        func debugFillSample() {
+            usesSample = true
+            lyrics = Lyrics(
+                lines: (0..<60).map {
+                    Lyrics.Line(time: Double($0) * 4, text: "Sample line \($0 + 1), sung for a while")
+                })
+        }
+    }
+#endif
