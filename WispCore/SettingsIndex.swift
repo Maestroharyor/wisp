@@ -90,7 +90,6 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "date", "breathing", "music glow", "beat", "sunset", "night", "light", "dark", "sound", "sound pack",
                 "confetti", "celebrate", "pet", "sprite", "import", "export", "share", "reset",
                 "panels", "liquid glass", "frosted", "clear", "transparency", "translucent", "violet tint",
-                "mini player look", "clipboard look",
                 // Current control names, then the older ones so searches for those still land.
                 "shape", "effects", "edge highlight", "number style", "accent follows", "playing album",
                 "change colour through the day", "change color through the day", "beside the closed notch",
