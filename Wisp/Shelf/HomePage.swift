@@ -466,7 +466,7 @@ private struct SoloBackButton: View {
         }
         .buttonStyle(.plain)
         .hoverHint(label)
-        .offset(x: -26, y: 2)
+        .offset(x: -ShellMetrics.soloBackOffset, y: 2)
         .accessibilityLabel(label)
     }
 }

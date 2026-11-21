@@ -28,6 +28,17 @@ public enum ShellMetrics {
     public static func shelfMinimumWidth(notchStyle: Bool) -> CGFloat { notchStyle ? 451 : 405 }
     public static func soloCardWidth(notchStyle: Bool) -> CGFloat { notchStyle ? 352 : 370 }
 
+    /// How far the back chevron sits left of a solo card's leading edge.
+    public static let soloBackOffset: CGFloat = 26
+    /// Clear space between the chevron and the shell's edge, so its round corner never cuts it.
+    public static let soloBackMargin: CGFloat = 8
+    /// Room kept each side of a solo card for the chevron, beyond the shelf's inset: none on the
+    /// notch, whose 48 pt inset already holds it, but the island and orb inset only 16.
+    public static func soloBackRoom(notchStyle: Bool) -> CGFloat {
+        let inset = shelfInsets(notchStyle: notchStyle, notchHeight: 0).leading
+        return max(soloBackOffset + soloBackMargin - inset, 0)
+    }
+
     /// Insets around shelf content; notch style clears the camera housing and the flares.
     public static func shelfInsets(notchStyle: Bool, notchHeight: CGFloat) -> EdgeInsetsValue {
         notchStyle
