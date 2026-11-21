@@ -97,7 +97,7 @@ final class ShelfHeightTests: XCTestCase {
         XCTAssertTrue(ShelfHeight.offered(in: NotchGeometry.layout(for: tall, prefersIsland: true)))
         XCTAssertTrue(ShelfHeight.offered(in: NotchGeometry.layout(for: tall, placement: .topLeft)))
         XCTAssertTrue(ShelfHeight.offered(in: NotchGeometry.layout(for: tall, placement: .topRight)))
-        for placement: Placement in [.bottom, .left, .right, .floating] {
+        for placement: Placement in [.bottom, .left, .right] {
             let layout = NotchGeometry.layout(for: tall, placement: placement)
             XCTAssertFalse(ShelfHeight.offered(in: layout), "\(placement)")
             XCTAssertEqual(
@@ -147,5 +147,57 @@ final class ShelfHeightTests: XCTestCase {
         XCTAssertEqual(ShelfHeight.extra(for: "agents", in: ["agents": -20]), 0)
         XCTAssertEqual(ShelfHeight.extra(for: "agents", in: ["agents": .nan]), 0)
         XCTAssertEqual(ShelfHeight.extra(for: nil, in: ["agents": 90]), 0)
+    }
+
+    // The orb: its Agents and other long lists can be dragged taller too, in the direction it
+    // opens, without the shelf sliding over the orb.
+
+    private func orb(at centre: CGPoint) -> NotchLayout {
+        NotchGeometry.layout(for: tall, placement: .floating, orbCentre: centre)
+    }
+
+    func testTheOrbOffersTheHandle() {
+        XCTAssertTrue(ShelfHeight.offered(in: orb(at: CGPoint(x: 2800, y: 1300))))
+        XCTAssertTrue(ShelfHeight.offered(in: orb(at: CGPoint(x: 2800, y: 200))))
+    }
+
+    func testAnOrbHighUpGrowsDownAndAnOrbLowGrowsUp() {
+        let high = orb(at: CGPoint(x: 2800, y: 1300))
+        XCTAssertFalse(ShelfHeight.growsUp(in: high))
+        let low = orb(at: CGPoint(x: 2800, y: 200))
+        XCTAssertTrue(ShelfHeight.growsUp(in: low))
+        XCTAssertFalse(ShelfHeight.growsUp(in: NotchGeometry.layout(for: laptop)))
+    }
+
+    func testTheTallestOrbShelfStaysOnScreenAndOffTheOrb() {
+        let navPill = SurfaceSizing.navPillGap + SurfaceSizing.navPillSize.height
+        for centre in [CGPoint(x: 2800, y: 1300), CGPoint(x: 2800, y: 200), CGPoint(x: 2800, y: 760)] {
+            let layout = orb(at: centre)
+            let height = ShelfHeight.maxHeight(in: layout)
+            XCTAssertGreaterThan(height, 0, "\(centre)")
+            XCTAssertLessThanOrEqual(height, ShelfHeight.heightCap)
+            let shelf = layout.surfaceRect(size: CGSize(width: 600, height: height))
+            // Still hangs from the orb's edge rather than being pushed back over it.
+            if ShelfHeight.growsUp(in: layout) {
+                XCTAssertEqual(shelf.minY, layout.closedRect.minY, accuracy: 0.5, "\(centre)")
+                XCTAssertLessThanOrEqual(shelf.maxY + navPill, layout.visibleFrame.maxY + 0.5, "\(centre)")
+            } else {
+                XCTAssertEqual(shelf.maxY, layout.closedRect.maxY, accuracy: 0.5, "\(centre)")
+                XCTAssertGreaterThanOrEqual(shelf.minY - navPill, layout.visibleFrame.minY - 0.5, "\(centre)")
+            }
+        }
+    }
+
+    func testTheOrbsPanelHasRoomForItsTallestShelf() {
+        let layout = orb(at: CGPoint(x: 2800, y: 1300))
+        let navPill = SurfaceSizing.navPillGap + SurfaceSizing.navPillSize.height
+        let tallest = layout.surfaceRect(
+            size: CGSize(width: 600, height: ShelfHeight.maxHeight(in: layout) + navPill))
+        XCTAssertTrue(layout.panelFrame.contains(tallest), "\(layout.panelFrame) \(tallest)")
+    }
+
+    func testAMovedIslandStillDoesNotOfferIt() {
+        let moved = NotchGeometry.layout(for: tall, prefersIsland: true, islandCentre: CGPoint(x: 2800, y: 700))
+        XCTAssertFalse(ShelfHeight.offered(in: moved))
     }
 }
