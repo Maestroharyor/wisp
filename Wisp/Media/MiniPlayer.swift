@@ -86,7 +86,6 @@ final class MiniPlayerController {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.appearance = NSAppearance(named: .darkAqua)
         panel.contentView = NSHostingView(
             rootView: MiniPlayerView(
                 monitor: services.nowPlaying, lyrics: services.lyrics,
@@ -159,7 +158,9 @@ private struct MiniPlayerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                ArtworkView(image: monitor.artwork, size: 44, radius: 9)
+                ArtworkView(
+                    image: monitor.artwork, size: 44,
+                    radius: SurfaceRadius.concentric(outer: SurfaceRadius.panel, padding: 12))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(monitor.info?.title ?? "Nothing playing").font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
@@ -179,7 +180,7 @@ private struct MiniPlayerView: View {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     ProgressBar(
                         value: info.duration > 0 ? monitor.position(at: context.date) / info.duration : 0,
-                        tint: .accentColor, height: 4
+                        tint: .wispViolet, height: 4
                     ) { monitor.seek(to: $0 * info.duration) }
                 }
                 LyricLines(monitor: monitor, lyrics: lyrics, size: 12, showsNext: false)
@@ -191,20 +192,14 @@ private struct MiniPlayerView: View {
         }
         .padding(12)
         .frame(width: 320, height: 118, alignment: .top)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.black.opacity(0.88))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.1))
-                )
-        )
+        .wispSurface(cornerRadius: SurfaceRadius.panel)
         .overlay(alignment: .topTrailing) {
             if hovering {
                 ShelfButton(symbol: "xmark", size: 8, action: close).offset(x: 6, y: -6)
             }
         }
         // Buttons and the seek bar keep their own clicks and drags; anywhere else moves the player.
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: SurfaceRadius.panel, style: .continuous))
         .gesture(
             DragGesture(minimumDistance: 2)
                 .updating($dragging) { _, state, _ in state = true }
@@ -214,6 +209,5 @@ private struct MiniPlayerView: View {
             if !isDragging { dragEnded() }
         }
         .onHover { hovering = $0 }
-        .foregroundStyle(.white)
     }
 }

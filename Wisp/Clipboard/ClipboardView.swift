@@ -33,23 +33,23 @@ struct ClipboardView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(.black.opacity(0.88))
-                .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white.opacity(0.1)))
-        )
-        .environment(\.colorScheme, .dark)
-        .foregroundStyle(.white)
+        .wispSurface(cornerRadius: SurfaceRadius.largePanel)
+        .tint(.wispViolet)
         .onAppear { searchFocused = true }
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
-            tab("Clipboard", kind: nil)
-            tab("Text", kind: .text)
-            tab("Links", kind: .link)
-            tab("Images", kind: .image)
-            tab("Colors", kind: .color)
+        HStack(spacing: 8) {
+            Picker("Show", selection: kindSelection) {
+                Text("All").tag(ClipKind?.none)
+                Text("Text").tag(ClipKind?.some(.text))
+                Text("Links").tag(ClipKind?.some(.link))
+                Text("Images").tag(ClipKind?.some(.image))
+                Text("Colors").tag(ClipKind?.some(.color))
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
             Spacer()
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Color.secondaryText)
@@ -60,7 +60,7 @@ struct ClipboardView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Capsule().fill(.white.opacity(0.08)))
+            .background(Capsule().fill(.quaternary))
             Menu {
                 Button("Clear History (keeps pinned)") { model.store.clear() }
             } label: {
@@ -70,21 +70,17 @@ struct ClipboardView: View {
             .menuIndicator(.hidden)
             .frame(width: 28)
         }
-        .font(.system(size: 12, weight: .semibold))
+        .font(.callout)
     }
 
-    private func tab(_ title: String, kind: ClipKind?) -> some View {
-        Button {
-            model.kind = kind
-            model.selectedID = model.items.first?.id
-        } label: {
-            Text(title)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(.white.opacity(model.kind == kind ? 0.18 : 0)))
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
+    /// Picking a kind starts on its first item.
+    private var kindSelection: Binding<ClipKind?> {
+        Binding(
+            get: { model.kind },
+            set: { kind in
+                model.kind = kind
+                model.selectedID = model.items.first?.id
+            })
     }
 
     private var cards: some View {
@@ -187,22 +183,26 @@ private struct ClipCard: View {
         }
         .padding(12)
         .frame(width: 200, height: 220)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.07)))
+        .background(RoundedRectangle(cornerRadius: Self.radius, style: .continuous).fill(.quaternary.opacity(0.6)))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+                .strokeBorder(selected ? Color.wispViolet : .clear, lineWidth: 2)
         )
         .overlay(alignment: .topTrailing) {
             if let pickNumber {
                 Text("\(pickNumber)")
                     .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
                     .frame(width: 20, height: 20)
                     .background(Circle().fill(Color.wispViolet))
                     .offset(x: 6, y: -6)
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
     }
+
+    /// Concentric with the panel around the row of cards.
+    private static let radius = SurfaceRadius.concentric(outer: SurfaceRadius.largePanel, padding: 16)
 
     private var header: some View {
         HStack(spacing: 6) {
@@ -225,7 +225,7 @@ private struct ClipCard: View {
             Text(item.text ?? "").font(.system(size: 12)).lineLimit(9)
         case .link:
             VStack(alignment: .leading, spacing: 6) {
-                Image(systemName: "link").font(.system(size: 22)).foregroundStyle(Color.accentColor)
+                Image(systemName: "link").font(.system(size: 22)).foregroundStyle(Color.wispViolet)
                 Text(URL(string: item.text ?? "")?.host() ?? item.text ?? "")
                     .font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 Text(item.text ?? "").font(.system(size: 11)).foregroundStyle(Color.secondaryText).lineLimit(4)
@@ -244,7 +244,8 @@ private struct ClipCard: View {
                         red: Double(rgb?.red ?? 0) / 255, green: Double(rgb?.green ?? 0) / 255,
                         blue: Double(rgb?.blue ?? 0) / 255)
                 )
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.2)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.15)))
         }
     }
 

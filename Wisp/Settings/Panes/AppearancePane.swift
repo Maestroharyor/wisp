@@ -31,6 +31,7 @@ struct AppearanceSettings: View {
             presets
             theme
             shape
+            panels
             effects
             pills
             motion
@@ -151,6 +152,21 @@ struct AppearanceSettings: View {
             }
             .pickerStyle(.segmented)
             caption("The closed notch keeps its shape and stays black, so it still matches the camera.")
+        }
+    }
+
+    // MARK: Panels
+
+    private var panels: some View {
+        Section("Panels") {
+            Picker("Glass", selection: look.panelGlass) {
+                ForEach(PanelGlass.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            slider("Violet tint", value: look.panelTint, in: Appearance.panelTintRange)
+            caption(
+                "For the mini player, clipboard, quick pocket and other floating panels. They follow Light and Dark; Frosted is easiest to read, Clear shows the most through. Reduce Transparency makes them solid."
+            )
         }
     }
 

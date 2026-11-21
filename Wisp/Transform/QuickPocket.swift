@@ -103,12 +103,6 @@ private struct PocketView: View {
         }
         .padding(10)
         .frame(width: 236, height: 236)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(.black.opacity(0.9))
-                .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white.opacity(0.1)))
-        )
-        .foregroundStyle(.white)
-        .environment(\.colorScheme, .dark)
+        .wispSurface(cornerRadius: SurfaceRadius.largePanel)
     }
 }

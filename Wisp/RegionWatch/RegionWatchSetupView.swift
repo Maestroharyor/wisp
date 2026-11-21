@@ -64,13 +64,7 @@ struct RegionWatchSetupView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.black.opacity(0.88))
-                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.white.opacity(0.1)))
-        )
-        .environment(\.colorScheme, .dark)
-        .foregroundStyle(.white)
+        .wispSurface(cornerRadius: SurfaceRadius.panel)
         .tint(.wispViolet)
         .onChange(of: choice) { _, next in textFocused = next == .text }
     }

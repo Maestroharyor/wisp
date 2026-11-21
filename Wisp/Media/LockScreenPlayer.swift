@@ -67,9 +67,8 @@ private struct LockScreenPlayerView: View {
         }
         .padding(.horizontal, 18)
         .frame(width: 360, height: 96)
-        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(.black.opacity(0.7)))
-        .foregroundStyle(.white)
-        // Always on a dark backing, so the shared buttons and artwork keep their Dark mode colours.
+        .wispSurface(cornerRadius: SurfaceRadius.largePanel)
+        // The lock screen is always dark, like Apple's own widgets on it.
         .environment(\.colorScheme, .dark)
     }
 }
