@@ -28,6 +28,61 @@ struct RingIconView: View {
     }
 }
 
+/// A ring icon at full size, as the ring and the orb's dock draw it: an app's or file's own
+/// icon, or a built-in action's symbol on a coloured tile shaped like an app icon, so actions
+/// and apps sit together as one row of icons.
+struct RingTileIcon: View {
+    let icon: RingIcon
+    /// The tile colour for a symbol; apps and files ignore it.
+    let tileHex: String
+    let side: CGFloat
+
+    var body: some View {
+        switch icon {
+        case .symbol(let name):
+            symbolTile(name)
+        case .app, .file:
+            if let image = RingIconCache.shared.image(for: icon) {
+                // App icons carry their own margin (about a tenth each side); drawn larger, they line
+                // up with the tiles.
+                Image(nsImage: image).resizable().interpolation(.high).scaledToFit()
+                    .frame(width: side * 1.24, height: side * 1.24)
+                    .frame(width: side, height: side)
+            } else {
+                symbolTile(isFile ? "doc" : "app.dashed")
+            }
+        }
+    }
+
+    private var isFile: Bool {
+        if case .file = icon { return true }
+        return false
+    }
+
+    private func symbolTile(_ name: String) -> some View {
+        let colour = Color(ringHex: tileHex)
+        return RoundedRectangle(cornerRadius: side * 0.225, style: .continuous)
+            .fill(LinearGradient(colors: [colour.opacity(0.82), colour], startPoint: .top, endPoint: .bottom))
+            .overlay(
+                RoundedRectangle(cornerRadius: side * 0.225, style: .continuous)
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 0.5)
+            )
+            .overlay(
+                Image(systemName: name).font(.system(size: side * 0.44, weight: .semibold)).foregroundStyle(.white)
+            )
+            .frame(width: side, height: side)
+            .shadow(color: .black.opacity(0.16), radius: side * 0.06, y: side * 0.03)
+    }
+}
+
+extension Color {
+    /// A colour from `#RRGGBB`; grey when the text isn't one.
+    init(ringHex hex: String) {
+        let rgb = ClipClassifier.rgb(fromHex: hex) ?? (red: 142, green: 142, blue: 147)
+        self.init(red: Double(rgb.red) / 255, green: Double(rgb.green) / 255, blue: Double(rgb.blue) / 255)
+    }
+}
+
 /// App and file icons, cached so opening the ring doesn't ask Launch Services for every icon
 /// again. File icons load on a dispatch queue: a folder on a share that has gone away can block
 /// for a long time, and the ring mustn't wait for it. Views redraw when one arrives.
