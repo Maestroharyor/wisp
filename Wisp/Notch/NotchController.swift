@@ -17,6 +17,8 @@ final class NotchController {
     /// also reach the window underneath.
     private var pointerOverIsland = false
     private var dwellTask: Task<Void, Never>?
+    /// Holding a live pill on the orb opens the ring once this fires.
+    private var longPressTask: Task<Void, Never>?
     private var collapseControlsTask: Task<Void, Never>?
     private var closeTask: Task<Void, Never>?
     private var dragEndTask: Task<Void, Never>?
@@ -424,6 +426,7 @@ final class NotchController {
         if model.contains(location) {
             if machine.phase != .open {
                 pendingPress = true
+                startLongPress()
                 // A press may become a pull; the hover delay mustn't open the shelf under it.
                 // Letting go without moving still opens it as a click.
                 dwellTask?.cancel()
@@ -438,8 +441,27 @@ final class NotchController {
         }
     }
 
+    /// While a live pill covers the orb a click opens the pill's view, so holding it opens the
+    /// ring instead: the ring's apps stay one gesture away while an agent runs.
+    private func startLongPress() {
+        longPressTask?.cancel()
+        longPressTask = nil
+        guard isOrb, model.activity != nil, !showsApproval else { return }
+        longPressTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: OrbDockGeometry.longPress)
+            guard !Task.isCancelled, let self, self.pendingPress else { return }
+            self.longPressTask = nil
+            // Letting go now does nothing more.
+            self.pendingPress = false
+            self.services.orbDock.hide()
+            self.services.ring.show(at: CGPoint(x: self.layout.closedRect.midX, y: self.layout.closedRect.midY))
+        }
+    }
+
     /// A press on the closed shell that didn't turn into a drag opens it.
     func leftMouseUp(at location: CGPoint) {
+        longPressTask?.cancel()
+        longPressTask = nil
         // A press that ended off the open shelf leaves the panel click-through again.
         if machine.phase != .closed { updateClickThrough(at: location) }
         guard pendingPress else { return }
@@ -473,6 +495,8 @@ final class NotchController {
     /// The press became a drag of the shell; hovering must not open the shelf mid-drag.
     func cancelPress() {
         pendingPress = false
+        longPressTask?.cancel()
+        longPressTask = nil
         dwellTask?.cancel()
         dwellTask = nil
     }
@@ -1006,12 +1030,14 @@ final class NotchController {
         }
     }
 
-    /// The orb's dock shows beside it while it peeks with nothing else on it, and goes as soon as
-    /// the orb opens.
+    /// The orb's dock shows beside it while it peeks, idle or as a live pill, and goes as soon
+    /// as the orb opens or shows a card.
     private func reportOrbPeek() {
         if isOrb, machine.phase == .open { services.orbDock.hide() }
-        let peeking = isOrb && machine.phase == .peek && model.activity == nil && !model.dragging
-        services.orbDock.orb(on: screenUUID, peekingAt: peeking ? layout.closedRect : nil)
+        let peeking = isOrb && machine.phase == .peek && !model.dragging && OrbDockGeometry.offers(model.spec)
+        // Beside the pill when one is showing, so the row doesn't sit on top of it.
+        let shape = model.activity == nil ? layout.closedRect : model.targetSurfaceRect
+        services.orbDock.orb(on: screenUUID, peekingAt: peeking ? shape : nil)
     }
 
     /// Re-reads where the pointer is after the shape changed under it, so a shell that moved
