@@ -2,6 +2,10 @@ import AppKit
 import ImageIO
 import PDFKit
 import WispCore
+import os
+
+/// Stages only: never the captured text or image.
+private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "TextCapture")
 
 /// Copies text out of things that only show it: a part of the screen (the Capture text ring
 /// action), an image in the clipboard history, and a PDF in the tray as an AI summary.
@@ -46,7 +50,10 @@ final class TextCaptureController {
         }
         services.closeShelves()
         picker.pick(hint: "Drag over text or a QR code to copy it. Esc cancels.") { [weak self] rect in
-            guard let self, let rect else { return }
+            guard let self, let rect else {
+                log.notice("pick cancelled")
+                return
+            }
             self.capture(rect)
         }
     }
@@ -56,16 +63,23 @@ final class TextCaptureController {
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
         let flipped = RegionGeometry.flipped(selection, primaryHeight: primaryHeight)
         reading = true
+        log.notice("capturing \(Int(selection.width), privacy: .public)x\(Int(selection.height), privacy: .public)")
         Task {
             defer { reading = false }
             do {
                 let result = try await Task.detached {
                     ImageReader.read(try await ScreenSnapshot.capture(flipped))
                 }.value
+                log.notice("read done, copied: \(result.copyText != nil, privacy: .public)")
                 deliver(result)
             } catch ScreenSnapshotError.offScreen {
+                log.notice("selection off screen")
                 notice("Drag over part of a screen")
+            } catch ScreenSnapshotError.timedOut {
+                log.error("screen capture timed out")
+                notice("Couldn't capture the screen. Try again")
             } catch {
+                log.error("screen capture failed: \(error.localizedDescription, privacy: .public)")
                 notice("Couldn't capture the screen")
             }
         }
