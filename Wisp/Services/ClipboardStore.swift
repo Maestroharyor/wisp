@@ -15,6 +15,10 @@ final class ClipboardStore {
     @ObservationIgnored private let pasteboard = NSPasteboard.general
     @ObservationIgnored private var lastChangeCount: Int
     @ObservationIgnored private var pollTask: Task<Void, Never>?
+    /// Apps that came to the front since the last poll. A copy in an excluded app followed by
+    /// a quick ⌘-Tab is first seen with another app in front, so these are checked too.
+    @ObservationIgnored private var activeSincePoll: Set<String> = []
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
     /// The last copy still being stored (an image encodes off the main thread); later copies
     /// wait for it so history keeps the order things were copied in.
     @ObservationIgnored private var storing: Task<Void, Never>?
@@ -43,6 +47,18 @@ final class ClipboardStore {
 
     func start() {
         pollTask?.cancel()
+        if activationObserver == nil {
+            activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+            ) { [weak self] note in
+                // userInfo is untyped; this key documents an NSRunningApplication.
+                let id = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
+                    .bundleIdentifier
+                MainActor.assumeIsolated {
+                    if let id { self?.activeSincePoll.insert(id) }
+                }
+            }
+        }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 self?.check()
@@ -54,6 +70,8 @@ final class ClipboardStore {
     func stop() {
         pollTask?.cancel()
         pollTask = nil
+        if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) }
+        activationObserver = nil
         saveNow()
     }
 
@@ -106,6 +124,8 @@ final class ClipboardStore {
     }
 
     private func check() {
+        let recentlyActive = activeSincePoll
+        activeSincePoll = []
         let count = pasteboard.changeCount
         guard count != lastChangeCount else { return }
         lastChangeCount = count
@@ -116,7 +136,9 @@ final class ClipboardStore {
         guard types.isDisjoint(with: ClipClassifier.privateTypes) else { return }
         let app = NSWorkspace.shared.frontmostApplication
         // Apps the user keeps out of history (password managers by default).
-        guard ClipClassifier.keeps(from: app?.bundleIdentifier, excluding: Set(preferences.clipboardExcludedApps))
+        let excluded = Set(preferences.clipboardExcludedApps)
+        guard ClipClassifier.keeps(from: app?.bundleIdentifier, excluding: excluded),
+            recentlyActive.isDisjoint(with: excluded)
         else { return }
 
         let source = (name: app?.localizedName, bundleID: app?.bundleIdentifier)
