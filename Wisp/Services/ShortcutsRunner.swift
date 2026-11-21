@@ -13,18 +13,22 @@ final class ShortcutsRunner {
     var onNotice: (String, String) -> Void = { _, _ in }
 
     @ObservationIgnored private var lastRefresh: Date?
+    /// A list on its way: page switches don't start another `shortcuts list` beside it.
+    @ObservationIgnored private var listing = false
 
     private static let tool = "/usr/bin/shortcuts"
 
     /// For the shelf page, which rebuilds on every switch. Settings call `refresh` so a
     /// Shortcut made a moment ago shows up there.
     func refreshIfStale() {
-        guard RefreshRule.shortcuts.isDue(lastRefresh: lastRefresh, now: .now) else { return }
+        guard !listing, RefreshRule.shortcuts.isDue(lastRefresh: lastRefresh, now: .now) else { return }
         refresh()
     }
 
     func refresh() {
+        listing = true
         Task {
+            defer { listing = false }
             let output = (try? await ProcessRunner.run(Self.tool, ["list"])) ?? ""
             available = ShortcutList.parse(output)
             hasListed = true
