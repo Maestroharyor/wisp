@@ -548,3 +548,26 @@ final class RingDockTests: XCTestCase {
         XCTAssertTrue(screen.contains(frame))
     }
 }
+
+final class OrbDockOfferTests: XCTestCase {
+    func testTheIdleOrbAndALivePillOfferTheDock() {
+        // A running agent turns the orb into a pill; its apps must still be a hover away.
+        for spec in [SurfaceSpec.closed, .peek, .compact(wide: false), .compact(wide: true), .medium] {
+            XCTAssertTrue(OrbDockGeometry.offers(spec), "\(spec)")
+        }
+    }
+
+    func testCardsAndTheOpenShelfDont() {
+        // A card has its own buttons, and the open shelf is where the pointer is working.
+        for spec in [
+            SurfaceSpec.notification(extra: 0), .home(contentWidth: 400, editing: false), .media, .tray(items: 0),
+        ] {
+            XCTAssertFalse(OrbDockGeometry.offers(spec), "\(spec)")
+        }
+    }
+
+    func testALongPressIsLongerThanAClickAndShorterThanTheHoverOpen() {
+        XCTAssertGreaterThan(OrbDockGeometry.longPress, .milliseconds(300))
+        XCTAssertLessThan(OrbDockGeometry.longPress, .milliseconds(800))
+    }
+}
