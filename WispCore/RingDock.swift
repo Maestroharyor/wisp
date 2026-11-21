@@ -152,6 +152,19 @@ public enum OrbDockGeometry {
         return CGSize(width: padding * 2 + count * icon + (count - 1) * spacing, height: rowHeight + labelRoom)
     }
 
+    /// Whether the orb, as drawn now, offers the dock on hover: idle, or a live pill (an agent
+    /// running, music, a timer), so the ring's apps stay a hover away while something runs.
+    /// Not a card, which has buttons of its own, nor the open shelf.
+    public static func offers(_ spec: SurfaceSpec) -> Bool {
+        switch spec {
+        case .closed, .peek, .compact, .medium: true
+        default: false
+        }
+    }
+
+    /// Holding a live pill this long opens the ring instead of the pill's view.
+    public static let longPress = Duration.milliseconds(450)
+
     /// The panel: the row centred on the orb, the label room above it.
     public static func frame(orb: CGRect, count: Int, in visible: CGRect) -> CGRect {
         let size = size(count: count)
