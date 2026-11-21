@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.14](https://github.com/Maestroharyor/wisp/compare/v0.2.13...v0.2.14) (2026-11-21)
+
+
+### Features
+
+* redesign every window page, keep several notes and filter the clipboard by app ([#135](https://github.com/Maestroharyor/wisp/issues/135)) ([b748146](https://github.com/Maestroharyor/wisp/commit/b7481463e3f9d84cb52f5a4acf22032b421eabb6))
+* scroll lyrics, show captions when there are none, and add websites to the ring ([#137](https://github.com/Maestroharyor/wisp/issues/137)) ([99decbe](https://github.com/Maestroharyor/wisp/commit/99decbee82ee447a7b39b983cccc7d6d6bbc6def))
+
 ## [0.2.13](https://github.com/Maestroharyor/wisp/compare/v0.2.12...v0.2.13) (2026-11-21)
 
 
