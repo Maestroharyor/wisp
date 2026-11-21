@@ -116,7 +116,9 @@ final class NotchModel {
             activityDetail = detail
             soloFromPill = fromPill
         }
-        returnPage = from
+        // A view opened over another pill's view keeps the first one's page, or closing would
+        // leave the shelf resting on the Widgets page the first view borrowed.
+        if returnPage == nil { returnPage = from }
     }
 
     /// What's on screen as a `ShelfView`, for the window it's torn off into.
