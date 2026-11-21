@@ -121,8 +121,10 @@ struct ClipboardView: View {
                                 }
                                 .contextMenu {
                                     let picked = model.pickedItems
-                                    if picked.count > 1, model.picked.contains(item.id) {
-                                        Button("Paste \(picked.count) together") { pasteTogether(picked) }
+                                    // Images are left out of a paste together, so only text counts.
+                                    let texts = picked.filter { $0.text != nil }.count
+                                    if picked.count > 1, texts > 0, model.picked.contains(item.id) {
+                                        Button("Paste \(texts) together") { pasteTogether(picked) }
                                         Divider()
                                     }
                                     Button("Paste") { paste(item) }

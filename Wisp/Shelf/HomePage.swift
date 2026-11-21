@@ -230,14 +230,8 @@ struct HomePage: View {
 
     private func endEditing() { model.endHomeEditing() }
 
-    private static let cardPrefix = "wisp-widget:"
-
     static func cardDrag(_ kind: WidgetKind) -> NSItemProvider {
-        NSItemProvider(object: NSString(string: cardPrefix + kind.rawValue))
-    }
-
-    private static func cardID(_ text: String) -> String? {
-        text.hasPrefix(cardPrefix) ? String(text.dropFirst(cardPrefix.count)) : nil
+        NSItemProvider(object: NSString(string: WidgetDrag.text(for: kind)))
     }
 
     private func reorder(_ providers: [NSItemProvider], onto target: WidgetKind) -> Bool {
@@ -248,7 +242,7 @@ struct HomePage: View {
                 // Cards drag their widget's id behind a prefix, so a reminder titled "notes" is
                 // still a reminder; anything else dropped on the Pomodoro says what its focus
                 // session is for.
-                guard let id = Self.cardID(raw) else {
+                guard let id = WidgetDrag.id(from: raw) else {
                     if target == .pomodoro { model.services.timers.setFocusLabel(from: raw) }
                     return
                 }
@@ -330,10 +324,20 @@ private struct WidgetGridView: View {
                         WidgetIconCell(kind: kind, metrics: metrics, zoom: zoom) {
                             model.soloWidget = kind
                         }
-                        .draggable(kind.rawValue) { WidgetIconTile(kind: kind, size: metrics.tileSize) }
+                        .draggable(WidgetDrag.text(for: kind)) {
+                            WidgetIconTile(kind: kind, size: metrics.tileSize)
+                        }
                         .dropDestination(for: String.self) { items, _ in
-                            guard let id = items.first, let moved = WidgetKind(rawValue: id) else { return false }
-                            withAnimation(model.surfaceAnimation) { preferences.moveGridWidget(moved, before: kind) }
+                            guard let raw = items.first else { return false }
+                            if let moved = WidgetDrag.id(from: raw).flatMap(WidgetKind.init(rawValue:)) {
+                                withAnimation(model.surfaceAnimation) {
+                                    preferences.moveGridWidget(moved, before: kind)
+                                }
+                                return true
+                            }
+                            // A reminder dropped on the Pomodoro says what its session is for.
+                            guard kind == .pomodoro else { return false }
+                            model.services.timers.setFocusLabel(from: raw)
                             return true
                         }
                     }
@@ -642,5 +646,17 @@ extension View {
     @ViewBuilder
     fileprivate func zoomSource(id: WidgetKind, in namespace: Namespace.ID?) -> some View {
         if let namespace { matchedGeometryEffect(id: id, in: namespace) } else { self }
+    }
+}
+
+/// What a widget dragged within Wisp carries: its id behind a prefix, so dropped text (a
+/// reminder titled "notes") is never taken for a widget.
+enum WidgetDrag {
+    private static let prefix = "wisp-widget:"
+
+    static func text(for kind: WidgetKind) -> String { prefix + kind.rawValue }
+
+    static func id(from text: String) -> String? {
+        text.hasPrefix(prefix) ? String(text.dropFirst(prefix.count)) : nil
     }
 }

@@ -133,7 +133,12 @@ final class CalendarStore {
     /// Called on the main actor each time a fresh week lands.
     @ObservationIgnored var onWeekLoaded: () -> Void = {}
 
+    /// Asks the first time; once answered, macOS won't ask again, so System Settings opens.
     func requestAccess() {
+        guard EKEventStore.authorizationStatus(for: .event) == .notDetermined else {
+            Permission.calendars.openSettings()
+            return
+        }
         Task {
             _ = try? await store.requestFullAccessToEvents()
             access = EKEventStore.authorizationStatus(for: .event)
@@ -224,6 +229,13 @@ final class RemindersStore {
     private(set) var items: [ReminderItem] = []
     /// Reminders just ticked off, still shown so they can be put back.
     private(set) var justDone: Set<String> = []
+    /// Whether a read has finished, so "All done" never shows before the list is known.
+    private(set) var loaded = false
+    /// The last read failed; the list shown is the one from before.
+    private(set) var failed = false
+    /// Reminders put back with Undo, by when their save finished (nil while saving). They keep
+    /// their row until a read that started after the save has them, so they don't blink out.
+    @ObservationIgnored private var undoing: [String: Date?] = [:]
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
 
     @ObservationIgnored private let reader = RemindersReader()
@@ -240,7 +252,12 @@ final class RemindersStore {
 
     private static let undoFor = Duration.seconds(4)
 
+    /// Asks the first time; once answered, macOS won't ask again, so System Settings opens.
     func requestAccess() {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .notDetermined else {
+            Permission.reminders.openSettings()
+            return
+        }
         Task {
             _ = try? await EKEventStore().requestFullAccessToReminders()
             access = EKEventStore.authorizationStatus(for: .reminder)
@@ -260,6 +277,9 @@ final class RemindersStore {
         guard access == .fullAccess else {
             items = []
             justDone = []
+            undoing = [:]
+            loaded = false
+            failed = false
             lastRefresh = nil
             if hadAccess { revocations += 1 }
             hadAccess = false
@@ -284,10 +304,19 @@ final class RemindersStore {
         fetching = true
         let revocations = revocations
         Task {
+            let started = Date.now
             let fetched = await reader.open(revocations: revocations)
             fetching = false
             if access == .fullAccess {
-                items = Self.merge(ReminderList.ordered(fetched, now: .now), keeping: justDone, from: items)
+                failed = fetched == nil
+                if let fetched {
+                    loaded = true
+                    items = Self.merge(
+                        ReminderList.ordered(fetched, now: .now), keeping: justDone, holding: Set(undoing.keys),
+                        from: items)
+                    // Saved before this read began: the read has them as they are now.
+                    undoing = undoing.filter { _, saved in saved.map { $0 > started } ?? true }
+                }
             }
             if refetch {
                 refetch = false
@@ -297,12 +326,14 @@ final class RemindersStore {
     }
 
     /// Ones just ticked off stay where they were until their Undo runs out, rather than jumping
-    /// to the end of the list.
-    private static func merge(_ fresh: [ReminderItem], keeping done: Set<String>, from old: [ReminderItem])
-        -> [ReminderItem]
-    {
+    /// to the end of the list. Ones being put back stay too, until a read has them again.
+    private static func merge(
+        _ fresh: [ReminderItem], keeping done: Set<String>, holding undoing: Set<String>, from old: [ReminderItem]
+    ) -> [ReminderItem] {
         var merged = fresh.filter { !done.contains($0.id) }
-        for (index, item) in old.enumerated() where done.contains(item.id) {
+        let present = Set(merged.map(\.id))
+        for (index, item) in old.enumerated()
+        where done.contains(item.id) || (undoing.contains(item.id) && !present.contains(item.id)) {
             merged.insert(item, at: min(index, merged.count))
         }
         return merged
@@ -333,6 +364,9 @@ final class RemindersStore {
             self.justDone.remove(item.id)
             self.items.removeAll { $0.id == item.id }
             self.clearTasks[item.id] = nil
+            // A repeating reminder's next one has the same id and was held back while this
+            // one could be undone; reading again brings it in.
+            self.refresh()
         }
     }
 
@@ -340,8 +374,10 @@ final class RemindersStore {
         clearTasks[item.id]?.cancel()
         clearTasks[item.id] = nil
         justDone.remove(item.id)
+        undoing[item.id] = .some(nil)
         Task {
             _ = await save(item.id, done: false)
+            undoing[item.id] = .some(.now)
             refresh()
         }
     }
@@ -385,7 +421,8 @@ private actor RemindersReader {
     /// copy of a reminder never replaces a newer one.
     private var reads = 0
 
-    func open(revocations: Int) async -> [ReminderItem] {
+    /// The open reminders, or nil when Reminders couldn't be read.
+    func open(revocations: Int) async -> [ReminderItem]? {
         if storeRevocations != revocations {
             store = nil
             reminders = [:]
@@ -397,10 +434,10 @@ private actor RemindersReader {
         reads += 1
         let read = reads
         let predicate = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: nil)
-        let batch: FetchedReminders = await withCheckedContinuation { continuation in
-            store.fetchReminders(matching: predicate) { continuation.resume(returning: FetchedReminders($0 ?? [])) }
+        let batch: FetchedReminders? = await withCheckedContinuation { continuation in
+            store.fetchReminders(matching: predicate) { continuation.resume(returning: $0.map(FetchedReminders.init)) }
         }
-        let fetched = batch.reminders
+        guard let fetched = batch?.reminders else { return nil }
         if read == reads {
             reminders = Dictionary(
                 fetched.map { ($0.calendarItemIdentifier, $0) }, uniquingKeysWith: { first, _ in first })

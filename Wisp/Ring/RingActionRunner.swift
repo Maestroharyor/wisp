@@ -50,11 +50,7 @@ enum RingActionRunner {
                 notice("link.badge.plus", "That link can't be opened", services: services)
             }
         case .folder:
-            if let folder = existingFolder(action) {
-                NSWorkspace.shared.open(folder)
-            } else {
-                notice("questionmark.folder", "\(action.title) isn't there any more", services: services)
-            }
+            withFolder(action, services: services) { NSWorkspace.shared.open($0) }
         case .none: break
         }
     }
@@ -73,12 +69,27 @@ enum RingActionRunner {
         NSWorkspace.shared.openApplication(at: url, configuration: configuration)
     }
 
-    private static func existingFolder(_ action: RingAction) -> URL? {
-        var isFolder: ObjCBool = false
-        guard let path = action.value, FileManager.default.fileExists(atPath: path, isDirectory: &isFolder),
-            isFolder.boolValue
-        else { return nil }
-        return URL(fileURLWithPath: path, isDirectory: true)
+    /// Runs `body` with a folder segment's folder once it's known to be there. The check runs on
+    /// a dispatch queue, since a folder on a share that has gone away can block for a long time.
+    private static func withFolder(
+        _ action: RingAction, services: AppServices, _ body: @escaping @MainActor (URL) -> Void
+    ) {
+        guard let path = action.value, !path.isEmpty else { return }
+        let title = action.title
+        Task { @MainActor in
+            let exists = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    var isFolder: ObjCBool = false
+                    let found = FileManager.default.fileExists(atPath: path, isDirectory: &isFolder)
+                    continuation.resume(returning: found && isFolder.boolValue)
+                }
+            }
+            if exists {
+                body(URL(fileURLWithPath: path, isDirectory: true))
+            } else {
+                notice("questionmark.folder", "\(title) isn't there any more", services: services)
+            }
+        }
     }
 
     private static func notice(_ symbol: String, _ text: String, services: AppServices) {
@@ -129,6 +140,8 @@ enum RingActionRunner {
             let id = action.value.flatMap(UUID.init(uuidString:))
             if let drop = services.preferences.dropActions.first(where: { $0.id == id }) {
                 services.dropActions.run(drop, on: files)
+            } else {
+                notice("questionmark", "That drop action was removed", services: services)
             }
         case .app:
             guard let id = action.value, let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else {
@@ -137,11 +150,7 @@ enum RingActionRunner {
             }
             NSWorkspace.shared.open(files, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
         case .folder:
-            if let folder = existingFolder(action) {
-                copy(files, into: folder, services: services)
-            } else {
-                notice("questionmark.folder", "\(action.title) isn't there any more", services: services)
-            }
+            withFolder(action, services: services) { copy(files, into: $0, services: services) }
         default: break
         }
     }

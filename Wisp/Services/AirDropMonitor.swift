@@ -92,7 +92,10 @@ final class AirDropMonitor {
         arrivalTask?.cancel()
         arrivalTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(800))
-            while let self, !Task.isCancelled, self.tracker.isWatching {
+            // Waits for the rest of a batch, but not for long: one stuck file mustn't hold
+            // back the card for those that arrived.
+            let giveUp = ContinuousClock.now + .seconds(5)
+            while let self, !Task.isCancelled, self.tracker.isWatching, ContinuousClock.now < giveUp {
                 try? await Task.sleep(for: .milliseconds(500))
             }
             guard !Task.isCancelled, let self else { return }

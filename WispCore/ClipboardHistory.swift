@@ -169,7 +169,8 @@ public enum ClipClassifier {
     }
 }
 
-/// Several clips copied as one: their text, one per line, in the order picked.
+/// Several clips copied as one: their text, one per line, in the order given (the order
+/// ⌘-clicked in the panel, the list's order in the window, where ⇧-click and ⌘A pick ranges).
 public enum ClipMerge {
     public static func join(_ texts: [String]) -> String? {
         let kept = texts.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }

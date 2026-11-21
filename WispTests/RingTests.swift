@@ -355,6 +355,13 @@ final class RingDockTests: XCTestCase {
         XCTAssertEqual(RingAction(.folder, value: "/Users/me/Downloads", label: "  ").title, "Downloads")
     }
 
+    func testWidgetsWithoutANameSpellTheirIdOut() {
+        XCTAssertEqual(RingAction(.widget, value: "dayProgress").title, "Day progress")
+        XCTAssertEqual(RingAction(.widget, value: "agents").title, "Agents")
+        XCTAssertEqual(RingAction(.widget, value: "nowPlaying", label: "Now playing").title, "Now playing")
+        XCTAssertEqual(RingAction(.widget).title, "Widget")
+    }
+
     func testIconsComeFromTheAppOrFile() {
         XCTAssertEqual(RingAction(.app, value: "com.apple.Safari").icon, .app(bundleID: "com.apple.Safari"))
         XCTAssertEqual(RingAction(.app).icon, .symbol("app"))

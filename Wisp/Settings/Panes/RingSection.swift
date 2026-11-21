@@ -137,8 +137,14 @@ private struct RingEditorSheet: View {
         guard panel.runModal() == .OK, let url = panel.url, let bundle = Bundle(url: url),
             let id = bundle.bundleIdentifier
         else { return }
+        // An app has one ring; a second would never be used, since the first match wins.
+        if let existing = preferences.ringConfig.perApp.first(where: { $0.bundleIDs.contains(id) }) {
+            editing = existing.id
+            return
+        }
         let name = (FileManager.default.displayName(atPath: url.path) as NSString).deletingPathExtension
-        let set = RingSet(name: name, slots: preferences.ringConfig.standard.slots, bundleIDs: [id])
+        let slots = preferences.ringConfig.standard.slots.map { RingSlot($0.action, group: $0.group) }
+        let set = RingSet(name: name, slots: slots, bundleIDs: [id])
         preferences.ringConfig.perApp.append(set)
         editing = set.id
     }
@@ -196,8 +202,21 @@ private struct RingSetEditor: View {
             let middle = CGPoint(x: Self.side / 2 / Self.scale, y: Self.side / 2 / Self.scale)
             if case .slot(let index) = RingGeometry.hit(up, centre: middle, slots: slots.count) { selected = index }
         }
+        // VoiceOver picks a segment by swiping up or down on the picture.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Ring preview")
+        .accessibilityLabel("Ring segments")
+        .accessibilityValue(
+            slots.indices.contains(selected)
+                ? "Segment \(selected + 1) of \(slots.count), \(slots[selected].action.title)" : "Empty"
+        )
+        .accessibilityAdjustableAction { direction in
+            guard !slots.isEmpty else { return }
+            switch direction {
+            case .increment: selected = (selected + 1) % slots.count
+            case .decrement: selected = (selected - 1 + slots.count) % slots.count
+            @unknown default: break
+            }
+        }
     }
 
     @ViewBuilder private var inspector: some View {
@@ -319,7 +338,7 @@ private struct RingActionPicker: View {
             case .timer:
                 Stepper("\(action.minutes) min", value: minutes, in: 1...180)
             case .widget:
-                Picker("Widget", selection: value(default: WidgetKind.agents.rawValue)) {
+                Picker("Widget", selection: widget) {
                     ForEach(WidgetKind.allCases) { Text($0.title).tag($0.rawValue) }
                 }
                 .labelsHidden()
@@ -383,8 +402,30 @@ private struct RingActionPicker: View {
     }
 
     private var kind: Binding<RingAction.Kind> {
-        // An AI action always saves its task, so the segment's label matches what it runs.
-        Binding(get: { action.kind }, set: { action = RingAction($0, value: $0 == .ai ? "summarise" : nil) })
+        // Actions with a picker save what the picker shows, so the segment runs what it says.
+        // Picking the same kind again keeps the app, link or folder already chosen.
+        Binding(
+            get: { action.kind },
+            set: { kind in
+                guard kind != action.kind else { return }
+                switch kind {
+                case .ai: action = RingAction(.ai, value: "summarise")
+                case .widget:
+                    action = RingAction(.widget, value: WidgetKind.agents.rawValue, label: WidgetKind.agents.title)
+                case .dropAction: action = RingAction(.dropAction, value: dropActions.first?.id.uuidString)
+                default: action = RingAction(kind)
+                }
+            })
+    }
+
+    /// The widget and its name, so the segment and type to find show "Day progress", not an id.
+    private var widget: Binding<String> {
+        Binding(
+            get: { action.value ?? WidgetKind.agents.rawValue },
+            set: {
+                action.value = $0
+                action.label = WidgetKind(rawValue: $0)?.title
+            })
     }
 
     private var minutes: Binding<Int> {

@@ -318,7 +318,8 @@ struct RemindersWidget: View {
             }
             if store.access == .fullAccess {
                 if store.items.isEmpty {
-                    Text("All done").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                    Text(store.failed ? "Couldn't read Reminders" : store.loaded ? "All done" : "Loading…")
+                        .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
@@ -346,7 +347,7 @@ struct RemindersWidget: View {
     }
 }
 
-private struct ReminderRow: View {
+struct ReminderRow: View {
     let item: ReminderItem
     let done: Bool
     let store: RemindersStore

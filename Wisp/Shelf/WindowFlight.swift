@@ -46,6 +46,9 @@ final class WindowFlight {
         arrive: @escaping @MainActor () -> Void, done: @escaping @MainActor () -> Void
     ) -> Bool {
         cancel()
+        // A trip between displays would cross a gap macOS may not draw across (each display has
+        // its own Spaces), so the window seems to vanish halfway; the caller fades instead.
+        guard Self.sameScreen(frame, shell) else { return false }
         guard let picture = Self.picture(of: window), frame.width > 0, shell.width > 0 else { return false }
 
         // Room for the whole trip, so the picture is never cut off on its way.
@@ -116,6 +119,12 @@ final class WindowFlight {
             }
         }
         return true
+    }
+
+    private static func sameScreen(_ a: CGRect, _ b: CGRect) -> Bool {
+        let first = NSScreen.screens.first { $0.frame.contains(CGPoint(x: a.midX, y: a.midY)) }
+        let second = NSScreen.screens.first { $0.frame.intersects(b) }
+        return first != nil && first == second
     }
 
     private static func spring(_ keyPath: String, from: Any, spring: SpringSpec, duration: Double)

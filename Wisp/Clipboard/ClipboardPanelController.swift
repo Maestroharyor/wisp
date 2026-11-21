@@ -28,8 +28,10 @@ final class ClipboardPanelModel {
     }
 
     /// ⌘-click: adds the card to the ones to paste together, or takes it out again. The
-    /// selection follows the last card still picked.
+    /// selection follows the last card still picked. The first ⌘-click keeps the card already
+    /// selected, as Finder does.
     func togglePick(_ item: ClipItem) {
+        if picked.isEmpty, let current = selectedItem?.id, current != item.id { picked.append(current) }
         if let index = picked.firstIndex(of: item.id) { picked.remove(at: index) } else { picked.append(item.id) }
         selectedID = picked.last ?? item.id
     }
@@ -133,7 +135,11 @@ final class ClipboardPanelController {
 
     /// Copies the picked cards as one, a line each, closes the panel and sends ⌘V.
     func pasteTogether(_ items: [ClipItem]) {
-        guard services.clipboard.copyTogether(items) else { return }
+        guard services.clipboard.copyTogether(items) else {
+            services.activities.post(
+                .notice(symbol: "doc.on.clipboard", text: "Nothing to paste together"), slot: .notice, duration: 2)
+            return
+        }
         hide()
         guard AccessibilityPermission.isTrusted else { return }
         Task {
