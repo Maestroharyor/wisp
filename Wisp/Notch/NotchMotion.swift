@@ -10,6 +10,8 @@ struct NotchMotion {
     let surfaceOpen: Animation
     /// Surface spring when shrinking, to a pill or back to closed.
     let surfaceClose: Animation
+    /// The shell travelling to a new form (notch, island, orb), in one glide.
+    let formMorph: Animation
     /// Shelf content arriving with the growing shell.
     let shelfIn: Animation
     /// Content dissipating, before the surface closes.
@@ -32,6 +34,7 @@ struct NotchMotion {
             return NotchMotion(
                 surfaceOpen: open.animation,
                 surfaceClose: close.animation,
+                formMorph: .easeInOut(duration: 0.2),
                 shelfIn: .easeInOut(duration: 0.2),
                 contentOut: .easeOut(duration: 0.1),
                 navIn: .easeInOut(duration: 0.2),
@@ -46,10 +49,11 @@ struct NotchMotion {
         return NotchMotion(
             surfaceOpen: open.animation,
             surfaceClose: close.animation,
+            formMorph: SpringTuning.formMorph.scaled(speed.scale).animation,
             shelfIn: contentIn,
             contentOut: contentOut,
             // Chrome under the shelf, so it may trail the shell by a beat.
-            navIn: .spring(response: 0.36 * speed.scale, dampingFraction: 0.86).delay(0.05 * speed.scale),
+            navIn: SpringTuning.contentIn.scaled(speed.scale * 1.2).animation.delay(0.05 * speed.scale),
             wingIn: contentIn,
             wingOut: contentOut,
             contentScale: 0.94,
@@ -69,12 +73,20 @@ extension AnimationSpeed {
     }
 }
 
+extension Animation {
+    /// Hover, press and selection: quick and without overshoot.
+    static let wispControl = SpringTuning.control.animation
+    /// Small surfaces appearing: a hint of bounce.
+    static let wispPopover = SpringTuning.popover.animation
+    /// Things moving to a new place or size: smooth, no overshoot.
+    static let wispSmooth = SpringTuning.contentIn.animation
+    /// Disappearing: quick, no spring.
+    static let wispDismiss = Animation.easeIn(duration: 0.14)
+}
+
 extension SpringSpec {
     var animation: Animation { .spring(response: response, dampingFraction: dampingFraction) }
-
-    func scaled(_ factor: Double) -> SpringSpec {
-        SpringSpec(response: response * factor, dampingFraction: dampingFraction)
-    }
+    var spring: Spring { Spring(response: response, dampingRatio: dampingFraction) }
 }
 
 /// Blur, fade, scale from the top and a vertical drift.
