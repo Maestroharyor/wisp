@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.9](https://github.com/Maestroharyor/wisp/compare/v0.2.8...v0.2.9) (2026-11-21)
+
+
+### Features
+
+* arrange the ring by hand, pin apps, and share it with the orb dock ([#115](https://github.com/Maestroharyor/wisp/issues/115)) ([d2001eb](https://github.com/Maestroharyor/wisp/commit/d2001ebfa8d3dbbcf8888256b0b189cccd644095))
+* frosted icon ring with up to twelve apps and actions ([#114](https://github.com/Maestroharyor/wisp/issues/114)) ([a56aa55](https://github.com/Maestroharyor/wisp/commit/a56aa550c254edc7301a97f92776db161f24c009))
+* undo from the ring, centre the pointer at screen edges, keep pick order ([#116](https://github.com/Maestroharyor/wisp/issues/116)) ([a255465](https://github.com/Maestroharyor/wisp/commit/a255465a5cfd5a87f929a64becd9e5b776dd2d6e))
+
+
+### Bug fixes
+
+* notch clicks, Esc handling, agent sessions and settings files ([#118](https://github.com/Maestroharyor/wisp/issues/118)) ([690219f](https://github.com/Maestroharyor/wisp/commit/690219f732997a2cd6109b31d5d5b6a22999bfcf))
+* ring, banner, AirDrop, pull, Reminders and clipboard bugs ([#112](https://github.com/Maestroharyor/wisp/issues/112)) ([8395669](https://github.com/Maestroharyor/wisp/commit/8395669b2bc85c6950e9c2e463810f640d9b69fc))
+
 ## [0.2.8](https://github.com/Maestroharyor/wisp/compare/v0.2.7...v0.2.8) (2026-11-20)
 
 
