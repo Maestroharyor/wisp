@@ -158,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 MainActor.assumeIsolated {
                     self?.services.calendar.debugFillSample()
                     self?.services.reminders.debugFillSample()
+                    self?.services.notes.debugFillSample()
                 }
             }
             DistributedNotificationCenter.default().addObserver(
