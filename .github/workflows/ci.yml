@@ -59,7 +59,9 @@ jobs:
   # so the jobs above can run side by side without changing what a PR needs to merge.
   test:
     needs: [unit-tests, release-build]
-    if: ${{ !cancelled() }}
+    # always(), not !cancelled(): a skipped required check counts as passing, so a cancelled
+    # run must fail here instead.
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
       - name: Lint, tests and Release builds passed
