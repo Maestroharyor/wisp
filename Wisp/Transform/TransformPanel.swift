@@ -45,7 +45,7 @@ final class TransformPanelController {
         self.window = window
         if !window.isVisible {
             let mouse = NSEvent.mouseLocation
-            let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+            let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
             if let visible = screen?.visibleFrame {
                 window.setFrameTopLeftPoint(CGPoint(x: visible.maxX - 360, y: visible.maxY - 40))
             }

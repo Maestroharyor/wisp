@@ -91,7 +91,7 @@ final class ClipboardPanelController {
         services.aiActions.refresh()
 
         let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
         if let visible = screen?.visibleFrame {
             panel.setFrame(
                 CGRect(x: visible.midX - size.width / 2, y: visible.minY + 24, width: size.width, height: size.height),

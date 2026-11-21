@@ -133,7 +133,9 @@ final class SystemHUD {
 
     private var pointerOnBuiltInDisplay: Bool {
         let mouse = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) else { return true }
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) else {
+            return true
+        }
         return screen.isBuiltIn
     }
 
