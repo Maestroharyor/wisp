@@ -84,9 +84,10 @@ final class PlacementTests: XCTestCase {
         XCTAssertFalse(region.contains(CGPoint(x: left.closedRect.midX, y: docked.frame.maxY - 2)))
     }
 
-    func testBottomSitsAboveTheDockAndGrowsUp() {
+    func testBottomSitsOnTheDockAndGrowsUp() {
         let bottom = layout(docked, .bottom)
-        XCTAssertEqual(bottom.closedRect.minY, docked.visibleFrame.minY + sizes.edgeMargin)
+        // Flush with the Dock, like the top notch with the menu bar.
+        XCTAssertEqual(bottom.closedRect.minY, docked.visibleFrame.minY)
         XCTAssertEqual(bottom.closedRect.midX, docked.frame.midX)
 
         let surface = bottom.surfaceRect(size: CGSize(width: 500, height: 200))

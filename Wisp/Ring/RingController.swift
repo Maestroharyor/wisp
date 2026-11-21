@@ -9,6 +9,8 @@ import WispCore
 @Observable
 final class RingModel {
     var set = RingConfig.defaults.standard
+    /// Where the ring was opened, in global coordinates, while it's open.
+    var origin: CGPoint?
     var agentChoices: [RingChoice] = []
     var formChoices: [RingChoice] = []
     /// The newest files of each folder segment, by segment, filled in once they're listed.
@@ -99,6 +101,9 @@ final class RingController {
     /// Showing and not on its way out. A ring gone see-through while a file is dragged out of
     /// it counts as gone, so the next press opens it again.
     var isVisible: Bool { (panel?.isVisible ?? false) && closeTask == nil && dragOutTask == nil }
+
+    /// Where the open ring was opened, observed, so an orb it opened over can step aside.
+    var openAround: CGPoint? { model.origin }
     private var closeTask: Task<Void, Never>?
 
     /// Opens the ring centred near `point`, in global AppKit coordinates.
@@ -128,6 +133,7 @@ final class RingController {
         model.results = []
         model.selectedResult = 0
         pressPoint = point
+        model.origin = point
         services.appCatalog.refreshIfStale()
         closeTask?.cancel()
         closeTask = nil
@@ -223,6 +229,7 @@ final class RingController {
         stopMonitors()
         holding = false
         model.visible = false
+        model.origin = nil
         closeTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(180))
             guard !Task.isCancelled, let self else { return }
@@ -567,6 +574,8 @@ final class RingController {
         holding = false
         panel.alphaValue = 0
         panel.ignoresMouseEvents = true
+        // The ring is gone from view, so the orb under it comes back now.
+        model.origin = nil
         dragOutTask?.cancel()
         dragOutTask = Task { [weak self] in
             while !Task.isCancelled, NSEvent.pressedMouseButtons != 0 {
@@ -578,6 +587,7 @@ final class RingController {
             panel.ignoresMouseEvents = false
             panel.alphaValue = 1
             self.model.visible = false
+            self.model.origin = nil
             self.model.dropping = false
         }
     }

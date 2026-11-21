@@ -43,15 +43,41 @@ final class IslandLayoutTests: XCTestCase {
         auxiliaryTopRight: CGRect(x: 852, y: 950, width: 660, height: 32))
 
     func testIslandsMoveButNotchesSideTabsAndTheOrbDoNot() {
-        for placement in [Placement.topLeft, .topRight, .bottom] {
+        for placement in [Placement.topLeft, .topRight] {
             XCTAssertTrue(NotchGeometry.layout(for: screen, placement: placement).movesAsIsland, "\(placement)")
         }
         XCTAssertTrue(NotchGeometry.layout(for: screen, prefersIsland: true, placement: .top).movesAsIsland)
         XCTAssertFalse(NotchGeometry.layout(for: screen, placement: .top).movesAsIsland)
         XCTAssertFalse(NotchGeometry.layout(for: notched, prefersIsland: true, placement: .top).movesAsIsland)
-        for placement in [Placement.left, .right, .floating] {
+        // The bottom is the top notch upside down, fixed to its edge like the notch.
+        for placement in [Placement.left, .right, .floating, .bottom] {
             XCTAssertFalse(NotchGeometry.layout(for: screen, placement: placement).movesAsIsland, "\(placement)")
         }
+    }
+
+    func testTheBottomIsANotchOnTheDock() {
+        let layout = NotchGeometry.layout(for: screen, placement: .bottom)
+        XCTAssertTrue(layout.drawsNotch)
+        XCTAssertEqual(layout.closedRect.minY, visible.minY)
+        XCTAssertEqual(layout.closedRect.midX, screen.frame.midX)
+        XCTAssertEqual(layout.closedRect.width, NotchSizes.standard.drawnNotchWidth)
+        XCTAssertEqual(layout.anchor, .bottom)
+        // Surfaces grow up from it.
+        XCTAssertEqual(layout.surfaceRect(size: CGSize(width: 400, height: 200)).minY, visible.minY)
+    }
+
+    func testTheBottomNotchIgnoresAnOldIslandSpot() {
+        let layout = NotchGeometry.layout(for: screen, placement: .bottom, islandCentre: CGPoint(x: 300, y: 300))
+        XCTAssertFalse(layout.moved)
+        XCTAssertEqual(layout.closedRect.minY, visible.minY)
+    }
+
+    func testOnlyTheNotchesAndSideTabsDrawTheNotchShape() {
+        XCTAssertTrue(NotchGeometry.layout(for: screen, placement: .top).drawsNotch)
+        XCTAssertTrue(NotchGeometry.layout(for: screen, placement: .left).drawsNotch)
+        XCTAssertFalse(NotchGeometry.layout(for: screen, placement: .topLeft).drawsNotch)
+        XCTAssertFalse(NotchGeometry.layout(for: screen, placement: .floating).drawsNotch)
+        XCTAssertFalse(NotchGeometry.layout(for: screen, prefersIsland: true, placement: .top).drawsNotch)
     }
 
     func testAMovedIslandSitsWhereItWasDroppedAndKeepsItsSize() {
@@ -96,7 +122,7 @@ final class IslandLayoutTests: XCTestCase {
         let grown = low.surfaceRect(size: CGSize(width: 400, height: 300))
         XCTAssertEqual(grown.minY, low.closedRect.minY)
 
-        let upperLeft = NotchGeometry.layout(for: screen, placement: .bottom, islandCentre: CGPoint(x: 200, y: 800))
+        let upperLeft = NotchGeometry.layout(for: screen, placement: .topLeft, islandCentre: CGPoint(x: 200, y: 800))
         XCTAssertEqual(upperLeft.anchor, .topLeft)
         let shelf = upperLeft.surfaceRect(size: CGSize(width: 400, height: 300))
         XCTAssertEqual(shelf.minX, upperLeft.closedRect.minX)

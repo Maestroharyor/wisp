@@ -165,14 +165,20 @@ public struct NotchLayout: Sendable, Equatable {
     /// Free of any edge: the orb, or a moved island.
     public var floatsFree: Bool { placement == .floating || moved }
 
-    /// An island pill that can be dragged around the screen: the corners, the bottom, and
-    /// the top when it's drawn as an island rather than a notch.
+    /// An island pill that can be dragged around the screen: the top corners, and the top
+    /// when it's drawn as an island rather than a notch. The bottom is a notch fixed to its edge.
     public var movesAsIsland: Bool {
         guard style == .island else { return false }
         switch placement {
-        case .top, .topLeft, .topRight, .bottom: return true
-        case .left, .right, .floating: return false
+        case .top, .topLeft, .topRight: return true
+        case .bottom, .left, .right, .floating: return false
         }
+    }
+
+    /// The shell is drawn as a notch fixed to its edge: the top notch, the same shape upside
+    /// down on the bottom, and on its side on the left and right.
+    public var drawsNotch: Bool {
+        style == .notch || placement == .bottom || placement == .left || placement == .right
     }
 
     public var peekRect: CGRect { peekRect(strength: 1) }
@@ -271,12 +277,13 @@ public enum NotchGeometry {
             closed = CGRect(
                 origin: CGPoint(x: x, y: edgeLine - sizes.edgeMargin - sizes.island.height), size: sizes.island)
         case .bottom:
-            // Above the Dock when it shares the edge.
+            // The top notch upside down, rising from the Dock when it shares the edge, or from
+            // the screen's bottom edge. Drawn like the side tabs, so its style stays island.
             style = .island
             edgeLine = visible.minY
             closed = CGRect(
-                origin: CGPoint(x: screen.frame.midX - sizes.island.width / 2, y: edgeLine + sizes.edgeMargin),
-                size: sizes.island)
+                x: screen.frame.midX - sizes.drawnNotchWidth / 2, y: edgeLine, width: sizes.drawnNotchWidth,
+                height: sizes.island.height)
         case .left, .right:
             style = .island
             edgeLine = placement == .left ? visible.minX : visible.maxX
@@ -296,7 +303,7 @@ public enum NotchGeometry {
         }
 
         var moved = false
-        if let islandCentre, style == .island, placement != .floating, !placement.edge.isSide {
+        if let islandCentre, style == .island, placement != .floating, placement != .bottom, !placement.edge.isSide {
             moved = true
             let centre = OrbGeometry.fitted(
                 islandCentre, in: visible, size: sizes.island, avoidsTopCentre: avoidsTopCentre)
