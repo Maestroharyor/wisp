@@ -152,6 +152,8 @@ private struct WindowDetail: View {
         detail(selection)
             .navigationTitle(WindowRow.title(of: selection, services: services))
             .toolbar { toolbar(selection) }
+            // Each page draws its own header, so the toolbar doesn't repeat the title.
+            .modifier(HiddenToolbarTitle())
             // The titlebar is transparent so the sidebar reaches the top edge; without a bar
             // behind the detail's toolbar, scrolled rows would show through its buttons.
             .toolbarBackground(.visible, for: .windowToolbar)
@@ -208,14 +210,31 @@ private struct WindowDetail: View {
                 WindowWidgetDetail(kind: kind, model: model)
             }
         case .live(let live):
-            Group {
-                switch live {
-                case .regionWatch: RegionWatchDetail(watch: services.regionWatch)
-                case .downloads: DownloadsDetail(monitor: services.downloads)
-                case .external: ExternalActivityDetail(automation: services.automation)
+            WindowPageFrame {
+                WindowPageHeader(
+                    symbol: WindowRow.symbol(of: destination, services: services),
+                    tint: WindowRow.tint(of: destination),
+                    title: WindowRow.title(of: destination, services: services), subtitle: liveSubtitle(live))
+            } content: {
+                Group {
+                    switch live {
+                    case .regionWatch: RegionWatchDetail(watch: services.regionWatch)
+                    case .downloads: DownloadsDetail(monitor: services.downloads)
+                    case .external: ExternalActivityDetail(automation: services.automation)
+                    }
                 }
+                .padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .windowCardBackground()
             }
-            .padding(24)
+        }
+    }
+
+    private func liveSubtitle(_ live: WindowLive) -> String {
+        switch live {
+        case .regionWatch: "A part of a window, watched for changes while you do something else"
+        case .downloads: "Files downloading now, with how far along each one is"
+        case .external: "An activity another app or script sent to Wisp"
         }
     }
 
@@ -332,6 +351,17 @@ private enum WindowRow {
         case .live(.regionWatch): .teal
         case .live(.downloads): .green
         case .live(.external): .orange
+        }
+    }
+}
+
+/// Keeps the window's title for the Window menu and Mission Control, but out of the toolbar.
+private struct HiddenToolbarTitle: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 15, *) {
+            content.toolbar(removing: .title)
+        } else {
+            content
         }
     }
 }
