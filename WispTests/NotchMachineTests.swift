@@ -37,6 +37,16 @@ final class NotchMachineTests: XCTestCase {
         XCTAssertEqual(machine.phase, .open)
     }
 
+    /// The shelf closed with the pointer still on the notch: no enter comes until it moves off
+    /// and back, so a click there must still open it.
+    func testClickWhileClosedOpens() {
+        var machine = NotchMachine()
+        XCTAssertEqual(machine.handle(.clicked), [.cancelDwell])
+        XCTAssertEqual(machine.phase, .open)
+        XCTAssertFalse(machine.pinned, "a click open closes when the pointer leaves")
+        XCTAssertEqual(machine.handle(.pointerExited), [.scheduleClose])
+    }
+
     func testHoverOpenedShelfClosesAfterDelayUnlessPointerReturns() {
         var machine = open(byHover: true)
         XCTAssertEqual(machine.handle(.pointerExited), [.scheduleClose])
