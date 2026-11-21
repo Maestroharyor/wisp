@@ -139,6 +139,16 @@ final class RingController {
 
         let centre = RingGeometry.fittedCentre(
             point, in: screen.visibleFrame, avoidsTopCentre: screen.hasSystemIsland(services.preferences.islandSetting))
+        // Pushed in from an edge, the ring takes the pointer to its middle so hovers and flicks
+        // start there. Not during a file drag, which the move would disturb.
+        if !dropping, let target = RingGeometry.pointerMove(from: point, to: centre) {
+            let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+            CGWarpMouseCursorPosition(
+                RegionGeometry.flipped(CGRect(origin: target, size: .zero), primaryHeight: primaryHeight).origin)
+            // A warp pauses pointer movement briefly; reconnecting ends that pause at once.
+            CGAssociateMouseAndMouseCursorPosition(1)
+            pressPoint = target
+        }
         let side = Self.side
         let frame = CGRect(x: centre.x - side / 2, y: centre.y - side / 2, width: side, height: side)
         model.centre = CGPoint(x: side / 2, y: side / 2)
