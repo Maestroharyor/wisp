@@ -197,6 +197,8 @@ final class RingTypingTests: XCTestCase {
 
     func testDigitsPickSegmentsUntilSomethingIsTyped() {
         XCTAssertEqual(command(19, "2"), .pickSlot(1))
+        XCTAssertEqual(command(RingTyping.zero, "0"), .pickSlot(9))
+        XCTAssertEqual(command(RingTyping.zero, "0", query: "x"), .type("x0"))
         XCTAssertEqual(command(19, "2", query: "x"), .type("x2"))
     }
 
