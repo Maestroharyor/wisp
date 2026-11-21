@@ -101,6 +101,7 @@ struct ShortcutsWidget: View {
                         }
                     }
                 }
+                .scrollFade()
             }
         }
         .onAppear { runner.refreshIfStale() }
@@ -156,6 +157,7 @@ struct ClipboardWidget: View {
                         }
                     }
                 }
+                .scrollFade()
             }
         }
     }
