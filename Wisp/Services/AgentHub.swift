@@ -464,7 +464,9 @@ final class AgentHub {
         bashTask = nil
     }
 
-    private static let maximumMessage = 1 << 20
+    /// A guard against runaway input, not a size hooks keep to: a permission request to write a
+    /// file carries the whole file, and dropping it would leave the agent's prompt with no card.
+    private static let maximumMessage = 16 << 20
 
     /// Right away the first time, then after a pause, so a socket that keeps failing
     /// doesn't spin but always comes back.
@@ -503,7 +505,6 @@ final class AgentHub {
             [weak self] data, _, isComplete, error in
             Task { @MainActor in
                 let all = received + (data ?? Data())
-                // Hook events are small; anything this big is not one of ours.
                 guard all.count <= Self.maximumMessage else {
                     connection.cancel()
                     return
