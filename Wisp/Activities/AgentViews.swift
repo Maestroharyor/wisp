@@ -415,6 +415,7 @@ private struct ApprovalPreviewPane: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
         }
+        .scrollFade()
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.ink.opacity(0.06)))
     }
 
@@ -940,6 +941,7 @@ struct AgentsWidget: View {
                         CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                     }
                 }
+                .scrollFade()
             }
         }
         .onAppear {
@@ -1392,6 +1394,7 @@ struct AgentsDetail: View {
                             CloudTasksLane(store: cloud, hidden: hub.detailsHidden)
                         }
                     }
+                    .scrollFade()
                 }
             }
             .frame(width: 190)
@@ -1635,6 +1638,7 @@ private struct SessionDetail: View {
                     }
                 }
             }
+            .scrollFade()
             if hidden {
                 Label(note ?? "Prompt drafts are hidden while details are private", systemImage: "eye.slash")
                     .font(.subheadline).foregroundStyle(Color.secondaryText)

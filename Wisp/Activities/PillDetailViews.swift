@@ -64,6 +64,7 @@ struct DownloadsDetail: View {
                         ForEach(downloads) { DownloadRow(progress: $0) }
                     }
                 }
+                .scrollFade()
             }
             .foregroundStyle(.ink)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

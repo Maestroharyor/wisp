@@ -12,11 +12,17 @@ public enum ShelfHeight {
     /// doesn't leave the shelf a few points off.
     public static let snapDistance: CGFloat = 16
 
-    /// Only a shelf hanging from the top edge gets the handle: its bottom edge is free to move.
-    /// Bottom and side shelves grow toward the middle (a handle there would pull the wrong
-    /// way), and the orb or a moved island opens toward wherever there's room.
+    /// A shelf hanging from the top edge gets the handle on its free bottom edge, and so does
+    /// the orb's, on whichever edge is away from the orb. Bottom and side shelves grow toward
+    /// the middle, and a moved island opens wherever there's room, so they keep their height.
     public static func offered(in layout: NotchLayout) -> Bool {
-        layout.edge == .top && !layout.floatsFree
+        if layout.placement == .floating { return true }
+        return layout.edge == .top && !layout.floatsFree
+    }
+
+    /// The orb low on the screen opens upward, so its handle sits on the top edge and pulls up.
+    public static func growsUp(in layout: NotchLayout) -> Bool {
+        layout.placement == .floating && layout.anchor == .bottom
     }
 
     /// The tallest the shelf may be on the layout's screen: down to `maxScreenFraction` of the
@@ -24,6 +30,15 @@ public enum ShelfHeight {
     /// no taller than `heightCap`.
     public static func maxHeight(in layout: NotchLayout) -> CGFloat {
         let visible = layout.visibleFrame
+        let navPill = SurfaceSizing.navPillGap + SurfaceSizing.navPillSize.height + 6
+        if layout.placement == .floating {
+            // From the orb's edge to the far side of the visible screen, less the nav pill, so the
+            // shelf never has to slide back over the orb to fit.
+            let room =
+                growsUp(in: layout)
+                ? visible.maxY - navPill - layout.closedRect.minY : layout.closedRect.maxY - (visible.minY + navPill)
+            return min(max(room, 0), visible.height * maxScreenFraction, heightCap)
+        }
         let top = layout.closedRect.maxY
         let byFraction = visible.maxY - visible.height * maxScreenFraction
         let byNavPill = visible.minY + SurfaceSizing.navPillGap + SurfaceSizing.navPillSize.height + 6

@@ -77,6 +77,7 @@ struct AgentHistoryView: View {
                         }
                     }
                 }
+                .scrollFade()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -274,6 +275,7 @@ struct ApprovalHistoryList: View {
                         }
                     }
                 }
+                .scrollFade()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

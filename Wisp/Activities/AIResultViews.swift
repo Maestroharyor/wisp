@@ -22,6 +22,7 @@ struct AIResultCardView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .scrollFade()
                 .padding(.horizontal, 18)
                 .frame(height: SurfaceSizing.aiResultHeight - 8)
             }
