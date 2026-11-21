@@ -37,4 +37,18 @@ final class ArtworkLookupTests: XCTestCase {
         let response = try JSONDecoder().decode(ArtworkSearchResponse.self, from: Data(json.utf8))
         XCTAssertNil(response.artworkURL(artist: "Paul Tomisin"))
     }
+
+    /// Matching is by whole words: "Eve" is not "Steve Lacy", but a duet credit still counts.
+    func testArtistMatchesWholeWordsOnly() throws {
+        let json = """
+            {"results": [{"artistName": "Steve Lacy", "artworkUrl100": "https://example.com/a/100x100bb.jpg"},
+                         {"artistName": "Fleetwood Mac", "artworkUrl100": "https://example.com/b/100x100bb.jpg"},
+                         {"artistName": "Eve & Gwen Stefani", "artworkUrl100": "https://example.com/c/100x100bb.jpg"}]}
+            """
+        let response = try JSONDecoder().decode(ArtworkSearchResponse.self, from: Data(json.utf8))
+        XCTAssertEqual(response.artworkURL(artist: "Eve")?.absoluteString, "https://example.com/c/600x600bb.jpg")
+        XCTAssertNil(response.artworkURL(artist: "Lacy Steven"))
+        XCTAssertEqual(
+            response.artworkURL(artist: "Fleetwood Mac")?.absoluteString, "https://example.com/b/600x600bb.jpg")
+    }
 }
