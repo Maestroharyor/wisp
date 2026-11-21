@@ -15,6 +15,12 @@ final class SoundPlayer {
 
     func play(_ event: SoundEvent, fallback: String? = nil) {
         let look = preferences.appearance
+        if event.isInterface {
+            let source = SoundPack.interfaceSound(
+                for: event, enabled: look.interfaceSounds, pack: look.soundPack, custom: look.customSounds)
+            if let source { play(source) }
+            return
+        }
         if let source = SoundPack.sound(for: event, pack: look.soundPack, custom: look.customSounds) {
             play(source)
         } else if let fallback {
@@ -36,6 +42,14 @@ final class SoundPlayer {
 
     func play(_ source: SoundSource) {
         play(source, gain: 1)
+    }
+
+    /// Settings' play button: the event's sound even while its switch is off, so it can be heard
+    /// before choosing.
+    func preview(_ event: SoundEvent) {
+        let look = preferences.appearance
+        let pack = event.isInterface && look.soundPack == .off ? .soft : look.soundPack
+        if let source = SoundPack.sound(for: event, pack: pack, custom: look.customSounds) { play(source) }
     }
 
     private func play(_ source: SoundSource, gain: Float) {

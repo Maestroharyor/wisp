@@ -859,6 +859,7 @@ final class AgentHub {
                 })
         }
         if let allow {
+            Feedback.decided()
             sessions.record(
                 allow ? .allowed : .denied, allow ? "Allowed" : "Denied", session: approval.sessionID, at: .now)
             if !allow { recorder.denied(session: approval.sessionID, command: approval.summary) }
@@ -906,6 +907,7 @@ final class AgentHub {
         if let connection = taken.connection {
             reply(connection, approval.source.adapter.reply(.deny(approval.prompt, reason: reason)))
         }
+        Feedback.decided()
         sessions.record(.denied, "Denied", session: approval.sessionID, at: .now)
         recorder.denied(session: approval.sessionID, command: approval.summary)
         resolveApproval(session: approval.sessionID)

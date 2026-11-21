@@ -423,6 +423,7 @@ final class NotchModel {
     func endShelfResize() {
         guard let drag = shelfDrag else { return }
         let settled = ShelfHeight.settled(drag)
+        Feedback.landed()
         withAnimation(surfaceAnimation) {
             if let key = shelfHeightKey {
                 preferences.shelfHeights = ShelfHeight.storing(settled, for: key, in: preferences.shelfHeights)

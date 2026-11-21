@@ -93,7 +93,7 @@ struct AppearanceSettings: View {
                 Button("Export…") { export(preferences.appearance, name: "My look") }
             }
             caption(
-                "A preset sets everything below at once. Right-click one to export it or delete it. To give a profile its own look, see Settings › Shelf."
+                "A preset sets everything below at once. Right-click one to export it or delete it. To give a profile its own look, see Settings › Widgets."
             )
         }
     }
@@ -263,11 +263,19 @@ struct AppearanceSettings: View {
             }
             .pickerStyle(.segmented)
             if preferences.appearance.soundPack != .off {
-                ForEach(SoundEvent.allCases) { event in
+                ForEach(SoundEvent.allCases.filter { !$0.isInterface }) { event in
                     soundRow(event)
                 }
             }
-            caption("Agent sounds, permission requests included, have their own settings in Agents › Sounds.")
+            Toggle("Interface sounds", isOn: look.interfaceSounds)
+            if preferences.appearance.interfaceSounds {
+                ForEach(SoundEvent.allCases.filter(\.isInterface)) { event in
+                    soundRow(event)
+                }
+            }
+            caption(
+                "Interface sounds are quiet clicks when you copy a clip, drop files or allow or deny an agent."
+                    + " Agent sounds, permission requests included, have their own settings in Agents › Sounds.")
         }
     }
 
@@ -317,7 +325,7 @@ struct AppearanceSettings: View {
                     Button("Choose…") { chooseSound(for: event) }
                 }
                 Button {
-                    services.sounds.play(event)
+                    services.sounds.preview(event)
                 } label: {
                     Image(systemName: "play.fill")
                 }

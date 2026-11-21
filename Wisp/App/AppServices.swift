@@ -164,6 +164,7 @@ final class AppServices {
         quickActions = QuickActions(preferences: preferences, shortcuts: shortcuts)
         context = ContextEngine(preferences: preferences)
         sounds = SoundPlayer(preferences: preferences)
+        Feedback.sounds = sounds
         dictation = DictationEngine(preferences: preferences, activities: activities)
         dictation.onActiveChange = { [microphone] active in microphone.dictating = active }
     }

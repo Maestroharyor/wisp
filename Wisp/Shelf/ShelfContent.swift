@@ -67,7 +67,10 @@ enum FileDrop {
         { providers in
             let loadable = providers.filter { $0.canLoadObject(ofClass: URL.self) }
             guard !loadable.isEmpty else { return false }
-            let collector = URLCollector(expected: loadable.count, action: action)
+            let collector = URLCollector(expected: loadable.count) { urls in
+                if !urls.isEmpty { Feedback.dropped() }
+                action(urls)
+            }
             for provider in loadable {
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
                     Task { await collector.add(url) }

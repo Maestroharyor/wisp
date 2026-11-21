@@ -17,6 +17,31 @@ final class LookEffectsTests: XCTestCase {
         }
     }
 
+    func testInterfaceSoundsAreOffUntilSwitchedOn() {
+        XCTAssertFalse(Appearance.standard.interfaceSounds)
+        XCTAssertNil(SoundPack.interfaceSound(for: .copy, enabled: false, pack: .soft, custom: [:]))
+        XCTAssertNotNil(SoundPack.interfaceSound(for: .copy, enabled: true, pack: .soft, custom: [:]))
+    }
+
+    func testInterfaceSoundsPlayWithTheSoundPackOff() {
+        // Switching interface sounds on is enough; the soft sounds stand in for a pack.
+        XCTAssertEqual(
+            SoundPack.interfaceSound(for: .drop, enabled: true, pack: .off, custom: [:]),
+            SoundPack.sound(for: .drop, pack: .soft, custom: [:]))
+    }
+
+    func testOnlyInterfaceMomentsAreInterfaceSounds() {
+        XCTAssertEqual(SoundEvent.allCases.filter(\.isInterface), [.copy, .drop, .decision])
+        XCTAssertNil(SoundPack.interfaceSound(for: .open, enabled: true, pack: .soft, custom: [:]))
+    }
+
+    func testInterfaceSoundsSurviveSaving() throws {
+        var look = Appearance()
+        look.interfaceSounds = true
+        let read = try JSONDecoder().decode(Appearance.self, from: JSONEncoder().encode(look))
+        XCTAssertTrue(read.interfaceSounds)
+    }
+
     // MARK: Time of day
 
     func testTimeOfDayOffKeepsTheAccent() {

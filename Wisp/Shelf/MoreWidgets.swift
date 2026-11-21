@@ -52,7 +52,10 @@ private struct ToggleTile: View {
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            action()
+            Feedback.landed()
+        } label: {
             VStack(spacing: 3) {
                 Image(systemName: symbol)
                     .font(.callout.weight(.semibold))
@@ -87,7 +90,7 @@ struct ShortcutsWidget: View {
         Group {
             if names.isEmpty {
                 VStack(spacing: 6) {
-                    Text(runner.available.isEmpty ? "No Shortcuts found" : "Pick favourites in Settings › Shelf")
+                    Text(runner.available.isEmpty ? "No Shortcuts found" : "Pick favourites in Settings › Widgets")
                         .font(.callout).foregroundStyle(Color.secondaryText)
                     Button("Open Shortcuts") {
                         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Shortcuts.app"))
@@ -390,7 +393,7 @@ struct WorldClocksWidget: View {
                 let zones = preferences.worldClockZones.compactMap(TimeZone.init(identifier:)).prefix(
                     WorldClock.notchCities)
                 if zones.isEmpty {
-                    Text("Add cities in Settings › Shelf")
+                    Text("Add cities in Settings › Widgets")
                         .font(.callout).foregroundStyle(Color.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -442,9 +445,11 @@ struct ScriptWidget: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if preferences.scriptCommand.isEmpty {
-                Text("Set a command in Settings › Shelf")
+                Text("Set a command in Settings › Widgets")
                     .font(.callout).foregroundStyle(Color.secondaryText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if store.lines.isEmpty, store.running {
+                LoadingLabel("Running…")
             } else {
                 ForEach(Array(store.lines.enumerated()), id: \.offset) { index, line in
                     Text(line)
