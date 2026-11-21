@@ -56,6 +56,9 @@ struct RingSettings: View {
                 .font(.caption).foregroundStyle(.secondary)
             }
             Section("Apps and actions") {
+                LabeledContent("Add to the ring") {
+                    RingAddMenu(set: $preferences.ringConfig.standard)
+                }
                 LabeledContent("Segments") {
                     Button("Edit ring…") { editorShown = true }
                         // On the button, not the Section: a Form can apply a Section's modifiers per row.
@@ -110,6 +113,9 @@ private struct RingEditorSheet: View {
                         }
                         Spacer()
                         Button("Add a ring for an app…") { addAppRing() }
+                    }
+                    LabeledContent("Add to this ring") {
+                        RingAddMenu(set: editedSet)
                     }
                 } header: {
                     Text("Ring actions")
@@ -457,5 +463,106 @@ private struct RingActionPicker: View {
 
     private func value(default fallback: String) -> Binding<String> {
         Binding(get: { action.value ?? fallback }, set: { action.value = $0 })
+    }
+}
+
+/// Adds an app, a website or link, or a folder to a ring, after the segments already on it.
+/// A full ring (twelve segments) or something already on it says so instead.
+struct RingAddMenu: View {
+    @Binding var set: RingSet
+
+    @State private var addingLink = false
+    @State private var address = ""
+    @State private var name = ""
+    @State private var message: String?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let message {
+                Text(message).font(.caption).foregroundStyle(.secondary)
+            }
+            Menu("Add…") {
+                Button("App…", systemImage: "app") { chooseApp() }
+                Button("Website or link…", systemImage: "globe") {
+                    address = ""
+                    name = ""
+                    addingLink = true
+                }
+                Button("Folder…", systemImage: "folder") { chooseFolder() }
+            }
+            .fixedSize()
+            .disabled(set.slots.count >= RingSet.maxSlots)
+            .help(set.slots.count >= RingSet.maxSlots ? "The ring is full. Remove a segment first." : "Add to the ring")
+        }
+        .sheet(isPresented: $addingLink) { linkSheet }
+    }
+
+    private var linkSheet: some View {
+        let url = RingLinks.normalised(address)
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("Add a website or link").font(.title3.bold())
+            Text("A web address such as example.com, or an app link such as slack://open or mailto:hi@example.com.")
+                .font(.callout).foregroundStyle(.secondary)
+            Form {
+                TextField("Address", text: $address, prompt: Text("example.com"))
+                TextField("Name", text: $name, prompt: Text(url?.host() ?? "Optional"))
+            }
+            .formStyle(.grouped)
+            if !address.isEmpty, url == nil {
+                Text("Wisp can't open this address.").font(.caption).foregroundStyle(.orange)
+            }
+            HStack {
+                Spacer()
+                Button("Cancel") { addingLink = false }.keyboardShortcut(.cancelAction)
+                Button("Add") {
+                    guard let url else { return }
+                    add(RingAction(.link, value: url.absoluteString, label: name.isEmpty ? nil : name))
+                    addingLink = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(url == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+    }
+
+    private func chooseApp() {
+        let panel = NSOpenPanel()
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Add"
+        guard panel.runModal() == .OK else { return }
+        let apps = panel.urls.compactMap { url -> RingAction? in
+            guard let id = Bundle(url: url)?.bundleIdentifier else { return nil }
+            let name = (FileManager.default.displayName(atPath: url.path) as NSString).deletingPathExtension
+            return RingAction(.app, value: id, label: name)
+        }
+        add(apps)
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+        panel.prompt = "Add"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        add(RingAction(.folder, value: url.path))
+    }
+
+    private func add(_ action: RingAction) { add([action]) }
+
+    private func add(_ actions: [RingAction]) {
+        guard !actions.isEmpty else { return }
+        switch RingArrange.insert(actions, into: set.slots, at: set.slots.count) {
+        case .added(let slots):
+            set.setSlots(slots)
+            message = actions.count == 1 ? "Added \(actions[0].title)" : "Added \(actions.count) apps"
+        case .alreadyThere: message = "Already on the ring"
+        case .full: message = "The ring is full"
+        }
     }
 }
