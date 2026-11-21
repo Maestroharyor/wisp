@@ -118,7 +118,7 @@ private struct TransformView: View {
             optionsArea
             Spacer(minLength: 0)
             if let message = model.message {
-                Text(message).font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(message).font(.callout).foregroundStyle(.secondary)
             }
             if !model.outputs.isEmpty {
                 Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(model.outputs) }
@@ -144,8 +144,8 @@ private struct TransformView: View {
         HStack(spacing: 10) {
             Image(systemName: "wand.and.stars").font(.system(size: 18))
             VStack(alignment: .leading, spacing: 1) {
-                Text("Transform").font(.system(size: 15, weight: .bold))
-                Text(summary).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                Text("Transform").font(.title3.weight(.bold))
+                Text(summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
         }
     }
@@ -167,7 +167,7 @@ private struct TransformView: View {
                             Button {
                                 model.files.removeAll { $0 == url }
                             } label: {
-                                Image(systemName: "xmark.circle.fill").font(.system(size: 12))
+                                Image(systemName: "xmark.circle.fill").font(.callout)
                             }
                             .buttonStyle(.plain)
                         }
@@ -195,7 +195,7 @@ private struct TransformView: View {
                 } label: {
                     let chosen = model.operation == operation
                     VStack(spacing: 5) {
-                        Image(systemName: operation.symbol).font(.system(size: 15))
+                        Image(systemName: operation.symbol).font(.title3)
                         Text(operation.title).font(.caption2.weight(.medium)).lineLimit(1)
                     }
                     .foregroundStyle(chosen ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
@@ -244,16 +244,16 @@ private struct TransformView: View {
             .pickerStyle(.segmented)
         case .removeBackground:
             Text("Lifts the main subject and saves a PNG with a transparent background.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
         case .removeMetadata:
             Text("Saves a copy without location, camera and other hidden info.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
         case .combinePDF:
             Text("Combines images and PDFs, in this order, into one PDF.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
         case .zip:
             Text("Packs the files into one zip archive next to them.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
         }
     }
 

@@ -61,9 +61,9 @@ struct HomePage: View {
         } label: {
             HStack(spacing: 6) {
                 IconTile(symbol: kind.symbol, tint: kind.tint, size: 16)
-                Text(kind.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.secondaryText)
+                Text(kind.title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.secondaryText)
                 Spacer(minLength: 4)
-                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold))
                     .foregroundStyle(Color.secondaryText)
             }
             .contentShape(Rectangle())
@@ -114,7 +114,7 @@ struct HomePage: View {
                 host == .window
                     ? "Choose Customise Home in the toolbar" : "Right-click the notch and choose Tools › Customise Home"
             )
-            .font(.system(size: 11)).foregroundStyle(Color.secondaryText).multilineTextAlignment(.center)
+            .font(.subheadline).foregroundStyle(Color.secondaryText).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -145,7 +145,7 @@ struct HomePage: View {
                             kind.rawValue, to: preferences.size(of: kind).next(in: kind.sizes))
                     } label: {
                         Label(preferences.size(of: kind).rawValue.capitalized, systemImage: "arrow.left.and.right")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(.ink.opacity(0.18)))
@@ -172,7 +172,7 @@ struct HomePage: View {
             Button {
                 model.cancelHomeEditing()
             } label: {
-                Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
+                Image(systemName: "xmark").font(.callout.weight(.bold))
                     .frame(width: 28, height: 28).background(Circle().fill(.ink.opacity(0.14)))
                     .contentShape(Circle())
             }
@@ -180,7 +180,7 @@ struct HomePage: View {
             .accessibilityLabel("Cancel")
             .hoverHint("Cancel")
             Button(action: endEditing) {
-                Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
+                Image(systemName: "checkmark").font(.callout.weight(.bold))
                     .frame(width: 28, height: 28).background(Circle().fill(Color.wispViolet))
                     .foregroundStyle(.white)
                     .contentShape(Circle())
@@ -205,7 +205,7 @@ struct HomePage: View {
         } label: {
             VStack(spacing: 5) {
                 Image(systemName: kind.symbol).font(.system(size: 16))
-                Text(kind.title).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                Text(kind.title).font(.caption.weight(.medium)).lineLimit(1)
             }
             .frame(width: 74, height: 54)
             .card(highlighted: onHome)
@@ -303,7 +303,7 @@ private struct WidgetGridView: View {
             VStack(spacing: 6) {
                 Image(systemName: "square.grid.2x2").font(.system(size: 18))
                 Text("Switch widgets on in Settings › Shelf")
-                    .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                    .font(.callout).foregroundStyle(Color.secondaryText)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -459,7 +459,7 @@ private struct SoloBackButton: View {
             model.leaveSolo()
         } label: {
             Image(systemName: "chevron.left")
-                .font(.system(size: 10, weight: .bold))
+                .font(.caption.weight(.bold))
                 .frame(width: 20, height: 20)
                 .background(Circle().fill(.ink.opacity(0.12)))
                 .contentShape(Circle())
@@ -615,7 +615,7 @@ struct WindowMediaPage: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Nothing playing").font(.system(size: 20, weight: .semibold))
                             Text("Play something in any app or browser")
-                                .font(.system(size: 13)).foregroundStyle(Color.secondaryText)
+                                .font(.body).foregroundStyle(Color.secondaryText)
                         }
                         appVolumeButton
                     }

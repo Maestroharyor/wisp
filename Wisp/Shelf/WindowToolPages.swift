@@ -115,14 +115,14 @@ private struct ShortcutTile: View {
                         ProgressView().controlSize(.small)
                     } else {
                         Image(systemName: "bolt.fill")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.body.weight(.semibold))
                             .foregroundStyle(.white)
                     }
                 }
                 .frame(width: 30, height: 30)
                 .background(Circle().fill(running ? AnyShapeStyle(.ink.opacity(0.1)) : AnyShapeStyle(Color.pink)))
                 Text(name)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.body.weight(.medium))
                     .foregroundStyle(.ink)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -131,13 +131,14 @@ private struct ShortcutTile: View {
             .padding(.horizontal, 12)
             .frame(minHeight: 58)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.ink.opacity(hovering ? 0.1 : 0.06))
+                RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous).fill(
+                    .ink.opacity(hovering ? 0.1 : 0.06))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
                     .strokeBorder(Color.wispViolet, lineWidth: running ? 2 : 0)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(busy && !running)
@@ -176,7 +177,7 @@ struct MirrorPage: View {
                 }
                 .background(.ink.opacity(0.06))
                 .aspectRatio(16 / 10, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous))
                 .frame(maxWidth: 1100)
                 .padding(WindowLayout.margin * 1.5)
                 .accessibilityLabel("Camera preview")
@@ -232,7 +233,8 @@ struct ScriptPage: View {
                             .frame(maxWidth: .infinity, alignment: .topLeading)
                             .padding(12)
                     }
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.ink.opacity(0.05)))
+                    .background(
+                        RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous).fill(.ink.opacity(0.05)))
                 }
                 .padding(WindowLayout.margin)
             }
@@ -271,7 +273,7 @@ struct ScriptPage: View {
                 Text("Ran \(ranAt, style: .relative) ago")
             }
         }
-        .font(.system(size: 11))
+        .font(.subheadline)
         .foregroundStyle(Color.secondaryText)
     }
 }

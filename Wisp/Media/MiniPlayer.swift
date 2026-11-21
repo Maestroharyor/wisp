@@ -162,9 +162,9 @@ private struct MiniPlayerView: View {
                     image: monitor.artwork, size: 44,
                     radius: SurfaceRadius.concentric(outer: SurfaceRadius.panel, padding: 12))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(monitor.info?.title ?? "Nothing playing").font(.system(size: 13, weight: .semibold))
+                    Text(monitor.info?.title ?? "Nothing playing").font(.body.weight(.semibold))
                         .lineLimit(1)
-                    Text(monitor.info?.artist ?? "Play something").font(.system(size: 11))
+                    Text(monitor.info?.artist ?? "Play something").font(.subheadline)
                         .foregroundStyle(Color.secondaryText).lineLimit(1)
                 }
                 Spacer(minLength: 4)
@@ -186,7 +186,7 @@ private struct MiniPlayerView: View {
                 LyricLines(monitor: monitor, lyrics: lyrics, size: 12, showsNext: false)
             } else {
                 Text("Music from any app or browser shows here, with lyrics as it plays.")
-                    .font(.system(size: 11)).foregroundStyle(Color.secondaryText)
+                    .font(.subheadline).foregroundStyle(Color.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

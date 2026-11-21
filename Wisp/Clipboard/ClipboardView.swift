@@ -91,7 +91,7 @@ struct ClipboardView: View {
                 VStack(spacing: 6) {
                     Image(systemName: "doc.on.clipboard").font(.system(size: 26))
                     Text(model.query.isEmpty ? "Copy something and it shows up here" : "No matches")
-                        .font(.system(size: 13)).foregroundStyle(Color.secondaryText)
+                        .font(.body).foregroundStyle(Color.secondaryText)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -191,7 +191,7 @@ private struct ClipCard: View {
         .overlay(alignment: .topTrailing) {
             if let pickNumber {
                 Text("\(pickNumber)")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.subheadline.weight(.bold))
                     .foregroundStyle(.white)
                     .frame(width: 20, height: 20)
                     .background(Circle().fill(Color.wispViolet))
@@ -209,12 +209,12 @@ private struct ClipCard: View {
             if let icon = appIcon {
                 Image(nsImage: icon).resizable().frame(width: 16, height: 16)
             }
-            Text(item.sourceApp ?? "Unknown").font(.system(size: 11, weight: .semibold)).lineLimit(1)
+            Text(item.sourceApp ?? "Unknown").font(.subheadline.weight(.semibold)).lineLimit(1)
             Spacer()
-            if item.pinned { Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(.wispAmber) }
+            if item.pinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(.wispAmber) }
             TimelineView(.everyMinute) { context in
                 Text(RelativeAge.short(from: item.date, to: context.date))
-                    .font(.system(size: 10)).foregroundStyle(Color.secondaryText)
+                    .font(.caption).foregroundStyle(Color.secondaryText)
             }
         }
     }
@@ -222,13 +222,13 @@ private struct ClipCard: View {
     @ViewBuilder private var content: some View {
         switch item.kind {
         case .text:
-            Text(item.text ?? "").font(.system(size: 12)).lineLimit(9)
+            Text(item.text ?? "").font(.callout).lineLimit(9)
         case .link:
             VStack(alignment: .leading, spacing: 6) {
-                Image(systemName: "link").font(.system(size: 22)).foregroundStyle(Color.wispViolet)
+                Image(systemName: "link").font(.title).foregroundStyle(Color.wispViolet)
                 Text(URL(string: item.text ?? "")?.host() ?? item.text ?? "")
-                    .font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                Text(item.text ?? "").font(.system(size: 11)).foregroundStyle(Color.secondaryText).lineLimit(4)
+                    .font(.body.weight(.semibold)).lineLimit(1)
+                Text(item.text ?? "").font(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(4)
             }
         case .image:
             if let url = store.imageURL(for: item) {
@@ -251,7 +251,7 @@ private struct ClipCard: View {
 
     private var footer: some View {
         Text(footerText)
-            .font(.system(size: 10, weight: .medium))
+            .font(.caption.weight(.medium))
             .foregroundStyle(Color.secondaryText)
             .lineLimit(1)
     }

@@ -152,7 +152,7 @@ private struct ShortcutRow: View {
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .padding(.horizontal, 7)
                 .padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 5).fill(.quaternary))
+                .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(.quaternary))
         }
     }
 }

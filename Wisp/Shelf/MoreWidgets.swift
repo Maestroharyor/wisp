@@ -55,7 +55,7 @@ private struct ToggleTile: View {
         Button(action: action) {
             VStack(spacing: 3) {
                 Image(systemName: symbol)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.callout.weight(.semibold))
                     .foregroundStyle(on ? .black : .ink.opacity(0.9))
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(on ? tint : .ink.opacity(hovering ? 0.2 : 0.12)))
@@ -84,7 +84,7 @@ struct ShortcutsWidget: View {
             if names.isEmpty {
                 VStack(spacing: 6) {
                     Text(runner.available.isEmpty ? "No Shortcuts found" : "Pick favourites in Settings › Shelf")
-                        .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                        .font(.callout).foregroundStyle(Color.secondaryText)
                     Button("Open Shortcuts") {
                         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Shortcuts.app"))
                     }
@@ -121,7 +121,7 @@ private struct ShortcutChip: View {
                 } else {
                     Image(systemName: "bolt.fill").font(.system(size: 9)).foregroundStyle(.pink)
                 }
-                Text(name).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                Text(name).font(.subheadline.weight(.semibold)).lineLimit(1)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 8)
@@ -146,7 +146,7 @@ struct ClipboardWidget: View {
         Group {
             if items.isEmpty {
                 Text("Copied items show up here")
-                    .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                    .font(.callout).foregroundStyle(Color.secondaryText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
@@ -179,7 +179,7 @@ private struct ClipRow: View {
         } label: {
             HStack(spacing: 7) {
                 leading.frame(width: 18, height: 18)
-                Text(label).font(.system(size: 11)).lineLimit(1).truncationMode(.tail)
+                Text(label).font(.subheadline).lineLimit(1).truncationMode(.tail)
                 Spacer(minLength: 0)
                 if copied {
                     Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(
@@ -202,14 +202,14 @@ private struct ClipRow: View {
     @ViewBuilder private var leading: some View {
         if let imageURL {
             StoredClipImage(url: imageURL, maxPixels: 64, mode: .fill) { symbolImage }
-                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
         } else {
             symbolImage
         }
     }
 
     private var symbolImage: some View {
-        Image(systemName: symbol).font(.system(size: 10)).foregroundStyle(Color.secondaryText)
+        Image(systemName: symbol).font(.caption).foregroundStyle(Color.secondaryText)
     }
 
     private var symbol: String {
@@ -243,7 +243,7 @@ struct MirrorWidget: View {
                     Button("Allow Camera") { Permission.camera.openSettings() }.controlSize(.small)
                 }
             case .unavailable:
-                Label("No camera", systemImage: "video.slash").font(.system(size: 12))
+                Label("No camera", systemImage: "video.slash").font(.callout)
             case .idle:
                 ProgressView().controlSize(.small)
             case .running:
@@ -313,10 +313,10 @@ struct DayProgressWidget: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
                     ValueText(text: "\(Int((fraction * 100).rounded()))%", tint: .wispViolet, size: 24)
-                    Text("of the day").font(.system(size: 11)).foregroundStyle(Color.secondaryText)
+                    Text("of the day").font(.subheadline).foregroundStyle(Color.secondaryText)
                     Spacer(minLength: 0)
                     Text(left > 0 ? "\(left / 60)h \(left % 60)m left" : "Done for today")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(left > 0 ? .ink.opacity(0.85) : Color.wispGreen)
                 }
                 DayBar(fraction: fraction, marks: day.marks(for: calendar.dayEvents, on: context.date))
@@ -350,7 +350,7 @@ private struct DayBar: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(.ink.opacity(0.1))
                 ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(.ink.opacity(0.22))
                         .frame(width: max(3, (mark.upperBound - mark.lowerBound) * width), height: 8)
                         .offset(x: mark.lowerBound * width)
@@ -385,7 +385,7 @@ struct WorldClocksWidget: View {
                     WorldClock.notchCities)
                 if zones.isEmpty {
                     Text("Add cities in Settings › Shelf")
-                        .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                        .font(.callout).foregroundStyle(Color.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 ForEach(Array(zones), id: \.identifier) { zone in
@@ -414,7 +414,7 @@ private struct ClockRow: View {
                 .foregroundStyle(WorldClock.isDaytime(hour: hour) ? Color.wispAmber : Color.indigo)
                 .frame(width: 12)
             VStack(alignment: .leading, spacing: 0) {
-                Text(WorldClock.cityName(zone.identifier)).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                Text(WorldClock.cityName(zone.identifier)).font(.subheadline.weight(.semibold)).lineLimit(1)
                 Text(WorldClock.offsetLabel(seconds: offset)).font(.system(size: 9)).foregroundStyle(
                     Color.secondaryText)
             }
@@ -437,7 +437,7 @@ struct ScriptWidget: View {
         VStack(alignment: .leading, spacing: 4) {
             if preferences.scriptCommand.isEmpty {
                 Text("Set a command in Settings › Shelf")
-                    .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                    .font(.callout).foregroundStyle(Color.secondaryText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ForEach(Array(store.lines.enumerated()), id: \.offset) { index, line in
@@ -470,7 +470,7 @@ struct ScriptWidget: View {
                     .accessibilityLabel("Run again")
                     .disabled(store.running)
                 }
-                .font(.system(size: 10))
+                .font(.caption)
                 .foregroundStyle(Color.secondaryText)
             }
         }
