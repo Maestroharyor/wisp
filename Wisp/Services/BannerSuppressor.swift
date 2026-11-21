@@ -9,41 +9,53 @@ import WispCore
 enum BannerSuppressor {
     private static let bundleID = "com.apple.notificationcenterui"
 
-    /// Retries briefly, since the banner can appear a moment after the record lands.
-    static func closeBanners() {
+    /// Closes the banner showing this title and body, retrying briefly, since the banner can
+    /// appear a moment after the record lands. Other apps' banners are left alone.
+    static func closeBanner(title: String, body: String) {
         guard AccessibilityPermission.isTrusted else { return }
         Task {
             for _ in 0..<6 {
-                if closeVisibleBanners() { return }
+                if closeVisibleBanner(title: title, body: body) { return }
                 try? await Task.sleep(for: .milliseconds(150))
             }
         }
     }
 
-    private static func closeVisibleBanners() -> Bool {
+    private static func closeVisibleBanner(title: String, body: String) -> Bool {
         guard
             let pid = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.processIdentifier
         else { return false }
         let app = AXUIElementCreateApplication(pid)
-        var closed = false
-        for window in children(of: app, attribute: kAXWindowsAttribute) {
-            closed = pressClose(in: window, depth: 0) || closed
+        return children(of: app, attribute: kAXWindowsAttribute).contains {
+            pressClose(in: $0, title: title, body: body, depth: 0)
         }
-        return closed
     }
 
-    /// Banners expose a "Close" action on one of their groups; find and press it, unless that
-    /// banner asks a question. Searching goes on past a banner that stays.
-    private static func pressClose(in element: AXUIElement, depth: Int) -> Bool {
+    /// Banners expose a "Close" action on one of their groups; find and press it on the banner
+    /// for this card, unless that banner asks a question. Searching goes on past one that stays.
+    private static func pressClose(in element: AXUIElement, title: String, body: String, depth: Int) -> Bool {
         guard depth < 8 else { return false }
         let actions = actionNames(of: element)
         if actions.contains(where: { BannerRule.title(of: $0).contains("Close") }) {
-            guard let close = BannerRule.closeAction(in: actions, labels: labelsBelow(element, levels: 6)) else {
-                return false
-            }
+            let texts = textsBelow(element, levels: 6) + [text(of: element, kAXDescriptionAttribute)].compactMap(\.self)
+            guard BannerRule.shows(texts: texts, title: title, body: body),
+                let close = BannerRule.closeAction(in: actions, labels: labelsBelow(element, levels: 6) + texts)
+            else { return false }
             return AXUIElementPerformAction(element, close as CFString) == .success
         }
-        return children(of: element, attribute: kAXChildrenAttribute).contains { pressClose(in: $0, depth: depth + 1) }
+        return children(of: element, attribute: kAXChildrenAttribute).contains {
+            pressClose(in: $0, title: title, body: body, depth: depth + 1)
+        }
+    }
+
+    /// The words a banner shows: its text's values and descriptions. Read only to compare with
+    /// the card, never kept or logged.
+    private static func textsBelow(_ element: AXUIElement, levels: Int) -> [String] {
+        guard levels > 0 else { return [] }
+        return children(of: element, attribute: kAXChildrenAttribute).flatMap {
+            [text(of: $0, kAXValueAttribute), text(of: $0, kAXDescriptionAttribute)].compactMap(\.self)
+                + textsBelow($0, levels: levels - 1)
+        }
     }
 
     private static func actionNames(of element: AXUIElement) -> [String] {

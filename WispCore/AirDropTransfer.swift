@@ -82,6 +82,8 @@ public enum AirDropArrivals {
 public struct AirDropTracker: Sendable {
     public let stallAfter: TimeInterval
     public let rateWindow: TimeInterval
+    /// How long a transfer may go without progress before it's dropped altogether.
+    public let forgetAfter: TimeInterval
 
     private struct Tracked: Sendable {
         var snapshot: AirDropSnapshot
@@ -98,9 +100,10 @@ public struct AirDropTracker: Sendable {
     private var settled = Set<String>()
     private var seen = 0
 
-    public init(stallAfter: TimeInterval = 30, rateWindow: TimeInterval = 5) {
+    public init(stallAfter: TimeInterval = 30, rateWindow: TimeInterval = 5, forgetAfter: TimeInterval = 120) {
         self.stallAfter = stallAfter
         self.rateWindow = rateWindow
+        self.forgetAfter = forgetAfter
     }
 
     /// Takes every transfer published now and returns the ones that just arrived.
@@ -147,6 +150,12 @@ public struct AirDropTracker: Sendable {
                     snapshot: snapshot, firstSeen: now, order: seen, lastChange: now,
                     samples: [(now, snapshot.completed)])
             }
+        }
+        // A transfer that hasn't moved for this long (the sender walked away, or macOS left
+        // its progress behind) is dropped, so its pill and the polling don't stay for good.
+        for (id, item) in tracked where now.timeIntervalSince(item.lastChange) >= forgetAfter {
+            tracked[id] = nil
+            settled.insert(id)
         }
         return finished.sorted { $0.name < $1.name }
     }

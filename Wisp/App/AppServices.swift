@@ -491,7 +491,9 @@ final class AppServices {
             waitingNotification = nil
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(sentText == nil ? 0 : 2.5))
-                self?.showNotification(waiting)
+                // Shown late: its banner is long gone, and closing now could hit another one.
+                guard let self else { return }
+                if self.replyingTo == nil { self.post(waiting) } else { self.waitingNotification = waiting }
             }
         }
     }
@@ -948,10 +950,14 @@ final class AppServices {
             waitingNotification = item
             return
         }
-        activities.post(.notification(item), slot: .notification, duration: preferences.notificationDuration.seconds)
+        post(item)
         if preferences.hideSystemBanners, !SystemSenders.keepsSystemBanner(appID: item.appID) {
-            BannerSuppressor.closeBanners()
+            BannerSuppressor.closeBanner(title: item.title, body: item.body)
         }
+    }
+
+    private func post(_ item: NotificationItem) {
+        activities.post(.notification(item), slot: .notification, duration: preferences.notificationDuration.seconds)
     }
 
     private func mediaChanged(_ info: NowPlayingInfo?) {

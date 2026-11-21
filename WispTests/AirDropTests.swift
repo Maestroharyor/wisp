@@ -130,6 +130,20 @@ final class AirDropTrackerTests: XCTestCase {
         XCTAssertTrue(tracker.isWatching)
     }
 
+    func testATransferStuckForTwoMinutesIsForgotten() {
+        var tracker = AirDropTracker(stallAfter: 30, forgetAfter: 120)
+        _ = tracker.update([snap("a", 100)], now: at(0))
+        _ = tracker.update([snap("a", 100)], now: at(119))
+        XCTAssertTrue(tracker.isWatching)
+        _ = tracker.update([snap("a", 100)], now: at(121))
+        XCTAssertFalse(tracker.isWatching)
+        XCTAssertNil(tracker.summary(now: at(121)))
+        // Still published, it doesn't come back, and nothing is reported when it goes.
+        XCTAssertEqual(tracker.update([snap("a", 100)], now: at(130)), [])
+        XCTAssertFalse(tracker.isWatching)
+        XCTAssertEqual(tracker.update([], now: at(140)), [])
+    }
+
     func testBrowserDownloadsStillDefaultToTheBrowserOrigin() {
         let done = FinishedDownload(folder: folder, name: "a.zip", size: 1)
         XCTAssertEqual(done.origin, .browser)
@@ -314,6 +328,28 @@ final class BannerRuleTests: XCTestCase {
         XCTAssertFalse(BannerRule.keepsBanner(labels: actions))
         XCTAssertEqual(
             BannerRule.closeAction(in: actions, labels: ["Messages", "Reply"]), "Name:Close\nTarget:0x0")
+    }
+
+    func testAnAirDropBannerStaysInAnyLanguage() {
+        let actions = ["AXPress", "Name:Schließen\nTarget:0x0", "Name:Annehmen\nTarget:0x0"]
+        XCTAssertTrue(BannerRule.keepsBanner(labels: actions + ["AirDrop", "Ein Foto von Sam"]))
+    }
+
+    func testOnlyTheBannerForTheCardCloses() {
+        let texts = ["Messages", "Sam Lee", "Are we still on for lunch?"]
+        XCTAssertTrue(BannerRule.shows(texts: texts, title: "Sam Lee", body: "Are we still on for lunch?"))
+        XCTAssertTrue(BannerRule.shows(texts: ["Messages, Sam Lee, Are we still on"], title: "sam lee", body: ""))
+        XCTAssertFalse(BannerRule.shows(texts: texts, title: "Calendar", body: "Standup in 5 minutes"))
+    }
+
+    func testLongBodiesMatchByTheirStart() {
+        let body = String(repeating: "word ", count: 60)
+        XCTAssertTrue(BannerRule.shows(texts: [String(body.prefix(80)) + "…"], title: "", body: body))
+    }
+
+    func testABannerWithNoTextToReadMayClose() {
+        XCTAssertTrue(BannerRule.shows(texts: [], title: "Sam", body: "Hi"))
+        XCTAssertTrue(BannerRule.shows(texts: ["Anything"], title: "", body: ""))
     }
 
     func testABannerWithoutCloseHasNothingToPress() {
