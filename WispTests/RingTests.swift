@@ -76,6 +76,15 @@ final class RingGeometryTests: XCTestCase {
         let clear = RingGeometry.fittedCentre(CGPoint(x: 756, y: 944), in: visible, avoidsTopCentre: true)
         XCTAssertLessThan(clear.y, plain.y)
     }
+
+    func testThePointerFollowsARingPushedInFromTheEdge() {
+        let visible = CGRect(x: 0, y: 70, width: 1512, height: 874)
+        let corner = CGPoint(x: 4, y: 900)
+        let fitted = RingGeometry.fittedCentre(corner, in: visible)
+        XCTAssertEqual(RingGeometry.pointerMove(from: corner, to: fitted), fitted)
+        let middle = CGPoint(x: 756, y: 500)
+        XCTAssertNil(RingGeometry.pointerMove(from: middle, to: RingGeometry.fittedCentre(middle, in: visible)))
+    }
 }
 
 final class RingShapeTests: XCTestCase {

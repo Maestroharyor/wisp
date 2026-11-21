@@ -145,7 +145,7 @@ struct RingView: View {
             .fixedSize()
             .transition(.scale(scale: 0.9).combined(with: .opacity))
             .id(hovered.title)
-            .help("Open the shelf")
+            .help(model.canUndo ? "Undo the removal" : "Open the shelf")
         } else {
             Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit()
                 .frame(width: 22, height: 22)
@@ -161,7 +161,7 @@ struct RingView: View {
             let title = model.set.slots[lifted].action.title
             return (model.removing ? "Remove \(title)" : title, nil)
         }
-        if model.hover == .none, let hint = model.hint { return (hint, nil) }
+        if model.hover == .none, let hint = model.hint { return (hint, model.canUndo ? "⌘Z" : nil) }
         switch model.hover {
         case .slot(let index):
             guard model.set.slots.indices.contains(index) else { return nil }
@@ -170,7 +170,7 @@ struct RingView: View {
             let items = model.expandedItems
             return items.indices.contains(item) ? (items[item].title, nil) : nil
         case .centre:
-            return ("Shelf", nil)
+            return model.canUndo ? ("Undo", "⌘Z") : ("Shelf", nil)
         case .none:
             return nil
         }

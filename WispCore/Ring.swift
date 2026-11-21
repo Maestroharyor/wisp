@@ -480,6 +480,13 @@ public enum RingGeometry {
         return point
     }
 
+    /// Where the pointer should go when the ring opened away from it (pushed in from a screen
+    /// edge): its centre, so hovers and flicks start from the middle. Nil when it opened under
+    /// the pointer.
+    public static func pointerMove(from requested: CGPoint, to fitted: CGPoint) -> CGPoint? {
+        hypot(fitted.x - requested.x, fitted.y - requested.y) > 2 ? fitted : nil
+    }
+
     static func normalised(_ angle: CGFloat) -> CGFloat {
         let value = angle.truncatingRemainder(dividingBy: 360)
         return value < 0 ? value + 360 : value
