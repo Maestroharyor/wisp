@@ -312,19 +312,33 @@ final class NotchController {
 
     func releasePull() {
         guard model.pull > 0 else { return }
-        withAnimation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) { model.pull = 0 }
+        withAnimation(model.reduceMotion ? nil : .wispControl) { model.pull = 0 }
     }
 
-    /// A small swell as the shelf window flies back in, as if the notch caught it.
-    func receivePulse() {
-        guard !model.reduceMotion else { return }
-        model.receivePulses += 1
-    }
-
-    /// Springs the shell up from smaller after it changed form.
+    /// Springs an orb torn off the notch up from smaller, under the pointer.
     func popIn() {
         guard !model.reduceMotion else { return }
         model.pops += 1
+    }
+
+    /// Where the shell is drawn now, in screen coordinates: the start of a form change. A
+    /// dragged orb has moved its panel off the layout's frame, and the shell with it.
+    var drawnSurface: CGRect {
+        model.surfaceRect.offsetBy(
+            dx: panel.frame.minX - layout.panelFrame.minX, dy: panel.frame.minY - layout.panelFrame.minY)
+    }
+
+    /// Glides the shell from `rect` (where the old form drew it) to where the new layout puts
+    /// it, in one critically damped motion: size, position and corners together, so changing
+    /// form never reads as a close followed by a second spring.
+    func morph(from rect: CGRect) {
+        guard !model.reduceMotion, rect.width > 0, rect != model.targetSurfaceRect else { return }
+        model.morphFrom = rect
+        // A frame at the old spot first, or there's nothing to glide from.
+        Task { @MainActor [weak self] in
+            guard let self, self.model.morphFrom == rect else { return }
+            withAnimation(self.model.motion.formMorph) { self.model.morphFrom = nil }
+        }
     }
 
     /// Shrinks the orb away, then runs `done` (the dock).

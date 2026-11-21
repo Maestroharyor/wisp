@@ -262,10 +262,11 @@ final class NotchModel {
     var pullProgress: CGFloat?
     /// Where the surface was when the pull began.
     var pullFrom: CGRect = .zero
-    /// Counts form changes; each one springs the shell up from smaller.
+    /// Where the shell was drawn before it changed form, in screen coordinates. Set for one
+    /// frame, then cleared in an animation, so the shell glides from the old form to the new.
+    var morphFrom: CGRect?
+    /// Counts orbs torn off the notch; each one springs up from smaller under the pointer.
     var pops = 0
-    /// Counts the shelf window flying back in; each one swells the shell a little.
-    var receivePulses = 0
     /// The orb is shrinking away before it docks.
     var vanishing = false
     /// Where the orb sits in the current surface: content blooms out of and back into it.
@@ -348,6 +349,7 @@ final class NotchModel {
     }
 
     var surfaceRect: CGRect {
+        if let morphFrom { return morphFrom }
         guard let pullProgress else { return targetSurfaceRect }
         return SurfaceSizing.blend(pullFrom, targetSurfaceRect, progress: pullProgress)
     }
@@ -533,13 +535,22 @@ final class NotchModel {
     var accent: Color { services.accent }
     var glow: Color { services.glow }
 
-    /// The surface's settled size before its latest change, so the next change can tell growing
-    /// from shrinking. `NotchView` updates it after each change of size.
-    @ObservationIgnored var settledSurface: CGSize = .zero
+    /// The size the surface last settled toward, and the animation picked for getting there.
+    /// Picked once per change and shared, so the shell and everything inside it ride the same
+    /// spring whichever body reads it first.
+    @ObservationIgnored private var animatedSize: CGSize?
+    @ObservationIgnored private var pickedAnimation: Animation?
 
     /// A small bounce when growing, none when shrinking, whatever the shape lands on: closing
     /// the shelf onto a live pill settles like closing it onto the bare notch.
-    var surfaceAnimation: Animation { surfaceAnimation(from: settledSurface, to: targetSurfaceRect.size) }
+    var surfaceAnimation: Animation {
+        let size = targetSurfaceRect.size
+        if size == animatedSize, let pickedAnimation { return pickedAnimation }
+        let animation = surfaceAnimation(from: animatedSize ?? size, to: size)
+        animatedSize = size
+        pickedAnimation = animation
+        return animation
+    }
 
     func surfaceAnimation(from old: CGSize, to new: CGSize) -> Animation {
         SurfaceMove.between(old, new) == .grow ? motion.surfaceOpen : motion.surfaceClose

@@ -23,8 +23,6 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     /// Set by the notch coordinator: the closed shell nearest a frame, which the window
     /// leaves toward and comes back out of.
     var shellRect: @MainActor (CGRect) -> CGRect? = { _ in nil }
-    /// The window has flown back into the shell near `frame`: the shell answers with a pulse.
-    var shellReceived: @MainActor (CGRect) -> Void = { _ in }
     private let flight = WindowFlight()
 
     /// The sidebar's selection, which pills, menus and tearing off point at a row.
@@ -274,7 +272,6 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
                 window, to: shell,
                 spring: SpringTuning.surface(
                     move: .shrink, speedScale: model?.speed.scale ?? 1, reduceMotion: false),
-                arrive: { [weak self] in self?.shellReceived(frame) },
                 done: { [weak self] in
                     guard let self else { return }
                     self.hiding = false
