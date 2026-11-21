@@ -322,11 +322,14 @@ public struct AgentSessions: Sendable {
         if [.sessionStart, .stop].contains(event.kind) { session.subagents = 0 }
         switch event.kind {
         case .sessionStart:
-            session.state = .idle
-            // A resumed or cleared session's old prompt isn't what it's working on now.
-            session.lastPrompt = nil
-            // Compaction starts the session over in name only; its task and run time go on.
-            if event.startSource != "compact" { session.firstPrompt = nil }
+            // Compaction starts the session over in name only; its task and run time go on, and
+            // an automatic one lands mid-turn with the agent still working.
+            if event.startSource != "compact" {
+                session.state = .idle
+                // A resumed or cleared session's old prompt isn't what it's working on now.
+                session.lastPrompt = nil
+                session.firstPrompt = nil
+            }
             if event.startSource == nil || ["startup", "clear"].contains(event.startSource) { session.started = date }
             Self.append(.started, "Session started", to: &session, at: date)
         case .userPromptSubmit:

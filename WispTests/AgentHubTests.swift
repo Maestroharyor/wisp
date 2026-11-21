@@ -58,6 +58,22 @@ final class AgentSessionsTests: XCTestCase {
             Data(#"{"session_id":"\#(session)","cwd":"/p/app","hook_event_name":"\#(kind)"\#(extra)}"#.utf8))
     }
 
+    /// Auto-compaction can land mid-turn; the agent carries on, so the session stays working.
+    func testCompactionMidTurnKeepsTheSessionWorking() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("SessionStart"), at: start)
+        sessions.apply(try event("UserPromptSubmit", extra: #","prompt":"Fix login""#), at: start.addingTimeInterval(1))
+        sessions.apply(try event("PreCompact"), at: start.addingTimeInterval(60))
+        sessions.apply(try event("SessionStart", extra: #","source":"compact""#), at: start.addingTimeInterval(70))
+        let session = try XCTUnwrap(sessions.session("s1"))
+        XCTAssertEqual(session.state, .running)
+        XCTAssertEqual(session.turnStarted, start.addingTimeInterval(1))
+        XCTAssertEqual(session.lastPrompt, "Fix login")
+        XCTAssertFalse(session.compacting)
+        sessions.apply(try event("SessionStart", extra: #","source":"resume""#), at: start.addingTimeInterval(80))
+        XCTAssertEqual(sessions.session("s1")?.state, .idle, "a resume still starts over")
+    }
+
     func testLifecycle() throws {
         var sessions = AgentSessions()
         sessions.apply(try event("SessionStart"), at: start)
