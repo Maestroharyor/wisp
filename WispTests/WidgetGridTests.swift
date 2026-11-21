@@ -125,8 +125,26 @@ final class WidgetPageSizingTests: XCTestCase {
         XCTAssertEqual(
             islandSolo.width,
             max(
-                16 + ShellMetrics.soloCardWidth(notchStyle: false) + 16,
+                16 + ShellMetrics.soloBackRoom(notchStyle: false) * 2 + ShellMetrics.soloCardWidth(notchStyle: false)
+                    + 16,
                 ShellMetrics.shelfMinimumWidth(notchStyle: false)))
+    }
+
+    func testTheBackChevronFitsInsideEveryShelf() {
+        // The chevron hangs left of the solo card; the shelf's side inset plus the room kept for
+        // it must hold all of it, or the shell's rounded corner cuts it off (orb and island).
+        for notchStyle in [true, false] {
+            let inset = ShellMetrics.shelfInsets(notchStyle: notchStyle, notchHeight: 32).leading
+            let room = inset + ShellMetrics.soloBackRoom(notchStyle: notchStyle)
+            XCTAssertGreaterThanOrEqual(
+                room, ShellMetrics.soloBackOffset + ShellMetrics.soloBackMargin, "\(notchStyle)")
+        }
+    }
+
+    func testWideSoloKeepsRoomForTheChevronOnIslands() {
+        let wide = SurfaceSizing.rect(for: .widgetSolo(wide: true), in: island)
+        XCTAssertEqual(
+            wide.width, 16 + SurfaceSizing.wideSoloWidth + ShellMetrics.soloBackRoom(notchStyle: false) * 2 + 16)
     }
 
     func testGridAndSoloKeepTheShelfHeight() {

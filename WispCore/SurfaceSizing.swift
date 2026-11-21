@@ -202,7 +202,9 @@ public enum SurfaceSizing {
         case .widgetGrid(let count, let rows):
             return WidgetGrid.contentWidth(count: count, rows: rows)
         case .widgetSolo(let wide):
-            return wide ? wideSoloWidth : ShellMetrics.soloCardWidth(notchStyle: layout.style == .notch)
+            let notchStyle = layout.style == .notch
+            let card = wide ? wideSoloWidth : ShellMetrics.soloCardWidth(notchStyle: notchStyle)
+            return card + ShellMetrics.soloBackRoom(notchStyle: notchStyle) * 2
         case .media:
             return mediaPageWidth
         case .tray(let items):
