@@ -121,6 +121,10 @@ struct RingView: View {
 
     private var searching: Bool { !model.query.isEmpty }
 
+    private var pillFill: Color {
+        colorScheme == .dark ? Color(white: 0.11) : .white
+    }
+
     private func lit(_ hit: RingHit) -> Bool { model.hover == hit || model.picked == hit }
 
     /// The middle: the hovered icon's name and key in a pill, or Wisp's glyph (which opens the
@@ -129,27 +133,28 @@ struct RingView: View {
         if let hovered = hoveredTitle {
             let onCentre = model.hover == .centre && model.lifted == nil
             HStack(spacing: 6) {
-                Text(hovered.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                Text(hovered.title).font(.title3.weight(.semibold)).lineLimit(1)
                 if let key = hovered.key {
-                    Text(key).font(.system(size: 11, weight: .medium).monospacedDigit())
+                    Text(key).font(.callout.weight(.medium).monospacedDigit())
                         .foregroundStyle(onCentre ? Color.white.opacity(0.7) : Color.secondary)
                 }
             }
             .foregroundStyle(onCentre ? Color.white : Color.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 9)
             .frame(maxWidth: RingGeometry.innerRadius * 1.8)
-            .background(Capsule().fill(onCentre ? AnyShapeStyle(Color.wispViolet) : AnyShapeStyle(.regularMaterial)))
-            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
-            .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+            // Solid, as on the reference: white in Light, near-black in Dark.
+            .background(Capsule().fill(onCentre ? Color.wispViolet : pillFill))
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.10), radius: 10, y: 3)
             .fixedSize()
             .transition(.scale(scale: 0.9).combined(with: .opacity))
             .id(hovered.title)
             .help(model.canUndo ? "Undo the removal" : "Open the shelf")
         } else {
             Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit()
-                .frame(width: 22, height: 22)
-                .foregroundStyle(Color.wispViolet.opacity(0.75))
+                .frame(width: 24, height: 24)
+                .foregroundStyle(Color.wispViolet.opacity(0.6))
                 .frame(width: RingGeometry.centreRadius * 2, height: RingGeometry.centreRadius * 2)
                 .transition(.opacity)
                 .accessibilityLabel("Open the shelf")
@@ -208,30 +213,42 @@ struct RingView: View {
     }
 }
 
-/// The disc under the icons: Wisp's panel glass with a faint violet wash, and a lighter middle
-/// edged with a hairline. Follows Light and Dark mode and the panel glass setting.
+/// The disc under the icons, kept airy: a nearly clear band of glass with a soft violet glow
+/// toward the middle, and a luminous centre. One wide shadow, no hard edge. Follows Light and
+/// Dark mode (smoky glass in Dark rather than a flat grey).
 struct RingDisc: View {
     let centre: CGPoint
     let dark: Bool
 
     var body: some View {
-        let outer = (RingGeometry.ringOuter + 8) * 2
+        let outer = (RingGeometry.ringOuter + 10) * 2
         let inner = RingGeometry.innerRadius * 2
         ZStack {
-            Color.clear.wispSurface(Circle())
+            Color.clear.wispSurface(Circle(), glass: .clear)
+            // The band: a glow that rises toward the centre and is gone by the rim.
             Circle().fill(
-                LinearGradient(
+                RadialGradient(
                     colors: [
-                        Color.wispViolet.opacity(dark ? 0.16 : 0.08), Color.wispViolet.opacity(dark ? 0.06 : 0.02),
+                        Color.wispViolet.opacity(dark ? 0.22 : 0.14), Color.wispViolet.opacity(dark ? 0.08 : 0.04),
+                        .clear,
                     ],
-                    startPoint: .top, endPoint: .bottom))
+                    center: .center, startRadius: RingGeometry.innerRadius * 0.9, endRadius: outer / 2))
+            Circle().strokeBorder(Color.white.opacity(dark ? 0.12 : 0.55), lineWidth: 1)
+            // The centre: lighter in the middle, a touch deeper at its edge.
             Circle()
-                .fill(Color.wispViolet.opacity(dark ? 0.14 : 0.09))
-                .overlay(Circle().strokeBorder(Color.white.opacity(dark ? 0.12 : 0.7), lineWidth: 1))
+                .fill(
+                    RadialGradient(
+                        colors: dark
+                            ? [Color.wispViolet.opacity(0.30), Color.wispViolet.opacity(0.16)]
+                            : [Color.white.opacity(0.75), Color.wispViolet.opacity(0.16)],
+                        center: .center, startRadius: 0, endRadius: RingGeometry.innerRadius)
+                )
+                .overlay(Circle().strokeBorder(Color.white.opacity(dark ? 0.14 : 0.8), lineWidth: 1))
+                .shadow(color: Color.wispViolet.opacity(dark ? 0.25 : 0.12), radius: 16)
                 .frame(width: inner, height: inner)
         }
         .frame(width: outer, height: outer)
-        .shadow(color: .black.opacity(dark ? 0.3 : 0.12), radius: 20, y: 8)
+        .shadow(color: .black.opacity(dark ? 0.35 : 0.10), radius: 40, y: 12)
         .position(centre)
     }
 }
@@ -248,20 +265,25 @@ struct RingIconCell: View {
     let dimmed: Bool
     let hasMore: Bool
     var dot: RingRunState = .none
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var dark: Bool { colorScheme == .dark }
 
     var body: some View {
         let radians = angle * .pi / 180
         ZStack {
             if lit {
+                // A frosted halo with a violet bloom that spills into the disc.
                 Circle()
                     .fill(.thinMaterial)
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.5), lineWidth: 1))
-                    .frame(width: side * 1.5, height: side * 1.5)
-                    .shadow(color: Color.wispViolet.opacity(0.5), radius: 18)
+                    .overlay(Circle().fill(Color.white.opacity(dark ? 0.08 : 0.55)))
+                    .overlay(Circle().strokeBorder(Color.white.opacity(dark ? 0.25 : 0.9), lineWidth: 1))
+                    .frame(width: side * 1.45, height: side * 1.45)
+                    .shadow(color: Color.wispViolet.opacity(0.35), radius: 28)
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
             RingTileIcon(icon: icon, tileHex: tileHex, side: side)
-                .scaleEffect(lit ? 1.12 : 1)
+                .scaleEffect(lit ? 1.08 : 1)
             if dot != .none {
                 // Like the Dock: a dot under a running app, violet for the one in front.
                 Circle().fill(dot == .frontmost ? Color.wispViolet : Color.primary.opacity(0.55))
@@ -353,16 +375,16 @@ private struct SubRing: View {
                     start: open ? first.start - 2 : parentAngle - half, end: open ? last.end + 2 : parentAngle + half,
                     inner: RingGeometry.subInner, outer: RingGeometry.subOuter, centre: model.centre
                 )
-                .fill(.regularMaterial)
+                .fill(.ultraThinMaterial)
                 .overlay(
                     SectorShape(
                         start: open ? first.start - 2 : parentAngle - half,
                         end: open ? last.end + 2 : parentAngle + half,
                         inner: RingGeometry.subInner, outer: RingGeometry.subOuter, centre: model.centre
                     )
-                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
                 )
-                .shadow(color: .black.opacity(0.14), radius: 12, y: 4)
+                .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
                 .opacity(fanned || reduceMotion ? 1 : 0)
             }
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in

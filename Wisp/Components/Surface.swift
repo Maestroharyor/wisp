@@ -16,6 +16,9 @@ enum SurfaceRole {
 private struct WispSurface<S: InsettableShape>: ViewModifier {
     let shape: S
     let role: SurfaceRole
+    /// A fixed glass for surfaces with a look of their own (the ring's clear band), instead of
+    /// the panel setting.
+    let glassOverride: PanelGlass?
     let preferences: Preferences
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
@@ -29,6 +32,7 @@ private struct WispSurface<S: InsettableShape>: ViewModifier {
     }
 
     private var look: Appearance { preferences.appearance }
+    private var panelGlass: PanelGlass { glassOverride ?? look.panelGlass }
 
     private var hairline: Double {
         if contrast == .increased { return 0.35 }
@@ -39,7 +43,7 @@ private struct WispSurface<S: InsettableShape>: ViewModifier {
     /// Window background laid over the glass: more for Frosted and for cards, which sit on
     /// busier content, so text always reads.
     private var backing: Double {
-        min(look.panelGlass.backing + (role == .card ? 0.15 : 0), 0.85)
+        min(panelGlass.backing + (role == .card ? 0.15 : 0), 0.85)
     }
 
     private var tint: Color { Color.wispViolet.opacity(look.panelTint * 0.35) }
@@ -65,11 +69,11 @@ private struct WispSurface<S: InsettableShape>: ViewModifier {
 
     @available(macOS 26, *)
     private var glass: Glass {
-        look.panelGlass == .clear ? .clear : .regular
+        panelGlass == .clear ? .clear : .regular
     }
 
     private var material: Material {
-        switch look.panelGlass {
+        switch panelGlass {
         case .clear: .ultraThinMaterial
         case .tinted: .regularMaterial
         case .frosted: .thickMaterial
@@ -79,8 +83,10 @@ private struct WispSurface<S: InsettableShape>: ViewModifier {
 
 extension View {
     /// A translucent Wisp surface in `shape` (see `WispSurface`).
-    func wispSurface<S: InsettableShape>(_ shape: S, role: SurfaceRole = .panel) -> some View {
-        modifier(WispSurface(shape: shape, role: role, preferences: .shared))
+    func wispSurface<S: InsettableShape>(_ shape: S, role: SurfaceRole = .panel, glass: PanelGlass? = nil)
+        -> some View
+    {
+        modifier(WispSurface(shape: shape, role: role, glassOverride: glass, preferences: .shared))
     }
 
     /// A rounded, continuous-cornered Wisp surface.
