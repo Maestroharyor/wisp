@@ -10,15 +10,21 @@ struct WindowCard<Content: View>: View {
     var count: Int?
     /// Opens the card's own page; nil when there's none.
     var open: (() -> Void)?
+    /// The card's least height, so cards in a row line up.
+    var minHeight: CGFloat?
+    /// Takes all the height it's offered, for a card that fills a page's column.
+    var fills = false
     @ViewBuilder let content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
             content
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(
+                    maxWidth: .infinity, maxHeight: fills || minHeight != nil ? .infinity : nil, alignment: .topLeading)
         }
         .padding(16)
+        .frame(minHeight: minHeight, maxHeight: fills ? .infinity : nil, alignment: .top)
         .windowCardBackground()
     }
 

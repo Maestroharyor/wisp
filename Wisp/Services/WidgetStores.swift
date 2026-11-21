@@ -488,7 +488,13 @@ private actor RemindersReader {
     private static func item(_ reminder: EKReminder) -> ReminderItem {
         ReminderItem(
             id: reminder.calendarItemIdentifier, title: reminder.title ?? "Reminder", due: due(of: reminder),
-            isCompleted: reminder.isCompleted)
+            isCompleted: reminder.isCompleted, list: reminder.calendar?.title ?? "",
+            listColor: reminder.calendar?.color.flatMap(Self.rgb))
+    }
+
+    private static func rgb(_ color: NSColor) -> RGB? {
+        guard let srgb = color.usingColorSpace(.sRGB) else { return nil }
+        return RGB(red: srgb.redComponent, green: srgb.greenComponent, blue: srgb.blueComponent)
     }
 
     /// A reminder due on a day with no time is due by the end of that day, so it isn't
@@ -771,12 +777,21 @@ final class NotesStore {
             usesSample = true
             access = .fullAccess
             loaded = true
+            let work = RGB(red: 1, green: 0.55, blue: 0.2)
+            let personal = RGB(red: 0.55, green: 0.45, blue: 1)
             items = [
-                ReminderItem(id: "r1", title: "Send invoice", due: now.addingTimeInterval(-86_400), isCompleted: false),
-                ReminderItem(id: "r2", title: "Call the bank", due: now.addingTimeInterval(3_600), isCompleted: false),
                 ReminderItem(
-                    id: "r3", title: "Book flights", due: now.addingTimeInterval(4 * 86_400), isCompleted: false),
-                ReminderItem(id: "r4", title: "Read 20 pages", due: nil, isCompleted: false),
+                    id: "r1", title: "Send invoice", due: now.addingTimeInterval(-86_400), isCompleted: false,
+                    list: "Work", listColor: work),
+                ReminderItem(
+                    id: "r2", title: "Call the bank", due: now.addingTimeInterval(3_600), isCompleted: false,
+                    list: "Personal", listColor: personal),
+                ReminderItem(
+                    id: "r3", title: "Book flights", due: now.addingTimeInterval(4 * 86_400), isCompleted: false,
+                    list: "Travel", listColor: RGB(red: 0.3, green: 0.6, blue: 1)),
+                ReminderItem(
+                    id: "r4", title: "Read 20 pages", due: nil, isCompleted: false, list: "Personal",
+                    listColor: personal),
             ]
         }
     }

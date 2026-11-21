@@ -37,7 +37,7 @@ struct WindowHome: View {
                         alignment: .leading, spacing: WindowLayout.spacing
                     ) {
                         ForEach(cards) { card in
-                            cardView(card).frame(minHeight: 220, alignment: .top)
+                            cardView(card)
                         }
                     }
                 }
@@ -251,7 +251,8 @@ private struct EventsCard: View {
     var body: some View {
         WindowCard(
             title: Calendar.current.isDateInToday(day) ? "Today's events" : day.formatted(.dateTime.weekday(.wide)),
-            symbol: "calendar", tint: .red, count: store.access == .fullAccess ? events.count : nil, open: open
+            symbol: "calendar", tint: .red, count: store.access == .fullAccess ? events.count : nil, open: open,
+            minHeight: 240
         ) {
             if store.access != .fullAccess {
                 CardMessage(text: "Allow Calendar to see your events here.") {
@@ -279,7 +280,7 @@ private struct RemindersCard: View {
     var body: some View {
         WindowCard(
             title: "Reminders", symbol: "checklist", tint: .orange,
-            count: store.access == .fullAccess ? store.items.count : nil, open: open
+            count: store.access == .fullAccess ? store.items.count : nil, open: open, minHeight: 240
         ) {
             if store.access != .fullAccess {
                 CardMessage(text: "Allow Reminders to tick them off here.") {
@@ -310,7 +311,9 @@ private struct AgentsCard: View {
 
     var body: some View {
         let sessions = hub.sessions.list
-        WindowCard(title: "Agents", symbol: "sparkles", tint: .purple, count: sessions.count, open: open) {
+        WindowCard(
+            title: "Agents", symbol: "sparkles", tint: .purple, count: sessions.count, open: open, minHeight: 240
+        ) {
             if sessions.isEmpty {
                 CardMessage(text: "Claude Code and Codex sessions show up here while they run.")
             } else {
@@ -363,7 +366,7 @@ private struct NotesCard: View {
     let open: () -> Void
 
     var body: some View {
-        WindowCard(title: "Notes", symbol: "note.text", tint: .yellow, open: open) {
+        WindowCard(title: "Notes", symbol: "note.text", tint: .yellow, open: open, minHeight: 240) {
             let text = store.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
                 CardMessage(text: "A scratch note for anything. Open Notes to write.")

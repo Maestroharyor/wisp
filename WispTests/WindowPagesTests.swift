@@ -140,6 +140,18 @@ final class WindowPagesTests: XCTestCase {
         XCTAssertEqual(ReminderFilter.overdue.count(items, now: now, calendar: calendar), 1)
     }
 
+    func testRemindersGroupByList() {
+        let items = [
+            ReminderItem(id: "a", title: "A", due: nil, isCompleted: false, list: "Work"),
+            ReminderItem(id: "b", title: "B", due: nil, isCompleted: false, list: "Home"),
+            ReminderItem(id: "c", title: "C", due: nil, isCompleted: false, list: "Work"),
+            ReminderItem(id: "d", title: "D", due: nil, isCompleted: false),
+        ]
+        let lists = ReminderListSummary.summaries(items)
+        XCTAssertEqual(lists.map(\.name), ["Work", "Home"])
+        XCTAssertEqual(lists.map(\.count), [2, 1])
+    }
+
     // MARK: Clipboard
 
     func testClipCountsByKind() {
