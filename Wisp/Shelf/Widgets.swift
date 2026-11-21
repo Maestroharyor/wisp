@@ -896,17 +896,39 @@ struct NotesWidget: View {
     @Bindable var store: NotesStore
 
     var body: some View {
-        TextEditor(text: $store.text)
-            .font(.callout)
-            .scrollContentBackground(.hidden)
-            .overlay(alignment: .topLeading) {
-                if store.text.isEmpty {
-                    Text("Jot something down…")
-                        .font(.callout).foregroundStyle(Color.secondaryText)
-                        .padding(.leading, 5)
-                        .allowsHitTesting(false)
+        VStack(alignment: .leading, spacing: 4) {
+            if store.book.notes.count > 1 || store.selected != nil {
+                Menu {
+                    ForEach(store.book.sorted) { note in
+                        Button(note.title) { store.selectedID = note.id }
+                    }
+                    Divider()
+                    Button("New note") { store.newNote() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(store.selected?.title ?? "Notes").font(.caption.weight(.semibold)).lineLimit(1)
+                        Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.secondaryText)
                 }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Switch note")
             }
+            TextEditor(text: $store.text)
+                .font(.callout)
+                .scrollContentBackground(.hidden)
+                .overlay(alignment: .topLeading) {
+                    if store.text.isEmpty {
+                        Text("Jot something down…")
+                            .font(.callout).foregroundStyle(Color.secondaryText)
+                            .padding(.leading, 5)
+                            .allowsHitTesting(false)
+                    }
+                }
+        }
     }
 }
 

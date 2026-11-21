@@ -120,6 +120,14 @@ final class WindowPagesTests: XCTestCase {
         XCTAssertEqual(read, book)
     }
 
+    func testAgesInWords() {
+        let now = date(21, 12)
+        XCTAssertEqual(RelativeAge.long(from: now.addingTimeInterval(-20), to: now), "just now")
+        XCTAssertEqual(RelativeAge.long(from: now.addingTimeInterval(-300), to: now), "5 min ago")
+        XCTAssertEqual(RelativeAge.long(from: now.addingTimeInterval(-3_600), to: now), "1 hour ago")
+        XCTAssertEqual(RelativeAge.long(from: now.addingTimeInterval(-3 * 86_400), to: now), "3 days ago")
+    }
+
     // MARK: Reminders
 
     func testReminderFiltersAndTheirCounts() {

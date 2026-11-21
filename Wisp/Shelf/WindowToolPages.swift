@@ -4,29 +4,202 @@ import WispCore
 
 // MARK: Notes
 
-/// The scratch note in the window: a full-height editor at a readable width.
+/// Notes in the window: the notes down the side, pinned first then newest, with search, and
+/// the chosen one in a roomy editor. Everything stays on this Mac.
 struct NotesPage: View {
     @Bindable var store: NotesStore
+    @State private var query = ""
+    @State private var width: CGFloat = 0
+    /// The last note deleted, for Undo.
+    @State private var deleted: Note?
+    @FocusState private var editing: Bool
 
     var body: some View {
-        GeometryReader { proxy in
-            TextEditor(text: $store.text)
-                .font(.system(size: 14))
-                .lineSpacing(3)
-                .scrollContentBackground(.hidden)
-                .overlay(alignment: .topLeading) {
-                    if store.text.isEmpty {
-                        Text("Jot something down…")
-                            .font(.system(size: 14)).foregroundStyle(Color.secondaryText)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
+        let notes = store.book.search(query)
+        WindowPageFrame {
+            WindowPageHeader(
+                symbol: "note.text", tint: .yellow, title: "Notes",
+                subtitle: "Jot it down, find it later. Kept on this Mac.",
+                count: store.book.notes.count == 1 ? "1 note" : "\(store.book.notes.count) notes"
+            ) {
+                if let deleted {
+                    Button("Undo delete") {
+                        store.restore(deleted)
+                        self.deleted = nil
                     }
                 }
-                .frame(width: WindowLayout.readableWidth(available: proxy.size.width))
-                .frame(maxHeight: .infinity)
-                .padding(WindowLayout.margin)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                WindowPrimaryButton(title: "New note", symbol: "square.and.pencil") {
+                    store.newNote()
+                    editing = true
+                }
+                .keyboardShortcut("n", modifiers: .command)
+            }
+        } content: {
+            HStack(alignment: .top, spacing: WindowLayout.spacing) {
+                if WindowLayout.masterDetail(width: width) || store.selected == nil {
+                    list(notes)
+                        .frame(width: WindowLayout.masterDetail(width: width) ? WindowLayout.masterWidth : nil)
+                }
+                if WindowLayout.masterDetail(width: width) || store.selected != nil {
+                    editor
+                }
+            }
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width
+            } action: {
+                width = $0
+            }
         }
+    }
+
+    private func list(_ notes: [Note]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Color.secondaryText)
+                TextField("Search notes", text: $query).textFieldStyle(.plain)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Capsule().fill(.primary.opacity(0.06)))
+            if notes.isEmpty {
+                WindowEmptyState(
+                    symbol: query.isEmpty ? "note.text" : "magnifyingglass",
+                    title: query.isEmpty ? "No notes yet" : "No matches",
+                    message: query.isEmpty ? "Start one with New note." : "Try another word."
+                )
+                .frame(maxHeight: .infinity)
+            } else {
+                ScrollView(.vertical) {
+                    LazyVStack(spacing: 4) {
+                        ForEach(notes) { note in
+                            Button {
+                                store.selectedID = note.id
+                            } label: {
+                                NoteRow(note: note, selected: note.id == store.selectedID)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu { menu(note) }
+                        }
+                    }
+                }
+                .scrollFade()
+            }
+        }
+        .padding(12)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .windowCardBackground()
+    }
+
+    @ViewBuilder private var editor: some View {
+        if let note = store.selected {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    if !WindowLayout.masterDetail(width: width) {
+                        Button("All notes", systemImage: "chevron.left") { store.selectedID = nil }
+                            .buttonStyle(.borderless)
+                    }
+                    TimelineView(.everyMinute) { context in
+                        Text("Edited \(RelativeAge.long(from: note.updated, to: context.date))")
+                            .font(.subheadline).foregroundStyle(Color.secondaryText)
+                    }
+                    Spacer()
+                    Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
+                        store.togglePin(note.id)
+                    }
+                    .labelStyle(.iconOnly)
+                    .help(note.pinned ? "Unpin" : "Pin to the top")
+                    Button("Copy", systemImage: "doc.on.doc") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(note.body, forType: .string)
+                    }
+                    .labelStyle(.iconOnly)
+                    .help("Copy the note")
+                    Button("Delete", systemImage: "trash", role: .destructive) { delete(note) }
+                        .labelStyle(.iconOnly)
+                        .help("Delete the note")
+                }
+                .buttonStyle(.borderless)
+                TextEditor(text: $store.text)
+                    .font(.title3)
+                    .lineSpacing(4)
+                    .scrollContentBackground(.hidden)
+                    .focused($editing)
+                    .overlay(alignment: .topLeading) {
+                        if store.text.isEmpty {
+                            Text("Start typing. The first line is the title.")
+                                .font(.title3).foregroundStyle(Color.secondaryText)
+                                .padding(.leading, 5)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .frame(maxWidth: WindowLayout.readableCap, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .windowCardBackground()
+        } else {
+            WindowEmptyState(
+                symbol: "note.text", title: "No note open", message: "Pick a note on the left, or start a new one."
+            ) {
+                WindowPrimaryButton(title: "New note", symbol: "square.and.pencil") { store.newNote() }
+            }
+            .frame(maxHeight: .infinity)
+            .windowCardBackground()
+        }
+    }
+
+    @ViewBuilder private func menu(_ note: Note) -> some View {
+        Button(note.pinned ? "Unpin" : "Pin") { store.togglePin(note.id) }
+        Button("Copy") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(note.body, forType: .string)
+        }
+        Divider()
+        Button("Delete", role: .destructive) { delete(note) }
+    }
+
+    private func delete(_ note: Note) {
+        deleted = store.remove(note.id)
+    }
+}
+
+/// A note in the list: a tinted glyph, the title with a pin, its second line and when it changed.
+private struct NoteRow: View {
+    let note: Note
+    let selected: Bool
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: note.pinned ? "pin.fill" : "note.text")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(note.pinned ? Color.orange : Color.yellow)
+                .frame(width: 34, height: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
+                        .fill((note.pinned ? Color.orange : Color.yellow).opacity(0.15)))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(note.title).font(.body.weight(.semibold)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    TimelineView(.everyMinute) { context in
+                        Text(RelativeAge.short(from: note.updated, to: context.date))
+                            .font(.caption).foregroundStyle(Color.secondaryText)
+                    }
+                }
+                Text(note.preview.isEmpty ? "No more text" : note.preview)
+                    .font(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(2)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: SurfaceRadius.row + 2, style: .continuous)
+                .fill(selected ? Color.wispViolet.opacity(0.22) : .primary.opacity(hovering ? 0.05 : 0))
+        )
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
 

@@ -64,4 +64,16 @@ public enum RelativeAge {
         default: return "\(Int(seconds / 86400))d"
         }
     }
+
+    /// In words, for a line such as "Edited 5 min ago": "just now", "5 min ago", "2 hours ago".
+    public static func long(from date: Date, to now: Date) -> String {
+        let seconds = max(now.timeIntervalSince(date), 0)
+        func ago(_ count: Int, _ unit: String) -> String { "\(count) \(unit)\(count == 1 ? "" : "s") ago" }
+        switch seconds {
+        case ..<60: return "just now"
+        case ..<3600: return "\(Int(seconds / 60)) min ago"
+        case ..<86400: return ago(Int(seconds / 3600), "hour")
+        default: return ago(Int(seconds / 86400), "day")
+        }
+    }
 }

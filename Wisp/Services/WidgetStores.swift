@@ -2,6 +2,7 @@ import CoreLocation
 import Darwin
 import EventKit
 import Foundation
+import OSLog
 import Observation
 import SwiftUI
 import WispCore
@@ -727,12 +728,111 @@ final class WeatherStore: NSObject, CLLocationManagerDelegate {
 @MainActor
 @Observable
 final class NotesStore {
-    var text: String {
-        didSet { UserDefaults.standard.set(text, forKey: "notesText") }
-    }
+    /// Every note. Kept on this Mac, in Application Support, and never logged.
+    private(set) var book: NoteBook
+    /// The note the widget and the window's editor show.
+    var selectedID: UUID?
+
+    @ObservationIgnored private var saveTask: Task<Void, Never>?
 
     init() {
-        text = UserDefaults.standard.string(forKey: "notesText") ?? ""
+        let read = Self.read()
+        if let read {
+            book = read
+        } else {
+            // First run of the notebook: the old single note becomes the first note.
+            book = NoteBook.migrated(fromSingle: UserDefaults.standard.string(forKey: "notesText") ?? "", at: .now)
+            saveNow()
+            UserDefaults.standard.removeObject(forKey: "notesText")
+        }
+        selectedID = book.sorted.first?.id
+    }
+
+    var selected: Note? { selectedID.flatMap(book.note) }
+
+    /// The selected note's text, for the editors. Typing with no note starts one.
+    var text: String {
+        get { selected?.body ?? "" }
+        set {
+            if let id = selectedID, book.note(id) != nil {
+                book.update(id, body: newValue, at: .now)
+            } else {
+                guard !newValue.isEmpty else { return }
+                selectedID = book.add(body: newValue, at: .now)
+            }
+            save()
+        }
+    }
+
+    @discardableResult
+    func newNote() -> UUID {
+        // An empty note already waiting is reused rather than piling up blank ones.
+        if let blank = book.notes.first(where: \.isEmpty) {
+            selectedID = blank.id
+            return blank.id
+        }
+        let id = book.add(at: .now)
+        selectedID = id
+        save()
+        return id
+    }
+
+    /// Removes a note and returns it, for Undo.
+    @discardableResult
+    func remove(_ id: UUID) -> Note? {
+        let note = book.note(id)
+        book.remove(id)
+        if selectedID == id { selectedID = book.sorted.first?.id }
+        save()
+        return note
+    }
+
+    func restore(_ note: Note) {
+        book.restore(note)
+        selectedID = note.id
+        save()
+    }
+
+    func togglePin(_ id: UUID) {
+        book.togglePin(id)
+        save()
+    }
+
+    // MARK: Saving
+
+    private static var file: URL {
+        let base =
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent(AppSupport.folderName(bundleID: Bundle.main.bundleIdentifier))
+            .appendingPathComponent("notes.json")
+    }
+
+    private static func read() -> NoteBook? {
+        guard let data = try? Data(contentsOf: file) else { return nil }
+        return try? JSONDecoder().decode(NoteBook.self, from: data)
+    }
+
+    /// Saves half a second after typing stops, so each key press isn't a write.
+    private func save() {
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.saveNow()
+        }
+    }
+
+    private func saveNow() {
+        let url = Self.file
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONEncoder().encode(book).write(to: url, options: .atomic)
+        } catch {
+            Logger(subsystem: "com.ayomideodewale.wisp", category: "Notes")
+                .error("Couldn't save notes: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 
@@ -793,6 +893,23 @@ final class NotesStore {
                     id: "r4", title: "Read 20 pages", due: nil, isCompleted: false, list: "Personal",
                     listColor: personal),
             ]
+        }
+    }
+#endif
+
+#if DEBUG
+    extension NotesStore {
+        /// A few made-up notes in the Dev app's notebook when it has none, for checking pages.
+        func debugFillSample() {
+            guard book.notes.isEmpty else { return }
+            for body in [
+                "Trip plan\nTwo weeks, three stops, beaches last.\n- Book flights\n- Reserve the hotel",
+                "Product ideas\nA notch timer that knows your meetings.",
+                "Reading list\nDeep Work, The Design of Everyday Things",
+            ] {
+                newNote()
+                text = body
+            }
         }
     }
 #endif

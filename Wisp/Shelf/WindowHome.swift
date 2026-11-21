@@ -366,15 +366,36 @@ private struct NotesCard: View {
     let open: () -> Void
 
     var body: some View {
-        WindowCard(title: "Notes", symbol: "note.text", tint: .yellow, open: open, minHeight: 240) {
-            let text = store.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.isEmpty {
-                CardMessage(text: "A scratch note for anything. Open Notes to write.")
+        let notes = Array(store.book.sorted.filter { !$0.isEmpty }.prefix(4))
+        WindowCard(
+            title: "Recent notes", symbol: "note.text", tint: .yellow,
+            count: notes.isEmpty ? nil : store.book.notes.count,
+            open: open, minHeight: 240
+        ) {
+            if notes.isEmpty {
+                CardMessage(text: "Notes you write in Wisp show up here.")
             } else {
-                Text(text)
-                    .font(.body)
-                    .lineLimit(10)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(notes.enumerated()), id: \.element.id) { index, note in
+                        if index > 0 { Divider() }
+                        Button {
+                            store.selectedID = note.id
+                            open()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(note.title).font(.body.weight(.semibold)).lineLimit(1)
+                                if !note.preview.isEmpty {
+                                    Text(note.preview).font(.subheadline).foregroundStyle(Color.secondaryText)
+                                        .lineLimit(2)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
     }
