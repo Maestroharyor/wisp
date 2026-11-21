@@ -116,7 +116,7 @@ struct NowPlayingProgress: View {
             HStack(spacing: 10) {
                 ValueText(text: Countdown.format(position), tint: .secondaryText, size: 11)
                 ProgressBar(
-                    value: info.duration > 0 ? position / info.duration : 0, tint: .accentColor, height: 5
+                    value: info.duration > 0 ? position / info.duration : 0, tint: .wispViolet, height: 5
                 ) {
                     monitor.seek(to: $0 * info.duration)
                 }

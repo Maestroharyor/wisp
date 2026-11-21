@@ -181,7 +181,7 @@ struct HomePage: View {
             .hoverHint("Cancel")
             Button(action: endEditing) {
                 Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
-                    .frame(width: 28, height: 28).background(Circle().fill(Color.accentColor))
+                    .frame(width: 28, height: 28).background(Circle().fill(Color.wispViolet))
                     .foregroundStyle(.white)
                     .contentShape(Circle())
             }
@@ -215,7 +215,7 @@ struct HomePage: View {
                 if onHome {
                     Image(systemName: "checkmark.circle.fill")
                         .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, Color.accentColor)
+                        .foregroundStyle(.white, Color.wispViolet)
                         .offset(x: 4, y: -4)
                 }
             }
@@ -508,7 +508,7 @@ extension WidgetKind {
         case .mirror: .teal
         case .dayProgress: .orange
         case .worldClocks: .cyan
-        case .agents: Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .agents: .agentOrange
         case .script: .green
         case .quickInput: .purple
         }
@@ -551,7 +551,7 @@ struct MediaPage: View {
                 if model.preferences.lyrics {
                     ShelfButton(
                         symbol: showsLyrics ? "quote.bubble.fill" : "quote.bubble", size: 12,
-                        tint: showsLyrics ? .accentColor : .ink, hint: "Lyrics (from LRCLIB)"
+                        tint: showsLyrics ? .wispViolet : .ink, hint: "Lyrics (from LRCLIB)"
                     ) {
                         withAnimation(.easeOut(duration: 0.2)) {
                             model.showsLyrics.toggle()
@@ -561,7 +561,7 @@ struct MediaPage: View {
                 }
                 if model.preferences.appVolume {
                     ShelfButton(
-                        symbol: "slider.horizontal.3", size: 12, tint: showsVolume ? .accentColor : .ink,
+                        symbol: "slider.horizontal.3", size: 12, tint: showsVolume ? .wispViolet : .ink,
                         hint: "App volume"
                     ) {
                         withAnimation(.easeOut(duration: 0.2)) {

@@ -172,7 +172,7 @@ private struct TrayCard: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 14))
                         .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, Color.accentColor)
+                        .foregroundStyle(.white, Color.wispViolet)
                         .offset(x: 4, y: -4)
                 }
             }
@@ -196,7 +196,7 @@ private struct TrayCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(selected ? 0.9 : 0), lineWidth: 1.5)
+                .strokeBorder(Color.wispViolet.opacity(selected ? 0.9 : 0), lineWidth: 1.5)
         )
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onHover { hovering = $0 }

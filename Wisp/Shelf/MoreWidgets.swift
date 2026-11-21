@@ -312,7 +312,7 @@ struct DayProgressWidget: View {
             let left = day.minutesLeft(at: context.date)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    ValueText(text: "\(Int((fraction * 100).rounded()))%", tint: .accentColor, size: 24)
+                    ValueText(text: "\(Int((fraction * 100).rounded()))%", tint: .wispViolet, size: 24)
                     Text("of the day").font(.system(size: 11)).foregroundStyle(Color.secondaryText)
                     Spacer(minLength: 0)
                     Text(left > 0 ? "\(left / 60)h \(left % 60)m left" : "Done for today")
@@ -358,14 +358,14 @@ private struct DayBar: View {
                 Capsule()
                     .fill(
                         LinearGradient(
-                            colors: [Color.accentColor.opacity(0.6), .accentColor], startPoint: .leading,
+                            colors: [Color.wispViolet.opacity(0.6), .wispViolet], startPoint: .leading,
                             endPoint: .trailing)
                     )
                     .frame(width: max(4, fraction * width), height: 4)
                 Circle()
                     .fill(.white)
                     .frame(width: 10, height: 10)
-                    .shadow(color: .accentColor, radius: 4)
+                    .shadow(color: .wispViolet, radius: 4)
                     .offset(x: fraction * width - 5)
             }
             .frame(height: proxy.size.height)

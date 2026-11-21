@@ -16,7 +16,7 @@ struct ProfilesSection: View {
                     Image(
                         systemName: profile.name == preferences.activeProfile ? "checkmark.circle.fill" : "circle"
                     )
-                    .foregroundStyle(profile.name == preferences.activeProfile ? Color.accentColor : .secondary)
+                    .foregroundStyle(profile.name == preferences.activeProfile ? Color.wispViolet : .secondary)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(profile.name)
                         Text(summary(profile)).font(.caption).foregroundStyle(.secondary)

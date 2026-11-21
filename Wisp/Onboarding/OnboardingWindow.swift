@@ -144,7 +144,7 @@ private struct OnboardingView: View {
             HStack(spacing: 6) {
                 ForEach(OnboardingStep.allCases, id: \.self) { item in
                     Capsule()
-                        .fill(item == step ? Color.accentColor : Color.secondary.opacity(0.3))
+                        .fill(item == step ? Color.wispViolet : Color.secondary.opacity(0.3))
                         .frame(width: item == step ? 18 : 6, height: 6)
                 }
             }
@@ -226,11 +226,11 @@ private struct OpeningStep: View {
             .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.08))
+                    .fill(selected ? Color.wispViolet.opacity(0.15) : Color.secondary.opacity(0.08))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2)
+                    .strokeBorder(selected ? Color.wispViolet : .clear, lineWidth: 2)
             )
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }

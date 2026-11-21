@@ -61,7 +61,7 @@ struct CompactActivityView: View {
         case .notice(let symbol, _):
             Image(systemName: symbol)
         case .sent:
-            Image(systemName: "arrowshape.turn.up.left.fill").foregroundStyle(Color.accentColor)
+            Image(systemName: "arrowshape.turn.up.left.fill").foregroundStyle(Color.wispViolet)
         case .focus(let state):
             Image(systemName: state.symbol ?? "moon.fill").foregroundStyle(.indigo)
         case .agent(let status):
@@ -157,7 +157,7 @@ struct CompactActivityView: View {
         case .notice(_, let text):
             Text(text).lineLimit(1)
         case .sent(let text):
-            Text("You: \(text)").lineLimit(1).foregroundStyle(Color.accentColor)
+            Text("You: \(text)").lineLimit(1).foregroundStyle(Color.wispViolet)
         case .focus(let state):
             Text(state.isOn ? (state.name ?? "On") : "Off").lineLimit(1)
                 .foregroundStyle(state.isOn ? .ink : Color.secondaryText)
@@ -308,7 +308,7 @@ struct SideActivityView: View {
                 caption(custom.title)
             }
         case .sent:
-            caption("Sent").foregroundStyle(Color.accentColor)
+            caption("Sent").foregroundStyle(Color.wispViolet)
         case .regionWatch(let status):
             caption(status.paused ? "Paused" : "Watching")
         case .agentApproval:
@@ -359,7 +359,7 @@ struct ActivityGlyph: View {
         case .notice(let symbol, _):
             Image(systemName: symbol)
         case .sent:
-            Image(systemName: "arrowshape.turn.up.left.fill").foregroundStyle(Color.accentColor)
+            Image(systemName: "arrowshape.turn.up.left.fill").foregroundStyle(Color.wispViolet)
         case .focus(let state):
             Image(systemName: state.symbol ?? "moon.fill").foregroundStyle(.indigo)
         case .agent(let status):
