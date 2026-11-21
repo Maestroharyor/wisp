@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.12](https://github.com/Maestroharyor/wisp/compare/v0.2.11...v0.2.12) (2026-11-21)
+
+
+### Features
+
+* an airy ring with bigger icons and a glowing middle ([#126](https://github.com/Maestroharyor/wisp/issues/126)) ([006fbf9](https://github.com/Maestroharyor/wisp/commit/006fbf944eea2b48bfa547010d017f92d5669e00))
+* change every shortcut in Settings, with Ring and Clipboard panes ([#129](https://github.com/Maestroharyor/wisp/issues/129)) ([e7e39a1](https://github.com/Maestroharyor/wisp/commit/e7e39a1bdc63c0ddd207875a40f5a4a7f212d554))
+
+
+### Bug fixes
+
+* let the orb's shelf grow taller, and fade long lists ([#130](https://github.com/Maestroharyor/wisp/issues/130)) ([440a79b](https://github.com/Maestroharyor/wisp/commit/440a79b38a72ed22120fff66200db91d0eade37b))
+* make the bottom form a notch and hide the orb under the ring ([#128](https://github.com/Maestroharyor/wisp/issues/128)) ([bd3cb86](https://github.com/Maestroharyor/wisp/commit/bd3cb86d499072213c51ebd52923a81ea77818be))
+
 ## [0.2.11](https://github.com/Maestroharyor/wisp/compare/v0.2.10...v0.2.11) (2026-11-21)
 
 
