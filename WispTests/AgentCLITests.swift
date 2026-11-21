@@ -174,6 +174,15 @@ final class AgentCLITests: XCTestCase {
         XCTAssertTrue(narrow[1].contains("Claude  working  Opus"))
     }
 
+    /// Padding counts characters, so an emoji in a name neither breaks nor shifts the columns.
+    func testTablePadsNamesWithEmoji() {
+        let report = AgentReport(
+            generated: now, hidden: nil, sessions: [row("my-app-🚀"), row("wisp")], spend: nil)
+        let lines = AgentCLI.table(report, width: 120).split(separator: "\n")
+        XCTAssertTrue(lines[1].hasPrefix("my-app-🚀  main"), "\(lines[1])")
+        XCTAssertTrue(lines[2].hasPrefix("wisp      main"), "\(lines[2])")
+    }
+
     func testEmptyAndHidden() {
         let empty = AgentReport(generated: now, hidden: "during a call", sessions: [], spend: nil)
         XCTAssertEqual(AgentCLI.table(empty, width: 100), "No live sessions.\n\nDetails hidden during a call.\n")
