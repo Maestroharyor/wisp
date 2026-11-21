@@ -175,8 +175,8 @@ struct PaneHeader: View {
         HStack(spacing: 12) {
             IconTile(symbol: pane.symbol, tint: pane.tint, size: 40)
             VStack(alignment: .leading, spacing: 2) {
-                Text(pane.title).font(.system(size: 20, weight: .bold))
-                Text(pane.subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(pane.title).font(.title.weight(.bold))
+                Text(pane.subtitle).font(.callout).foregroundStyle(.secondary)
             }
             Spacer()
         }
