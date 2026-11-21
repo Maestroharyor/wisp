@@ -65,6 +65,7 @@ final class RingController {
     private var panel: RingPanel?
     private var keyMonitor: Any?
     private var clickMonitor: Any?
+    private var escapeMonitor: Any?
     private var openedAt = Date.now
     private var dropEndTask: Task<Void, Never>?
     private var dragOutTask: Task<Void, Never>?
@@ -84,14 +85,16 @@ final class RingController {
         services.appCatalog.onChange = { [weak self] in self?.search() }
     }
 
-    /// Showing and not on its way out.
-    var isVisible: Bool { (panel?.isVisible ?? false) && closeTask == nil }
+    /// Showing and not on its way out. A ring gone see-through while a file is dragged out of
+    /// it counts as gone, so the next press opens it again.
+    var isVisible: Bool { (panel?.isVisible ?? false) && closeTask == nil && dragOutTask == nil }
     private var closeTask: Task<Void, Never>?
 
     /// Opens the ring centred near `point`, in global AppKit coordinates.
     func show(at point: CGPoint, holding: Bool = false, dropping: Bool = false) {
-        let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
-        guard let screen else { return }
+        guard let screen = Self.screen(nearest: point) else { return }
+        dropEndTask?.cancel()
+        dropEndTask = nil
         services.orbDock.hide()
         RingIconCache.shared.retryMissing()
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -136,6 +139,23 @@ final class RingController {
         Task { @MainActor [model] in model.visible = true }
         if !dropping { panel.makeKey() }
         startMonitors()
+    }
+
+    /// The display a point is on. `frame.contains` leaves out a frame's top edge, where the
+    /// pointer and an orb at the very top sit, so the nearest display wins.
+    private static func screen(nearest point: CGPoint) -> NSScreen? {
+        NSScreen.screens.min { distance(from: point, to: $0.frame) < distance(from: point, to: $1.frame) }
+    }
+
+    private static func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {
+        hypot(max(rect.minX - point.x, 0, point.x - rect.maxX), max(rect.minY - point.y, 0, point.y - rect.maxY))
+    }
+
+    /// A file drag is moving; one that ended moments ago doesn't take the ring away under it.
+    func dragMoved() {
+        guard model.dropping else { return }
+        dropEndTask?.cancel()
+        dropEndTask = nil
     }
 
     /// A file drag ended; give a drop on the ring time to land, then put the ring away.
@@ -426,6 +446,13 @@ final class RingController {
             }
             return handled ? nil : event
         }
+        // A ring opened by a file drag never takes the keyboard, so Esc is watched for globally.
+        if model.dropping {
+            escapeMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard event.keyCode == KeyCodes.escape else { return }
+                MainActor.assumeIsolated { self?.hide() }
+            }
+        }
         // A click anywhere else puts the ring away.
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) {
             [weak self] _ in
@@ -525,8 +552,10 @@ final class RingController {
     private func stopMonitors() {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+        if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
         keyMonitor = nil
         clickMonitor = nil
+        escapeMonitor = nil
     }
 
     private func makePanel() -> RingPanel {

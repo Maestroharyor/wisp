@@ -50,21 +50,25 @@ enum AXWindows {
     static func list(pid: pid_t) async -> [WindowSummary] {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: summaries(of: windows(pid: pid)))
+                continuation.resume(returning: read(pid: pid).summaries)
             }
         }
     }
 
-    /// Brings the window forward, out of the Dock if it was minimised. False when it's gone.
+    /// Brings the window forward, out of the Dock if it was minimised. False when it's gone, or
+    /// when an untitled window can't be told apart because the app answered too slowly.
     static func raise(pid: pid_t, target: AppWindows.Target) async -> Bool {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                let all = windows(pid: pid)
-                guard let index = AppWindows.match(target, in: summaries(of: all)) else {
+                let found = read(pid: pid)
+                // Untitled windows are matched by place, which a cut-short list doesn't know.
+                guard found.complete || target.title != nil,
+                    let index = AppWindows.match(target, in: found.summaries)
+                else {
                     continuation.resume(returning: false)
                     return
                 }
-                let window = all[index]
+                let window = found.windows[index]
                 AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
                 AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
                 AXUIElementPerformAction(window, kAXRaiseAction as CFString)
@@ -73,21 +77,35 @@ enum AXWindows {
         }
     }
 
-    /// Standard windows only: an app's palettes, sheets and popovers aren't windows to switch to.
-    private static func windows(pid: pid_t) -> [AXUIElement] {
+    private struct Reading {
+        var windows: [AXUIElement] = []
+        var summaries: [WindowSummary] = []
+        /// False when the deadline cut the reading short.
+        var complete = true
+    }
+
+    /// Standard windows only: an app's palettes, sheets and popovers aren't windows to switch
+    /// to. One deadline covers the whole reading, so a busy app with many windows can't take
+    /// much longer than it.
+    private static func read(pid: pid_t) -> Reading {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, timeout)
         let end = Date().addingTimeInterval(deadline)
-        return AXTree.children(of: app, attribute: kAXWindowsAttribute, timeout: timeout).filter {
-            Date() < end && AXTree.string(of: $0, attribute: kAXSubroleAttribute) == kAXStandardWindowSubrole
+        var reading = Reading()
+        for window in AXTree.children(of: app, attribute: kAXWindowsAttribute, timeout: timeout) {
+            guard Date() < end else {
+                reading.complete = false
+                break
+            }
+            guard AXTree.string(of: window, attribute: kAXSubroleAttribute) == kAXStandardWindowSubrole else {
+                continue
+            }
+            reading.windows.append(window)
+            reading.summaries.append(
+                WindowSummary(
+                    title: AXTree.string(of: window, attribute: kAXTitleAttribute),
+                    isMinimised: AXTree.bool(of: window, attribute: kAXMinimizedAttribute) ?? false))
         }
-    }
-
-    private static func summaries(of windows: [AXUIElement]) -> [WindowSummary] {
-        windows.map {
-            WindowSummary(
-                title: AXTree.string(of: $0, attribute: kAXTitleAttribute),
-                isMinimised: AXTree.bool(of: $0, attribute: kAXMinimizedAttribute) ?? false)
-        }
+        return reading
     }
 }

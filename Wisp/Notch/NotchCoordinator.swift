@@ -304,6 +304,8 @@ final class NotchCoordinator {
                 {
                     services.pocket.show(at: location)
                 }
+                // A new drag reaching a ring left open by the last one keeps it open.
+                services.ring.dragMoved()
                 controllers.values.forEach { $0.fileDragMoved(to: location) }
             } else if shellDrag != nil {
                 dragShell(to: location)

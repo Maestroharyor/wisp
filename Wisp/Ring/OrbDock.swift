@@ -60,7 +60,9 @@ final class OrbDockController {
             try? await Task.sleep(for: Self.showAfter)
             guard !Task.isCancelled, let self else { return }
             self.showTask = nil
-            self.show(beside: orb)
+            // Where the orb is now: it may have moved while this waited.
+            guard let current = self.peeking.values.first else { return }
+            self.show(beside: current)
         }
     }
 
