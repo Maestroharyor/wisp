@@ -27,7 +27,9 @@ final class QuickPocket {
         guard !panel.isVisible || hiding else { return }
         hiding = false
         // Up and to the right of the pointer, kept on screen.
-        let screen = NSScreen.screens.first { $0.frame.contains(point) }?.visibleFrame ?? .zero
+        // NSMouseInRect counts the top edge, where a shake by the notch puts the pointer.
+        let screen =
+            (NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) } ?? NSScreen.main)?.visibleFrame ?? .zero
         var origin = CGPoint(x: point.x + 24, y: point.y - size.height / 2)
         if origin.x + size.width > screen.maxX { origin.x = point.x - size.width - 24 }
         origin.y = min(max(origin.y, screen.minY + 8), screen.maxY - size.height - 8)

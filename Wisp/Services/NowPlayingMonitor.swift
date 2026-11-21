@@ -174,18 +174,20 @@ final class NowPlayingMonitor {
         guard !polling else { return }
         polling = true
         defer { polling = false }
-        var readings: [NowPlayingInfo] = []
+        // Each position is as of its own script; the players after it can take a while to answer.
+        var readings: [(info: NowPlayingInfo, at: Date)] = []
         for source in NowPlayingSource.scriptable where isRunning(source) {
             guard let raw = await AppleScriptRunner.run(Self.statusScript(for: source)),
                 let reading = NowPlayingParser.parse(raw, source: source)
             else { continue }
-            readings.append(reading)
+            readings.append((reading, .now))
         }
         // The bridge may have come back while the scripts ran.
         guard !usingBridge else { return }
         // Prefer whichever player is actually playing.
-        let next = readings.first(where: \.isPlaying) ?? readings.first
-        readAt = .now
+        let chosen = readings.first(where: \.info.isPlaying) ?? readings.first
+        let next = chosen?.info
+        readAt = chosen?.at ?? .now
         if next != info {
             let changedTrack = next?.trackID != info?.trackID
             info = next

@@ -31,7 +31,7 @@ final class RegionPicker {
             return panel
         }
         let mouse = NSEvent.mouseLocation
-        let active = panels.first { $0.frame.contains(mouse) } ?? panels.first
+        let active = panels.first { NSMouseInRect(mouse, $0.frame, false) } ?? panels.first
         active?.makeKey()
         active?.makeFirstResponder(active?.contentView)
     }

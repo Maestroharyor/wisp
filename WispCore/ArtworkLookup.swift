@@ -28,13 +28,19 @@ public struct ArtworkSearchResponse: Decodable, Sendable {
     /// The first result by the same artist, at 600 pt. Nil rather than a guess, so a
     /// near-miss search never shows another song's cover.
     public func artworkURL(artist: String) -> URL? {
-        let wanted = artist.lowercased()
+        // Whole words, so "Eve" isn't "Steve Lacy" while "Eve & Gwen Stefani" still counts.
+        let wanted = Self.words(artist)
+        guard !wanted.isEmpty else { return nil }
         let match = results.first { result in
-            guard let name = result.artistName?.lowercased() else { return false }
-            return name.contains(wanted) || wanted.contains(name)
+            guard let name = result.artistName.map(Self.words), !name.isEmpty else { return false }
+            return wanted.isSubset(of: name) || name.isSubset(of: wanted)
         }
         return match?.artworkUrl100
             .map { $0.replacingOccurrences(of: "100x100bb", with: "600x600bb") }
             .flatMap(URL.init(string:))
+    }
+
+    private static func words(_ name: String) -> Set<Substring> {
+        Set(name.lowercased().split { !$0.isLetter && !$0.isNumber })
     }
 }

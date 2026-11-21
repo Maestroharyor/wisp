@@ -812,7 +812,7 @@ final class NotchController {
             services.shelfWindow.activateShell(view: .widget(widget))
             return
         }
-        model.returnPage = model.page
+        if model.returnPage == nil { model.returnPage = model.page }
         model.page = .widgets
         model.soloWidget = widget
         if machine.phase != .open { send(.hotkey) }

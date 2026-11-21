@@ -83,7 +83,8 @@ public enum ReleaseNotes {
     static func field(fromBody body: String) -> Field {
         var lines: [Substring] = []
         var inSection = false
-        for line in body.split(separator: "\n", omittingEmptySubsequences: false) {
+        // "\r\n" is one Character, so splitting on "\n" alone would leave a CRLF body whole.
+        for line in body.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("## ") || trimmed.hasPrefix("##\t") {
                 if inSection { break }

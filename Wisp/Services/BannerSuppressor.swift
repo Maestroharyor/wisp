@@ -5,15 +5,19 @@ import WispCore
 /// Closes the macOS notification banner once Wisp shows its own, through the
 /// Accessibility API on the Notification Center process. A banner asking to Accept or Decline
 /// (an AirDrop request) is left alone whichever notification set this off.
-@MainActor
+///
+/// Accessibility calls block until Notification Center answers, so the search runs off the main
+/// actor (where the key taps live) and every element gets a short messaging timeout.
 enum BannerSuppressor {
     private static let bundleID = "com.apple.notificationcenterui"
+    private static let timeout: Float = 0.25
 
     /// Closes the banner showing this title and body, retrying briefly, since the banner can
     /// appear a moment after the record lands. Other apps' banners are left alone.
+    @MainActor
     static func closeBanner(title: String, body: String) {
         guard AccessibilityPermission.isTrusted else { return }
-        Task {
+        Task.detached(priority: .utility) {
             for _ in 0..<6 {
                 if closeVisibleBanner(title: title, body: body) { return }
                 try? await Task.sleep(for: .milliseconds(150))
@@ -26,6 +30,7 @@ enum BannerSuppressor {
             let pid = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.processIdentifier
         else { return false }
         let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, timeout)
         return children(of: app, attribute: kAXWindowsAttribute).contains {
             pressClose(in: $0, title: title, body: body, depth: 0)
         }
@@ -85,6 +90,6 @@ enum BannerSuppressor {
     }
 
     private static func children(of element: AXUIElement, attribute: String) -> [AXUIElement] {
-        AXTree.children(of: element, attribute: attribute)
+        AXTree.children(of: element, attribute: attribute, timeout: timeout)
     }
 }

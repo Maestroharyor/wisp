@@ -464,7 +464,9 @@ final class AgentHub {
         bashTask = nil
     }
 
-    private static let maximumMessage = 1 << 20
+    /// A guard against runaway input, not a size hooks keep to: a permission request to write a
+    /// file carries the whole file, and dropping it would leave the agent's prompt with no card.
+    private static let maximumMessage = 16 << 20
 
     /// Right away the first time, then after a pause, so a socket that keeps failing
     /// doesn't spin but always comes back.
@@ -503,7 +505,6 @@ final class AgentHub {
             [weak self] data, _, isComplete, error in
             Task { @MainActor in
                 let all = received + (data ?? Data())
-                // Hook events are small; anything this big is not one of ours.
                 guard all.count <= Self.maximumMessage else {
                     connection.cancel()
                     return
@@ -1705,10 +1706,20 @@ final class AgentHub {
     /// be checked before pressing Return there. False when Accessibility is missing.
     func sendDraft(_ text: String, to id: String) -> Bool {
         guard AccessibilityPermission.isTrusted else { return false }
+        let session = sessions.session(id)
         focus(session: id)
-        Task {
+        Task { [weak self] in
             // Give the terminal time to come forward before the keystroke lands.
             try? await Task.sleep(for: .milliseconds(350))
+            guard let self else { return }
+            // A paste into whatever else is in front would send the prompt to the wrong app; the
+            // draft goes on the clipboard instead so it isn't lost.
+            guard let session, self.terminalInFront(session) else {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                self.onNotice("Couldn't bring the terminal forward. The prompt is on the clipboard.")
+                return
+            }
             // The user's clipboard comes back once the terminal has read the paste.
             PasteShortcut.pasteRestoring(text, after: .milliseconds(1500))
         }
@@ -1950,7 +1961,7 @@ final class AgentHub {
             // The first backup keeps the user's file from before Wisp; later ones would replace it
             // with a copy that already has Wisp's hooks, so `write` keeps those separately.
             if !latest.isEmpty, link == .none {
-                try latest.write(to: url.appendingPathExtension("wisp-backup"), options: .atomic)
+                try SettingsFileWriter.saveBackup(latest, of: url)
             }
         } catch {
             alert("Couldn't write \(path)", detail: error.localizedDescription)

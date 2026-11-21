@@ -8,6 +8,7 @@ final class ToolLabelTests: XCTestCase {
     }
 
     func testEachToolGetsAVerb() {
+        XCTAssertEqual(label("Bash", ToolInput(command: "echo a\r\necho b")), "Running echo a")
         XCTAssertEqual(label("Bash", ToolInput(command: "npm test")), "Running npm test")
         XCTAssertEqual(label("Edit", ToolInput(filePath: "/Users/me/app/Hub.swift")), "Editing Hub.swift")
         XCTAssertEqual(label("Write", ToolInput(filePath: "/a/b/New.swift")), "Editing New.swift")

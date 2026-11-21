@@ -122,7 +122,7 @@ public enum AgentCLI {
                 let padded = line.indices.map { column in
                     let cell = cut(line[column], to: widths[column])
                     return column == line.count - 1
-                        ? cell : cell.padding(toLength: widths[column], withPad: " ", startingAt: 0)
+                        ? cell : pad(cell, to: widths[column])
                 }
                 out += padded.joined(separator: "  ") + "\n"
             }
@@ -171,11 +171,11 @@ public enum AgentCLI {
         guard !spend.projects.isEmpty else { return out }
         let name = max("PROJECT".count, spend.projects.map(\.project.count).max() ?? 0)
         let today = max("TODAY".count, spend.projects.map { money($0.today).count }.max() ?? 0)
-        out += "\n" + "PROJECT".padding(toLength: name, withPad: " ", startingAt: 0) + "  "
-        out += "TODAY".padding(toLength: today, withPad: " ", startingAt: 0) + "  7 DAYS\n"
+        out += "\n" + pad("PROJECT", to: name) + "  "
+        out += pad("TODAY", to: today) + "  7 DAYS\n"
         for project in spend.projects {
-            out += project.project.padding(toLength: name, withPad: " ", startingAt: 0) + "  "
-            out += money(project.today).padding(toLength: today, withPad: " ", startingAt: 0) + "  "
+            out += pad(project.project, to: name) + "  "
+            out += pad(money(project.today), to: today) + "  "
             out += money(project.week) + "\n"
         }
         return out
@@ -199,6 +199,12 @@ public enum AgentCLI {
 
     private static func money(_ dollars: Double, estimate: Bool = true) -> String {
         (estimate ? "~" : "") + String(format: "$%.2f", dollars)
+    }
+
+    /// Pads by characters, the unit the widths are measured in. `padding(toLength:)` counts
+    /// UTF-16 units, so it shifts columns and cuts an emoji in half.
+    private static func pad(_ text: String, to width: Int) -> String {
+        text + String(repeating: " ", count: max(0, width - text.count))
     }
 
     private static func cut(_ text: String, to limit: Int) -> String {

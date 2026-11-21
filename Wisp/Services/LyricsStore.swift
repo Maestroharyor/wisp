@@ -25,6 +25,8 @@ final class LyricsStore {
 
     /// Fetches lyrics for `info` unless they're cached. Call from a view's `.task(id:)`.
     func load(for info: NowPlayingInfo?) async {
+        // An older song's lookup still running no longer owns this; only this load may set it.
+        loading = false
         guard preferences.lyrics, let info else {
             lyrics = nil
             trackID = nil

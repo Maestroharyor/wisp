@@ -19,6 +19,9 @@ final class AIService {
     /// Bumped by every check, so a slow one that finishes after a newer one can't overwrite it
     /// (switching engine or editing the Ollama address while a check is out).
     @ObservationIgnored private var generation = 0
+    /// Bumped only by `refresh`, which alone reads the model list: a run's own check bumps
+    /// `generation` but brings no list, so it mustn't make a refresh drop the one it read.
+    @ObservationIgnored private var listGeneration = 0
     @ObservationIgnored private var retryTask: Task<Void, Never>?
     @ObservationIgnored private var wakeObserver: NSObjectProtocol?
     /// Seconds between checks while AI is on but not ready: Ollama may start after Wisp, and
@@ -65,7 +68,9 @@ final class AIService {
     /// Checks the chosen engine again. Call at launch, when Settings opens or an AI setting changes.
     func refresh() async {
         generation += 1
+        listGeneration += 1
         let current = generation
+        let list = listGeneration
         guard preferences.aiEnabled else {
             status = .off
             return
@@ -86,8 +91,8 @@ final class AIService {
                 models = []
                 if case .unavailable(let reason) = error { state = reason } else { state = .ollamaNotRunning }
             }
+            if list == listGeneration { ollamaModels = models }
             guard current == generation else { return }
-            ollamaModels = models
             status = state
         }
     }
