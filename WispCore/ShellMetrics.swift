@@ -87,3 +87,26 @@ public struct EdgeInsetsValue: Sendable, Equatable {
         self.trailing = trailing
     }
 }
+
+/// Corner radii for everything that isn't the shell, smallest to largest. Corners are
+/// continuous (squircles) everywhere, and an inner corner is concentric with the one around it.
+public enum SurfaceRadius {
+    /// Buttons, fields and chips.
+    public static let control: CGFloat = 8
+    /// List rows and small tiles.
+    public static let row: CGFloat = 10
+    /// Cards inside a page or panel.
+    public static let card: CGFloat = 16
+    /// Floating panels: the mini player, quick pocket, region watch setup.
+    public static let panel: CGFloat = 22
+    /// Larger floating panels: the clipboard and the lock screen player.
+    public static let largePanel: CGFloat = 26
+    /// The smallest corner a concentric one is given, so it never turns square.
+    public static let minimum: CGFloat = 6
+
+    /// The corner for something inset `padding` inside a shape with `outer` corners, so the
+    /// gap between them stays even all the way round.
+    public static func concentric(outer: CGFloat, padding: CGFloat) -> CGFloat {
+        max(outer - padding, minimum)
+    }
+}

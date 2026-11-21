@@ -147,6 +147,8 @@ extension ShapeStyle where Self == Color {
     /// Text and icon colour for views shared by the notch and the window: white in Dark mode,
     /// black in Light. Unlike `.primary` (85% white in Dark mode) it is fully opaque, so the
     /// notch, which forces Dark mode, keeps its pure white.
+    /// Coding agents at work.
+    static var agentOrange: Color { Color(red: 0.85, green: 0.47, blue: 0.34) }
     static var ink: Color { inkColor }
     static var secondaryText: Color { Color.ink.opacity(0.55) }
 }

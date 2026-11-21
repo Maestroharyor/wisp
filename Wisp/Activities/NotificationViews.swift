@@ -81,7 +81,7 @@ struct NotificationCardView: View {
                 Image(systemName: sending ? "ellipsis" : "arrow.up")
                     .font(.system(size: 13, weight: .bold))
                     .frame(width: 30, height: 30)
-                    .background(Circle().fill(Color.accentColor))
+                    .background(Circle().fill(Color.wispViolet))
                     .foregroundStyle(.white)
                     .contentShape(Circle())
             }

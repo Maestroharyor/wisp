@@ -133,14 +133,10 @@ private struct HoverHintBubble: View {
         let placement = HoverHint.placement(preferred: edge, anchor: anchor, label: size, bounds: bounds)
         Text(text)
             .font(.caption)
-            .foregroundStyle(.white)
             .lineLimit(1)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(
-                Capsule().fill(Color(white: 0.12).opacity(0.96))
-                    .overlay(Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 0.5))
-            )
+            .wispSurface(Capsule(), role: .card)
             .fixedSize()
             .background {
                 GeometryReader { label in

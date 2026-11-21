@@ -54,7 +54,7 @@ struct RegionWatchSetupView: View {
             detail.frame(height: 44, alignment: .topLeading)
             HStack {
                 Text("Wisp looks every few seconds. Nothing is saved.")
-                    .font(.system(size: 11)).foregroundStyle(Color.secondaryText)
+                    .font(.subheadline).foregroundStyle(Color.secondaryText)
                 Spacer()
                 Button("Cancel", action: cancel).keyboardShortcut(.cancelAction)
                 Button("Start") { if let rule { start(rule) } }
@@ -64,13 +64,7 @@ struct RegionWatchSetupView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.black.opacity(0.88))
-                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.white.opacity(0.1)))
-        )
-        .environment(\.colorScheme, .dark)
-        .foregroundStyle(.white)
+        .wispSurface(cornerRadius: SurfaceRadius.panel)
         .tint(.wispViolet)
         .onChange(of: choice) { _, next in textFocused = next == .text }
     }
@@ -79,13 +73,13 @@ struct RegionWatchSetupView: View {
         switch choice {
         case .changed:
             Text("Alerts once anything in the region looks different.")
-                .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                .font(.callout).foregroundStyle(Color.secondaryText)
         case .text:
             VStack(alignment: .leading, spacing: 4) {
                 TextField("Text to look for", text: $text)
                     .textFieldStyle(.roundedBorder)
                     .focused($textFocused)
-                Text("Alerts once this text shows").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                Text("Alerts once this text shows").font(.callout).foregroundStyle(Color.secondaryText)
             }
         case .still:
             Picker("Still for", selection: $stillSeconds) {

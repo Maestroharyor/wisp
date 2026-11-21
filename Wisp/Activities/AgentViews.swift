@@ -5,7 +5,7 @@ extension AgentSession.State {
     var tint: Color {
         switch self {
         case .idle: .secondaryText
-        case .running: Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .running: .agentOrange
         case .waiting, .needsApproval: .wispAmber
         case .finished: .wispGreen
         }
@@ -127,7 +127,7 @@ struct ContextBar: View {
                     Capsule().fill(tint)
                         .frame(width: 36 * min(max(percent, 0), 100) / 100, height: 4)
                 }
-            Text("\(Int(percent.rounded()))%").font(.system(size: 10)).monospacedDigit()
+            Text("\(Int(percent.rounded()))%").font(.caption).monospacedDigit()
                 .foregroundStyle(tint)
                 .lineLimit(1).fixedSize()
         }
@@ -147,7 +147,7 @@ struct AgentStateLabel: View {
             Text("Compacting…").lineLimit(1).foregroundStyle(Color.wispViolet)
         } else if showsTool, let tool = status.tool {
             HStack(spacing: 4) {
-                Image(systemName: tool.symbol).font(.system(size: 10, weight: .semibold))
+                Image(systemName: tool.symbol).font(.caption.weight(.semibold))
                     .foregroundStyle(status.state.tint)
                 Text(tool.short).lineLimit(1).truncationMode(.middle)
             }
@@ -244,12 +244,12 @@ struct AgentApprovalCard: View {
             HStack(spacing: 5) {
                 if approval.filePath != nil {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.wispAmber)
                         .help("Changes a file")
                         .accessibilityLabel("Changes a file")
                 }
-                Text(approval.title).font(.system(size: 13, weight: .bold)).lineLimit(1).fixedSize()
+                Text(approval.title).font(.body.weight(.bold)).lineLimit(1).fixedSize()
                 if let path = hub.detailsHidden ? approval.fileName : approval.titlePath {
                     Text(path).font(.system(size: 12, weight: .semibold, design: .monospaced))
                         .lineLimit(1).truncationMode(.middle)
@@ -258,7 +258,7 @@ struct AgentApprovalCard: View {
             .layoutPriority(1)
             if let position = hub.queue.positionLabel {
                 Text(position)
-                    .font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                    .font(.caption.weight(.semibold)).monospacedDigit()
                     .padding(.horizontal, 6).padding(.vertical, 1)
                     .background(Capsule().fill(.ink.opacity(0.14)))
                     .fixedSize()
@@ -267,7 +267,7 @@ struct AgentApprovalCard: View {
                 hub.focus(session: approval.sessionID)
             } label: {
                 Label(approval.project, systemImage: "arrow.up.forward.app")
-                    .font(.system(size: 11)).foregroundStyle(Color.project(approval.project))
+                    .font(.subheadline).foregroundStyle(Color.project(approval.project))
                     .lineLimit(1).truncationMode(.tail)
                     .contentShape(Rectangle())
             }
@@ -280,7 +280,7 @@ struct AgentApprovalCard: View {
                     model.expandedApproval = expanded ? nil : approval.id
                 } label: {
                     Label(expanded ? "Less" : "Preview", systemImage: expanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.wispViolet)
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Color.wispViolet)
                         .lineLimit(1)
                         .frame(height: 18)
                         .contentShape(Rectangle())
@@ -306,7 +306,7 @@ struct MinimiseApprovalButton: View {
             model.minimisedApprovals.insert(approval.id)
         } label: {
             Image(systemName: "chevron.compact.up")
-                .font(.system(size: 13, weight: .bold))
+                .font(.body.weight(.bold))
                 .foregroundStyle(.ink.opacity(0.6))
                 .frame(width: 22, height: 18)
                 .contentShape(Rectangle())
@@ -367,7 +367,7 @@ struct PendingBadge: View {
 
     var body: some View {
         Text("\(count)")
-            .font(.system(size: 10, weight: .bold)).monospacedDigit()
+            .font(.caption.weight(.bold)).monospacedDigit()
             .foregroundStyle(.white)
             .padding(.horizontal, 5)
             .frame(minWidth: 16, minHeight: 16)
@@ -407,7 +407,7 @@ private struct ApprovalPreviewPane: View {
                     Text(text).foregroundStyle(.ink.opacity(0.85))
                     moreLines(more)
                 case .markdown(let plan):
-                    Text(Self.markdown(plan)).font(.system(size: 12)).foregroundStyle(.ink.opacity(0.9))
+                    Text(Self.markdown(plan)).font(.callout).foregroundStyle(.ink.opacity(0.9))
                 }
             }
             .font(.system(size: 11, design: .monospaced))
@@ -647,12 +647,13 @@ private struct WideAnswerStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .bold))
+            .font(.body.weight(.bold))
             .foregroundStyle(text)
             .frame(maxWidth: .infinity)
             .frame(height: 32)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fill))
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .hoverLift()
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
@@ -661,7 +662,7 @@ private struct WideAnswerStyle: ButtonStyle {
 private struct QuietAnswerLook: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .font(.system(size: 11, weight: .semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(.ink.opacity(0.7))
             .lineLimit(1)
             .frame(height: 22)
@@ -703,14 +704,14 @@ private struct DenyReasonRow: View {
                     approval.prompt == .plan ? "What should change?" : "Why not, or what to do instead", text: $reason
                 )
                 .textFieldStyle(.plain)
-                .font(.system(size: 12))
+                .font(.callout)
                 .focused($focused)
                 .onSubmit(deny)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
                 .background(Capsule().fill(.ink.opacity(0.1)))
                 Button("Cancel", action: stopTyping)
-                    .buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
+                    .buttonStyle(.plain).font(.callout.weight(.semibold))
                     .foregroundStyle(.ink.opacity(0.7))
                 CapsuleButton("Deny", action: deny)
             } else {
@@ -719,7 +720,7 @@ private struct DenyReasonRow: View {
                     model.onWantsKey()
                     focused = true
                 }
-                .buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.wispViolet)
+                .buttonStyle(.plain).font(.callout.weight(.semibold)).foregroundStyle(Color.wispViolet)
                 Spacer()
             }
         }
@@ -825,11 +826,8 @@ struct ApprovalBar: View {
                 requestBar
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(white: 0.12))
-                .shadow(color: .black.opacity(0.5), radius: 10, y: -2)
-        )
+        .wispSurface(cornerRadius: SurfaceRadius.card, role: .card)
+        .shadow(color: .black.opacity(0.18), radius: 8, y: -1)
         .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     }
 
@@ -837,12 +835,12 @@ struct ApprovalBar: View {
         QuestionAnswers(approval: approval, hub: hub, model: model) { step in
             HStack(spacing: 8) {
                 Image(systemName: "questionmark.bubble.fill").foregroundStyle(Color.project(approval.project))
-                Text(step.header).font(.system(size: 12, weight: .bold))
+                Text(step.header).font(.callout.weight(.bold))
                 if let position = step.position {
-                    Text(position).font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                    Text(position).font(.caption.weight(.semibold)).monospacedDigit()
                         .foregroundStyle(Color.secondaryText)
                 }
-                Text(step.text).font(.system(size: 11)).foregroundStyle(.ink.opacity(0.85)).lineLimit(1)
+                Text(step.text).font(.subheadline).foregroundStyle(.ink.opacity(0.85)).lineLimit(1)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 18)
@@ -853,9 +851,9 @@ struct ApprovalBar: View {
     private var requestBar: some View {
         HStack(spacing: 10) {
             Image(systemName: approval.source.symbol).foregroundStyle(Color.project(approval.project))
-            Text(approval.title).font(.system(size: 12, weight: .bold))
+            Text(approval.title).font(.callout.weight(.bold))
             if let position = hub.queue.positionLabel {
-                Text(position).font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                Text(position).font(.caption.weight(.semibold)).monospacedDigit()
                     .foregroundStyle(Color.secondaryText)
             }
             ApprovalSummary(
@@ -879,7 +877,7 @@ struct KeyHintLabel: View {
         HStack(spacing: 5) {
             Text(title)
             if let hint {
-                Text(hint).font(.system(size: 10, weight: .semibold)).opacity(0.6).accessibilityHidden(true)
+                Text(hint).font(.caption.weight(.semibold)).opacity(0.6).accessibilityHidden(true)
             }
         }
         .lineLimit(1)
@@ -894,12 +892,13 @@ private struct ApprovalButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .bold))
+            .font(.callout.weight(.bold))
             .foregroundStyle(text)
             .padding(.horizontal, 12)
             .frame(height: 28)
             .background(Capsule().fill(fill))
             .contentShape(Capsule())
+            .hoverLift()
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
@@ -1003,7 +1002,7 @@ private struct ConnectAgentsHint: View {
     var body: some View {
         VStack(spacing: 6) {
             Text("See your coding agents' sessions here")
-                .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                .font(.callout).foregroundStyle(Color.secondaryText)
             // The first adapter is the main one; Settings connects the rest.
             if let main = AgentAdapters.all.first {
                 Button("Connect \(main.displayName)") { hub.installHooks(main.source) }.controlSize(.small)
@@ -1017,7 +1016,7 @@ private struct NoSessionsHint: View {
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: "sparkle").foregroundStyle(Color.wispViolet)
-            Text("No agent sessions").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+            Text("No agent sessions").font(.callout).foregroundStyle(Color.secondaryText)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -1059,7 +1058,7 @@ private struct SessionGlanceLines: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             if let prompt = glance.prompt {
-                Text(prompt).font(.system(size: 11)).foregroundStyle(.ink.opacity(0.75))
+                Text(prompt).font(.subheadline).foregroundStyle(.ink.opacity(0.75))
                     .lineLimit(1).truncationMode(.tail)
             }
             if glance.activity == .done, let jump {
@@ -1073,7 +1072,7 @@ private struct SessionGlanceLines: View {
                 SessionChips(chips: chips)
                 Spacer(minLength: 4)
                 Text("\(glance.runTime) · \(session.stateLabel)")
-                    .font(.system(size: 10)).monospacedDigit().foregroundStyle(Color.secondaryText)
+                    .font(.caption).monospacedDigit().foregroundStyle(Color.secondaryText)
                     .lineLimit(1).fixedSize()
                     .help("Running for \(glance.runTime)")
             }
@@ -1098,7 +1097,7 @@ private struct SessionGlanceLines: View {
 
     private var activity: some View {
         Label(glance.activity.text, systemImage: glance.activity.symbol)
-            .font(.system(size: 11, weight: .medium))
+            .font(.subheadline.weight(.medium))
             .foregroundStyle(glance.activity.tint)
             .lineLimit(1).truncationMode(.middle)
     }
@@ -1227,7 +1226,7 @@ private struct LimitItem: View {
             Text("\(item.percent)%").foregroundStyle(tint)
             if let resets = item.resetsIn { Text(resets).foregroundStyle(Color.secondaryText) }
         }
-        .font(.system(size: 10, weight: .medium)).monospacedDigit()
+        .font(.caption.weight(.medium)).monospacedDigit()
         .lineLimit(1).fixedSize()
         .help(
             item.resetsIn.map { "\(item.label) limit \(item.percent)% used, resets in \($0)" } ?? "\(item.label) limit"
@@ -1260,7 +1259,7 @@ private struct SessionBar: View {
                     state: session.state, source: session.source, project: session.project,
                     context: session.contextPercent
                 )
-                .font(.system(size: 12))
+                .font(.callout)
                 TerminalIcon(bundleID: session.terminal, size: 14)
                 SessionTitle(
                     project: session.project,
@@ -1477,7 +1476,7 @@ private struct SpendTrend: View {
         let weekTotal = week.reduce(0, +)
         return HStack(spacing: 6) {
             Text(String(format: "Today ~$%.2f", week.last ?? 0))
-                .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.secondaryText)
+                .font(.subheadline.weight(.semibold)).foregroundStyle(Color.secondaryText)
                 .lineLimit(1).fixedSize()
             if weekTotal > 0 {
                 Sparkline(values: week.map { peak > 0 ? $0 / peak : 0 }, tint: .wispViolet, filled: true)
@@ -1505,7 +1504,7 @@ private struct PrivacyButton: View {
             hub.hideNow.toggle()
         } label: {
             Image(systemName: hub.detailsHidden ? "eye.slash" : "eye")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(hub.detailsHidden ? Color.wispViolet : Color.secondaryText)
         }
         .buttonStyle(.plain)
@@ -1533,7 +1532,7 @@ private struct DetailSessionRow: View {
                     state: session.state, source: session.source, project: session.project,
                     context: session.contextPercent
                 )
-                .font(.system(size: 11))
+                .font(.subheadline)
                 TerminalIcon(bundleID: session.terminal, size: 13)
                 SessionTitle(
                     project: session.project,
@@ -1609,18 +1608,18 @@ private struct SessionDetail: View {
                                 }
                             }
                         }
-                        .font(.system(size: 11))
+                        .font(.subheadline)
                     }
                     Divider().opacity(0.4)
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(session.timeline) { entry in
                             HStack(spacing: 6) {
                                 Text(entry.date, format: .dateTime.hour().minute())
-                                    .font(.system(size: 10)).monospacedDigit()
+                                    .font(.caption).monospacedDigit()
                                     .foregroundStyle(Color.secondaryText)
                                 Image(systemName: entry.kind.symbol).font(.system(size: 9))
                                     .foregroundStyle(entry.kind.tint).frame(width: 12)
-                                Text(entry.display(hidden: hidden)).font(.system(size: 11)).lineLimit(1)
+                                Text(entry.display(hidden: hidden)).font(.subheadline).lineLimit(1)
                                     .truncationMode(.middle)
                             }
                             .id(entry.id)
@@ -1628,7 +1627,7 @@ private struct SessionDetail: View {
                     }
                     if !approvals.isEmpty {
                         Divider().opacity(0.4)
-                        Text("Approvals").font(.system(size: 10, weight: .semibold))
+                        Text("Approvals").font(.caption.weight(.semibold))
                             .foregroundStyle(Color.secondaryText)
                         ForEach(approvals.prefix(Self.approvalRows)) { record in
                             ApprovalHistoryRow(record: record, hidden: hidden, showsProject: false)
@@ -1638,7 +1637,7 @@ private struct SessionDetail: View {
             }
             if hidden {
                 Label(note ?? "Prompt drafts are hidden while details are private", systemImage: "eye.slash")
-                    .font(.system(size: 11)).foregroundStyle(Color.secondaryText)
+                    .font(.subheadline).foregroundStyle(Color.secondaryText)
                     .frame(height: 24)
             } else {
                 draftBox
@@ -1651,14 +1650,14 @@ private struct SessionDetail: View {
         HStack(spacing: 6) {
             TextField(listening ? "Listening…" : note ?? "Draft a prompt…", text: $draft)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12))
+                .font(.callout)
                 .padding(.horizontal, 8)
                 .frame(height: 24)
                 .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.ink.opacity(0.08)))
                 .onSubmit(send)
             Button(action: send) {
                 Text("Paste in \(TerminalApps.name(for: session.terminal) ?? "Terminal")")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 8)
                     .frame(height: 24)
                     .contentShape(Capsule())
@@ -1713,7 +1712,7 @@ private struct SessionDetail: View {
         _ title: String, symbol: String, help: String, perform: @escaping () -> Void
     ) -> some View {
         Button(action: perform) {
-            Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold))
+            Label(title, systemImage: symbol).font(.subheadline.weight(.semibold))
                 .lineLimit(1).fixedSize()
                 .contentShape(Rectangle())
         }

@@ -15,9 +15,9 @@ struct TrayPage: View {
         Group {
             if tray.list.urls.isEmpty {
                 VStack(spacing: 6) {
-                    Image(systemName: "tray.and.arrow.down").font(.system(size: 22))
+                    Image(systemName: "tray.and.arrow.down").font(.title)
                     Text("Drag files here to keep them handy")
-                        .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                        .font(.callout).foregroundStyle(Color.secondaryText)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(DropOutline(active: targeted, cornerRadius: ShellMetrics.widgetCornerRadius))
@@ -69,7 +69,7 @@ struct TrayPage: View {
         let allSelected = list.selected.count == list.urls.count
         return HStack(spacing: 6) {
             Text(tray.header)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.callout.weight(.semibold))
                 .foregroundStyle(.ink.opacity(0.85))
                 .lineLimit(1)
                 .fixedSize()
@@ -133,8 +133,8 @@ private struct TrayAction: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
-                if let title { Text(title).font(.system(size: 11, weight: .medium)) }
+                Image(systemName: symbol).font(.subheadline.weight(.semibold))
+                if let title { Text(title).font(.subheadline.weight(.medium)) }
             }
             .padding(.horizontal, title == nil ? 0 : 9)
             .frame(minWidth: 24, minHeight: 24)
@@ -172,7 +172,7 @@ private struct TrayCard: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 14))
                         .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, Color.accentColor)
+                        .foregroundStyle(.white, Color.wispViolet)
                         .offset(x: 4, y: -4)
                 }
             }
@@ -191,14 +191,14 @@ private struct TrayCard: View {
         .frame(width: metrics.width)
         .frame(maxWidth: metrics.width == nil ? .infinity : nil)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
                 .fill(.ink.opacity(selected ? 0.14 : hovering ? 0.1 : 0.05))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(selected ? 0.9 : 0), lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
+                .strokeBorder(Color.wispViolet.opacity(selected ? 0.9 : 0), lineWidth: 1.5)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous))
         .onHover { hovering = $0 }
         .onTapGesture(count: 2) { tray.open(url) }
         .onTapGesture { tray.toggleSelection(url) }
@@ -227,13 +227,13 @@ private struct DropMoreCard: View {
 
     var body: some View {
         VStack(spacing: 5) {
-            Image(systemName: "plus").font(.system(size: 15, weight: .semibold))
-            Text("Drop more").font(.system(size: 10, weight: .medium))
+            Image(systemName: "plus").font(.title3.weight(.semibold))
+            Text("Drop more").font(.caption.weight(.medium))
         }
         .foregroundStyle(.ink.opacity(active ? 0.9 : 0.45))
         .frame(width: width)
         .frame(maxWidth: width == nil ? .infinity : nil, maxHeight: .infinity)
-        .overlay(DropOutline(active: active, cornerRadius: 12))
+        .overlay(DropOutline(active: active, cornerRadius: SurfaceRadius.row))
     }
 }
 
@@ -285,11 +285,12 @@ struct DropTile: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: symbol).font(.system(size: 24, weight: .medium))
-            Text(title).font(.system(size: 12, weight: .semibold)).lineLimit(1).padding(.horizontal, 6)
+            Text(title).font(.callout.weight(.semibold)).lineLimit(1).padding(.horizontal, 6)
         }
         .frame(width: SurfaceSizing.tileSize, height: SurfaceSizing.tileSize)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.ink.opacity(targeted ? 0.22 : 0.08))
+            RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous).fill(
+                .ink.opacity(targeted ? 0.22 : 0.08))
         )
         .scaleEffect(targeted && !reduceMotion ? 1.05 : 1)
         .animation(reduceMotion ? nil : .wispControl, value: targeted)

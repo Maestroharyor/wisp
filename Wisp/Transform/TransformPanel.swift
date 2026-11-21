@@ -66,7 +66,6 @@ final class TransformPanelController {
         panel.isMovableByWindowBackground = true
         panel.isReleasedWhenClosed = false
         panel.level = .floating
-        panel.appearance = NSAppearance(named: .darkAqua)
         panel.contentView = NSHostingView(
             rootView: TransformView(model: model, run: { [weak self] in self?.run() }))
         return panel
@@ -119,7 +118,7 @@ private struct TransformView: View {
             optionsArea
             Spacer(minLength: 0)
             if let message = model.message {
-                Text(message).font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(message).font(.callout).foregroundStyle(.secondary)
             }
             if !model.outputs.isEmpty {
                 Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(model.outputs) }
@@ -127,21 +126,17 @@ private struct TransformView: View {
             }
             Button(action: run) {
                 Text(model.running ? "Working…" : model.operation.title)
-                    .font(.system(size: 14, weight: .semibold))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.accentColor))
-                    .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
             .disabled(model.files.isEmpty || model.running)
-            .opacity(model.files.isEmpty ? 0.5 : 1)
         }
         .padding(18)
         .padding(.top, 14)
         .frame(width: 320, height: 600)
-        .background(.black.opacity(0.92))
-        .foregroundStyle(.white)
+        .tint(.wispViolet)
         .onDrop(of: [.fileURL], isTargeted: nil, perform: FileDrop.handler { model.files += $0 })
     }
 
@@ -149,8 +144,8 @@ private struct TransformView: View {
         HStack(spacing: 10) {
             Image(systemName: "wand.and.stars").font(.system(size: 18))
             VStack(alignment: .leading, spacing: 1) {
-                Text("Transform").font(.system(size: 15, weight: .bold))
-                Text(summary).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                Text("Transform").font(.title3.weight(.bold))
+                Text(summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
         }
     }
@@ -172,7 +167,7 @@ private struct TransformView: View {
                             Button {
                                 model.files.removeAll { $0 == url }
                             } label: {
-                                Image(systemName: "xmark.circle.fill").font(.system(size: 12))
+                                Image(systemName: "xmark.circle.fill").font(.callout)
                             }
                             .buttonStyle(.plain)
                         }
@@ -182,10 +177,10 @@ private struct TransformView: View {
                     Image(systemName: "plus").font(.system(size: 14, weight: .semibold))
                         .frame(width: 44, height: 44)
                         .background(
-                            RoundedRectangle(cornerRadius: 10).strokeBorder(
-                                .white.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                            RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous).strokeBorder(
+                                Color.primary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                         )
-                        .contentShape(RoundedRectangle(cornerRadius: 10))
+                        .contentShape(RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -198,16 +193,18 @@ private struct TransformView: View {
                 Button {
                     model.operation = operation
                 } label: {
+                    let chosen = model.operation == operation
                     VStack(spacing: 5) {
-                        Image(systemName: operation.symbol).font(.system(size: 15))
-                        Text(operation.title).font(.system(size: 9, weight: .medium)).lineLimit(1)
+                        Image(systemName: operation.symbol).font(.title3)
+                        Text(operation.title).font(.caption2.weight(.medium)).lineLimit(1)
                     }
+                    .foregroundStyle(chosen ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
                     .frame(maxWidth: .infinity, minHeight: 56)
                     .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(model.operation == operation ? Color.accentColor : .white.opacity(0.08))
+                        RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
+                            .fill(chosen ? AnyShapeStyle(Color.wispViolet) : AnyShapeStyle(.quaternary))
                     )
-                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -247,16 +244,16 @@ private struct TransformView: View {
             .pickerStyle(.segmented)
         case .removeBackground:
             Text("Lifts the main subject and saves a PNG with a transparent background.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
         case .removeMetadata:
             Text("Saves a copy without location, camera and other hidden info.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
         case .combinePDF:
             Text("Combines images and PDFs, in this order, into one PDF.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
         case .zip:
             Text("Packs the files into one zip archive next to them.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
         }
     }
 

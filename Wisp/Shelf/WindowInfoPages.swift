@@ -40,7 +40,7 @@ struct CalendarPage: View {
                                     WindowSectionTitle(day.label)
                                     if day.items.isEmpty {
                                         Text("Nothing planned")
-                                            .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                                            .font(.callout).foregroundStyle(Color.secondaryText)
                                     } else {
                                         ForEach(day.items) { event in
                                             DayEventRow(event: event) { store.open(event) }
@@ -109,7 +109,7 @@ struct BatteryPage: View {
                         } else if !showsAccessories {
                             HStack(spacing: 10) {
                                 Text("Mice, keyboards and trackpads can show here too.")
-                                    .font(.system(size: 13)).foregroundStyle(Color.secondaryText)
+                                    .font(.body).foregroundStyle(Color.secondaryText)
                                 Button("Show accessories", action: openSettings)
                             }
                             .padding(.top, 12)
@@ -140,15 +140,15 @@ private struct MacBatteryCard: View {
             .frame(width: 96, height: 96)
             VStack(alignment: .leading, spacing: 4) {
                 Label(BatteryText.status(state), systemImage: state.isPluggedIn ? "bolt.fill" : "battery.75percent")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.title2.weight(.semibold))
                 Text(BatteryText.remaining(minutes: minutes, state: state) ?? "Working out the time left")
-                    .font(.system(size: 13)).foregroundStyle(Color.secondaryText)
+                    .font(.body).foregroundStyle(Color.secondaryText)
             }
             Spacer(minLength: 0)
         }
         .padding(18)
         .frame(maxWidth: 520, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.ink.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous).fill(.ink.opacity(0.05)))
         .accessibilityElement(children: .combine)
     }
 }
@@ -161,15 +161,15 @@ private struct AccessoryBatteryCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: device.symbol)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.title3.weight(.semibold))
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(.ink.opacity(0.1)))
-                Text(device.name).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                Text(device.name).font(.body.weight(.semibold)).lineLimit(1)
             }
             ForEach(BatteryText.parts(of: device, lowLevel: lowLevel), id: \.label) { part in
                 HStack(spacing: 8) {
                     Text(part.label)
-                        .font(.system(size: 12)).foregroundStyle(Color.secondaryText)
+                        .font(.callout).foregroundStyle(Color.secondaryText)
                         .frame(width: 52, alignment: .leading)
                     GeometryReader { proxy in
                         ZStack(alignment: .leading) {
@@ -181,7 +181,7 @@ private struct AccessoryBatteryCard: View {
                     }
                     .frame(height: 6)
                     Text("\(part.level)%")
-                        .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                        .font(.callout.weight(.semibold)).monospacedDigit()
                         .foregroundStyle(part.isLow ? Color.red : .ink)
                         .frame(width: 40, alignment: .trailing)
                 }
@@ -191,7 +191,7 @@ private struct AccessoryBatteryCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.ink.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous).fill(.ink.opacity(0.05)))
     }
 }
 
@@ -214,7 +214,7 @@ struct SystemStatsPage: View {
                         history: store.memoryHistory, detail: memoryText, tint: SystemStatsWidget.ramTint, filled: true)
                 }
                 Text("The charts show about the last 40 seconds.")
-                    .font(.system(size: 11)).foregroundStyle(Color.secondaryText)
+                    .font(.subheadline).foregroundStyle(Color.secondaryText)
             }
         }
         .onAppear { store.attach() }
@@ -246,11 +246,11 @@ private struct StatCard: View {
                 } icon: {
                     Image(systemName: symbol).foregroundStyle(tint)
                 }
-                .font(.system(size: 13, weight: .semibold))
+                .font(.body.weight(.semibold))
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 1) {
                     ValueText(text: "\(LevelStep.percent(value))", size: 30)
-                    Text("%").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.secondaryText)
+                    Text("%").font(.body.weight(.semibold)).foregroundStyle(Color.secondaryText)
                 }
             }
             Sparkline(values: history.values, tint: tint, filled: filled)
@@ -262,11 +262,11 @@ private struct StatCard: View {
                 Spacer()
                 if let detail { Text(detail) }
             }
-            .font(.system(size: 11))
+            .font(.subheadline)
             .foregroundStyle(Color.secondaryText)
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.ink.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous).fill(.ink.opacity(0.05)))
         .accessibilityElement(children: .combine)
     }
 }
@@ -318,7 +318,7 @@ struct WeatherPage: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Label(reading.place.isEmpty ? "Here" : reading.place, systemImage: "location.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(Color.secondaryText)
                 Text("\(Int(reading.temperature.rounded()))°")
                     .font(.system(size: 60, weight: .regular, design: .rounded))
@@ -328,7 +328,7 @@ struct WeatherPage: View {
             Spacer(minLength: 0)
         }
         .padding(20)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.ink.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous).fill(.ink.opacity(0.05)))
         .accessibilityElement(children: .combine)
     }
 
@@ -336,15 +336,15 @@ struct WeatherPage: View {
         let date = Calendar.current.date(bySettingHour: hour.hour % 24, minute: 0, second: 0, of: .now) ?? .now
         return VStack(spacing: 8) {
             Text(date, format: .dateTime.hour())
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.secondaryText)
+                .font(.callout.weight(.medium)).foregroundStyle(Color.secondaryText)
             Image(systemName: WeatherCode.describe(hour.code, isDay: hour.isDay).symbol)
                 .symbolRenderingMode(.multicolor)
                 .font(.system(size: 24))
-            Text("\(Int(hour.temperature.rounded()))°").font(.system(size: 15, weight: .semibold))
+            Text("\(Int(hour.temperature.rounded()))°").font(.title3.weight(.semibold))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.ink.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous).fill(.ink.opacity(0.05)))
         .accessibilityElement(children: .combine)
     }
 }
