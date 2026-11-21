@@ -8,6 +8,8 @@ import WispCore
 @Observable
 final class ClipboardPanelModel {
     var kind: ClipKind?
+    /// Only clips copied from this app; nil is every app.
+    var app: String?
     var query = ""
     var selectedID: UUID?
     /// Cards ⌘-clicked to paste together, in the order picked.
@@ -21,7 +23,9 @@ final class ClipboardPanelModel {
         self.store = store
     }
 
-    var items: [ClipItem] { store.history.filtered(kind: kind, query: query) }
+    var items: [ClipItem] {
+        store.history.filtered(kind: kind, query: query).filter { app == nil || $0.sourceApp == app }
+    }
 
     var selectedItem: ClipItem? {
         items.first { $0.id == selectedID } ?? items.first

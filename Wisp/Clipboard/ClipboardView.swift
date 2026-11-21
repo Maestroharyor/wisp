@@ -51,6 +51,7 @@ struct ClipboardView: View {
             }
             .padding(3)
             .background(Capsule().fill(.primary.opacity(0.07)))
+            appMenu(all)
             Spacer()
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Color.secondaryText)
@@ -73,6 +74,37 @@ struct ClipboardView: View {
             .accessibilityLabel("More")
         }
         .font(.callout)
+    }
+
+    /// Narrows the cards to one app's clips.
+    private func appMenu(_ all: [ClipItem]) -> some View {
+        Menu {
+            Button("All apps") { pickApp(nil) }
+            Divider()
+            ForEach(ClipCounts.apps(all)) { entry in
+                Button("\(entry.name)  \(entry.count)") { pickApp(entry.name) }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "app.badge")
+                Text(model.app ?? "All apps").lineLimit(1)
+                Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(model.app == nil ? Color.primary.opacity(0.07) : Color.wispViolet.opacity(0.3)))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Show clips from one app")
+        .accessibilityLabel("App, \(model.app ?? "all apps")")
+    }
+
+    private func pickApp(_ app: String?) {
+        model.app = app
+        model.selectedID = model.items.first?.id
     }
 
     private func chip(_ title: String, count: Int, kind: ClipKind?) -> some View {
