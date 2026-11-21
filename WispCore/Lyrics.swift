@@ -6,9 +6,18 @@ public struct Lyrics: Equatable, Sendable {
         /// Seconds into the song; nil for plain (untimed) lyrics.
         public let time: TimeInterval?
         public let text: String
+
+        public init(time: TimeInterval?, text: String) {
+            self.time = time
+            self.text = text
+        }
     }
 
     public let lines: [Line]
+
+    public init(lines: [Line]) {
+        self.lines = lines
+    }
     public var isSynced: Bool { lines.first?.time != nil }
 
     /// Timed LRC text ("[mm:ss.xx] words") if there is any, otherwise plain text.
@@ -75,5 +84,44 @@ public enum LyricsQuery {
         if duration > 0 { items.append(URLQueryItem(name: "duration", value: String(Int(duration.rounded())))) }
         components?.queryItems = items
         return components?.url
+    }
+}
+
+/// How the scrolling lyrics show each line: how bright, how far through the current line the
+/// song is, and when a pause between lines is long enough to show as a break.
+public enum LyricsDisplay {
+    /// A gap between lines at least this long shows as an instrumental break.
+    public static let gap: TimeInterval = 6
+
+    /// Opacity for `line` when `current` is being sung: full for it, a little less for the next,
+    /// fading with distance. With no current line yet, everything reads as upcoming.
+    public static func emphasis(line: Int, current: Int?) -> Double {
+        guard let current else { return 0.55 }
+        let distance = line - current
+        switch distance {
+        case 0: return 1
+        case 1: return 0.55
+        case -1: return 0.45
+        default: return max(0.45 - Double(abs(distance) - 1) * 0.1, 0.25)
+        }
+    }
+
+    /// From 0 at the current line's start to 1 at the next line's, for timed lyrics.
+    public static func progress(in lyrics: Lyrics, at position: TimeInterval) -> Double {
+        guard let index = lyrics.index(at: position), let start = lyrics.lines[index].time else { return 0 }
+        guard index + 1 < lyrics.lines.count, let end = lyrics.lines[index + 1].time, end > start else { return 1 }
+        return min(max((position - start) / (end - start), 0), 1)
+    }
+
+    /// Whether `position` is in a pause of at least `gap` seconds: before the first line, or
+    /// once a line has had its time and the next is still far off.
+    public static func inGap(_ lyrics: Lyrics, at position: TimeInterval) -> Bool {
+        guard lyrics.isSynced, let first = lyrics.lines.first?.time else { return false }
+        guard let index = lyrics.index(at: position) else { return first - position >= 1 }
+        guard index + 1 < lyrics.lines.count, let start = lyrics.lines[index].time,
+            let next = lyrics.lines[index + 1].time
+        else { return false }
+        // A line holds for a few seconds; after that a long wait is a break.
+        return next - start >= gap && position - start >= 4
     }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import Speech
 import SwiftUI
 import WispCore
 
@@ -19,6 +20,22 @@ struct ActivitySettings: View {
             Section("Show beside the notch") {
                 Toggle("Now Playing (any app, including browsers)", isOn: $preferences.mediaActivity)
                 Toggle("Lyrics from LRCLIB (sends the song title, artist, album and length)", isOn: $preferences.lyrics)
+                Toggle(
+                    "YouTube captions when a video has no lyrics (sends the video ID to YouTube)",
+                    isOn: $preferences.youTubeCaptions)
+                Text(
+                    "Reads the address of the playing tab in Safari, Chrome, Arc, Brave, Edge, Vivaldi or Opera through Automation; macOS asks once per browser. Firefox and Zen can't share their tab, so they use live captions."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                Toggle("Live captions for anything else that plays", isOn: $preferences.liveCaptions)
+                    .disabled(!Self.processTapsAvailable)
+                if preferences.liveCaptions {
+                    LiveCaptionsPermissions()
+                }
+                Text(
+                    "Listens to the playing app's sound and writes what's said, on this Mac only: nothing is recorded, saved or sent. Needs System Audio Recording and Speech Recognition, and a language macOS can recognise offline."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 Toggle(
                     "Find missing album art on iTunes (sends the song title and artist)",
                     isOn: $preferences.artworkLookup)
@@ -140,5 +157,31 @@ struct ActivitySettings: View {
         guard panel.runModal() == .OK else { return }
         let chosen = panel.urls.map(\.path).filter { !preferences.downloadFolders.contains($0) }
         preferences.downloadFolders += chosen
+    }
+}
+
+/// The two permissions live captions need, each with a button while it's missing.
+private struct LiveCaptionsPermissions: View {
+    @State private var speech = SFSpeechRecognizer.authorizationStatus() == .authorized
+
+    var body: some View {
+        LabeledContent("Speech Recognition") {
+            if speech {
+                Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            } else {
+                Button("Allow") {
+                    SFSpeechRecognizer.requestAuthorization { status in
+                        Task { @MainActor in speech = status == .authorized }
+                    }
+                }
+            }
+        }
+        LabeledContent("System Audio Recording") {
+            if SystemAudioPermission.status == true {
+                Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            } else {
+                Button("Open System Settings") { Permission.systemAudio.openSettings() }
+            }
+        }
     }
 }

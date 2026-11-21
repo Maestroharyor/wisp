@@ -48,6 +48,19 @@ final class RingArrangeTests: XCTestCase {
         XCTAssertEqual(added.count, 3)
     }
 
+    func testLinksAndFoldersAlreadyOnTheRingArentAddedTwice() {
+        let site = RingAction(.link, value: "https://example.com")
+        let ring = [RingSlot(site), RingSlot(RingAction(.folder, value: "/Users/me/Downloads"))]
+        XCTAssertEqual(RingArrange.insert([site], into: ring, at: 2), .alreadyThere)
+        XCTAssertEqual(
+            RingArrange.insert([RingAction(.folder, value: "/Users/me/Downloads")], into: ring, at: 2), .alreadyThere)
+        guard
+            case .added(let added) = RingArrange.insert(
+                [RingAction(.link, value: "https://other.com")], into: ring, at: 2)
+        else { return XCTFail("not added") }
+        XCTAssertEqual(added.count, 3)
+    }
+
     func testAFullRingTakesNoMore() {
         let full = Array(repeating: RingSlot(RingAction(.home)), count: RingSet.maxSlots)
         XCTAssertEqual(RingArrange.insert([app("a")], into: full, at: 0), .full)

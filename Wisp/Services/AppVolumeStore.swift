@@ -288,7 +288,7 @@ final class AppVolumeStore {
 
     // MARK: CoreAudio
 
-    private static func processObjects() -> [AudioObjectID] {
+    static func processObjects() -> [AudioObjectID] {
         let system = AudioObjectID(kAudioObjectSystemObject)
         var address = processListAddress
         var size: UInt32 = 0
@@ -299,7 +299,7 @@ final class AppVolumeStore {
     }
 
     /// The app a process plays for, from its bundle id and the apps above it.
-    private static func resolveApp(object: AudioObjectID, pid: pid_t) -> String? {
+    static func resolveApp(object: AudioObjectID, pid: pid_t) -> String? {
         let bundle: Unmanaged<CFString>? = SystemVolume.read(
             object, ProcessTapAddress.global(kAudioProcessPropertyBundleID))
         let bundleID = bundle.map { $0.takeRetainedValue() as String } ?? ""
@@ -342,7 +342,7 @@ final class AppVolumeStore {
     private static let processListAddress = ProcessTapAddress.global(kAudioHardwarePropertyProcessObjectList)
     private static let playingAddress = ProcessTapAddress.global(kAudioProcessPropertyIsRunningOutput)
 
-    private static func defaultOutputUID() -> String? {
+    static func defaultOutputUID() -> String? {
         guard let device = SystemVolume.defaultOutput,
             let uid: Unmanaged<CFString> = SystemVolume.read(
                 device, ProcessTapAddress.global(kAudioDevicePropertyDeviceUID))
