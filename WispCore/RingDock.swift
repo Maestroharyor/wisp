@@ -89,10 +89,11 @@ public enum RingRunState: Equatable, Sendable {
     }
 }
 
-/// The apps the orb shows as a small dock: the ring's app segments, then apps in sub-rings,
-/// each once.
+/// The apps the orb shows as a small dock: the ring's app segments (with its running section
+/// when that's on), then apps in sub-rings, each once. It's the same list as the ring's, so
+/// arranging one arranges the other.
 public enum RingDock {
-    public static let size = 5
+    public static let size = 8
 
     public static func apps(in set: RingSet, limit: Int = size) -> [RingAction] {
         let candidates = set.slots.map(\.action) + set.slots.flatMap(\.group)
@@ -135,23 +136,28 @@ public enum FolderDrop {
 }
 
 /// Where the orb's dock sits: a row of app icons beside the orb, on whichever side has room,
-/// kept on screen.
+/// kept on screen, with room above the row for the hovered app's name.
 public enum OrbDockGeometry {
     public static let icon: CGFloat = 36
-    public static let spacing: CGFloat = 6
-    public static let padding: CGFloat = 7
+    public static let spacing: CGFloat = 8
+    public static let padding: CGFloat = 8
     public static let gap: CGFloat = 10
+    /// Room above the row for the name pill, and for an icon lifting on hover.
+    public static let labelRoom: CGFloat = 34
+
+    public static var rowHeight: CGFloat { icon + padding * 2 }
 
     public static func size(count: Int) -> CGSize {
         let count = CGFloat(max(count, 1))
-        return CGSize(width: padding * 2 + count * icon + (count - 1) * spacing, height: icon + padding * 2)
+        return CGSize(width: padding * 2 + count * icon + (count - 1) * spacing, height: rowHeight + labelRoom)
     }
 
+    /// The panel: the row centred on the orb, the label room above it.
     public static func frame(orb: CGRect, count: Int, in visible: CGRect) -> CGRect {
         let size = size(count: count)
         let right = orb.maxX + gap
         let x = right + size.width <= visible.maxX ? right : orb.minX - gap - size.width
-        let y = orb.midY - size.height / 2
+        let y = orb.midY - rowHeight / 2
         return CGRect(
             x: min(max(x, visible.minX), visible.maxX - size.width),
             y: min(max(y, visible.minY), visible.maxY - size.height), width: size.width, height: size.height)
