@@ -17,7 +17,7 @@ struct LevelBar: View {
             }
         }
         .frame(height: height)
-        .animation(.spring(response: 0.25, dampingFraction: 0.9), value: value)
+        .animation(.wispSmooth, value: value)
     }
 }
 

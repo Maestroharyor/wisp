@@ -138,22 +138,39 @@ struct IdleEarsLayer: View {
 
         ZStack(alignment: .topLeading) {
             if showing {
-                wingShape
-                    .fill(.black)
-                    .frame(width: wings.width, height: wings.height)
-                    .position(x: wings.midX, y: wings.midY)
-                if let left {
-                    ear(left).frame(width: leftWidth, height: closed.height)
-                        .position(x: closed.minX - leftWidth / 2 + 3, y: closed.midY)
-                }
-                if let right {
-                    ear(right).frame(width: rightWidth, height: closed.height)
-                        .position(x: closed.maxX + rightWidth / 2 - 3, y: closed.midY)
-                }
+                ears(
+                    closed: closed, wings: wings, left: left, right: right, leftWidth: leftWidth, rightWidth: rightWidth
+                )
+                // After the shell has folded back, so it isn't seen narrowing and then
+                // widening again; gone at once when it opens.
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.animation(
+                            .easeOut(duration: 0.2).delay(model.reduceMotion ? 0 : SpringTuning.surfaceClose.response)),
+                        removal: .opacity.animation(.easeOut(duration: 0.08))))
             }
         }
-        .animation(model.surfaceAnimation, value: showing)
         .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func ears(
+        closed: CGRect, wings: CGRect, left: String?, right: String?, leftWidth: CGFloat, rightWidth: CGFloat
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            wingShape
+                .fill(.black)
+                .frame(width: wings.width, height: wings.height)
+                .position(x: wings.midX, y: wings.midY)
+            if let left {
+                ear(left).frame(width: leftWidth, height: closed.height)
+                    .position(x: closed.minX - leftWidth / 2 + 3, y: closed.midY)
+            }
+            if let right {
+                ear(right).frame(width: rightWidth, height: closed.height)
+                    .position(x: closed.maxX + rightWidth / 2 - 3, y: closed.midY)
+            }
+        }
     }
 
     private func ear(_ text: String) -> some View {

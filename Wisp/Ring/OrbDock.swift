@@ -217,9 +217,9 @@ private struct OrbDockView: View {
         .scaleEffect(model.visible || reduceMotion ? 1 : 0.85, anchor: .bottom)
         .opacity(model.visible ? 1 : 0)
         .animation(
-            model.visible ? .spring(response: 0.3, dampingFraction: 0.8) : .easeIn(duration: 0.12), value: model.visible
+            model.visible ? .wispPopover : .wispDismiss, value: model.visible
         )
-        .animation(.spring(response: 0.22, dampingFraction: 0.72), value: hovered)
+        .animation(.wispControl, value: hovered)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 

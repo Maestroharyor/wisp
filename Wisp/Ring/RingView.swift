@@ -29,7 +29,7 @@ struct RingView: View {
                 .scaleEffect(shown || reduceMotion ? 1 : 0.85, anchor: unit(model.centre))
                 .opacity(shown ? 1 : 0)
                 .animation(
-                    shown ? .spring(response: 0.34, dampingFraction: 0.78) : .easeIn(duration: 0.14), value: shown)
+                    shown ? .wispPopover : .wispDismiss, value: shown)
             ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
                 let angle = RingGeometry.slotAngle(index, count: slots.count)
                 let isLifted = model.lifted == index
@@ -63,7 +63,7 @@ struct RingView: View {
                 .opacity(shown ? (searching ? 0.15 : 1) : 0)
                 .animation(
                     shown
-                        ? .spring(response: 0.36, dampingFraction: 0.76).delay(RingGeometry.delay(for: index))
+                        ? .wispPopover.delay(RingGeometry.delay(for: index))
                         : .easeIn(duration: 0.12),
                     value: shown)
             }
@@ -78,16 +78,16 @@ struct RingView: View {
                 .position(model.centre)
                 .scaleEffect(shown || reduceMotion ? 1 : 0.5, anchor: unit(model.centre))
                 .opacity(shown && !searching ? 1 : 0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shown)
+                .animation(.wispPopover, value: shown)
             if searching, shown {
                 RingSearchCard(model: model, onPick: onPickResult)
                     .position(model.centre)
                     .transition(.scale(scale: 0.92).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.26, dampingFraction: 0.85), value: searching)
+        .animation(.wispSmooth, value: searching)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.24, dampingFraction: 0.72), value: model.hover)
+        .animation(.wispControl, value: model.hover)
         .contentShape(Rectangle())
         .onContinuousHover { phase in
             switch phase {
@@ -324,7 +324,7 @@ private struct RingSearchCard: View {
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.regularMaterial))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.1)))
         .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
-        .animation(.spring(response: 0.22, dampingFraction: 0.85), value: model.selectedResult)
+        .animation(.wispControl, value: model.selectedResult)
     }
 }
 
@@ -384,7 +384,7 @@ private struct SubRing: View {
             }
         }
         .onAppear {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) { fanned = true }
+            withAnimation(.wispPopover) { fanned = true }
         }
     }
 

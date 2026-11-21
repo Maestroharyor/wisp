@@ -87,11 +87,11 @@ struct BubbleLayer: View {
     }
 
     private var pinch: Animation {
-        model.reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.68)
+        model.reduceMotion ? .easeInOut(duration: 0.2) : .wispPopover
     }
 
     private var merge: Animation {
-        model.reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.32, dampingFraction: 0.92)
+        model.reduceMotion ? .easeInOut(duration: 0.2) : .wispSmooth
     }
 }
 

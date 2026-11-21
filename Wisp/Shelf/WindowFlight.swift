@@ -11,16 +11,14 @@ final class WindowFlight {
     private var ghost: NSPanel?
     /// Counts flights, so a flight that was cut short never runs its ending.
     private var flights = 0
-    private var arrival: Task<Void, Never>?
 
-    /// Flies `window` from its frame into `shell`. `arrive` runs as it reaches the shell, for the
-    /// notch to answer; `done` runs once the picture has gone. Returns false when there was no
-    /// picture to fly, so the caller can fall back to a fade.
+    /// Flies `window` from its frame into `shell`; `done` runs once the picture has gone. The
+    /// notch doesn't answer with a swell: the window settling into it is the whole motion.
+    /// Returns false when there was no picture to fly, so the caller can fall back to a fade.
     func flyIn(
-        _ window: NSWindow, to shell: CGRect, spring: SpringSpec, arrive: @escaping @MainActor () -> Void,
-        done: @escaping @MainActor () -> Void
+        _ window: NSWindow, to shell: CGRect, spring: SpringSpec, done: @escaping @MainActor () -> Void
     ) -> Bool {
-        fly(window, between: window.frame, and: shell, inward: true, spring: spring, arrive: arrive, done: done)
+        fly(window, between: window.frame, and: shell, inward: true, spring: spring, done: done)
     }
 
     /// Flies `window` out of `shell` to `frame`, where the real window then appears.
@@ -28,22 +26,20 @@ final class WindowFlight {
         _ window: NSWindow, from shell: CGRect, to frame: CGRect, spring: SpringSpec,
         done: @escaping @MainActor () -> Void
     ) -> Bool {
-        fly(window, between: frame, and: shell, inward: false, spring: spring, arrive: {}, done: done)
+        fly(window, between: frame, and: shell, inward: false, spring: spring, done: done)
     }
 
-    /// Drops a flight under way, leaving the real window as its caller sets it. Its `arrive`
-    /// and `done` don't run.
+    /// Drops a flight under way, leaving the real window as its caller sets it. Its `done`
+    /// doesn't run.
     func cancel() {
         flights += 1
-        arrival?.cancel()
-        arrival = nil
         ghost?.orderOut(nil)
         ghost = nil
     }
 
     private func fly(
         _ window: NSWindow, between frame: CGRect, and shell: CGRect, inward: Bool, spring: SpringSpec,
-        arrive: @escaping @MainActor () -> Void, done: @escaping @MainActor () -> Void
+        done: @escaping @MainActor () -> Void
     ) -> Bool {
         cancel()
         // A trip between displays would cross a gap macOS may not draw across (each display has
@@ -102,7 +98,6 @@ final class WindowFlight {
                 panel.orderOut(nil)
                 guard let self, self.flights == flight else { return }
                 self.ghost = nil
-                self.arrival = nil
                 done()
             }
         }
@@ -110,14 +105,6 @@ final class WindowFlight {
         layer.add(scale, forKey: "scale")
         layer.add(fade, forKey: "fade")
         CATransaction.commit()
-
-        if inward {
-            arrival = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(duration * 0.55))
-                guard !Task.isCancelled else { return }
-                arrive()
-            }
-        }
         return true
     }
 

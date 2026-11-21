@@ -292,7 +292,7 @@ struct DropTile: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.ink.opacity(targeted ? 0.22 : 0.08))
         )
         .scaleEffect(targeted && !reduceMotion ? 1.05 : 1)
-        .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.8), value: targeted)
+        .animation(reduceMotion ? nil : .wispControl, value: targeted)
         .onDrop(of: [.fileURL], isTargeted: $targeted, perform: FileDrop.handler(action))
     }
 }

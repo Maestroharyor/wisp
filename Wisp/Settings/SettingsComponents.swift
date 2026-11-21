@@ -124,7 +124,7 @@ private struct WispDisclosure: View {
         let expanded = configuration.isExpanded
         VStack(alignment: .leading) {
             Button {
-                withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
+                withAnimation(reduceMotion ? nil : .wispControl) {
                     configuration.isExpanded.toggle()
                 }
             } label: {
@@ -217,6 +217,7 @@ struct NotchPreview: View {
     let preferences: Preferences
     let accent: Color
     var glow: Color?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var wallpaper: NSImage?
 
     var body: some View {
@@ -233,8 +234,8 @@ struct NotchPreview: View {
         .frame(maxWidth: .infinity)
         .frame(height: 124)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: preferences.appearance)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: placement)
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : .wispSmooth, value: preferences.appearance)
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : .wispSmooth, value: placement)
         .task { wallpaper = Self.loadWallpaper() }
     }
 

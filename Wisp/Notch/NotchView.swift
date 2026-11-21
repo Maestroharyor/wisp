@@ -38,7 +38,17 @@ struct NotchView: View {
             if model.isOrb {
                 // Stays mounted: the glyph shrinks into what grows out of the orb and comes
                 // back as it folds away, rather than popping.
-                let orb = model.local(model.layout.closedRect)
+                // Rides with a form change, so the face travels with the shell rather than
+                // waiting at the new spot.
+                let closed = model.layout.closedRect
+                let centre = model.morphFrom.map { CGPoint(x: $0.midX, y: $0.midY) }
+                let orb = model.local(
+                    centre.map {
+                        CGRect(
+                            x: $0.x - closed.width / 2, y: $0.y - closed.height / 2, width: closed.width,
+                            height: closed.height)
+                    }
+                        ?? closed)
                 let resting = model.spec == .closed || model.spec == .peek
                 OrbFace(model: model)
                     .frame(width: orb.width, height: orb.height)
@@ -74,8 +84,6 @@ struct NotchView: View {
         .frame(width: panel.width, height: panel.height, alignment: .topLeading)
         // The one surface animation for the shell and everything that moves with it.
         .animation(model.surfaceAnimation, value: model.spec)
-        // After the change, so the body that picked the animation still saw the old size.
-        .onChange(of: model.targetSurfaceRect.size, initial: true) { _, size in model.settledSurface = size }
         .environment(\.colorScheme, .dark)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
         .environment(\.contextThresholds, model.preferences.contextThresholds)
@@ -493,7 +501,7 @@ private struct OrbFace: View {
             }
         }
         .scaleEffect(model.spec == .peek ? 1.06 : 1)
-        .animation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: model.spec == .peek)
+        .animation(model.reduceMotion ? nil : .wispControl, value: model.spec == .peek)
         .overlay(alignment: .topTrailing) {
             if waiting > 0 {
                 Text("\(waiting)")
@@ -506,7 +514,7 @@ private struct OrbFace: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .animation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.65), value: waiting)
+        .animation(model.reduceMotion ? nil : .wispPopover, value: waiting)
         .accessibilityLabel(waiting > 0 ? "Wisp, \(waiting) waiting" : "Wisp")
     }
 }
@@ -560,8 +568,8 @@ private struct WorkingSweep: View {
     }
 }
 
-/// The shell changing form: stretching as the notch is pulled, springing up in a new form,
-/// and shrinking away as an orb docks. Scales about the closed shape.
+/// The shell changing form: an orb torn off the notch growing under the pointer, and
+/// shrinking away as an orb docks. Scales about the closed shape.
 private struct FormChange: ViewModifier {
     let model: NotchModel
 
@@ -580,16 +588,9 @@ private struct FormChange: ViewModifier {
                 view.scaleEffect(scale, anchor: anchor)
             } keyframes: { _ in
                 LinearKeyframe(0.85, duration: 0.001)
-                SpringKeyframe(1, duration: 0.5, spring: Spring(response: 0.38, dampingRatio: 0.8))
+                SpringKeyframe(1, duration: 0.4, spring: SpringTuning.formMorph.spring)
                 // A spring cut off by its duration can stop short of 1, leaving the shell a hair
                 // small and off its screen edge; this lands it exactly.
-                LinearKeyframe(1, duration: 0.05)
-            }
-            .keyframeAnimator(initialValue: CGFloat(1), trigger: model.receivePulses) { view, scale in
-                view.scaleEffect(scale, anchor: anchor)
-            } keyframes: { _ in
-                SpringKeyframe(1.06, duration: 0.12, spring: Spring(response: 0.2, dampingRatio: 1))
-                SpringKeyframe(1, duration: 0.35, spring: Spring(response: 0.3, dampingRatio: 0.7))
                 LinearKeyframe(1, duration: 0.05)
             }
     }

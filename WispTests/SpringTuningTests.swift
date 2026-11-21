@@ -23,7 +23,7 @@ final class SpringTuningTests: XCTestCase {
     }
 
     func testOpeningHasOnlyASmallBounce() {
-        XCTAssertGreaterThanOrEqual(SpringTuning.surfaceOpen.dampingFraction, 0.78)
+        XCTAssertGreaterThanOrEqual(SpringTuning.surfaceOpen.dampingFraction, 0.85)
         XCTAssertLessThan(SpringTuning.surfaceOpen.dampingFraction, 0.9)
     }
 
@@ -44,6 +44,40 @@ final class SpringTuningTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(SpringTuning.contentIn.dampingFraction, 1)
         XCTAssertGreaterThanOrEqual(SpringTuning.contentOut.dampingFraction, 1)
         XCTAssertLessThan(SpringTuning.contentOut.response, SpringTuning.contentIn.response)
+    }
+
+    func testDurationAndBounceMatchSwiftUI() {
+        // SwiftUI's Spring(duration:bounce:): the duration is the response, bounce is 1 - damping.
+        let snappy = SpringSpec(duration: 0.4, bounce: 0.15)
+        XCTAssertEqual(snappy.response, 0.4, accuracy: 1e-9)
+        XCTAssertEqual(snappy.dampingFraction, 0.85, accuracy: 1e-9)
+        XCTAssertEqual(snappy.bounce, 0.15, accuracy: 1e-9)
+        let smooth = SpringSpec(duration: 0.3, bounce: 0)
+        XCTAssertEqual(smooth.dampingFraction, 1, accuracy: 1e-9)
+        let flat = SpringSpec(duration: 0.3, bounce: -0.5)
+        XCTAssertEqual(flat.dampingFraction, 2, accuracy: 1e-9)
+        XCTAssertEqual(flat.bounce, -0.5, accuracy: 1e-9)
+    }
+
+    func testOnlyGrowingAndAppearingBounce() {
+        // Apple's rule: things that tuck away, move between forms or follow the pointer settle
+        // without overshooting; only something growing open may bounce, and only a little.
+        for spec in [
+            SpringTuning.surfaceClose, SpringTuning.formMorph, SpringTuning.contentIn, SpringTuning.contentOut,
+            SpringTuning.control, SpringTuning.reducedMotion,
+        ] {
+            XCTAssertLessThanOrEqual(spec.bounce, 1e-9)
+        }
+        for spec in [SpringTuning.surfaceOpen, SpringTuning.popover] {
+            XCTAssertGreaterThan(spec.bounce, 0)
+            XCTAssertLessThanOrEqual(spec.bounce, 0.15 + 1e-9)
+        }
+    }
+
+    func testScaledKeepsTheBounce() {
+        let spec = SpringTuning.popover.scaled(1.2)
+        XCTAssertEqual(spec.response, SpringTuning.popover.response * 1.2, accuracy: 1e-9)
+        XCTAssertEqual(spec.bounce, SpringTuning.popover.bounce, accuracy: 1e-9)
     }
 
     func testPhysicalForm() {

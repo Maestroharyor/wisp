@@ -331,14 +331,16 @@ struct MinimisedApprovalGlyph: View {
         Image(systemName: approval.source.symbol)
             .foregroundStyle(Color.project(approval.project))
             .frame(width: 16)
-            .scaleEffect(beat ? 1.35 : 1)
+            // One beat out and back, each leg settling without a wobble.
+            .keyframeAnimator(initialValue: CGFloat(1), trigger: beat) { view, scale in
+                view.scaleEffect(scale)
+            } keyframes: { _ in
+                SpringKeyframe(1.3, duration: 0.16, spring: SpringTuning.control.spring)
+                SpringKeyframe(1, duration: 0.3, spring: SpringTuning.control.spring)
+            }
             .onChange(of: nudge) { _, serial in
                 guard serial != nil, !reduceMotion else { return }
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) { beat = true }
-                Task {
-                    try? await Task.sleep(for: .milliseconds(300))
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { beat = false }
-                }
+                beat.toggle()
             }
             .background {
                 Circle().stroke(Color.wispViolet, lineWidth: 1.5)
