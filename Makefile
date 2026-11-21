@@ -20,8 +20,9 @@ build: project
 	@[ "$(SIGN_IDENTITY)" != "-" ] || echo "warning: 'Wisp Dev' certificate not found; signing ad-hoc (permissions reset on every build)"
 	$(XCODEBUILD) -scheme Wisp -configuration Debug CODE_SIGN_IDENTITY="$(SIGN_IDENTITY)" build
 
+# Nothing reads build/'s index (Xcode keeps its own), so skip writing it.
 test: project
-	$(XCODEBUILD) -scheme WispCore test
+	$(XCODEBUILD) -scheme WispCore COMPILER_INDEX_STORE_ENABLE=NO test
 
 lint:
 	xcrun swift-format lint --strict --recursive $(SOURCES)
