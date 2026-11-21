@@ -75,6 +75,10 @@ struct NotchView: View {
                     .transition(.navDrop(model.motion, ride: navRide(pill), drift: navDrift))
             }
         }
+        // The orb (or the pill on it) steps aside while the ring is open over it, so its icon
+        // doesn't show through the ring's middle.
+        .opacity(ringOpenOverOrb ? 0 : 1)
+        .animation(.wispDismiss, value: ringOpenOverOrb)
         // The nav pill's labels, drawn over the shell.
         .hoverHintHost()
         .overlay {
@@ -87,6 +91,11 @@ struct NotchView: View {
         .environment(\.colorScheme, .dark)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
         .environment(\.contextThresholds, model.preferences.contextThresholds)
+    }
+
+    private var ringOpenOverOrb: Bool {
+        guard model.isOrb, let origin = model.services.ring.openAround else { return false }
+        return model.layout.closedRect.insetBy(dx: -8, dy: -8).contains(origin)
     }
 
     /// How far the nav pill travels on close to fold back into the closed shape, in panel
@@ -337,6 +346,11 @@ private struct ShellShape: Shape {
                 ? CGAffineTransform(a: 0, b: 1, c: 1, d: 0, tx: rect.minX, ty: rect.minY)
                 : CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: rect.maxX, ty: rect.minY)
             return path.applying(transform)
+        }
+        if notchStyle, edge == .bottom {
+            // The top notch upside down: its flat edge sits on the Dock or the screen's edge.
+            let path = NotchShape(topRadius: topRadius, bottomRadius: bottomRadius).path(in: rect)
+            return path.applying(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: rect.minY + rect.maxY))
         }
         if notchStyle {
             return NotchShape(topRadius: topRadius, bottomRadius: bottomRadius).path(in: rect)

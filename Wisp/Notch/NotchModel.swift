@@ -508,9 +508,8 @@ final class NotchModel {
     }
 
     var isNotchStyle: Bool { layout.style == .notch }
-    /// The shell is drawn as a notch attached to its edge: at the top in notch style, and
-    /// always on the left and right edges.
-    var drawsNotch: Bool { isNotchStyle || layout.edge.isSide }
+    /// The shell is drawn as a notch attached to its edge (see `NotchLayout.drawsNotch`).
+    var drawsNotch: Bool { layout.drawsNotch }
     /// Height of a one-line pill (the notch itself on the top edge).
     var notchHeight: CGFloat { layout.barHeight }
     /// Space above a card's content: the notch it hangs from, or a margin on an island.
