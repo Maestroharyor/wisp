@@ -72,6 +72,18 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         }
     }
 
+    #if DEBUG
+        /// Selects a sidebar row by its saved name ("widget:calendar"), for checking pages.
+        func debugSelect(_ raw: String) {
+            if let destination = WindowDestination(rawValue: raw) { navigation.open(destination) }
+        }
+
+        /// Resizes the window's content, for checking pages at other sizes.
+        func debugResize(_ size: CGSize) {
+            window?.setContentSize(size)
+        }
+    #endif
+
     /// "Open as Window" from the menu, on what the shelf shows.
     func openAsWindow(view: ShelfView) {
         prepare(view)

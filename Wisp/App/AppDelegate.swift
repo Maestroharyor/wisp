@@ -118,6 +118,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.services.shelfWindow.openAsWindow(view: .page(.home)) }
             }
+            // Selects a window row by name ("widget:calendar"), sizes the window ("1400x900") or
+            // forces an appearance ("light", "dark", anything else follows the system).
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.windowRow"), object: nil, queue: .main
+            ) { [weak self] note in
+                let raw = (note.object as? String) ?? "page:home"
+                MainActor.assumeIsolated { self?.services.shelfWindow.debugSelect(raw) }
+            }
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.windowSize"), object: nil, queue: .main
+            ) { [weak self] note in
+                let parts = ((note.object as? String) ?? "").split(separator: "x").compactMap { Double($0) }
+                guard parts.count == 2 else { return }
+                MainActor.assumeIsolated {
+                    self?.services.shelfWindow.debugResize(CGSize(width: parts[0], height: parts[1]))
+                }
+            }
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.appearance"), object: nil, queue: .main
+            ) { note in
+                let name = note.object as? String
+                MainActor.assumeIsolated {
+                    NSApp.appearance =
+                        name == "light"
+                        ? NSAppearance(named: .aqua) : name == "dark" ? NSAppearance(named: .darkAqua) : nil
+                }
+            }
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.cycleForm"), object: nil, queue: .main
             ) { [weak self] _ in
