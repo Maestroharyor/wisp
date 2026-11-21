@@ -96,7 +96,7 @@ private struct OnboardingView: View {
             footer
         }
         .frame(width: 520, height: 520)
-        .animation(.spring(response: 0.4, dampingFraction: 0.9), value: step)
+        .animation(.wispSmooth, value: step)
         .task {
             // Accessibility is granted in System Settings; watch for it.
             while !Task.isCancelled {

@@ -193,7 +193,7 @@ private struct PressDimLabel<Label: View>: View {
         label
             .opacity(pressed ? 0.5 : 1)
             .scaleEffect(pressed && !reduceMotion ? 0.92 : 1)
-            .animation(reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.7), value: pressed)
+            .animation(reduceMotion ? nil : .wispControl, value: pressed)
     }
 }
 

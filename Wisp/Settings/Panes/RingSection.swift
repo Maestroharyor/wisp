@@ -203,7 +203,7 @@ private struct RingSetEditor: View {
                 .foregroundStyle(Color.wispViolet.opacity(0.75))
         }
         .frame(width: Self.side, height: Self.side)
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: selected)
+        .animation(.wispControl, value: selected)
         .contentShape(Circle())
         .onTapGesture(coordinateSpace: .local) { location in
             let up = CGPoint(x: location.x / Self.scale, y: (Self.side - location.y) / Self.scale)

@@ -49,7 +49,7 @@ struct HomePage: View {
             .padding(20)
         }
         .animation(
-            model.reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85), value: preferences.homeLayout)
+            model.reduceMotion ? nil : .wispSmooth, value: preferences.homeLayout)
     }
 
     private static let windowCardHeight: CGFloat = 200
@@ -104,7 +104,7 @@ struct HomePage: View {
             }
         }
         .animation(
-            model.reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85), value: preferences.homeLayout)
+            model.reduceMotion ? nil : .wispSmooth, value: preferences.homeLayout)
     }
 
     private var emptyHint: some View {
@@ -366,7 +366,7 @@ private struct WidgetIconCell: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: hovering)
+        .animation(reduceMotion ? nil : .wispControl, value: hovering)
         .help(kind.title)
     }
 }
