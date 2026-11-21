@@ -60,7 +60,7 @@ private struct ToggleTile: View {
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(on ? tint : .ink.opacity(hovering ? 0.2 : 0.12)))
                 Text(title)
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(Color.secondaryText)
                     .lineLimit(1)
             }
@@ -69,6 +69,10 @@ private struct ToggleTile: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help(title)
+        // The tile's fill shows on or off; this says it.
+        .accessibilityLabel(title)
+        .accessibilityValue(on ? "On" : "Off")
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
@@ -328,7 +332,7 @@ struct DayProgressWidget: View {
                     Spacer()
                     Text(hourLabel(day.endHour))
                 }
-                .font(.system(size: 9, weight: .medium)).foregroundStyle(Color.secondaryText)
+                .font(.caption2.weight(.medium)).foregroundStyle(Color.secondaryText)
             }
             .frame(maxHeight: .infinity)
         }
@@ -412,7 +416,7 @@ private struct ClockRow: View {
         style.timeZone = zone
         return HStack(spacing: 6) {
             Image(systemName: WorldClock.isDaytime(hour: hour) ? "sun.max.fill" : "moon.fill")
-                .font(.system(size: 9))
+                .font(.caption2)
                 .foregroundStyle(WorldClock.isDaytime(hour: hour) ? Color.wispAmber : Color.indigo)
                 .frame(width: 12)
             VStack(alignment: .leading, spacing: 0) {

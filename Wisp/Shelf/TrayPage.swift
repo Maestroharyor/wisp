@@ -216,6 +216,17 @@ private struct TrayCard: View {
             Button("Remove from Tray") { tray.remove(url) }
         }
         .help(url.path)
+        // One element: its name and details, selected or not, with the menu's actions.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(url.lastPathComponent), \(tray.detail(for: url))")
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint("Selects it. Double-click to open.")
+        .accessibilityAction { tray.toggleSelection(url) }
+        .accessibilityAction(named: "Open") { tray.open(url) }
+        .accessibilityAction(named: "Show in Finder") { tray.reveal([url]) }
+        .accessibilityAction(named: "AirDrop") { tray.airDrop([url]) }
+        .accessibilityAction(named: "Zip") { tray.zip([url]) }
+        .accessibilityAction(named: "Remove from Tray") { tray.remove(url) }
     }
 }
 

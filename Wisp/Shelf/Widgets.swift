@@ -65,6 +65,9 @@ struct NowPlayingWidget: View {
                 HStack(alignment: .center, spacing: 12) {
                     ArtworkView(image: monitor.artwork, size: 50, radius: 11)
                         .onTapGesture { monitor.openPlayer() }
+                        .accessibilityLabel("Open the player")
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { monitor.openPlayer() }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(info.title)
                             .font(.title3.weight(.semibold))
@@ -231,6 +234,17 @@ struct ProgressBar: View {
             .onTapGesture { location in seek(min(max(location.x / proxy.size.width, 0), 1)) }
         }
         .frame(height: height)
+        // Tap to seek has no keyboard or VoiceOver way in; these step by a tenth.
+        .accessibilityElement()
+        .accessibilityLabel("Position")
+        .accessibilityValue("\(Int((min(max(value, 0), 1) * 100).rounded()))%")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: seek(min(value + 0.1, 1))
+            case .decrement: seek(max(value - 0.1, 0))
+            @unknown default: break
+            }
+        }
     }
 }
 
@@ -263,6 +277,8 @@ struct CalendarWidget: View {
                                 Section {
                                     ForEach(day.items) { event in
                                         EventRow(event: event).onTapGesture { store.open(event) }
+                                            .accessibilityAddTraits(.isButton)
+                                            .accessibilityAction { store.open(event) }
                                     }
                                 } header: {
                                     if day.label != "Today" {
@@ -360,9 +376,12 @@ struct ReminderRow: View {
                 Image(systemName: done ? "checkmark.circle.fill" : "circle")
                     .font(.body)
                     .foregroundStyle(done ? Color.wispViolet : Color.secondaryText)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle().inset(by: -2))
             }
             .buttonStyle(.plain)
             .help(done ? "Mark as not done" : "Mark as done")
+            .accessibilityLabel(done ? "Mark \(item.title) as not done" : "Mark \(item.title) as done")
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title)
                     .font(.callout.weight(.medium))
@@ -497,9 +516,12 @@ struct PomodoroWidget: View {
                         store.clearFocusLabel()
                     } label: {
                         Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle().inset(by: -4))
                     }
                     .buttonStyle(.plain)
                     .help("Clear what this session is for")
+                    .accessibilityLabel("Clear what this session is for")
                 }
                 .foregroundStyle(Color.wispAmber)
             }
@@ -547,6 +569,7 @@ struct PomodoroWidget: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(store.phase == phase ? .isSelected : [])
     }
 }
 
@@ -605,6 +628,18 @@ struct RulerScrubber: View {
         .frame(height: 30)
         .opacity(enabled ? 1 : 0.5)
         .mask(LinearGradient(colors: [.clear, .white, .white, .clear], startPoint: .leading, endPoint: .trailing))
+        // Drag-only on screen; VoiceOver steps a minute at a time.
+        .accessibilityElement()
+        .accessibilityLabel("Minutes")
+        .accessibilityValue("\(value) minute\(value == 1 ? "" : "s")")
+        .accessibilityAdjustableAction { direction in
+            guard enabled else { return }
+            switch direction {
+            case .increment: value = min(value + 1, range.upperBound)
+            case .decrement: value = max(value - 1, range.lowerBound)
+            @unknown default: break
+            }
+        }
     }
 }
 
@@ -801,7 +836,7 @@ struct WeatherWidget: View {
                         HStack {
                             ForEach(reading.hours) { hour in
                                 VStack(spacing: 1) {
-                                    Text("\(hour.hour)").font(.system(size: 8)).opacity(0.8)
+                                    Text("\(hour.hour)").font(.caption2).opacity(0.8)
                                     Image(systemName: WeatherCode.describe(hour.code, isDay: hour.isDay).symbol)
                                         .symbolRenderingMode(.multicolor).font(.caption)
                                     Text("\(Int(hour.temperature.rounded()))°").font(

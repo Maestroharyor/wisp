@@ -270,7 +270,7 @@ private struct OptionNumber: View {
 
     var body: some View {
         Text("\(number)")
-            .font(.system(size: 9, weight: .bold)).monospacedDigit()
+            .font(.caption2.weight(.bold)).monospacedDigit()
             .frame(width: 14, height: 14)
             .background(Circle().fill(.ink.opacity(0.2)))
             .accessibilityHidden(true)

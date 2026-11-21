@@ -462,7 +462,8 @@ private struct SoloBackButton: View {
                 .font(.caption.weight(.bold))
                 .frame(width: 20, height: 20)
                 .background(Circle().fill(.ink.opacity(0.12)))
-                .contentShape(Circle())
+                // A 24 pt target around the 20 pt circle.
+                .contentShape(Rectangle().inset(by: -2))
         }
         .buttonStyle(.plain)
         .hoverHint(label)
@@ -594,6 +595,9 @@ struct WindowMediaPage: View {
                     ArtworkView(image: monitor.artwork, size: art, radius: 16)
                         .shadow(color: .black.opacity(0.2), radius: 12, y: 6)
                         .onTapGesture { monitor.openPlayer() }
+                        .accessibilityLabel("Open the player")
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { monitor.openPlayer() }
                     if let info = monitor.info {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(info.title).font(.system(size: 20, weight: .semibold)).lineLimit(2)
