@@ -58,6 +58,11 @@ final class WindowPagesTests: XCTestCase {
         XCTAssertEqual(frame.height, WeekGrid.minimumHeight)
     }
 
+    func testCalendarLayoutsReadBackFromTheirNames() {
+        XCTAssertEqual(CalendarLayout.allCases.map(\.title), ["Day", "Week", "Agenda"])
+        XCTAssertEqual(CalendarLayout(rawValue: "week"), .week)
+    }
+
     // MARK: Notes
 
     func testANotesTitleAndPreviewComeFromItsLines() {

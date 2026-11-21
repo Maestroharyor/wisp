@@ -113,6 +113,9 @@ final class CalendarStore {
     /// leave its last days looking empty. Filtered when read, like `events`.
     var weekEvents: [Event] { week.filter { $0.end > .now } }
     private var week: [Event] = []
+    /// The seven days from the start of today, finished events included, for the window's
+    /// Day and Week grids.
+    private(set) var wholeWeek: [Event] = []
     /// Every timed event today, including finished ones, for the Day Progress widget.
     private(set) var dayEvents: [ClosedRange<Date>] = []
     /// Every event today with its title, finished and all-day ones included, for the window's
@@ -121,6 +124,10 @@ final class CalendarStore {
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
     /// The first read since access has landed, so an empty week isn't claimed before it has.
     private(set) var loaded = false
+    #if DEBUG
+        /// Showing made-up events (`debugFillSample`), which a refresh mustn't replace.
+        @ObservationIgnored var usesSample = false
+    #endif
 
     /// Asks for access. Queries go through `reader`, whose own store runs them off the main actor.
     @ObservationIgnored private let store = EKEventStore()
@@ -163,6 +170,9 @@ final class CalendarStore {
     }
 
     func refresh() {
+        #if DEBUG
+            if usesSample { return }
+        #endif
         access = EKEventStore.authorizationStatus(for: .event)
         dirty = false
         guard access == .fullAccess else {
@@ -171,6 +181,7 @@ final class CalendarStore {
             week = []
             dayEvents = []
             todayEvents = []
+            wholeWeek = []
             loaded = false
             lastRefresh = nil
             if hadAccess { revocations += 1 }
@@ -205,6 +216,7 @@ final class CalendarStore {
                 self.week = week.all
                 dayEvents = week.day
                 todayEvents = week.today
+                wholeWeek = week.whole
                 loaded = true
                 onWeekLoaded()
             }
@@ -244,6 +256,10 @@ final class RemindersStore {
     /// their row until a read that started after the save has them, so they don't blink out.
     @ObservationIgnored private var undoing: [String: Date?] = [:]
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
+    #if DEBUG
+        /// Showing made-up reminders (`debugFillSample`), which a refresh mustn't replace.
+        @ObservationIgnored var usesSample = false
+    #endif
 
     @ObservationIgnored private let reader = RemindersReader()
     @ObservationIgnored private var observer: NSObjectProtocol?
@@ -279,6 +295,9 @@ final class RemindersStore {
     }
 
     func refresh() {
+        #if DEBUG
+            if usesSample { return }
+        #endif
         access = EKEventStore.authorizationStatus(for: .reminder)
         dirty = false
         guard access == .fullAccess else {
@@ -493,6 +512,8 @@ private actor CalendarReader {
         let all: [CalendarStore.Event]
         let day: [ClosedRange<Date>]
         let today: [CalendarStore.Event]
+        /// The whole seven days, finished events included, for the window's hour grid.
+        let whole: [CalendarStore.Event]
     }
 
     private var store: EKEventStore?
@@ -514,7 +535,8 @@ private actor CalendarReader {
         let all = week.filter { $0.endDate > now }.map(Self.event)
         let upcoming = all.prefix(30)
         let today = week.filter { $0.startDate < tomorrow && $0.startDate <= $0.endDate }.prefix(50).map(Self.event)
-        return Week(upcoming: Array(upcoming), all: all, day: day, today: Array(today))
+        let whole = week.prefix(300).map(Self.event)
+        return Week(upcoming: Array(upcoming), all: all, day: day, today: Array(today), whole: whole)
     }
 
     private static func event(_ event: EKEvent) -> CalendarStore.Event {
@@ -707,3 +729,55 @@ final class NotesStore {
         text = UserDefaults.standard.string(forKey: "notesText") ?? ""
     }
 }
+
+#if DEBUG
+    // Made-up events and reminders, so the window's pages can be checked without Calendar or
+    // Reminders access. Never in release builds.
+    extension CalendarStore {
+        func debugFillSample() {
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: .now)
+            func at(_ day: Int, _ hour: Double) -> Date {
+                today.addingTimeInterval(Double(day) * 86_400 + hour * 3_600)
+            }
+            let samples: [(String, Int, Double, Double, Color)] = [
+                ("Morning focus", 0, 8, 8.5, .green), ("Design review", 0, 9, 10, .purple),
+                ("Lunch", 0, 13, 14, .blue), ("Gym", 0, 16, 17, .orange), ("Standup", 1, 9.5, 9.75, .purple),
+                ("Pairing", 1, 11, 12.5, .purple), ("Dentist", 2, 15, 16, .orange), ("1:1", 2, 15.5, 16.5, .blue),
+                ("Planning", 3, 10, 12, .green), ("Guitar", 4, 18, 19, .blue), ("Review", 5, 14, 15, .red),
+            ]
+            let events = samples.enumerated().map { index, sample in
+                Event(
+                    id: "sample-\(index)", eventID: "sample-\(index)", title: sample.0, start: at(sample.1, sample.2),
+                    end: at(sample.1, sample.3), isAllDay: false, color: sample.4,
+                    link: index == 1 ? URL(string: "https://example.com") : nil)
+            }
+            let allDay = Event(
+                id: "sample-day", eventID: "sample-day", title: "Holiday", start: at(2, 0), end: at(3, 0),
+                isAllDay: true, color: .teal, link: nil)
+            usesSample = true
+            access = .fullAccess
+            wholeWeek = events + [allDay]
+            week = wholeWeek
+            upcoming = wholeWeek.filter { $0.end > .now }
+            todayEvents = events.filter { calendar.isDateInToday($0.start) }
+            loaded = true
+        }
+    }
+
+    extension RemindersStore {
+        func debugFillSample() {
+            let now = Date.now
+            usesSample = true
+            access = .fullAccess
+            loaded = true
+            items = [
+                ReminderItem(id: "r1", title: "Send invoice", due: now.addingTimeInterval(-86_400), isCompleted: false),
+                ReminderItem(id: "r2", title: "Call the bank", due: now.addingTimeInterval(3_600), isCompleted: false),
+                ReminderItem(
+                    id: "r3", title: "Book flights", due: now.addingTimeInterval(4 * 86_400), isCompleted: false),
+                ReminderItem(id: "r4", title: "Read 20 pages", due: nil, isCompleted: false),
+            ]
+        }
+    }
+#endif

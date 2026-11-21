@@ -202,26 +202,37 @@ private struct DayTimeline: View {
 struct DayEventRow: View {
     let event: CalendarStore.Event
     let open: () -> Void
+    @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 1.5, style: .continuous).fill(event.color).frame(width: 4, height: 32)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(event.title).font(.body.weight(.semibold)).lineLimit(1)
-                Text(timeText).font(.subheadline).foregroundStyle(Color.secondaryText)
+            Button(action: open) {
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous).fill(event.color).frame(
+                        width: 4, height: 32)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(event.title).font(.body.weight(.semibold)).lineLimit(1)
+                        Text(timeText).font(.subheadline).foregroundStyle(Color.secondaryText)
+                    }
+                    Spacer(minLength: 8)
+                }
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 8)
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(event.title), \(timeText)")
+            .accessibilityHint("Opens it in Calendar")
+            // Beside the row's button rather than inside it, so it's its own target.
             if let link = event.link {
                 Button("Join") { NSWorkspace.shared.open(link) }
                     .controlSize(.small)
             }
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous).fill(.ink.opacity(0.05)))
-        .contentShape(Rectangle())
-        .onTapGesture(perform: open)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: "Open in Calendar", open)
+        .background(
+            RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
+                .fill(event.color.opacity(hovering ? 0.16 : 0.1))
+        )
+        .onHover { hovering = $0 }
     }
 
     private var timeText: String {

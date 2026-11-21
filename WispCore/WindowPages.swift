@@ -80,6 +80,23 @@ public enum WeekGrid {
     }
 }
 
+/// How the window's Calendar page shows the week.
+public enum CalendarLayout: String, CaseIterable, Identifiable, Sendable {
+    case day
+    case week
+    case agenda
+
+    public var id: Self { self }
+
+    public var title: String {
+        switch self {
+        case .day: "Day"
+        case .week: "Week"
+        case .agenda: "Agenda"
+        }
+    }
+}
+
 // MARK: Notes
 
 /// One note: its text, when it was last changed and whether it's pinned to the top.

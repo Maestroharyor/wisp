@@ -23,7 +23,7 @@ struct WindowWidgetDetail: View {
         case .worldClocks: WorldClocksPage(preferences: services.preferences)
         case .pomodoro: PomodoroPage(store: services.timers, preferences: services.preferences)
         case .nowPlaying: WindowMediaPage(model: model)
-        case .calendar: CalendarPage(store: services.calendar)
+        case .calendar: CalendarPage(store: services.calendar, preferences: services.preferences)
         case .reminders: RemindersPage(store: services.reminders)
         case .timer: TimerPage(store: services.timers)
         case .battery:
