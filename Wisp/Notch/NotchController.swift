@@ -441,8 +441,14 @@ final class NotchController {
         }
     }
 
-    /// While a live pill covers the orb a click opens the pill's view, so holding it opens the
-    /// ring instead: the ring's apps stay one gesture away while an agent runs.
+    /// A click on the orb opens the ring, live pill or not, so the ring's apps never go out of
+    /// reach while an agent runs. Cards keep their own clicks.
+    private var clickOpensRing: Bool {
+        isOrb && machine.phase != .open && services.preferences.ringOnOrbClick && OrbDockGeometry.offers(model.spec)
+    }
+
+    /// Holding a live pill on the orb does what a click doesn't: opens what the pill shows when
+    /// a click opens the ring, or the ring when it doesn't.
     private func startLongPress() {
         longPressTask?.cancel()
         longPressTask = nil
@@ -454,8 +460,12 @@ final class NotchController {
             // Letting go now does nothing more.
             self.pendingPress = false
             self.services.orbDock.hide()
-            self.services.ring.show(at: CGPoint(x: self.layout.closedRect.midX, y: self.layout.closedRect.midY))
+            if self.clickOpensRing { self.openShell() } else { self.openRing() }
         }
+    }
+
+    private func openRing() {
+        services.ring.show(at: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY))
     }
 
     /// A press on the closed shell that didn't turn into a drag opens it.
@@ -467,10 +477,15 @@ final class NotchController {
         guard pendingPress else { return }
         pendingPress = false
         guard model.contains(location) else { return }
-        if isOrb, machine.phase != .open, model.activity == nil, services.preferences.ringOnOrbClick {
-            services.ring.show(at: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY))
+        if clickOpensRing {
+            openRing()
             return
         }
+        openShell()
+    }
+
+    /// Opens the shelf (or the window), on the clicked pill's own view when it has one.
+    private func openShell() {
         if machine.phase != .open, !services.shelfWindow.opensUnderShell {
             activateWindow()
             return
