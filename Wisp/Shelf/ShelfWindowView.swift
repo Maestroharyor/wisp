@@ -284,7 +284,14 @@ private struct WindowSidebarRow: View {
         Label {
             Text(WindowRow.title(of: row, services: services))
         } icon: {
-            IconTile(symbol: WindowRow.symbol(of: row, services: services), tint: WindowRow.tint(of: row))
+            // Tinted symbols, as Notes and Reminders list theirs; a live activity keeps a filled
+            // tile so it stands out while it runs.
+            if case .live = row {
+                IconTile(symbol: WindowRow.symbol(of: row, services: services), tint: WindowRow.tint(of: row))
+            } else {
+                Image(systemName: WindowRow.symbol(of: row, services: services))
+                    .foregroundStyle(WindowRow.tint(of: row))
+            }
         }
     }
 }
