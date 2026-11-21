@@ -56,6 +56,9 @@ final class SettingsIndexTests: XCTestCase {
             XCTAssertEqual(SettingsIndex.panes(matching: query).first, .appearance, query)
         }
         XCTAssertTrue(SettingsIndex.panes(matching: "shape").contains(.appearance))
+        for query in ["frosted", "liquid glass", "transparency", "violet tint"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .appearance, query)
+        }
         XCTAssertTrue(SettingsIndex.panes(matching: "shape").contains(.notch))
     }
 

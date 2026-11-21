@@ -21,6 +21,27 @@ public enum SurfaceStyle: String, CaseIterable, Identifiable, Sendable, Codable 
     public var title: String { rawValue.capitalized }
 }
 
+/// What Wisp's floating panels (mini player, clipboard, quick pocket and the rest) are made
+/// of. Liquid Glass on macOS 26, a system material before it; either way they follow Light and
+/// Dark like Apple's own panels.
+public enum PanelGlass: String, CaseIterable, Identifiable, Sendable, Codable {
+    case clear
+    case tinted
+    case frosted
+
+    public var id: Self { self }
+    public var title: String { rawValue.capitalized }
+    /// How much of the window background sits behind the glass: none for Clear, most for
+    /// Frosted, so text reads on any wallpaper.
+    public var backing: Double {
+        switch self {
+        case .clear: 0
+        case .tinted: 0.25
+        case .frosted: 0.6
+        }
+    }
+}
+
 /// Translucent fade at the bottom edge of the open surface.
 public enum GlassEdge: String, CaseIterable, Identifiable, Sendable, Codable {
     case off
@@ -212,6 +233,10 @@ public struct Appearance: Equatable, Sendable {
     /// Opacity of the Black and Tinted surfaces.
     public var opacity: Double = 1
     public var shelfSize: ShelfSize = .standard
+    // Panels
+    public var panelGlass: PanelGlass = .tinted
+    /// How much Wisp violet washes the panels' glass, 0 for none.
+    public var panelTint: Double = 0
     // Finish
     public var glowIntensity: Double = 1
     public var glowSpread: Double = 1
@@ -256,6 +281,7 @@ public struct Appearance: Equatable, Sendable {
 
     public static let roundnessRange: ClosedRange<Double> = 0.5...1.5
     public static let opacityRange: ClosedRange<Double> = 0.7...1
+    public static let panelTintRange: ClosedRange<Double> = 0...1
     public static let glowRange: ClosedRange<Double> = 0...1.6
     public static let hoverStrengthRange: ClosedRange<Double> = 0...2
     public static let earTextLimit = 12
@@ -265,6 +291,7 @@ public struct Appearance: Equatable, Sendable {
         var copy = self
         copy.roundness = Self.clamp(roundness, Self.roundnessRange)
         copy.opacity = Self.clamp(opacity, Self.opacityRange)
+        copy.panelTint = panelTint.isFinite ? min(max(panelTint, 0), 1) : 0
         copy.glowIntensity = Self.clamp(glowIntensity, Self.glowRange)
         copy.glowSpread = Self.clamp(glowSpread, Self.glowRange)
         copy.hoverStrength = Self.clamp(hoverStrength, Self.hoverStrengthRange)
@@ -281,6 +308,7 @@ extension Appearance: Codable {
     private enum CodingKeys: String, CodingKey {
         case theme, customAccent, customGlow, wallpaperTint, adaptiveAccent, timeOfDay
         case surface, glassEdge, roundness, shadow, opacity, shelfSize
+        case panelGlass, panelTint
         case glowIntensity, glowSpread, grain, shimmer, outline, navPill
         case minimalPill, valueFont
         case animationSpeed, hoverFeedback, hoverStrength
@@ -306,6 +334,8 @@ extension Appearance: Codable {
         shadow = read(.shadow, base.shadow)
         opacity = read(.opacity, base.opacity)
         shelfSize = read(.shelfSize, base.shelfSize)
+        panelGlass = read(.panelGlass, base.panelGlass)
+        panelTint = read(.panelTint, base.panelTint)
         glowIntensity = read(.glowIntensity, base.glowIntensity)
         glowSpread = read(.glowSpread, base.glowSpread)
         grain = read(.grain, base.grain)
@@ -345,6 +375,8 @@ extension Appearance: Codable {
         try container.encode(shadow, forKey: .shadow)
         try container.encode(opacity, forKey: .opacity)
         try container.encode(shelfSize, forKey: .shelfSize)
+        try container.encode(panelGlass, forKey: .panelGlass)
+        try container.encode(panelTint, forKey: .panelTint)
         try container.encode(glowIntensity, forKey: .glowIntensity)
         try container.encode(glowSpread, forKey: .glowSpread)
         try container.encode(grain, forKey: .grain)
