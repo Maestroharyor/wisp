@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.10](https://github.com/Maestroharyor/wisp/compare/v0.2.9...v0.2.10) (2026-11-21)
+
+
+### Features
+
+* Liquid Glass panels that follow Light and Dark, with a glass setting ([#121](https://github.com/Maestroharyor/wisp/issues/121)) ([7ec36d3](https://github.com/Maestroharyor/wisp/commit/7ec36d3e336fb65cf4cc449e7f8286f3986f8edf))
+
+
+### Bug fixes
+
+* change form in one glide and settle without wobbling ([#119](https://github.com/Maestroharyor/wisp/issues/119)) ([522ebb8](https://github.com/Maestroharyor/wisp/commit/522ebb8efb6a063c8765540226e3053fe3bacaf7))
+
 ## [0.2.9](https://github.com/Maestroharyor/wisp/compare/v0.2.8...v0.2.9) (2026-11-21)
 
 
