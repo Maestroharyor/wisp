@@ -26,6 +26,8 @@ final class NotchController {
     private var pullGate = PullGate(direction: .down)
     /// The pull under way, while the shelf follows the fingers.
     private var pullTracker: PullTracker?
+    /// Counts pulls, so a let-go spring finishing late can't fold a shelf a newer pull opened.
+    private var pullGeneration = 0
     /// The card whose countdown is paused because the pointer is on it.
     private var heldSlot: ActivitySlot?
     /// A press on the closed shell. It acts on mouse-up, so dragging the shell moves it instead.
@@ -575,6 +577,7 @@ final class NotchController {
         var tracker = PullTracker(travel: min(max(travel * 0.6, 90), 180))
         let progress = tracker.add(travelled, at: .now)
         pullTracker = tracker
+        pullGeneration += 1
         withTransaction(transaction) { model.pullProgress = CGFloat(progress) }
     }
 
@@ -583,6 +586,9 @@ final class NotchController {
         // A new gesture began without this one's end arriving: settle the pull where it is.
         if scroll.boundary, !scroll.ended {
             endPull()
+            // The new gesture starts afresh, so it can pull or swipe itself.
+            swipe.reset()
+            pullGate = PullGate(direction: layout.edge.openingSwipe)
             return
         }
         let delta = layout.edge.openingSwipe.amount(dx: scroll.dx, dy: scroll.dy)
@@ -601,6 +607,7 @@ final class NotchController {
         pullTracker = nil
         swipe.reset()
         let release = tracker.release(now: .now)
+        let generation = pullGeneration
         let target: Double = release.opens ? 1 : 0
         let spring = SpringTuning.surface(
             move: release.opens ? .grow : .shrink, speedScale: model.speed.scale, reduceMotion: false)
@@ -610,7 +617,9 @@ final class NotchController {
         withAnimation(animation, completionCriteria: .logicallyComplete) {
             model.pullProgress = CGFloat(target)
         } completion: { [weak self] in
-            guard let self, self.pullTracker == nil, self.model.pullProgress != nil else { return }
+            guard let self, self.pullGeneration == generation, self.pullTracker == nil,
+                self.model.pullProgress != nil
+            else { return }
             var transaction = Transaction(animation: nil)
             transaction.disablesAnimations = true
             withTransaction(transaction) {
@@ -628,6 +637,7 @@ final class NotchController {
     /// now shows, on the surface spring when `animated`.
     private func dropPull(animated: Bool) {
         pullTracker = nil
+        pullGeneration += 1
         guard model.pullProgress != nil else { return }
         if animated, !model.reduceMotion {
             withAnimation(model.motion.surfaceClose) { model.pullProgress = nil }
@@ -962,7 +972,9 @@ final class NotchController {
             // Keyboard-opened: take key status (without activating the app) so Esc reaches us.
             panel.makeKey()
         }
-        if wasOpen, machine.phase == .closed {
+        // Folding back to peeking (a pull let go short) counts too, or the panel keeps the
+        // keyboard with the shelf gone.
+        if wasOpen, machine.phase != .open {
             panel.resignKey()
             model.editingHome = false
             model.soloWidget = nil
