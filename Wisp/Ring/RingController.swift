@@ -155,9 +155,10 @@ final class RingController {
             CGAssociateMouseAndMouseCursorPosition(1)
             pressPoint = target
         }
-        let side = Self.side
+        // The ring is laid out at the standard size and drawn scaled; the panel takes the scaled size.
+        let side = Self.side * services.preferences.ringLook.clamped().size
         let frame = CGRect(x: centre.x - side / 2, y: centre.y - side / 2, width: side, height: side)
-        model.centre = CGPoint(x: side / 2, y: side / 2)
+        model.centre = CGPoint(x: Self.side / 2, y: Self.side / 2)
 
         let panel = panel ?? makePanel()
         self.panel = panel
@@ -256,8 +257,10 @@ final class RingController {
         // Typing took over from the mouse: the search card decides, not where the button went up.
         guard model.query.isEmpty else { return }
         let centre = panel.map { CGPoint(x: $0.frame.midX, y: $0.frame.midY) } ?? pressPoint
+        let look = services.preferences.ringLook
         let outcome = RingFlick.release(
-            after: Date.now.timeIntervalSince(openedAt), from: pressPoint, to: point, centre: centre,
+            after: Date.now.timeIntervalSince(openedAt), from: look.unscaled(pressPoint, around: centre),
+            to: look.unscaled(point, around: centre), centre: centre,
             hit: hit(atGlobal: point), slots: model.set.slots.count, expanded: model.expanded,
             subItems: model.expandedItems.count)
         switch outcome {
@@ -270,7 +273,8 @@ final class RingController {
     /// The pointer moved while a button holds the ring open; the panel doesn't see it then.
     func pointerMoved(to point: CGPoint) {
         guard isVisible, let frame = panel?.frame else { return }
-        hovered(hit(atGlobal: point), distance: hypot(point.x - frame.midX, point.y - frame.midY))
+        let scale = services.preferences.ringLook.clamped().size
+        hovered(hit(atGlobal: point), distance: hypot(point.x - frame.midX, point.y - frame.midY) / scale)
     }
 
     func hovered(_ hit: RingHit, distance: CGFloat) {
@@ -345,7 +349,8 @@ final class RingController {
         guard let frame = panel?.frame else { return .none }
         let centre = CGPoint(x: frame.midX, y: frame.midY)
         return RingGeometry.hit(
-            point, centre: centre, slots: model.set.slots.count, expanded: model.expanded,
+            services.preferences.ringLook.unscaled(point, around: centre), centre: centre, slots: model.set.slots.count,
+            expanded: model.expanded,
             subItems: model.expandedItems.count)
     }
 
@@ -776,7 +781,8 @@ final class RingController {
             onDragOut: { [weak self] in self?.draggingOut() },
             onLift: { [weak self] hit, point in self?.lift(from: hit, to: point) },
             onLand: { [weak self] point in self?.land(at: point) })
-        panel.contentView = NSHostingView(rootView: view)
+        panel.contentView = NSHostingView(
+            rootView: ScaledRing(preferences: services.preferences, side: Self.side) { view })
         return panel
     }
 }
@@ -797,5 +803,21 @@ final class RingPanel: NSPanel {
 extension Array {
     fileprivate subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
+    }
+}
+
+/// The ring laid out at its standard size and drawn at the size chosen in Settings, so its
+/// geometry and hit-testing stay in standard points.
+private struct ScaledRing<Content: View>: View {
+    let preferences: Preferences
+    let side: CGFloat
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        let scale = preferences.ringLook.clamped().size
+        content
+            .frame(width: side, height: side)
+            .scaleEffect(scale)
+            .frame(width: side * scale, height: side * scale)
     }
 }

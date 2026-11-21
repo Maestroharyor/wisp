@@ -176,3 +176,44 @@ public enum OrbDockGeometry {
             y: min(max(y, visible.minY), visible.maxY - size.height), width: size.width, height: size.height)
     }
 }
+
+/// How the ring looks: how clear its glass is, its size and how much violet it takes.
+public struct RingLook: Codable, Equatable, Sendable {
+    public var glass: PanelGlass = .clear
+    /// 1 is the standard ring; the icons and the gaps between them grow or shrink together.
+    public var size: Double = 1
+    /// 0 is plain glass, 1 is twice the standard violet glow.
+    public var tint: Double = 0.5
+
+    public static let sizeRange: ClosedRange<Double> = 0.8...1.25
+    public static let standard = RingLook()
+
+    public init() {}
+
+    /// The standard violet amounts are multiplied by this.
+    public var tintFactor: Double { tint * 2 }
+
+    public func clamped() -> RingLook {
+        var copy = self
+        copy.size = size.isFinite ? min(max(size, Self.sizeRange.lowerBound), Self.sizeRange.upperBound) : 1
+        copy.tint = tint.isFinite ? min(max(tint, 0), 1) : 0.5
+        return copy
+    }
+
+    /// A point given relative to the ring's centre, as the standard-size ring sees it: what a
+    /// scaled ring hit-tests with, so clicks land where the icons are drawn.
+    public func unscaled(_ point: CGPoint, around centre: CGPoint) -> CGPoint {
+        let scale = clamped().size
+        return CGPoint(x: centre.x + (point.x - centre.x) / scale, y: centre.y + (point.y - centre.y) / scale)
+    }
+
+    private enum CodingKeys: String, CodingKey { case glass, size, tint }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        glass = ((try? container.decodeIfPresent(PanelGlass.self, forKey: .glass)) ?? nil) ?? .clear
+        size = ((try? container.decodeIfPresent(Double.self, forKey: .size)) ?? nil) ?? 1
+        tint = ((try? container.decodeIfPresent(Double.self, forKey: .tint)) ?? nil) ?? 0.5
+        self = clamped()
+    }
+}

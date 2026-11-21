@@ -220,16 +220,21 @@ struct RingDisc: View {
     let centre: CGPoint
     let dark: Bool
 
+    /// The glass and tint chosen in Settings › Ring.
+    private var look: RingLook { Preferences.shared.ringLook.clamped() }
+
     var body: some View {
         let outer = (RingGeometry.ringOuter + 10) * 2
         let inner = RingGeometry.innerRadius * 2
+        let tint = look.tintFactor
         ZStack {
-            Color.clear.wispSurface(Circle(), glass: .clear)
+            Color.clear.wispSurface(Circle(), glass: look.glass)
             // The band: a glow that rises toward the centre and is gone by the rim.
             Circle().fill(
                 RadialGradient(
                     colors: [
-                        Color.wispViolet.opacity(dark ? 0.22 : 0.14), Color.wispViolet.opacity(dark ? 0.08 : 0.04),
+                        Color.wispViolet.opacity((dark ? 0.22 : 0.14) * tint),
+                        Color.wispViolet.opacity((dark ? 0.08 : 0.04) * tint),
                         .clear,
                     ],
                     center: .center, startRadius: RingGeometry.innerRadius * 0.9, endRadius: outer / 2))
@@ -239,12 +244,12 @@ struct RingDisc: View {
                 .fill(
                     RadialGradient(
                         colors: dark
-                            ? [Color.wispViolet.opacity(0.30), Color.wispViolet.opacity(0.16)]
-                            : [Color.white.opacity(0.75), Color.wispViolet.opacity(0.16)],
+                            ? [Color.wispViolet.opacity(0.30 * tint), Color.wispViolet.opacity(0.16 * tint)]
+                            : [Color.white.opacity(0.75), Color.wispViolet.opacity(0.16 * tint)],
                         center: .center, startRadius: 0, endRadius: RingGeometry.innerRadius)
                 )
                 .overlay(Circle().strokeBorder(Color.white.opacity(dark ? 0.14 : 0.8), lineWidth: 1))
-                .shadow(color: Color.wispViolet.opacity(dark ? 0.25 : 0.12), radius: 16)
+                .shadow(color: Color.wispViolet.opacity((dark ? 0.25 : 0.12) * tint), radius: 16)
                 .frame(width: inner, height: inner)
         }
         .frame(width: outer, height: outer)

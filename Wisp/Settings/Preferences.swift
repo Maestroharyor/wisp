@@ -361,6 +361,7 @@ final class Preferences {
         static let favouriteShortcuts = "favouriteShortcuts"
         static let windowHomeCards = "windowHomeCards"
         static let calendarLayout = "calendarLayout"
+        static let ringLook = "ringLook"
         static let dropActions = "dropActions"
         static let ringConfig = "ringConfig"
         static let ringOnOrbClick = "ringOnOrbClick"
@@ -689,6 +690,11 @@ final class Preferences {
     /// The cards on the window's Home, in order. The notch's Home has its own layout.
     var windowHomeCards: [HomeCard] {
         didSet { defaults.set(windowHomeCards.map(\.rawValue), forKey: Key.windowHomeCards) }
+    }
+
+    /// The ring's glass, size and tint.
+    var ringLook: RingLook {
+        didSet { defaults.set(try? JSONEncoder().encode(ringLook), forKey: Key.ringLook) }
     }
 
     /// Day, Week or Agenda on the window's Calendar page.
@@ -1430,6 +1436,9 @@ final class Preferences {
         widgetGridRows = WidgetGrid.clampedRows(defaults.integer(forKey: Key.widgetGridRows))
         favouriteShortcuts = defaults.stringArray(forKey: Key.favouriteShortcuts) ?? []
         windowHomeCards = HomeCard.read(defaults.stringArray(forKey: Key.windowHomeCards))
+        ringLook =
+            defaults.data(forKey: Key.ringLook).flatMap { try? JSONDecoder().decode(RingLook.self, from: $0) }
+            ?? .standard
         calendarLayout = defaults.string(forKey: Key.calendarLayout).flatMap(CalendarLayout.init(rawValue:)) ?? .week
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
