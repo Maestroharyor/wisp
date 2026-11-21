@@ -3,11 +3,17 @@ import Foundation
 /// Every pane in Settings, in sidebar order.
 public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     case general
-    case notch
+    /// Every keyboard shortcut, each with a recorder.
+    case shortcuts
     case appearance
+    case notch
+    /// The radial ring, which had been folded into Notch.
+    case ring
     case activities
-    /// Widgets, Clipboard and Profiles in one pane. It keeps the Widgets pane's stored value.
+    /// Widgets and Profiles. It keeps the Widgets pane's stored value.
     case shelf = "widgets"
+    /// Clipboard history, which had been folded into the Shelf pane.
+    case clipboard
     case notifications
     /// Agents, with phone alerts folded in from the Phone pane.
     case agents
@@ -20,10 +26,13 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
     public var title: String {
         switch self {
         case .general: "General"
+        case .shortcuts: "Shortcuts"
         case .notch: "Notch"
+        case .ring: "Ring"
         case .appearance: "Appearance"
         case .activities: "Live Activities"
-        case .shelf: "Shelf"
+        case .shelf: "Widgets"
+        case .clipboard: "Clipboard"
         case .notifications: "Notifications"
         case .agents: "Agents"
         case .ai: "AI"
@@ -34,11 +43,14 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
 
     public var subtitle: String {
         switch self {
-        case .general: "Shortcuts, dictation and startup"
-        case .notch: "Where the notch sits, how it opens, and the ring"
+        case .general: "Startup, the menu bar and dictation"
+        case .shortcuts: "Every keyboard shortcut, and Caps Lock as Hyper"
+        case .notch: "Where the notch sits and how it opens"
+        case .ring: "The radial ring of apps and actions"
         case .appearance: "Theme, shape, motion and the fun extras"
         case .activities: "What shows beside the notch while it's closed"
-        case .shelf: "Widgets, clipboard history and profiles"
+        case .shelf: "Widgets, Home and profiles"
+        case .clipboard: "Clipboard history and what it never keeps"
         case .notifications: "Notifications in the notch, and quick replies"
         case .agents: "Claude Code, Codex, OpenCode and other coding agents, alerts and phone alerts"
         case .ai: "On-device AI with Apple Intelligence or Ollama"
@@ -52,13 +64,17 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .general:
             [
-                "shortcut", "hotkey", "caps lock", "hyper", "space", "launch", "login", "startup", "accessibility",
-                "menu bar", "icon", "dictation", "dictate", "speech", "speech recognition", "voice", "push to talk",
-                "transcribe", "speak", "microphone",
-                // The keyboard shortcuts list, which was in About. No "approve": it would pull
-                // "app" searches here.
-                "keyboard shortcuts", "shortcuts", "keyboard", "hyper y", "hyper n",
-                "hyper g", "session switcher", "switch session", "jump to an agent session", "jump to session",
+                "launch", "login", "startup", "menu bar", "icon", "dictation", "dictate", "speech",
+                "speech recognition", "voice", "push to talk", "transcribe", "speak", "microphone",
+            ]
+        case .shortcuts:
+            [
+                "shortcut", "hotkey", "caps lock", "hyper", "space", "accessibility", "record", "reset shortcuts",
+                // The keyboard shortcuts list, which was in About then General. No "approve": it would
+                // pull "app" searches here.
+                "keyboard shortcuts", "shortcuts", "keyboard", "hyper y", "hyper n", "hyper r", "hyper f",
+                "hyper v", "hyper g", "ring shortcut", "change form", "clipboard shortcut",
+                "session switcher", "switch session", "jump to an agent session", "jump to session",
                 "switch profile", "allow or deny", "pick an answer", "esc", "escape",
                 "right-click the notch", "right click", "menu",
             ]
@@ -71,14 +87,14 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "minimise", "minimize", "tear off", "normal app", "displays without a notch", "floating island",
                 "don't show", "external displays", "show on external displays", "sidebar",
                 "shelf height", "taller", "resize", "handle", "grabber", "bigger shelf", "reset height",
-                // The ring, which had its own pane before; its name stays a keyword.
-                "ring", "radial", "pie", "wheel", "icons", "twelve", "arrange", "reorder", "pin", "running apps",
-                "mouse button", "middle click", "actions",
-                "segments", "hyper r",
-                "per app", "edit ring", "ring shortcut", "capture text", "ocr", "qr code", "barcode", "ai action",
-                "quick add", "dock", "apps", "launch", "launcher", "open app", "link", "website", "folder",
-                "orb dock", "type to find", "search apps", "flick", "arrow keys", "windows", "switch windows",
-                "app windows",
+            ]
+        case .ring:
+            [
+                "radial", "pie", "wheel", "icons", "twelve", "arrange", "reorder", "pin", "running apps",
+                "mouse button", "middle click", "actions", "segments", "per app", "edit ring", "capture text", "ocr",
+                "qr code", "barcode", "ai action", "quick add", "dock", "apps", "launch", "launcher", "open app",
+                "link", "website", "folder", "orb dock", "type to find", "search apps", "flick", "arrow keys",
+                "windows", "switch windows", "app windows", "clicking the orb opens the ring",
             ]
         case .appearance:
             [
@@ -118,19 +134,23 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
             ]
         case .shelf:
             [
-                // Widgets, Clipboard and Profiles had their own panes; their names stay keywords.
-                "widgets", "home", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
-                "toggles", "shortcuts", "clipboard", "mirror", "camera", "day progress", "world clocks", "cities",
+                // Profiles had its own pane; its name stays a keyword. "Shelf" was this pane's title.
+                "shelf", "home", "now playing", "calendar", "timer", "pomodoro", "weather", "notes",
+                "toggles", "shortcuts app", "mirror", "camera", "day progress", "world clocks", "cities",
                 "timer length", "command output", "command", "output", "run every", "script", "do not disturb",
                 "dnd", "workday", "focus button runs this shortcut", "focus button", "do not disturb toggle runs",
-                "clipboard history", "history", "copy", "paste", "limit", "keep up to", "pinned", "clear history",
-                "reminders", "to do", "todo", "excluded apps", "never keep copies", "password manager",
-                "copy together", "paste together", "keychain", "1password",
-                "concealed", "passwords", "ocr", "text from image", "working hours", "time zone",
+                "reminders", "to do", "todo", "working hours", "time zone",
                 "profiles", "profile", "context", "automatic", "rules", "work", "music", "meeting", "code", "focus",
                 "save current setup", "switch profiles automatically", "switch automatically", "opens on",
                 "profile look", "look for", "keep the current look", "quick add", "quick input", "reminder",
                 "event", "natural language",
+            ]
+        case .clipboard:
+            [
+                "clipboard history", "history", "copy", "paste", "limit", "keep up to", "pinned", "clear history",
+                "excluded apps", "never keep copies", "password manager", "copy together", "paste together",
+                "keychain", "1password", "concealed", "passwords", "ocr", "text from image",
+                "clipboard keeps up to", "history length",
             ]
         case .notifications:
             [
@@ -217,7 +237,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "display under the pointer", "macbook display", "all displays",
             ]
         case .shelf:
-            ["widget rows", "rows", "grid", "one row", "two rows", "clipboard keeps up to", "history length"]
+            ["widget rows", "rows", "grid", "one row", "two rows"]
         case .agents:
             [
                 // Current control names, then the older ones so searches for those still land.
@@ -238,8 +258,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
         guard let rawValue else { return .general }
         if let pane = SettingsPaneID(rawValue: rawValue) { return pane }
         switch rawValue {
-        case "ring": return .notch
-        case "clipboard", "profiles": return .shelf
+        case "profiles": return .shelf
         case "phone": return .agents
         default: return .general
         }
@@ -253,6 +272,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
 
 public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
     case wisp
+    case notch
     case features
     case system
 
@@ -261,6 +281,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
     public var title: String {
         switch self {
         case .wisp: "Wisp"
+        case .notch: "Notch"
         case .features: "Features"
         case .system: "System"
         }
@@ -268,8 +289,9 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
 
     public var panes: [SettingsPaneID] {
         switch self {
-        case .wisp: [.general, .notch, .appearance]
-        case .features: [.activities, .shelf, .notifications, .agents, .ai]
+        case .wisp: [.general, .shortcuts, .appearance]
+        case .notch: [.notch, .ring, .activities]
+        case .features: [.shelf, .clipboard, .notifications, .agents, .ai]
         case .system: [.permissions, .about]
         }
     }

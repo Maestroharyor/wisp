@@ -32,17 +32,18 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "rules").contains(.agents))
         XCTAssertTrue(SettingsIndex.panes(matching: "stay on screen").contains(.notifications))
         XCTAssertEqual(SettingsIndex.panes(matching: "dynamic island"), [.notch])
-        XCTAssertEqual(SettingsIndex.panes(matching: "radial"), [.notch])
-        XCTAssertEqual(SettingsIndex.panes(matching: "form"), [.notch])
+        XCTAssertEqual(SettingsIndex.panes(matching: "radial"), [.ring])
+        // The Change form shortcut, then where the shell sits.
+        XCTAssertEqual(SettingsIndex.panes(matching: "form"), [.shortcuts, .notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "open as window"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "minimise"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "sidebar"), [.notch])
         XCTAssertEqual(SettingsIndex.panes(matching: "check for updates"), [.about])
-        XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.notch])
-        XCTAssertEqual(SettingsIndex.panes(matching: "quick add"), [.notch, .shelf])
+        XCTAssertEqual(SettingsIndex.panes(matching: "mouse button"), [.ring])
+        XCTAssertEqual(SettingsIndex.panes(matching: "quick add"), [.ring, .shelf])
         XCTAssertTrue(SettingsIndex.panes(matching: "reminders").contains(.permissions))
-        XCTAssertEqual(SettingsIndex.panes(matching: "session switcher"), [.general])
-        XCTAssertEqual(SettingsIndex.panes(matching: "hyper g").first, .general)
+        XCTAssertEqual(SettingsIndex.panes(matching: "session switcher"), [.shortcuts])
+        XCTAssertEqual(SettingsIndex.panes(matching: "hyper g").first, .shortcuts)
         XCTAssertEqual(SettingsIndex.panes(matching: "activity map"), [.agents])
         XCTAssertEqual(SettingsIndex.panes(matching: "limit reset"), [.agents])
     }
@@ -81,12 +82,15 @@ final class SettingsIndexTests: XCTestCase {
         }
     }
 
-    func testRingControlsAreFoundInNotch() {
-        for query in ["ring", "edit ring", "per app", "segments", "middle click", "dock", "orb dock", "folder"] {
-            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .notch, query)
+    func testRingControlsAreFoundInTheRingPane() {
+        for query in ["ring", "edit ring", "segments", "middle click", "folder"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .ring, query)
         }
-        XCTAssertTrue(SettingsIndex.panes(matching: "hyper r").contains(.notch))
-        XCTAssertTrue(SettingsIndex.panes(matching: "launch").contains(.notch))
+        for query in ["per app", "orb dock"] {
+            XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.ring), query)
+        }
+        XCTAssertTrue(SettingsIndex.panes(matching: "hyper r").contains(.shortcuts))
+        XCTAssertTrue(SettingsIndex.panes(matching: "launch").contains(.ring))
     }
 
     func testNotchControlsAreFoundByNewAndOldNames() {
@@ -107,12 +111,12 @@ final class SettingsIndexTests: XCTestCase {
         }
     }
 
-    func testKeyboardShortcutsAreFoundInGeneral() {
+    func testKeyboardShortcutsAreFoundInShortcuts() {
         for query in [
             "keyboard shortcuts", "shortcuts", "allow or deny", "hyper y", "switch profile", "right-click the notch",
-            "pick an answer",
+            "pick an answer", "hotkey", "ring shortcut", "hyper f", "clipboard shortcut",
         ] {
-            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .general, query)
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .shortcuts, query)
         }
         // The list moved from About.
         XCTAssertFalse(SettingsIndex.panes(matching: "keyboard shortcuts").contains(.about))
@@ -132,15 +136,16 @@ final class SettingsIndexTests: XCTestCase {
         }
     }
 
-    func testTheSidebarHasTenPanes() {
-        XCTAssertEqual(SettingsSection.wisp.panes, [.general, .notch, .appearance])
+    func testTheSidebarHasThirteenPanes() {
+        XCTAssertEqual(SettingsSection.wisp.panes, [.general, .shortcuts, .appearance])
+        XCTAssertEqual(SettingsSection.notch.panes, [.notch, .ring, .activities])
         XCTAssertEqual(SettingsSection.system.panes, [.permissions, .about])
-        XCTAssertEqual(SettingsPaneID.allCases.count, 10)
+        XCTAssertEqual(SettingsPaneID.allCases.count, 13)
         XCTAssertEqual(
             SettingsPaneID.allCases.map(\.title),
             [
-                "General", "Notch", "Appearance", "Live Activities", "Shelf", "Notifications", "Agents", "AI",
-                "Permissions", "About",
+                "General", "Shortcuts", "Appearance", "Notch", "Ring", "Live Activities", "Widgets", "Clipboard",
+                "Notifications", "Agents", "AI", "Permissions", "About",
             ])
     }
 
@@ -150,9 +155,10 @@ final class SettingsIndexTests: XCTestCase {
         }
     }
 
-    func testTheRingPaneIsGone() {
-        XCTAssertNil(SettingsPaneID(rawValue: "ring"))
-        XCTAssertFalse(SettingsPaneID.allCases.map(\.title).contains("Ring"))
+    func testTheRingAndClipboardPanesAreBack() {
+        // Their old stored values open them again.
+        XCTAssertEqual(SettingsPaneID(rawValue: "ring"), .ring)
+        XCTAssertEqual(SettingsPaneID(rawValue: "clipboard"), .clipboard)
     }
 
     func testAStoredPaneReopens() {
@@ -163,45 +169,45 @@ final class SettingsIndexTests: XCTestCase {
         }
     }
 
-    func testTheRingPaneReopensAsNotch() {
-        XCTAssertEqual(SettingsPaneID.restoring("ring"), .notch)
+    func testTheRingPaneReopens() {
+        XCTAssertEqual(SettingsPaneID.restoring("ring"), .ring)
     }
 
-    func testShelfReplacesWidgetsClipboardAndProfiles() {
-        // Shelf keeps the Widgets pane's stored value, so a saved "widgets" still opens it.
+    func testWidgetsKeepsItsStoredValueAndHoldsProfiles() {
         XCTAssertEqual(SettingsPaneID.shelf.rawValue, "widgets")
-        XCTAssertEqual(SettingsPaneID.shelf.title, "Shelf")
-        XCTAssertNil(SettingsPaneID(rawValue: "clipboard"))
+        XCTAssertEqual(SettingsPaneID.shelf.title, "Widgets")
         XCTAssertNil(SettingsPaneID(rawValue: "profiles"))
-        let titles = SettingsPaneID.allCases.map(\.title)
-        for old in ["Widgets", "Clipboard", "Profiles"] {
-            XCTAssertFalse(titles.contains(old), old)
-        }
+        XCTAssertFalse(SettingsPaneID.allCases.map(\.title).contains("Profiles"))
     }
 
-    func testTheClipboardAndProfilesPanesReopenAsShelf() {
+    func testOldStoredPanesReopen() {
         XCTAssertEqual(SettingsPaneID.restoring("widgets"), .shelf)
-        XCTAssertEqual(SettingsPaneID.restoring("clipboard"), .shelf)
+        XCTAssertEqual(SettingsPaneID.restoring("clipboard"), .clipboard)
         XCTAssertEqual(SettingsPaneID.restoring("profiles"), .shelf)
     }
 
     func testShelfControlsAreFoundByNewAndOldNames() {
         for query in [
-            "widgets", "clipboard", "profiles", "clipboard history", "keep up to", "pinned", "command output",
-            "run every", "profile look", "look for", "switch profiles automatically", "save current setup",
-            "world clocks", "day progress",
+            "widgets", "profiles", "command output", "run every", "profile look", "look for",
+            "switch profiles automatically", "save current setup", "world clocks", "day progress",
         ] {
             XCTAssertEqual(SettingsIndex.panes(matching: query).first, .shelf, query)
         }
+        for query in ["clipboard", "clipboard history", "pinned", "excluded apps", "copy together"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .clipboard, query)
+        }
+        // This pane's old title, and how long the history is.
+        XCTAssertTrue(SettingsIndex.panes(matching: "shelf").contains(.shelf))
+        XCTAssertTrue(SettingsIndex.panes(matching: "keep up to").contains(.clipboard))
         // Script was the old name for Command output; Notch's drop actions run scripts too.
         XCTAssertTrue(SettingsIndex.panes(matching: "script").contains(.shelf))
         // The profile look moved here from Appearance.
         XCTAssertFalse(SettingsIndex.panes(matching: "profile look").contains(.appearance))
     }
 
-    func testTheSidebarHasWispFeaturesAndSystem() {
-        XCTAssertEqual(SettingsSection.allCases.map(\.title), ["Wisp", "Features", "System"])
-        XCTAssertEqual(SettingsSection.features.panes, [.activities, .shelf, .notifications, .agents, .ai])
+    func testTheSidebarHasWispNotchFeaturesAndSystem() {
+        XCTAssertEqual(SettingsSection.allCases.map(\.title), ["Wisp", "Notch", "Features", "System"])
+        XCTAssertEqual(SettingsSection.features.panes, [.shelf, .clipboard, .notifications, .agents, .ai])
     }
 
     func testAMissingOrUnknownPaneOpensGeneral() {
@@ -222,9 +228,9 @@ final class SettingsIndexTests: XCTestCase {
     }
 
     func testTitlesMatchCaseAndAccentInsensitively() {
-        XCTAssertEqual(SettingsIndex.panes(matching: "SHELF").first, .shelf)
+        XCTAssertEqual(SettingsIndex.panes(matching: "WIDGETS").first, .shelf)
         XCTAssertTrue(SettingsIndex.panes(matching: "notch").contains(.notch))
-        XCTAssertEqual(SettingsIndex.panes(matching: "shélf").first, .shelf)
+        XCTAssertEqual(SettingsIndex.panes(matching: "clipbóard").first, .clipboard)
     }
 
     func testEveryWordMustMatch() {
@@ -345,7 +351,7 @@ final class SetupHealthTests: XCTestCase {
     func testAIClipboardActionsAreFound() {
         XCTAssertEqual(SettingsIndex.panes(matching: "translate to"), [.ai])
         XCTAssertTrue(SettingsIndex.panes(matching: "selected text").contains(.ai))
-        XCTAssertTrue(SettingsIndex.panes(matching: "ai action").contains(.notch))
+        XCTAssertTrue(SettingsIndex.panes(matching: "ai action").contains(.ring))
     }
 
     func testLabelsOnScreenAreFound() {
@@ -356,9 +362,10 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertTrue(SettingsIndex.panes(matching: "engine").contains(.ai))
     }
 
-    func testRemindersAndClipboardExtrasAreFoundInShelf() {
-        for query in ["reminders", "excluded apps", "copy together"] {
-            XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.shelf), query)
+    func testRemindersAreFoundInWidgetsAndClipboardExtrasInClipboard() {
+        XCTAssertTrue(SettingsIndex.panes(matching: "reminders").contains(.shelf))
+        for query in ["excluded apps", "copy together"] {
+            XCTAssertTrue(SettingsIndex.panes(matching: query).contains(.clipboard), query)
         }
     }
 }

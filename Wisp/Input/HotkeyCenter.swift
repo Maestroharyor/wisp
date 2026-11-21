@@ -31,8 +31,12 @@ final class HotkeyCenter {
     @ObservationIgnored var onCycleForm: @MainActor () -> Void = {}
     /// Hyper+G, or ⌃⌥⌘G without Hyper: the session switcher.
     @ObservationIgnored var onSessionSwitcher: @MainActor () -> Void = {}
-    /// The ring's shortcut couldn't be registered, for example because Wisp already uses it.
-    private(set) var ringHotkeyTaken = false
+    /// Shortcuts that couldn't be registered: another app holds them, or they need Caps Lock
+    /// while it isn't Wisp's Hyper key.
+    private(set) var unavailable: Set<ShortcutAction> = []
+    /// While Settings records a Caps Lock shortcut: the next Hyper chord goes here instead of
+    /// running anything.
+    @ObservationIgnored var captureHyperChord: (@MainActor (UInt16) -> Void)?
     /// Hyper+1…9 picks a profile.
     @ObservationIgnored var onProfileDigit: @MainActor (Int) -> Void = { _ in }
     /// Y, N or a digit for the approval card on screen (`ApprovalKeys`); false leaves the key
@@ -50,6 +54,9 @@ final class HotkeyCenter {
     @ObservationIgnored private let clipboardCarbon = CarbonHotkey(id: 2)
     @ObservationIgnored private let ringCarbon = CarbonHotkey(id: 3)
     @ObservationIgnored private let switcherCarbon = CarbonHotkey(id: 4)
+    @ObservationIgnored private let formCarbon = CarbonHotkey(id: 5)
+    /// Actions on a Caps Lock chord, by key, while Hyper is active.
+    @ObservationIgnored private var hyperActions: [UInt16: ShortcutAction] = [:]
     /// ⌃⌥⌘Y, N and 1 to 9 without Hyper, registered only while a card shows.
     /// One per key in `ApprovalKeys.allFallbackKeys`, so each key keeps its Carbon id.
     @ObservationIgnored private let approvalCarbons = ApprovalKeys.allFallbackKeys.indices.map {
@@ -102,9 +109,7 @@ final class HotkeyCenter {
         trustWatcher?.cancel()
         tap.stop()
         carbon.unregister()
-        clipboardCarbon.unregister()
-        ringCarbon.unregister()
-        switcherCarbon.unregister()
+        actionCarbons.values.forEach { $0.unregister() }
         unregisterApprovalFallback()
         keyboardWatcher?.stop()
         do {
@@ -120,31 +125,51 @@ final class HotkeyCenter {
         trustWatcher?.cancel()
         tap.stop()
         carbon.unregister()
-        clipboardCarbon.unregister()
-        ringCarbon.unregister()
-        switcherCarbon.unregister()
-        // Carbon gives a shortcut to whoever registers it first, so one Wisp already uses
-        // counts as taken rather than stealing it from the shelf or a fallback.
-        if let ringHotkey = preferences.ringHotkey {
-            ringHotkeyTaken =
-                Hotkey.reservedByWisp(shelf: preferences.hotkey).contains(ringHotkey)
-                || !ringCarbon.register(ringHotkey) { [weak self] in self?.onRing() }
-        } else {
-            ringHotkeyTaken = false
-        }
+        actionCarbons.values.forEach { $0.unregister() }
         defer { updateApprovalFallback() }
 
         let hotkey = preferences.hotkey
+        registerActions(shelf: hotkey)
         if hotkey.usesHyper {
             configureHyper(hotkey)
         } else {
             disableRemap()
-            _ = clipboardCarbon.register(Hotkey.clipboardFallback) { [weak self] in self?.onClipboard() }
-            _ = switcherCarbon.register(Hotkey.switcherFallback) { [weak self] in self?.onSessionSwitcher() }
             status =
                 carbon.register(hotkey) { [weak self] in self?.onToggle() }
                 ? .active : .unavailable("\(hotkey) is used by another app")
         }
+    }
+
+    private var actionCarbons: [ShortcutAction: CarbonHotkey] {
+        [.ring: ringCarbon, .cycleForm: formCarbon, .clipboard: clipboardCarbon, .sessionSwitcher: switcherCarbon]
+    }
+
+    private func run(_ action: ShortcutAction) {
+        switch action {
+        case .ring: onRing()
+        case .cycleForm: onCycleForm()
+        case .clipboard: onClipboard()
+        case .sessionSwitcher: onSessionSwitcher()
+        }
+    }
+
+    /// Caps Lock chords wait for the tap; the rest go to Carbon now. Carbon gives a shortcut to
+    /// whoever registers it first, so one taken by another app shows as unavailable.
+    private func registerActions(shelf: Hotkey) {
+        hyperActions = [:]
+        var unavailable: Set<ShortcutAction> = []
+        let map = preferences.shortcuts
+        for action in ShortcutAction.allCases {
+            guard let key = map.key(for: action, shelf: shelf) else { continue }
+            if key.usesHyper {
+                if shelf.usesHyper { hyperActions[key.keyCode] = action } else { unavailable.insert(action) }
+            } else if let carbon = actionCarbons[action],
+                !carbon.register(key, action: { [weak self] in self?.run(action) })
+            {
+                unavailable.insert(action)
+            }
+        }
+        self.unavailable = unavailable
     }
 
     private func configureHyper(_ hotkey: Hotkey) {
@@ -192,23 +217,20 @@ final class HotkeyCenter {
         tap.quickPressTogglesCapsLock = preferences.quickPressTogglesCapsLock
         tap.onChordReleased = { [weak self] keyCode in self?.onApprovalKeyUp(keyCode) }
         tap.holdKey = preferences.dictationEnabled ? preferences.dictationKey.keyCode : nil
-        // A shelf shortcut on Hyper+G takes the switcher's chord, so the switcher moves to ⌃⌥⌘G.
-        if Hotkey.switcherClashes(shelf: hotkey) {
-            _ = switcherCarbon.register(Hotkey.switcherShortcut(shelf: hotkey)) { [weak self] in
-                self?.onSessionSwitcher()
-            }
-        }
         tap.onHyperChord = { [weak self] keyCode in
-            switch keyCode {
-            case hotkey.keyCode: self?.onToggle()
-            case KeyCodes.v: self?.onClipboard()
-            case KeyCodes.r: self?.onRing()
-            case KeyCodes.f: self?.onCycleForm()
-            case KeyCodes.g: self?.onSessionSwitcher()
-            default:
-                if self?.onApprovalKey(keyCode) == true { return true }
+            guard let self else { return false }
+            if let capture = self.captureHyperChord {
+                capture(keyCode)
+                return true
+            }
+            if keyCode == hotkey.keyCode {
+                self.onToggle()
+            } else if let action = self.hyperActions[keyCode] {
+                self.run(action)
+            } else {
+                if self.onApprovalKey(keyCode) { return true }
                 guard let digit = KeyCodes.digit(forKeyCode: keyCode) else { return false }
-                self?.onProfileDigit(digit)
+                self.onProfileDigit(digit)
             }
             return true
         }
@@ -294,7 +316,7 @@ final class HotkeyCenter {
         withObservationTracking {
             _ = preferences.hotkey
             _ = preferences.quickPressTogglesCapsLock
-            _ = preferences.ringHotkey
+            _ = preferences.shortcuts
             _ = preferences.dictationEnabled
             _ = preferences.dictationKey
         } onChange: { [weak self] in

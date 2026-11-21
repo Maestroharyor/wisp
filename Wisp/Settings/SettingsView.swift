@@ -155,22 +155,26 @@ struct SettingsView: View {
         case .general:
             GeneralSettings(
                 preferences: preferences, hotkeys: hotkeys, dictation: services.dictation, accent: services.accent,
-                glow: services.glow, missing: model.missing
+                glow: services.glow, missing: model.missing, openShortcuts: { model.selection = .shortcuts }
             ) {
                 model.selection = .permissions
             }
+        case .shortcuts: ShortcutsSettings(preferences: preferences, hotkeys: hotkeys)
         case .notch:
             NotchSettings(
                 preferences: preferences, accent: services.accent, glow: services.glow, shortcuts: services.shortcuts,
-                shelfWindow: services.shelfWindow, ringTrigger: services.ringTrigger, hotkeys: hotkeys)
+                shelfWindow: services.shelfWindow)
+        case .ring:
+            RingSettings(preferences: preferences, trigger: services.ringTrigger) {
+                model.selection = .shortcuts
+            }
         case .appearance: AppearanceSettings(preferences: preferences, services: services)
         case .activities:
             ActivitySettings(
                 preferences: preferences, downloads: services.downloads, notifications: services.notifications)
         case .shelf:
-            ShelfSettings(
-                preferences: preferences, shortcuts: services.shortcuts, clipboard: services.clipboard,
-                context: services.context)
+            ShelfSettings(preferences: preferences, shortcuts: services.shortcuts, context: services.context)
+        case .clipboard: ClipboardSettings(preferences: preferences, store: services.clipboard)
         case .notifications: NotificationSettings(preferences: preferences, monitor: services.notifications)
         case .agents:
             AgentSettings(

@@ -3,61 +3,51 @@ import SwiftUI
 import UniformTypeIdentifiers
 import WispCore
 
-/// The ring's part of the Notch pane: how it opens, and a button for the segment editor.
-struct RingSection: View {
+/// The Ring pane: how the ring opens, the orb's part in it, and a button for the segment editor.
+/// Its keyboard shortcut is in the Shortcuts pane with the rest.
+struct RingSettings: View {
     @Bindable var preferences: Preferences
     let trigger: RingTrigger
-    let hotkeys: HotkeyCenter
+    let openShortcuts: () -> Void
 
     @State private var editorShown = false
 
     var body: some View {
-        Section {
-            Toggle("Keyboard shortcut", isOn: hasRingHotkey)
-            if preferences.ringHotkey != nil {
-                LabeledContent("Shortcut") { HotkeyRecorder(hotkey: ringHotkey) }
-                if hotkeys.ringHotkeyTaken {
-                    Text("Wisp couldn't register this shortcut. Choose another.")
-                        .font(.caption).foregroundStyle(.orange)
+        Form {
+            Section("Opening") {
+                Picker("Mouse button", selection: $preferences.ringButton) {
+                    ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
+                if preferences.ringButton != .off {
+                    LabeledContent("Status", value: trigger.status.message)
+                }
+                Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
+                LabeledContent("Keyboard shortcut") {
+                    Button("Shortcuts…", action: openShortcuts)
+                }
+                Text(
+                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
-            Picker("Mouse button", selection: $preferences.ringButton) {
-                ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
+            Section("Apps and actions") {
+                LabeledContent("Segments") {
+                    Button("Edit ring…") { editorShown = true }
+                        // On the button, not the Section: a Form can apply a Section's modifiers per row.
+                        .sheet(isPresented: $editorShown) {
+                            RingEditorSheet(preferences: preferences) { editorShown = false }
+                        }
+                }
+                Toggle("Show an app's windows around its segment", isOn: $preferences.ringAppWindows)
+                Toggle("Fill free places with running apps", isOn: $preferences.ringShowsRunning)
+                Toggle("Show the ring's apps beside the orb", isOn: $preferences.orbDock)
+                Text(
+                    "On the open ring, drag an icon to move it, drag it off the ring to remove it (⌘Z puts it back), and drop an app from Finder to add it. With the orb dock on, hovering the orb shows up to eight apps from the ring, in the ring's order."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
-            if preferences.ringButton != .off {
-                LabeledContent("Status", value: trigger.status.message)
-            }
-            Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
-            Toggle("Show the ring's apps beside the orb", isOn: $preferences.orbDock)
-            Toggle("Show an app's windows around its segment", isOn: $preferences.ringAppWindows)
-            Toggle("Fill free places with running apps", isOn: $preferences.ringShowsRunning)
-            LabeledContent("Actions") {
-                Button("Edit ring…") { editorShown = true }
-                    // On the button, not the Section: a Form can apply a Section's modifiers per row.
-                    .sheet(isPresented: $editorShown) {
-                        RingEditorSheet(preferences: preferences) { editorShown = false }
-                    }
-            }
-            Text(
-                "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring. With the orb dock on, hovering the orb shows up to eight apps from the ring, in the ring's order. On the open ring, drag an icon to move it, drag it off the ring to remove it (⌘Z puts it back), and drop an app from Finder to add it. With Hyper on, Hyper+R opens it at the pointer."
-            )
-            .font(.caption).foregroundStyle(.secondary)
-        } header: {
-            Text("Ring")
         }
-    }
-
-    private static let suggestedHotkey = Hotkey(keyCode: KeyCodes.r, modifiers: [.control, .option, .command])
-
-    private var hasRingHotkey: Binding<Bool> {
-        Binding(
-            get: { preferences.ringHotkey != nil },
-            set: { preferences.ringHotkey = $0 ? Self.suggestedHotkey : nil })
-    }
-
-    private var ringHotkey: Binding<Hotkey> {
-        Binding(
-            get: { preferences.ringHotkey ?? Self.suggestedHotkey }, set: { preferences.ringHotkey = $0 })
+        .formStyle(.grouped)
     }
 }
 
