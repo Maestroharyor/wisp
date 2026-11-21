@@ -90,7 +90,7 @@ struct ShortcutsWidget: View {
         Group {
             if names.isEmpty {
                 VStack(spacing: 6) {
-                    Text(runner.available.isEmpty ? "No Shortcuts found" : "Pick favourites in Settings › Shelf")
+                    Text(runner.available.isEmpty ? "No Shortcuts found" : "Pick favourites in Settings › Widgets")
                         .font(.callout).foregroundStyle(Color.secondaryText)
                     Button("Open Shortcuts") {
                         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Shortcuts.app"))
@@ -393,7 +393,7 @@ struct WorldClocksWidget: View {
                 let zones = preferences.worldClockZones.compactMap(TimeZone.init(identifier:)).prefix(
                     WorldClock.notchCities)
                 if zones.isEmpty {
-                    Text("Add cities in Settings › Shelf")
+                    Text("Add cities in Settings › Widgets")
                         .font(.callout).foregroundStyle(Color.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }

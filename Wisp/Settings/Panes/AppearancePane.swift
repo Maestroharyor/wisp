@@ -93,7 +93,7 @@ struct AppearanceSettings: View {
                 Button("Export…") { export(preferences.appearance, name: "My look") }
             }
             caption(
-                "A preset sets everything below at once. Right-click one to export it or delete it. To give a profile its own look, see Settings › Shelf."
+                "A preset sets everything below at once. Right-click one to export it or delete it. To give a profile its own look, see Settings › Widgets."
             )
         }
     }
