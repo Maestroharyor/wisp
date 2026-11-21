@@ -261,6 +261,8 @@ public struct Appearance: Equatable, Sendable {
     public var soundPack: SoundPackID = .off
     /// Audio file paths for the Custom pack, by `SoundEvent` raw value.
     public var customSounds: [String: String] = [:]
+    /// Quiet sounds for copying, dropping files and answering an agent. Off by default.
+    public var interfaceSounds = false
     public var confettiPomodoro = false
     public var confettiAgent = false
     public var confettiBattery = false
@@ -313,7 +315,7 @@ extension Appearance: Codable {
         case minimalPill, valueFont
         case animationSpeed, hoverFeedback, hoverStrength
         case leftEar, rightEar, earText, breathingGlow, musicGlow
-        case soundPack, customSounds, confettiPomodoro, confettiAgent, confettiBattery, pet
+        case soundPack, customSounds, interfaceSounds, confettiPomodoro, confettiAgent, confettiBattery, pet
     }
 
     public init(from decoder: Decoder) throws {
@@ -354,6 +356,7 @@ extension Appearance: Codable {
         musicGlow = read(.musicGlow, base.musicGlow)
         soundPack = read(.soundPack, base.soundPack)
         customSounds = read(.customSounds, base.customSounds)
+        interfaceSounds = read(.interfaceSounds, base.interfaceSounds)
         confettiPomodoro = read(.confettiPomodoro, base.confettiPomodoro)
         confettiAgent = read(.confettiAgent, base.confettiAgent)
         confettiBattery = read(.confettiBattery, base.confettiBattery)
@@ -395,6 +398,7 @@ extension Appearance: Codable {
         try container.encode(musicGlow, forKey: .musicGlow)
         try container.encode(soundPack, forKey: .soundPack)
         try container.encode(customSounds, forKey: .customSounds)
+        try container.encode(interfaceSounds, forKey: .interfaceSounds)
         try container.encode(confettiPomodoro, forKey: .confettiPomodoro)
         try container.encode(confettiAgent, forKey: .confettiAgent)
         try container.encode(confettiBattery, forKey: .confettiBattery)

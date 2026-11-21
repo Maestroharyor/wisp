@@ -104,6 +104,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "corners", "shadow", "opacity", "transparent", "size", "compact", "roomy", "glow", "grain",
                 "shimmer", "nav", "pill", "dots", "font", "type", "hover", "wobble", "ears", "idle", "time",
                 "date", "breathing", "music glow", "beat", "sunset", "night", "light", "dark", "sound", "sound pack",
+                "interface sounds", "click sound",
                 "confetti", "celebrate", "pet", "sprite", "import", "export", "share", "reset",
                 "panels", "liquid glass", "frosted", "clear", "transparency", "translucent", "violet tint",
                 // Current control names, then the older ones so searches for those still land.

@@ -24,6 +24,9 @@ public enum SoundEvent: String, CaseIterable, Identifiable, Sendable, Codable {
     case close
     case done
     case alert
+    case copy
+    case drop
+    case decision
 
     public var id: Self { self }
     public var title: String {
@@ -32,6 +35,17 @@ public enum SoundEvent: String, CaseIterable, Identifiable, Sendable, Codable {
         case .close: "Shelf closes"
         case .done: "Something finishes"
         case .alert: "Something needs you"
+        case .copy: "Copy"
+        case .drop: "Files dropped"
+        case .decision: "Allow or deny"
+        }
+    }
+
+    /// Small confirmations of what the user just did, played only with Interface sounds on.
+    public var isInterface: Bool {
+        switch self {
+        case .copy, .drop, .decision: true
+        case .open, .close, .done, .alert: false
         }
     }
 }
@@ -54,12 +68,24 @@ public enum SoundPack {
         }
     }
 
+    /// An interface moment's sound: silent unless Interface sounds is on, and the soft sounds
+    /// when no pack is chosen, so the switch works on its own.
+    public static func interfaceSound(
+        for event: SoundEvent, enabled: Bool, pack: SoundPackID, custom: [String: String]
+    ) -> SoundSource? {
+        guard enabled, event.isInterface else { return nil }
+        return sound(for: event, pack: pack == .off ? .soft : pack, custom: custom)
+    }
+
     private static func soft(_ event: SoundEvent) -> String {
         switch event {
         case .open: "Tink"
         case .close: "Pop"
         case .done: "Purr"
         case .alert: "Ping"
+        case .copy: "Tink"
+        case .drop: "Pop"
+        case .decision: "Morse"
         }
     }
 
@@ -69,6 +95,9 @@ public enum SoundPack {
         case .close: "Bottle"
         case .done: "Glass"
         case .alert: "Hero"
+        case .copy: "Morse"
+        case .drop: "Bottle"
+        case .decision: "Tink"
         }
     }
 }
