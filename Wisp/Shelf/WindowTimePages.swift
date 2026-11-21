@@ -13,25 +13,34 @@ struct DayProgressPage: View {
     @State private var editingHours = false
 
     var body: some View {
-        WindowWidgetPage { width in
+        WindowWidgetPage {
+            WindowPageHeader(
+                symbol: "sun.horizon.fill", tint: .orange, title: "Day Progress",
+                subtitle: "How far through your working day you are, and what's still to come"
+            ) {
+                Button("Working hours", systemImage: "clock") { editingHours = true }
+                    .help("Set your working hours")
+                    .popover(isPresented: $editingHours, arrowEdge: .bottom) { hoursEditor }
+            }
+        } content: { width in
             TimelineView(.everyMinute) { context in
                 let day = DayProgress(startHour: preferences.workdayStart, endHour: preferences.workdayEnd)
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: WindowLayout.spacing) {
                     hero(day, now: context.date)
-                    DayTimeline(
-                        day: day, now: context.date, events: calendar.todayEvents.filter { !$0.isAllDay },
-                        width: width, open: calendar.open)
-                    events(now: context.date)
+                        .padding(20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .windowCardBackground()
+                    WindowCard(title: "Today", symbol: "chart.bar.xaxis", tint: .wispViolet) {
+                        DayTimeline(
+                            day: day, now: context.date, events: calendar.todayEvents.filter { !$0.isAllDay },
+                            width: width - 32, open: calendar.open)
+                    }
+                    WindowCard(title: "Still to come", symbol: "calendar", tint: .red) {
+                        events(now: context.date)
+                    }
                 }
                 // A page left open past midnight reads the new day's events.
                 .onChange(of: Calendar.current.startOfDay(for: context.date)) { calendar.refreshIfStale() }
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Working hours", systemImage: "clock") { editingHours = true }
-                    .help("Working hours")
-                    .popover(isPresented: $editingHours, arrowEdge: .bottom) { hoursEditor }
             }
         }
         .onAppear { calendar.refreshIfStale() }
@@ -52,7 +61,7 @@ struct DayProgressPage: View {
                 let next = day.nextStart(after: now)
                 let ended = day.fraction(at: now) >= 1
                 Text(ended ? "Done for today" : "Your day hasn't started")
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.title.weight(.semibold))
                 Text(
                     "Starts \(Calendar.current.isDateInToday(next) ? "today" : "tomorrow") at \(next.formatted(date: .omitted, time: .shortened)) · \(range)"
                 )
@@ -63,7 +72,6 @@ struct DayProgressPage: View {
 
     @ViewBuilder private func events(now: Date) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            WindowSectionTitle("Still to come")
             if calendar.access != .fullAccess {
                 HStack(spacing: 10) {
                     Text("Your calendar's events can show on the timeline.")
@@ -257,19 +265,43 @@ struct WorldClocksPage: View {
     private var cities: [String] { WorldClock.cities(preferences.worldClockZones) }
 
     var body: some View {
-        WindowWidgetPage { width in
+        WindowWidgetPage {
+            WindowPageHeader(
+                symbol: "globe", tint: .cyan, title: "World Clocks",
+                subtitle: "The time where your people are, and a slider to plan across zones",
+                count: "\(cities.count) of \(WorldClock.maximumCities)"
+            ) {
+                Button("Reset to now", systemImage: "arrow.uturn.backward") { resetShift() }
+                    .labelStyle(.iconOnly)
+                    .disabled(base == nil)
+                    .help("Reset to now")
+                WindowPrimaryButton(title: "Add city", symbol: "plus") { addingCity = true }
+                    .disabled(cities.count >= WorldClock.maximumCities)
+                    .help(
+                        cities.count >= WorldClock.maximumCities
+                            ? "Up to \(WorldClock.maximumCities) cities" : "Add city"
+                    )
+                    .popover(isPresented: $addingCity, arrowEdge: .bottom) {
+                        CityPicker(existing: cities) { identifier in
+                            preferences.worldClockZones = WorldClock.adding(identifier, to: preferences.worldClockZones)
+                            addingCity = false
+                        }
+                    }
+            }
+        } content: { width in
             TimelineView(.everyMinute) { context in
                 let shown = base.map { WorldClock.shiftedTime(base: $0, minutes: shift) } ?? context.date
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: WindowLayout.spacing) {
+                    here(shown)
                     if cities.isEmpty {
-                        ContentUnavailableView {
-                            Label("No cities", systemImage: "globe")
-                        } description: {
-                            Text("Add up to \(WorldClock.maximumCities) cities to see their time.")
-                        } actions: {
-                            Button("Add city") { addingCity = true }
+                        WindowCard(title: "Cities", symbol: "globe", tint: .cyan) {
+                            WindowEmptyState(
+                                symbol: "globe", title: "No cities yet",
+                                message: "Add up to \(WorldClock.maximumCities) cities to see their time at a glance."
+                            ) {
+                                WindowPrimaryButton(title: "Add city", symbol: "plus") { addingCity = true }
+                            }
                         }
-                        .frame(maxWidth: .infinity)
                     } else {
                         LazyVGrid(columns: windowGridColumns(width: width, minimum: 200), spacing: WindowLayout.spacing)
                         {
@@ -285,25 +317,29 @@ struct WorldClocksPage: View {
                 }
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button("Add city", systemImage: "plus") { addingCity = true }
-                    .disabled(cities.count >= WorldClock.maximumCities)
-                    .help(
-                        cities.count >= WorldClock.maximumCities
-                            ? "Up to \(WorldClock.maximumCities) cities" : "Add city"
-                    )
-                    .popover(isPresented: $addingCity, arrowEdge: .bottom) {
-                        CityPicker(existing: cities) { identifier in
-                            preferences.worldClockZones = WorldClock.adding(identifier, to: preferences.worldClockZones)
-                            addingCity = false
-                        }
-                    }
-                Button("Reset to now", systemImage: "arrow.uturn.backward") { resetShift() }
-                    .disabled(base == nil)
-                    .help("Reset to now")
+    }
+
+    /// Your own time and zone, large, as the clocks are read against it.
+    private func here(_ shown: Date) -> some View {
+        HStack(alignment: .center, spacing: 18) {
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: shown)
+            AnalogFace(
+                hour: parts.hour ?? 0, minute: parts.minute ?? 0,
+                daytime: WorldClock.isDaytime(hour: parts.hour ?? 0)
+            )
+            .frame(width: 72, height: 72)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Here").font(.subheadline).foregroundStyle(Color.secondaryText)
+                Text(shown, format: .dateTime.hour().minute())
+                    .font(.system(.largeTitle, design: .rounded).weight(.semibold).monospacedDigit())
+                Text(TimeZone.current.localizedName(for: .standard, locale: .current) ?? TimeZone.current.identifier)
+                    .font(.subheadline).foregroundStyle(Color.secondaryText)
             }
+            Spacer(minLength: 0)
         }
+        .padding(18)
+        .windowCardBackground()
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder private func cardMenu(_ identifier: String, index: Int) -> some View {
@@ -358,7 +394,7 @@ struct WorldClocksPage: View {
             .labelsHidden()
         }
         .padding(14)
-        .card()
+        .windowCardBackground()
     }
 
     private func resetShift() {
@@ -388,7 +424,7 @@ private struct ClockCard: View {
             AnalogFace(hour: hour, minute: parts.minute ?? 0, daytime: day)
                 .frame(width: 64, height: 64)
             VStack(alignment: .leading, spacing: 3) {
-                Text(WorldClock.cityName(zone.identifier)).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                Text(WorldClock.cityName(zone.identifier)).font(.body.weight(.semibold)).lineLimit(1)
                 ValueText(text: time.formatted(style), size: 20)
                 HStack(spacing: 4) {
                     Image(systemName: day ? "sun.max.fill" : "moon.fill")
@@ -503,16 +539,24 @@ struct PomodoroPage: View {
     private static let presets = [(25, 5), (50, 10)]
 
     var body: some View {
-        WindowWidgetPage { width in
+        WindowWidgetPage {
+            WindowPageHeader(
+                symbol: "brain.head.profile", tint: .red, title: "Pomodoro",
+                subtitle: store.phase == .focus ? "Focus, then a short break" : "Take a break, then back to focus"
+            ) { actions }
+        } content: { width in
             let wide = WindowLayout.showsInspector(width: width + 2 * WindowLayout.margin)
             if wide {
-                HStack(alignment: .top, spacing: 24) {
-                    timerColumn.frame(maxWidth: .infinity)
+                HStack(alignment: .top, spacing: WindowLayout.spacing) {
+                    timerColumn
+                        .padding(24)
+                        .frame(maxWidth: .infinity, minHeight: 460)
+                        .windowCardBackground()
                     today.frame(width: WindowLayout.inspectorWidth)
                 }
             } else {
-                VStack(alignment: .leading, spacing: 28) {
-                    timerColumn.frame(maxWidth: .infinity)
+                VStack(alignment: .leading, spacing: WindowLayout.spacing) {
+                    timerColumn.padding(24).frame(maxWidth: .infinity).windowCardBackground()
                     today
                 }
             }
@@ -528,7 +572,6 @@ struct PomodoroPage: View {
             }
             return true
         }
-        .toolbar { toolbar }
     }
 
     private var timerColumn: some View {
@@ -579,17 +622,14 @@ struct PomodoroPage: View {
     }
 
     private var today: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            WindowSectionTitle("Today")
+        WindowCard(title: "Today", symbol: "checkmark.circle", tint: .wispViolet, minHeight: 460) {
             TimelineView(.everyMinute) { context in
                 let sessions = store.log.today(now: context.date)
                 VStack(alignment: .leading, spacing: 8) {
                     if sessions.isEmpty {
-                        ContentUnavailableView {
-                            Label("No sessions yet", systemImage: "brain.head.profile")
-                        } description: {
-                            Text("Finished focus sessions show up here.")
-                        }
+                        WindowEmptyState(
+                            symbol: "brain.head.profile", title: "No sessions yet",
+                            message: "Finished focus sessions show up here, with what each was for.")
                     } else {
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             ValueText(text: "\(store.log.focusMinutes(now: context.date))", tint: .wispViolet, size: 28)
@@ -624,28 +664,26 @@ struct PomodoroPage: View {
         }
     }
 
-    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Button(
-                store.pomodoro.isRunning ? "Pause" : "Start",
-                systemImage: store.pomodoro.isRunning ? "pause.fill" : "play.fill", action: store.togglePomodoro
-            )
-            .buttonStyle(.borderedProminent)
-            .help(store.pomodoro.isRunning ? "Pause" : "Start")
-            Button("Skip phase", systemImage: "forward.end.fill", action: store.skipPhase)
-                .help(store.phase == .focus ? "Skip to the break" : "Skip to focus")
-            Button("Reset", systemImage: "arrow.counterclockwise", action: store.resetPomodoro)
-                .disabled(!store.pomodoro.hasStarted)
-                .help("Reset")
-            Button(
-                "Ruler sounds",
-                systemImage: preferences.scrubberSounds ? "speaker.wave.2.fill" : "speaker.slash.fill"
-            ) {
-                preferences.scrubberSounds.toggle()
-            }
-            .help("Tick sounds when scrubbing")
-            .accessibilityValue(preferences.scrubberSounds ? "On" : "Off")
+    @ViewBuilder private var actions: some View {
+        Button(
+            "Ruler sounds",
+            systemImage: preferences.scrubberSounds ? "speaker.wave.2.fill" : "speaker.slash.fill"
+        ) {
+            preferences.scrubberSounds.toggle()
         }
+        .labelStyle(.iconOnly)
+        .help("Tick sounds when scrubbing")
+        .accessibilityValue(preferences.scrubberSounds ? "On" : "Off")
+        Button("Reset", systemImage: "arrow.counterclockwise", action: store.resetPomodoro)
+            .labelStyle(.iconOnly)
+            .disabled(!store.pomodoro.hasStarted)
+            .help("Reset")
+        Button("Skip phase", systemImage: "forward.end.fill", action: store.skipPhase)
+            .labelStyle(.iconOnly)
+            .help(store.phase == .focus ? "Skip to the break" : "Skip to focus")
+        WindowPrimaryButton(
+            title: store.pomodoro.isRunning ? "Pause" : "Start",
+            symbol: store.pomodoro.isRunning ? "pause.fill" : "play.fill", action: store.togglePomodoro)
     }
 }
 
@@ -731,49 +769,62 @@ struct TimerPage: View {
     private static let presets = [5, 10, 15, 30, 60]
 
     var body: some View {
-        WindowWidgetPage { _ in
-            VStack(spacing: 20) {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    CountdownRing(
-                        countdown: store.timer, title: TimerStore.timerLabel, now: context.date,
-                        animated: !reduceMotion)
-                }
-                .frame(width: 260, height: 260)
-                HStack(spacing: 8) {
-                    ForEach(Self.presets, id: \.self) { minutes in
-                        LengthChip(title: "\(minutes) min", selected: Int(store.timer.duration) == minutes * 60) {
-                            store.setTimer(minutes: minutes)
-                        }
-                    }
-                }
-                .disabled(store.timer.hasStarted)
-                HStack(spacing: 10) {
-                    Button("One less minute", systemImage: "minus") { store.adjustTimer(byMinutes: -1) }
-                        .help("One less minute")
-                    Button("One more minute", systemImage: "plus") { store.adjustTimer(byMinutes: 1) }
-                        .help("One more minute")
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .disabled(store.timer.hasStarted)
-                running.padding(.top, 8)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button(
-                    store.timer.isRunning ? "Pause" : "Start",
-                    systemImage: store.timer.isRunning ? "pause.fill" : "play.fill", action: store.toggleTimer
-                )
-                .buttonStyle(.borderedProminent)
-                .help(store.timer.isRunning ? "Pause" : "Start")
+        WindowWidgetPage {
+            WindowPageHeader(
+                symbol: "timer", tint: .orange, title: "Timer", subtitle: "A countdown for the tea, the oven or a break"
+            ) {
                 Button("Reset", systemImage: "arrow.counterclockwise", action: store.resetTimer)
+                    .labelStyle(.iconOnly)
                     .disabled(!store.timer.hasStarted)
                     .help("Reset")
+                WindowPrimaryButton(
+                    title: store.timer.isRunning ? "Pause" : "Start",
+                    symbol: store.timer.isRunning ? "pause.fill" : "play.fill", action: store.toggleTimer)
+            }
+        } content: { width in
+            let wide = WindowLayout.showsInspector(width: width + 2 * WindowLayout.margin)
+            let layout =
+                wide
+                ? AnyLayout(HStackLayout(alignment: .top, spacing: WindowLayout.spacing))
+                : AnyLayout(VStackLayout(alignment: .leading, spacing: WindowLayout.spacing))
+            layout {
+                dial
+                    .padding(24)
+                    .frame(maxWidth: .infinity, minHeight: 420)
+                    .windowCardBackground()
+                running.frame(width: wide ? WindowLayout.inspectorWidth : nil)
             }
         }
+    }
+
+    private var dial: some View {
+        VStack(spacing: 20) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                CountdownRing(
+                    countdown: store.timer, title: TimerStore.timerLabel, now: context.date,
+                    animated: !reduceMotion)
+            }
+            .frame(width: 260, height: 260)
+            HStack(spacing: 8) {
+                ForEach(Self.presets, id: \.self) { minutes in
+                    LengthChip(title: "\(minutes) min", selected: Int(store.timer.duration) == minutes * 60) {
+                        store.setTimer(minutes: minutes)
+                    }
+                }
+            }
+            .disabled(store.timer.hasStarted)
+            HStack(spacing: 10) {
+                Button("One less minute", systemImage: "minus") { store.adjustTimer(byMinutes: -1) }
+                    .help("One less minute")
+                Button("One more minute", systemImage: "plus") { store.adjustTimer(byMinutes: 1) }
+                    .help("One more minute")
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .disabled(store.timer.hasStarted)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     /// The countdowns that have started, each with its own pause and resume.
@@ -787,9 +838,14 @@ struct TimerPage: View {
                     toggle: store.togglePomodoro) : nil,
         ]
         .compactMap { $0 }
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                WindowSectionTitle("Running")
+        WindowCard(
+            title: "Running", symbol: "timer", tint: .wispViolet, count: rows.isEmpty ? nil : rows.count, minHeight: 420
+        ) {
+            if rows.isEmpty {
+                WindowEmptyState(
+                    symbol: "timer", title: "Nothing counting down",
+                    message: "Pick a length and press Start. Running timers and Pomodoros show here.")
+            } else {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     VStack(spacing: 8) {
                         ForEach(rows, id: \.title) { row in
@@ -817,7 +873,6 @@ struct TimerPage: View {
                     }
                 }
             }
-            .frame(maxWidth: 420)
         }
     }
 
