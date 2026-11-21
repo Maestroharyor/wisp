@@ -150,12 +150,25 @@ extension ShapeStyle where Self == Color {
     /// Coding agents at work.
     static var agentOrange: Color { Color(red: 0.85, green: 0.47, blue: 0.34) }
     static var ink: Color { inkColor }
-    static var secondaryText: Color { Color.ink.opacity(0.55) }
+    /// Ink at a lighter weight, made stronger when Increase Contrast is on.
+    static var secondaryText: Color { secondaryInkColor }
 }
 
 private let inkColor = Color(
     nsColor: NSColor(name: "WispInk") { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .white : .black
+    })
+
+/// Resolved per appearance, so the high-contrast ones (Increase Contrast) get a stronger grey.
+private let secondaryInkColor = Color(
+    nsColor: NSColor(name: "WispSecondaryInk") { appearance in
+        let match = appearance.bestMatch(from: [
+            .darkAqua, .aqua, .accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua,
+        ])
+        let dark = match == .darkAqua || match == .accessibilityHighContrastDarkAqua
+        let increased = match == .accessibilityHighContrastDarkAqua || match == .accessibilityHighContrastAqua
+        let base: NSColor = dark ? .white : .black
+        return base.withAlphaComponent(ContrastStyle.secondaryOpacity(increased: increased))
     })
 
 extension EnvironmentValues {

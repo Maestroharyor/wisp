@@ -58,7 +58,8 @@ final class NotchCoordinator {
         }
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let isEscape = event.keyCode == KeyCodes.escape
-            guard isEscape || SessionSwitcher.key(event.keyCode) != nil else { return event }
+            let isPageKey = PageKeys.step(event.keyCode) != nil
+            guard isEscape || isPageKey || SessionSwitcher.key(event.keyCode) != nil else { return event }
             let handled = MainActor.assumeIsolated { () -> Bool in
                 guard let self else { return false }
                 // The shelf window's Esc is its own (a field's); its sidebar has no solo view to leave.
@@ -67,6 +68,11 @@ final class NotchCoordinator {
                 // aimed at Settings or another Wisp window, they stay there.
                 if !isEscape {
                     guard event.window is NotchPanel else { return false }
+                    if isPageKey {
+                        // A text field (a note, a search, a draft) keeps its arrows.
+                        if event.window?.firstResponder is NSText { return false }
+                        return self.controllers.values.contains { $0.handlePageKey(event.keyCode) }
+                    }
                     return self.controllers.values.contains { $0.handleSwitcherKey(event.keyCode) }
                 }
                 // Esc typed into Settings, the clipboard panel or another Wisp window is theirs

@@ -198,6 +198,10 @@ final class NotchModel {
     /// gives it back once that's done.
     var onWantsKey: () -> Void = {}
     var onKeyDone: () -> Void = {}
+    /// VoiceOver pressed the shell or a pill: what a click does.
+    @ObservationIgnored var onAccessibilityOpen: () -> Void = {}
+    /// VoiceOver's "Open ring" on the orb.
+    @ObservationIgnored var onAccessibilityRing: () -> Void = {}
     /// The approval card opened to show its preview.
     var expandedApproval: UUID?
     /// Requests folded into the agent pill. A new request isn't in it, so it shows full size.

@@ -30,11 +30,12 @@ struct NavPill: View {
                         .fill(model.page == page ? AnyShapeStyle(model.accent) : AnyShapeStyle(.tertiary))
                         .frame(width: 7, height: 7)
                         .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
+                        .contentShape(Rectangle().inset(by: -3))
                 }
                 .buttonStyle(.plain)
                 .hoverHint(name, edge: hintEdge)
                 .accessibilityLabel(name)
+                .accessibilityAddTraits(model.page == page ? .isSelected : [])
             }
             formMenu.scaleEffect(0.7).frame(width: 22, height: 18)
         }
@@ -90,7 +91,7 @@ struct NavPill: View {
                 .overlay(alignment: .topTrailing) {
                     if badge > 0 {
                         Text("\(badge)")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.caption2.weight(.bold))
                             .monospacedDigit()
                             .padding(.horizontal, 4)
                             .frame(minWidth: 14, minHeight: 14)

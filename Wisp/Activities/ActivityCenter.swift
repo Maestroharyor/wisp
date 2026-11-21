@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import WispCore
@@ -31,8 +32,28 @@ final class ActivityCenter {
 
     /// Posts or refreshes the activity for a slot. `duration` nil keeps it until removed.
     func post(_ activity: Activity, slot: ActivitySlot, duration: TimeInterval?) {
+        let isNew = queue.entries[slot.rawValue]?.payload != activity
         queue.post(id: slot.rawValue, priority: slot.priority, duration: duration, payload: activity, now: .now)
         refresh()
+        if isNew, Self.announcedSlots.contains(slot) { announce(activity) }
+    }
+
+    /// Alerts VoiceOver reads out as they arrive. Ongoing ones (media, a running timer, levels)
+    /// change too often to announce.
+    private static let announcedSlots: Set<ActivitySlot> = [
+        .agentApproval, .timerDone, .notice, .downloadDone, .notification, .agentCallout, .meetingSoon, .aiResult,
+    ]
+    @ObservationIgnored private var lastAnnouncement: (text: String, at: Date)?
+
+    /// Only while VoiceOver runs, and not the same words twice within two seconds.
+    private func announce(_ activity: Activity) {
+        guard NSWorkspace.shared.isVoiceOverEnabled else { return }
+        let text = activity.spokenLabel(now: .now, thresholds: .standard)
+        if let last = lastAnnouncement, last.text == text, Date.now.timeIntervalSince(last.at) < 2 { return }
+        lastAnnouncement = (text, .now)
+        NSAccessibility.post(
+            element: NSApplication.shared, notification: .announcementRequested,
+            userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 
     /// Called after a slot is removed or dismissed, so its owner can stop work for it.

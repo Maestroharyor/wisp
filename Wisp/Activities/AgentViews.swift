@@ -120,8 +120,14 @@ struct ContextBar: View {
     @Environment(\.contextThresholds) private var thresholds
 
     var body: some View {
-        let tint = ContextUsage.level(percent, thresholds: thresholds).tint
+        let level = ContextUsage.level(percent, thresholds: thresholds)
+        let tint = level.tint
         return HStack(spacing: 4) {
+            // A shape as well as a colour, for anyone who can't tell amber and red apart.
+            if level != .normal {
+                Image(systemName: level == .critical ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
+                    .font(.caption2).foregroundStyle(tint)
+            }
             Capsule().fill(.ink.opacity(0.14)).frame(width: 36, height: 4)
                 .overlay(alignment: .leading) {
                     Capsule().fill(tint)
@@ -132,6 +138,11 @@ struct ContextBar: View {
                 .lineLimit(1).fixedSize()
         }
         .help("Context window used")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Context")
+        .accessibilityValue(
+            "\(Int(percent.rounded()))% used"
+                + (level == .critical ? ", nearly full" : level == .warning ? ", running low" : ""))
     }
 }
 
@@ -309,7 +320,7 @@ struct MinimiseApprovalButton: View {
                 .font(.body.weight(.bold))
                 .foregroundStyle(.ink.opacity(0.6))
                 .frame(width: 22, height: 18)
-                .contentShape(Rectangle())
+                .contentShape(Rectangle().inset(by: -3))
         }
         .buttonStyle(.plain)
         .fixedSize()
@@ -1138,7 +1149,7 @@ private struct SessionTag: View {
             if let symbol = chip.symbol { Image(systemName: symbol).font(.system(size: 8, weight: .semibold)) }
             Text(chip.text).lineLimit(1).truncationMode(.middle)
         }
-        .font(.system(size: 9.5, weight: .semibold))
+        .font(.caption2.weight(.semibold))
         .foregroundStyle(chip.tint ?? Color.secondaryText)
         .padding(.horizontal, 5).padding(.vertical, 1)
         .background(Capsule().fill((chip.tint ?? Color.ink).opacity(chip.tint == nil ? 0.1 : 0.18)))

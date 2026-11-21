@@ -58,7 +58,7 @@ private struct KeepAwakeMenu: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(on ? Color.wispViolet : Color.secondaryText)
                 .frame(width: 22, height: 20)
-                .contentShape(Rectangle())
+                .contentShape(Rectangle().inset(by: -2))
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -115,7 +115,7 @@ private struct MuteButton: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(until == nil ? Color.secondaryText : Color.wispViolet)
                 .frame(width: 20, height: 20)
-                .contentShape(Rectangle())
+                .contentShape(Rectangle().inset(by: -2))
         }
         .buttonStyle(.plain)
         .hoverHint(tip, edge: .bottom, help: tip)
