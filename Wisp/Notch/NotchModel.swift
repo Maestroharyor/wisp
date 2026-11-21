@@ -406,9 +406,10 @@ final class NotchModel {
     var showsShelfHandle: Bool { shelfHeightKey != nil && maxShelfExtra > 0 }
 
     /// Follows a drag of the handle that began at `start` extra and has moved `translation`
-    /// points down.
+    /// points down. A shelf that opens upward grows as the handle goes up.
     func resizeShelf(from start: CGFloat, by translation: CGFloat) {
-        let extra = ShelfHeight.dragged(from: start, by: translation, maxExtra: maxShelfExtra)
+        let taller = ShelfHeight.growsUp(in: layout) ? -translation : translation
+        let extra = ShelfHeight.dragged(from: start, by: taller, maxExtra: maxShelfExtra)
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) { shelfDrag = extra }

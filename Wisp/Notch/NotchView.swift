@@ -64,7 +64,13 @@ struct NotchView: View {
                 let size = ShelfResizeHandle.size
                 ShelfResizeHandle(model: model)
                     .frame(width: size.width, height: size.height)
-                    .position(x: surface.midX, y: surface.maxY - ShelfResizeHandle.inset)
+                    // On the edge away from the shell's anchor: the bottom, or the top for an orb
+                    // low on the screen, whose shelf opens upward.
+                    .position(
+                        x: surface.midX,
+                        y: ShelfHeight.growsUp(in: model.layout)
+                            ? surface.minY + ShelfResizeHandle.inset : surface.maxY - ShelfResizeHandle.inset
+                    )
                     .transition(.opacity)
             }
 
