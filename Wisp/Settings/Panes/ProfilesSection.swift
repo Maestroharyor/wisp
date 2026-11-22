@@ -61,7 +61,7 @@ struct ProfilesSection: View {
                 }
             }
         } header: {
-            Text("Profiles")
+            SettingsHeader("Profiles")
         } footer: {
             Text(
                 "A profile is a Home layout, the page the shelf opens on and the surface style; Home changes made while it's active are saved into it. A profile with a look applies it when it switches, and one without brings yours back."
@@ -79,7 +79,7 @@ struct ProfilesSection: View {
                 .disabled(!preferences.contextAware)
             }
         } header: {
-            Text("Switch profiles automatically")
+            SettingsHeader("Switch profiles automatically")
         } footer: {
             Text("A profile you pick yourself stays for 30 minutes before rules take over again.")
         }

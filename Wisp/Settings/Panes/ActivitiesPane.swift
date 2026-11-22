@@ -15,11 +15,11 @@ struct ActivitySettings: View {
                 Toggle("Display brightness", isOn: $preferences.brightnessHUD)
                 Toggle("Caps Lock", isOn: $preferences.capsLockHUD)
             } header: {
-                Text("Use Wisp for these pop-ups")
+                SettingsHeader("Use Wisp for these pop-ups")
             } footer: {
                 Text("Volume and brightness need Accessibility access to intercept the keys.")
             }
-            Section("Show beside the notch") {
+            Section(header: "Show beside the notch") {
                 Toggle("Now Playing (any app, including browsers)", isOn: $preferences.mediaActivity)
                 Toggle("Lyrics from LRCLIB (sends the song title, artist, album and length)", isOn: $preferences.lyrics)
                 Toggle(
@@ -73,7 +73,7 @@ struct ActivitySettings: View {
                 Text("Extra activities get their own bubbles beside the notch.")
                     .wispFont(.caption).foregroundStyle(.secondary)
             }
-            Section("Batteries") {
+            Section(header: "Batteries") {
                 Toggle("Battery and charging", isOn: $preferences.batteryHUD)
                 Toggle("Mouse, keyboard and trackpad batteries", isOn: $preferences.accessoryBatteries)
                 Picker("Warn when a battery reaches", selection: $preferences.batteryLowThreshold) {
@@ -104,7 +104,7 @@ struct ActivitySettings: View {
                     .wispFont(.caption).foregroundStyle(.orange)
                 }
             } header: {
-                Text("Downloads")
+                SettingsHeader("Downloads")
             } footer: {
                 Text(
                     "For Safari, Chrome, Edge, Brave, Arc and Firefox. Wisp reads only file names and sizes; macOS may ask before it can see Downloads."

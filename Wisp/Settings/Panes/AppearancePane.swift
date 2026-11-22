@@ -94,7 +94,7 @@ struct AppearanceSettings: View {
                 Button("Export…") { export(preferences.appearance, name: "My look") }
             }
         } header: {
-            Text("Presets")
+            SettingsHeader("Presets")
         } footer: {
             Text(
                 "A preset sets everything below at once; right-click one to export or delete it. To give a profile its own look, see Settings › Widgets."
@@ -118,7 +118,7 @@ struct AppearanceSettings: View {
                 ForEach(TimeOfDayMode.allCases) { Text($0.title).tag($0) }
             }
         } header: {
-            Text("Theme")
+            SettingsHeader("Theme")
         } footer: {
             Text(themeCaption)
         }
@@ -159,7 +159,7 @@ struct AppearanceSettings: View {
             }
             .pickerStyle(.segmented)
         } header: {
-            Text("Shape")
+            SettingsHeader("Shape")
         } footer: {
             Text("The closed notch keeps its shape and stays black, so it still matches the camera.")
         }
@@ -188,7 +188,7 @@ struct AppearanceSettings: View {
             .pickerStyle(.segmented)
             slider("Violet tint", value: look.panelTint, in: Appearance.panelTintRange)
         } header: {
-            Text("Panels")
+            SettingsHeader("Panels")
         } footer: {
             Text(
                 "For the mini player, clipboard, quick pocket and other floating panels, which follow Light and Dark. Frosted is easiest to read and Clear shows the most through; Reduce Transparency makes them solid."
@@ -217,7 +217,7 @@ struct AppearanceSettings: View {
             }
             .pickerStyle(.segmented)
         } header: {
-            Text("Effects")
+            SettingsHeader("Effects")
         } footer: {
             Text(
                 preferences.appearance.navPill == .hidden
@@ -230,7 +230,7 @@ struct AppearanceSettings: View {
     // MARK: Pills
 
     private var pills: some View {
-        Section("Live activity pills") {
+        Section(header: "Live activity pills") {
             Toggle("Minimal pill (an icon and a dot, no labels)", isOn: look.minimalPill)
             Picker("Number style", selection: look.valueFont) {
                 ForEach(ValueFont.allCases) { font in
@@ -254,7 +254,7 @@ struct AppearanceSettings: View {
             }
             .pickerStyle(.segmented)
         } header: {
-            Text("Motion")
+            SettingsHeader("Motion")
         } footer: {
             Text("Reduce Motion in System Settings turns off the wobble, the shimmer and confetti.")
         }
@@ -281,7 +281,7 @@ struct AppearanceSettings: View {
             Toggle("Breathing glow while an agent works, music plays or a timer runs", isOn: look.breathingGlow)
             Toggle("Glow pulses to the music", isOn: look.musicGlow)
         } header: {
-            Text("Beside the closed notch")
+            SettingsHeader("Beside the closed notch")
         } footer: {
             Text(
                 "Ears show beside the closed notch when nothing else is there; not on the left or right edge. The music pulse keeps a steady beat; Wisp doesn't listen to the audio."
@@ -309,7 +309,7 @@ struct AppearanceSettings: View {
                 }
             }
         } header: {
-            Text("Sounds")
+            SettingsHeader("Sounds")
         } footer: {
             Text(
                 "Interface sounds are quiet clicks when you copy a clip, drop files or allow or deny an agent."
@@ -329,7 +329,7 @@ struct AppearanceSettings: View {
             }
             Toggle("Notch pet", isOn: look.pet)
         } header: {
-            Text("Fun")
+            SettingsHeader("Fun")
         } footer: {
             Text(funCaption)
         }

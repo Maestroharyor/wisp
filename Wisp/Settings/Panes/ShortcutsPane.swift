@@ -20,7 +20,7 @@ struct ShortcutsSettings: View {
                     }
                 }
             } header: {
-                Text("Caps Lock")
+                SettingsHeader("Caps Lock")
             } footer: {
                 Text(
                     "Held, Caps Lock becomes Hyper (⇪), a modifier no other app uses, so ⇪ shortcuts never clash. A quick press can still turn Caps Lock on (General › Advanced); needs Accessibility."
@@ -45,14 +45,14 @@ struct ShortcutsSettings: View {
                 }
                 .disabled(preferences.shortcuts == ShortcutMap())
             } header: {
-                Text("Shortcuts")
+                SettingsHeader("Shortcuts")
             } footer: {
                 Text(
                     "Click a shortcut and press the new keys; Esc cancels. Keys already in use are refused with what uses them, and ⇪ shortcuts need Caps Lock as Hyper."
                 )
             }
 
-            Section("Fixed keys") {
+            Section(header: "Fixed keys") {
                 let approve = preferences.hotkey.usesHyper ? "⇪ Y or ⇪ N" : "⌃⌥⌘Y or ⌃⌥⌘N"
                 let digits = preferences.hotkey.usesHyper ? "⇪ 1–9" : "⌃⌥⌘1–9"
                 FixedShortcut(keys: approve, action: "Allow or deny the request on screen")

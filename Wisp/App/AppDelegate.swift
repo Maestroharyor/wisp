@@ -131,6 +131,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         probe: self.dropProbe)
                 }
             }
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.settings"), object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.services.openSettings() }
+            }
             // Opens setup on a step: "ring".
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.setup"), object: nil, queue: .main

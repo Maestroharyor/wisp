@@ -57,7 +57,7 @@ struct AgentSettings: View {
             alerts
             AgentSoundsSection(preferences: preferences, player: sounds)
             AgentQuietHoursSection(preferences: preferences)
-            Section("Spend") {
+            Section(header: "Spend") {
                 LabeledContent("Estimated spend today") {
                     Text(spentToday).monospacedDigit()
                 }
@@ -73,13 +73,13 @@ struct AgentSettings: View {
                     Text("Always").tag(AgentPrivacy.Mode.always)
                 }
             } header: {
-                Text("Privacy")
+                SettingsHeader("Privacy")
             } footer: {
                 Text(
                     "Hides commands, file paths, session names and prompt drafts in the notch, so they don't show on a shared screen. macOS doesn't tell apps when the screen is shared, so a call app or browser using the microphone counts as a call. The eye button beside today's spend in the Agents widget (Wide size, as in the Code profile) hides them any time."
                 )
             }
-            Section("Power") {
+            Section(header: "Power") {
                 Toggle("Keep the Mac awake while an agent works", isOn: $preferences.agentKeepAwake)
                 Text("The display can still sleep. Sessions waiting on you don't keep it awake.")
                     .wispFont(.caption).foregroundStyle(.secondary)
@@ -106,7 +106,7 @@ struct AgentSettings: View {
     }
 
     private var alerts: some View {
-        Section("Alerts") {
+        Section(header: "Alerts") {
             Toggle("Alert when a session's context reaches the warn level", isOn: $preferences.contextAlert)
             ContextThresholdSlider(
                 title: "Warn at", tint: .wispAmber, percent: $preferences.contextWarnPercent,
@@ -184,7 +184,7 @@ struct AgentSettings: View {
                 Text(count == 1 ? "1 session saved" : "\(count) sessions saved")
             }
         } header: {
-            Text("History")
+            SettingsHeader("History")
         } footer: {
             Text(
                 "Keeps finished sessions on this Mac for 30 days (at most \(SessionHistory.limit)): project, agent, length, cost, tool counts, test results, file names and commands with secrets masked. After that only the number of sessions and turns per agent per day stays, for the activity map, as long as you choose above. Tools, files, commands and tests need Show what agents are doing, under Advanced (Copilot CLI sends finished tool calls anyway). Prompts, messages, file contents and command output are never saved. Requests from the last 7 days (at most \(ApprovalLog.limit)) are kept too: the tool, its masked command or file, and how it ended. Commands and file names aren't saved while agent details are hidden. Turning history off stops saving; what's saved stays until you clear it. Summaries need AI (Settings › AI), run on this Mac and appear after Done, and in the Done phone alert with Add the command or file name on. Open the history with the clock button in the Agents widget (Wide size)."
@@ -233,7 +233,7 @@ private struct IntegrationsSection: View {
             }
             Toggle("Show agents without hooks", isOn: $preferences.agentMonitor)
         } header: {
-            Text("Integrations")
+            SettingsHeader("Integrations")
         } footer: {
             Text(
                 "Installing adds Wisp's hooks to the agent's settings, or a plugin for OpenCode, and keeps your other settings and hooks. Each change saves the file as it was next to it. Restart running sessions afterwards. Agents without approve are monitor only: approve their requests in the terminal. Agents without hooks, and hook agents not yet installed, show as Running while the Agents view is open: Wisp reads the process list every 15 seconds, on your Mac only."
@@ -399,7 +399,7 @@ private struct SessionListSection: View {
                 }
             }
         } header: {
-            Text("Sessions")
+            SettingsHeader("Sessions")
         } footer: {
             Text(
                 "Sessions that need you come first, then pinned ones, then running, ready and done. Right-click a session in the Agents widget to pin or hide it or its project. A hidden session comes back when it changes state."

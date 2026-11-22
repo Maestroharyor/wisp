@@ -22,7 +22,7 @@ struct PhoneAlertsSection: View {
                 topic
             }
         } header: {
-            Text("Phone alerts")
+            SettingsHeader("Phone alerts")
         } footer: {
             Text(
                 preferences.pushEnabled
@@ -31,7 +31,7 @@ struct PhoneAlertsSection: View {
             )
         }
         if preferences.pushEnabled {
-            Section("Send to the phone") {
+            Section(header: "Send to the phone") {
                 ForEach(PushKind.allCases, id: \.self) { kind in
                     Toggle(kind.title, isOn: kindBinding(kind))
                 }

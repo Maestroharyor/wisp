@@ -29,7 +29,7 @@ struct NotchSettings: View {
                     ForEach(NotchlessDisplayChoice.allCases) { Text($0.title).tag($0) }
                 }
             } header: {
-                Text("Position")
+                SettingsHeader("Position")
             } footer: {
                 Text(
                     "Top uses the notch, Bottom turns it upside down on the Dock, and Left and Right lay it on its side. Corner islands and the orb go where you drag them (pull the notch down to tear off the orb, drop it at the top centre to dock it), and the shelf grows out from wherever Wisp sits."
@@ -38,13 +38,13 @@ struct NotchSettings: View {
             Section {
                 Toggle("Open the shelf in a window", isOn: windowForm)
             } header: {
-                Text("Window")
+                SettingsHeader("Window")
             } footer: {
                 Text(
                     "Wisp's pages open in a window you can move and resize; minimise or close it to go back to the notch, island or orb, and click that or press the shortcut to return. For a one-off window, choose Form › Open as Window from the right-click menu or pull the open shelf away by its edge."
                 )
             }
-            Section("Opening") {
+            Section(header: "Opening") {
                 Picker("Open the shelf on", selection: $preferences.openTrigger) {
                     ForEach(OpenTrigger.allCases) { Text($0.title).tag($0) }
                 }
@@ -89,11 +89,11 @@ struct NotchSettings: View {
                     ForEach(PocketTrigger.allCases) { Text($0.title).tag($0) }
                 }
             } header: {
-                Text("Dragging files")
+                SettingsHeader("Dragging files")
             } footer: {
                 Text("The pocket appears next to the pointer with Drop, Transform, Zip and AirDrop.")
             }
-            Section("Drop actions") {
+            Section(header: "Drop actions") {
                 DropActionsEditor(preferences: preferences, shortcuts: shortcuts)
             }
             AdvancedSection {

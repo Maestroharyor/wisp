@@ -11,7 +11,7 @@ struct ClipboardSettings: View {
     var body: some View {
         Form {
             history
-            Section("Length") {
+            Section(header: "Length") {
                 Stepper(value: $preferences.clipboardLimit, in: 20...1000, step: 20) {
                     LabeledContent("Clipboard keeps up to", value: "\(preferences.clipboardLimit) items")
                 }
@@ -49,7 +49,7 @@ struct ClipboardSettings: View {
                 }
             }
         } header: {
-            Text("History")
+            SettingsHeader("History")
         } footer: {
             Text(
                 "Items apps mark as concealed, such as passwords, are never saved, nor is anything copied while one of the apps above is in front. History stays on this Mac."

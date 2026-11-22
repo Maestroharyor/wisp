@@ -63,7 +63,7 @@ struct AboutSettings: View {
                 Button("Check Now", action: updater.checkForUpdates)
                     .disabled(!updater.canCheckForUpdates)
             } header: {
-                Text("Updates")
+                SettingsHeader("Updates")
             } footer: {
                 Text(
                     "With automatic checks on, Wisp looks at GitHub Releases once a day. Updates are signed, and your settings and permissions are kept."
@@ -73,7 +73,7 @@ struct AboutSettings: View {
             Section {
                 Button("Copy diagnostics", action: copyDiagnostics)
             } header: {
-                Text("Bug reports")
+                SettingsHeader("Bug reports")
             } footer: {
                 Text(
                     "Copies Wisp's version, the macOS version and the screen measurements Wisp uses to find the notch, to paste into an issue. Nothing is sent."

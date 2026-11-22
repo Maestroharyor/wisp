@@ -19,7 +19,7 @@ struct ShelfSettings: View {
                     }
                 }
             } header: {
-                Text("Widgets")
+                SettingsHeader("Widgets")
             } footer: {
                 Text(
                     "Switched-on widgets appear as icons on the Widgets page: click one to open it, drag to reorder. Up to four also sit on Home; right-click the notch and choose Tools › Customise Home to add, resize or reorder them."
@@ -38,7 +38,7 @@ struct ShelfSettings: View {
                     }
                 }
             } header: {
-                Text("Shortcuts")
+                SettingsHeader("Shortcuts")
             } footer: {
                 Text(
                     "Ticked Shortcuts appear in the Shortcuts widget. macOS has no public Focus switch, so the Quick Toggles Focus button runs the Shortcut you choose (for example one using Set Focus)."
@@ -61,17 +61,17 @@ struct ShelfSettings: View {
                     Text("15 minutes").tag(900.0)
                 }
             } header: {
-                Text("Command output")
+                SettingsHeader("Command output")
             } footer: {
                 Text(
                     "The Script widget shows the first lines the command prints, only while the widget is on screen. It runs directly, not in a shell; for pipes, write zsh -c \"…\" yourself."
                 )
             }
-            Section("Timer") {
+            Section(header: "Timer") {
                 DurationField(title: "New timers start at", seconds: $preferences.defaultTimerSeconds)
                 Text("Type a length such as 10, 1h30m or 90s.").wispFont(.caption).foregroundStyle(.secondary)
             }
-            Section("Day Progress") {
+            Section(header: "Day Progress") {
                 Stepper(
                     "Day starts at \(preferences.workdayStart):00", value: $preferences.workdayStart,
                     in: 0...(preferences.workdayEnd - 1))
@@ -89,7 +89,7 @@ struct ShelfSettings: View {
                     }
                 }
             } header: {
-                Text("World Clocks")
+                SettingsHeader("World Clocks")
             } footer: {
                 Text("The notch shows the first three cities; the window shows them all.")
             }

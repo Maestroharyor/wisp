@@ -24,7 +24,7 @@ struct CloudAgentsSection: View {
                 }
             }
         } header: {
-            Text("Cloud agents")
+            SettingsHeader("Cloud agents")
         } footer: {
             Text(
                 "When on, the Agents widget lists your Codex, Copilot and Cursor cloud tasks, using the codex and gh commands' own logins and your Cursor API key. Finished, failed and red tasks get a notice, and go to your phone too when Cloud tasks is on under Phone alerts."

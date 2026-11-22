@@ -82,7 +82,7 @@ struct RingSettings: View {
                     }
                 }
             } header: {
-                Text("Opening")
+                SettingsHeader("Opening")
             } footer: {
                 Text(
                     "Hold the mouse button, move to an action and let go, or click to leave the ring open (needs Accessibility). Dragging files? Press the ring shortcut and drop them on an action."
@@ -132,7 +132,7 @@ struct RingSettings: View {
                         .disabled(preferences.ringLook == .standard)
                 }
             } header: {
-                Text("Look")
+                SettingsHeader("Look")
             } footer: {
                 Text(
                     "Frosted glass is easiest to read over busy windows. Colour tints the band and a Frosted or Tinted centre. Reduce Transparency makes the ring solid."
@@ -157,7 +157,7 @@ struct RingSettings: View {
                 }
                 Toggle("Fill free places with running apps", isOn: $preferences.ringShowsRunning)
             } header: {
-                Text("Apps and actions")
+                SettingsHeader("Apps and actions")
             } footer: {
                 Text(
                     "On the open ring, drag an icon to move it, off the ring to remove it (⌘Z puts it back), or drop an app from Finder to add it."
@@ -173,7 +173,7 @@ struct RingSettings: View {
                     if preferences.orbDockSource == .chosen { chosenApps }
                 }
             } header: {
-                Text("Orb dock")
+                SettingsHeader("Orb dock")
             } footer: {
                 Text("Hovering the orb shows up to eight apps beside it, to click or drop files on.")
             }
@@ -238,7 +238,7 @@ private struct RingTipsSection: View {
                 Button("Hide") { preferences.ringTipsHidden = true }
             }
         } header: {
-            Text("Try the ring")
+            SettingsHeader("Try the ring")
         }
         .animation(reduceMotion ? nil : .wispSmooth, value: tips)
     }
@@ -283,7 +283,7 @@ private struct RingEditorSheet: View {
                         RingAddMenu(set: editedSet)
                     }
                 } header: {
-                    Text("Ring actions")
+                    SettingsHeader("Ring actions")
                 } footer: {
                     Text(
                         "Click a segment to change it. The centre of the ring opens the shelf. An app's ring opens instead of the default while that app is in front."

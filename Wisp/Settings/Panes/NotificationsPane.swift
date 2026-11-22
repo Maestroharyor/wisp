@@ -25,7 +25,7 @@ struct NotificationSettings: View {
                 Text("Pointing at a card keeps it open. Close it with the × or a swipe up.")
                     .wispFont(.caption).foregroundStyle(.secondary)
             } header: {
-                Text("Notifications")
+                SettingsHeader("Notifications")
             } footer: {
                 Text(
                     "macOS has no public way to read other apps' notifications, so Wisp reads the system's notification store, which needs Full Disk Access and could break after a macOS update. Focus changes are in Live Activities."
@@ -42,14 +42,14 @@ struct NotificationSettings: View {
                     Button("Log in to Telegram Web…") { monitor.showLogin(for: .telegram) }
                 }
             } header: {
-                Text("Replies")
+                SettingsHeader("Replies")
             } footer: {
                 Text(
                     "WhatsApp and Telegram replies drive their web apps and can stop working when those sites change."
                 )
             }
             if !monitor.seenApps.isEmpty {
-                Section("Apps") {
+                Section(header: "Apps") {
                     ForEach(monitor.seenApps.sorted { $0.value < $1.value }, id: \.key) { bundleID, name in
                         Toggle(name, isOn: allowed(bundleID))
                     }

@@ -18,7 +18,7 @@ struct AgentQuietHoursSection: View {
             }
             Toggle("Show what happened while I was away", isOn: $preferences.awaySummary)
         } header: {
-            Text("Quiet hours")
+            SettingsHeader("Quiet hours")
         } footer: {
             Text(
                 "In quiet hours the chosen alerts make no sound, send nothing to your phone, and Done cards don't show. Requests still show their card, silently. The bell in the Agents widget mutes everything for an hour. Sounds and Done cards are also skipped while the session's terminal is in front and you're using the Mac. The away card comes after the Mac sleeps, locks or sits idle for 15 minutes or more."

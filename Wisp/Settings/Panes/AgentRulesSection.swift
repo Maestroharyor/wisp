@@ -46,7 +46,7 @@ struct AgentRulesSection: View {
                 Label(problem, systemImage: "exclamationmark.triangle").wispFont(.caption).foregroundStyle(.orange)
             }
         } header: {
-            Text("Rules")
+            SettingsHeader("Rules")
         } footer: {
             Text(
                 "Always allow on a Claude Code request saves a rule in Claude Code's settings; Edit changes an allow rule in place. Claude Code checks deny rules first, then ask, then allow. Change ask and deny rules in the files themselves."

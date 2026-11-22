@@ -69,3 +69,24 @@ extension TextStyleSize {
         }
     }
 }
+
+/// A Settings section's title. The Text size setting puts a plain body font on the whole window,
+/// which Form headers would take on and lose their weight; this keeps them bold, at the scaled size.
+struct SettingsHeader: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title).wispFont(.headline)
+    }
+}
+
+extension Section where Parent == SettingsHeader, Content: View, Footer == EmptyView {
+    /// A section with a `SettingsHeader` title.
+    init(header title: String, @ViewBuilder content: () -> Content) {
+        self.init(content: content, header: { SettingsHeader(title) })
+    }
+}

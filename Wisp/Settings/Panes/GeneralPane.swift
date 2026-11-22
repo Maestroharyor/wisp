@@ -23,7 +23,7 @@ struct GeneralSettings: View {
                     HealthBanner(missing: missing, fix: fixPermissions)
                 }
             }
-            Section("Keyboard") {
+            Section(header: "Keyboard") {
                 LabeledContent("Shortcuts") {
                     Button("Keyboard Shortcuts…", action: openShortcuts)
                 }
@@ -53,7 +53,7 @@ struct GeneralSettings: View {
                     }
                 }
             } header: {
-                Text("Dictation")
+                SettingsHeader("Dictation")
             } footer: {
                 Text(
                     "Hold the key, speak and let go to type it into the open Agents session's prompt draft, a question card's answer or the app in front; a quick press still opens the shelf if the key does that too. Speech becomes text on this Mac, and the audio never leaves it or is kept."
@@ -61,7 +61,7 @@ struct GeneralSettings: View {
             }
             .onAppear { dictation.refreshReadiness() }
 
-            Section("Startup") {
+            Section(header: "Startup") {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
                 if let launchError {
