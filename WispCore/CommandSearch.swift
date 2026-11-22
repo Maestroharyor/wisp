@@ -47,7 +47,7 @@ public struct CommandItem: Equatable, Sendable, Identifiable {
     }
 }
 
-public struct CommandGroup: Equatable, Sendable, Identifiable {
+public struct CommandResultGroup: Equatable, Sendable, Identifiable {
     public let kind: CommandItem.Kind
     public let items: [CommandItem]
 
@@ -69,7 +69,7 @@ public enum CommandSearch {
 
     /// A blank query lists the actions and the first pages, as somewhere to start.
     public static func results(query: String, candidates: [CommandItem], now: Date, calendar: Calendar)
-        -> [CommandGroup]
+        -> [CommandResultGroup]
     {
         let typed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !typed.isEmpty else {
@@ -85,7 +85,7 @@ public enum CommandSearch {
     }
 
     /// The items in the order the bar shows them, for moving through with the arrow keys.
-    public static func flat(_ groups: [CommandGroup]) -> [CommandItem] {
+    public static func flat(_ groups: [CommandResultGroup]) -> [CommandItem] {
         groups.flatMap(\.items)
     }
 
@@ -115,10 +115,10 @@ public enum CommandSearch {
             symbol: QuickIntentText.symbol(intent))
     }
 
-    private static func group(_ items: [CommandItem]) -> [CommandGroup] {
+    private static func group(_ items: [CommandItem]) -> [CommandResultGroup] {
         CommandItem.Kind.allCases.compactMap { kind in
             let matching = items.filter { $0.kind == kind }.prefix(cap(for: kind))
-            return matching.isEmpty ? nil : CommandGroup(kind: kind, items: Array(matching))
+            return matching.isEmpty ? nil : CommandResultGroup(kind: kind, items: Array(matching))
         }
     }
 }

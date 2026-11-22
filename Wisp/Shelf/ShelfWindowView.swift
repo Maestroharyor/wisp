@@ -33,7 +33,11 @@ final class WindowNavigation {
     /// The window Home's card picker is showing.
     var customisingHome = false
     /// The ⌘K bar that finds and creates things is open.
-    var showsCommandBar = false
+    var showsCommandBar = false {
+        didSet { if !showsCommandBar { commandQuery = "" } }
+    }
+    /// What's typed in the command bar; cleared when it closes.
+    var commandQuery = ""
 
     init(preferences: Preferences) {
         self.preferences = preferences
@@ -111,7 +115,7 @@ extension ActivityDetail {
     }
 }
 
-/// The shelf window: a sidebar of pages, widgets and live activities, and the chosen one
+/// The shelf window: a sidebar panel floating inside it, a top bar, and the chosen row's page
 /// filling the rest. Follows the system's Light or Dark mode.
 /// The root reads only what picks the selection (preferences and whether each live activity
 /// runs); rows, titles and pages are in their own views.
@@ -119,18 +123,61 @@ struct ShelfWindowView: View {
     let model: NotchModel
     @Bindable var navigation: WindowNavigation
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var width: CGFloat = 0
+
     var body: some View {
         let selection = navigation.selection(in: navigation.sections(services: model.services))
-        NavigationSplitView(columnVisibility: $navigation.columns) {
-            WindowSidebarList(model: model, navigation: navigation, selection: selection)
-        } detail: {
-            WindowDetail(model: model, navigation: navigation, selection: selection)
+        let showsSidebar = navigation.columns != .detailOnly
+        ZStack(alignment: .top) {
+            WindowBackdrop()
+            HStack(spacing: WindowShell.inset) {
+                if showsSidebar {
+                    WindowSidebarPanel(model: model, navigation: navigation, selection: selection)
+                        .frame(
+                            width: width < WindowShell.compactBelow
+                                ? WindowShell.compactSidebarWidth : WindowShell.sidebarWidth
+                        )
+                        .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
+                }
+                VStack(spacing: 10) {
+                    WindowTopBar(model: model, navigation: navigation, selection: selection)
+                    WindowDetail(model: model, navigation: navigation, selection: selection)
+                        .clipShape(RoundedRectangle(cornerRadius: WindowShell.panelRadius, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: WindowShell.panelRadius, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+                                .allowsHitTesting(false))
+                    WindowPrivacyLine()
+                }
+            }
+            .padding(WindowShell.inset)
+            if navigation.showsCommandBar {
+                Color.black.opacity(0.35)
+                    .contentShape(Rectangle())
+                    .onTapGesture { navigation.showsCommandBar = false }
+                    .transition(.opacity)
+                CommandBar(model: model, navigation: navigation)
+                    .padding(.top, WindowShell.inset + WindowShell.barHeight + 24)
+                    .transition(.scale(scale: 0.97, anchor: .top).combined(with: .opacity))
+            }
         }
+        .ignoresSafeArea()
+        .onGeometryChange(for: CGFloat.self) {
+            $0.size.width
+        } action: {
+            width = $0
+        }
+        .wispAnimation(.wispSmooth, value: showsSidebar)
+        .wispAnimation(.wispControl, value: navigation.showsCommandBar)
         .tint(Color.wispViolet)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
         .environment(\.contextThresholds, model.preferences.contextThresholds)
         .wispBaseFont()
         .environment(\.wispTextScale, model.preferences.textScale.factor)
+        .sheet(isPresented: $navigation.customisingHome) {
+            HomeCardsSheet(preferences: model.preferences)
+        }
         .onChange(of: selection, initial: true) { _, row in
             // A row that went away (a widget switched off, an activity ended) fell back to Home;
             // save that, so the window doesn't jump back if the row returns.
@@ -139,6 +186,18 @@ struct ShelfWindowView: View {
             // notch's shelf does.
             if row != .home, model.editingHome { model.endHomeEditing() }
         }
+    }
+}
+
+/// The line under the page saying where everything is kept.
+private struct WindowPrivacyLine: View {
+    var body: some View {
+        Label("All of this stays on this Mac.", systemImage: "lock.fill")
+            .wispFont(.caption)
+            .foregroundStyle(.tertiary)
+            .labelStyle(.titleAndIcon)
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, -2)
     }
 }
 
@@ -156,22 +215,10 @@ private struct WindowDetail: View {
 
     var body: some View {
         detail(selection)
-            .navigationTitle(WindowRow.title(of: selection, services: services))
-            .toolbar { toolbar(selection) }
-            // Each page draws its own header, so the toolbar doesn't repeat the title.
-            .modifier(HiddenToolbarTitle())
-            // The titlebar is transparent so the sidebar reaches the top edge; without a bar
-            // behind the detail's toolbar, scrolled rows would show through its buttons.
-            .toolbarBackground(.visible, for: .windowToolbar)
-            .windowScrollEdge()
             .onChange(of: selection, initial: true) { _, row in previous = row }
-            .sheet(isPresented: Bindable(navigation).customisingHome) {
-                HomeCardsSheet(preferences: model.preferences)
-            }
     }
 
-    /// Widget pages put their own items in the toolbar; a fade would show both pages' items for
-    /// a moment, so swaps to or from a widget row are instant.
+    /// Widget pages swap instantly, as their controls differ; a fade would show both for a moment.
     private var fades: Bool {
         guard !reduceMotion else { return false }
         if case .widget = selection { return false }
@@ -248,105 +295,11 @@ private struct WindowDetail: View {
         case .external: "An activity another app or script sent to Wisp"
         }
     }
-
-    @ToolbarContentBuilder private func toolbar(_ selection: WindowDestination) -> some ToolbarContent {
-        if selection == .home {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Customise Home", systemImage: "square.grid.2x2") {
-                    navigation.customisingHome = true
-                }
-                .help("Choose the cards on Home")
-            }
-        }
-        ToolbarItem(placement: .primaryAction) {
-            Menu {
-                FormMenuItems(model: model)
-            } label: {
-                Label("Form", systemImage: model.form.symbol)
-            }
-            .help("Change form")
-        }
-    }
-}
-
-/// The sidebar on its own, so badge and row changes redraw only the list.
-private struct WindowSidebarList: View {
-    let model: NotchModel
-    let navigation: WindowNavigation
-    let selection: WindowDestination
-
-    @State private var query = ""
-
-    private var services: AppServices { model.services }
-
-    var body: some View {
-        let sections = WindowSidebar.filtered(navigation.sections(services: services), query: query) {
-            WindowRow.title(of: $0, services: services)
-        }
-        List(
-            selection: Binding<WindowDestination?>(
-                get: { selection },
-                set: { if let row = $0 { navigation.select(row) } })
-        ) {
-            ForEach(sections) { section in
-                Section(section.title) {
-                    ForEach(section.rows, id: \.self) { row in
-                        WindowSidebarRow(row: row, services: services)
-                            .badge(badge(of: row))
-                            .tag(row)
-                    }
-                }
-            }
-        }
-        .searchable(text: $query, placement: .sidebar, prompt: "Search")
-        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
-        // For the overdue badge; a stale list would miss reminders that fell due meanwhile.
-        .onAppear { services.reminders.refreshIfStale() }
-    }
-
-    private func badge(of row: WindowDestination) -> Int {
-        switch row {
-        case .page(.tray): services.tray.count
-        case .widget(WidgetKind.agents.rawValue): services.agents.approvals.count
-        case .widget(WidgetKind.clipboard.rawValue): services.clipboard.history.items.filter(\.pinned).count
-        case .widget(WidgetKind.reminders.rawValue): overdueReminders
-        default: 0
-        }
-    }
-
-    /// Open reminders past their due time, once Reminders has been read with full access.
-    private var overdueReminders: Int {
-        let reminders = services.reminders
-        guard reminders.loaded, reminders.access == .fullAccess else { return 0 }
-        let now = Date.now
-        return reminders.items.filter { ReminderList.isOverdue($0, now: now) }.count
-    }
-}
-
-/// One row's label on its own, so an outside activity's progress redraws only its row.
-private struct WindowSidebarRow: View {
-    let row: WindowDestination
-    let services: AppServices
-
-    var body: some View {
-        Label {
-            Text(WindowRow.title(of: row, services: services))
-        } icon: {
-            // Tinted symbols, as Notes and Reminders list theirs; a live activity keeps a filled
-            // tile so it stands out while it runs.
-            if case .live = row {
-                IconTile(symbol: WindowRow.symbol(of: row, services: services), tint: WindowRow.tint(of: row))
-            } else {
-                Image(systemName: WindowRow.symbol(of: row, services: services))
-                    .foregroundStyle(WindowRow.tint(of: row))
-            }
-        }
-    }
 }
 
 /// How each sidebar row is labelled.
 @MainActor
-private enum WindowRow {
+enum WindowRow {
     static func title(of row: WindowDestination, services: AppServices) -> String {
         switch row {
         case .page(.home): "Home"
@@ -384,27 +337,35 @@ private enum WindowRow {
     }
 }
 
-/// Keeps the window's title for the Window menu and Mission Control, but out of the toolbar.
-private struct HiddenToolbarTitle: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(macOS 15, *) {
-            content.toolbar(removing: .title)
+/// Behind the panels: a light grey in Light mode so white cards and glass stand off it, and a
+/// deep near-black with a faint violet light from the top in Dark mode.
+private struct WindowBackdrop: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        if scheme == .dark {
+            ZStack {
+                Color(red: 0.055, green: 0.05, blue: 0.075)
+                RadialGradient(
+                    colors: [Color.wispViolet.opacity(0.12), .clear], center: .top, startRadius: 0, endRadius: 700)
+            }
+            .ignoresSafeArea()
         } else {
-            content
+            Color(white: 0.93).ignoresSafeArea()
         }
     }
 }
 
-/// The page area behind the cards: a light grey in Light mode so white cards stand off it, and
-/// the window's own dark background in Dark mode.
+/// The page area behind the cards: a step lighter than the window behind the panels, so the
+/// page reads as a panel of its own.
 private struct WindowCanvas: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         if scheme == .dark {
-            Color.clear
+            Color.white.opacity(0.025)
         } else {
-            Color(white: 0.955).ignoresSafeArea()
+            Color(white: 0.965)
         }
     }
 }
