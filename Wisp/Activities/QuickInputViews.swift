@@ -61,6 +61,7 @@ struct QuickInputWidget: View {
     @Bindable var store: QuickInputStore
     let dictation: DictationEngine
     @FocusState private var focused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -73,7 +74,8 @@ struct QuickInputWidget: View {
                     .focused($focused)
                     .onSubmit { store.submit() }
                 if listening {
-                    Image(systemName: "waveform").foregroundStyle(Color.wispViolet).symbolEffect(.pulse)
+                    Image(systemName: "waveform").foregroundStyle(Color.wispViolet).symbolEffect(
+                        .pulse, isActive: !reduceMotion)
                 } else if store.state == .thinking {
                     ProgressView().controlSize(.small)
                 }

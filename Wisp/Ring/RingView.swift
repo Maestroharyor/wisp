@@ -46,7 +46,7 @@ struct RingView: View {
                     if isLifted, model.removing {
                         Image(systemName: "minus.circle.fill").font(.system(size: 18))
                             .symbolRenderingMode(.palette).foregroundStyle(.white, Color.red)
-                            .transition(.scale.combined(with: .opacity))
+                            .wispTransition(.scale.combined(with: .opacity))
                     } else if let badge = windowBadge(index) {
                         RingBadge(text: badge).offset(x: -4, y: 4)
                     }
@@ -88,12 +88,12 @@ struct RingView: View {
             if searching, shown {
                 RingSearchCard(model: model, onPick: onPickResult)
                     .position(model.centre)
-                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+                    .wispTransition(.scale(scale: 0.92).combined(with: .opacity))
             }
         }
-        .animation(.wispSmooth, value: searching)
+        .animation(reduceMotion ? nil : .wispSmooth, value: searching)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.wispControl, value: model.hover)
+        .animation(reduceMotion ? nil : .wispControl, value: model.hover)
         .contentShape(Rectangle())
         .onContinuousHover { phase in
             switch phase {
@@ -167,7 +167,7 @@ struct RingView: View {
             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
             .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.10), radius: 10, y: 3)
             .fixedSize()
-            .transition(.scale(scale: 0.9).combined(with: .opacity))
+            .wispTransition(.scale(scale: 0.9).combined(with: .opacity))
             .id(hovered.title)
             .help(model.canUndo ? "Undo the removal" : "Open the shelf")
         } else {
@@ -404,6 +404,7 @@ struct RingIconCell: View {
     let hasMore: Bool
     var dot: RingRunState = .none
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var dark: Bool { colorScheme == .dark }
 
@@ -418,12 +419,12 @@ struct RingIconCell: View {
                     .overlay(Circle().strokeBorder(Color.white.opacity(0.7), lineWidth: 0.5).padding(2))
                     .frame(width: side * 1.42, height: side * 1.42)
                     .shadow(color: Color.wispViolet.opacity(0.6), radius: 14)
-                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+                    .wispTransition(.scale(scale: 0.7).combined(with: .opacity))
             }
             RingTileIcon(icon: icon, tileHex: tileHex, side: side)
                 // With no band behind it, a soft shadow keeps it off a busy wallpaper.
                 .shadow(color: .black.opacity(dark ? 0.45 : 0.22), radius: 7, y: 3)
-                .scaleEffect(lit ? 1.08 : 1)
+                .scaleEffect(lit && !reduceMotion ? 1.08 : 1)
             if dot != .none {
                 // Like the Dock: a dot under a running app, violet for the one in front.
                 Circle().fill(dot == .frontmost ? Color.wispViolet : Color.primary.opacity(0.55))
@@ -484,7 +485,7 @@ private struct RingSearchCard: View {
         .frame(width: 210, alignment: .leading)
         .wispSurface(cornerRadius: SurfaceRadius.card, role: .card)
         .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
-        .animation(.wispControl, value: model.selectedResult)
+        .wispAnimation(.wispControl, value: model.selectedResult)
     }
 }
 
@@ -553,7 +554,7 @@ private struct SubRing: View {
             }
         }
         .onAppear {
-            withAnimation(.wispPopover) { fanned = true }
+            withAnimation(reduceMotion ? nil : .wispPopover) { fanned = true }
         }
     }
 

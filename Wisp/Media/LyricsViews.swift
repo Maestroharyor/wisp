@@ -21,7 +21,7 @@ struct LyricLines: View {
                             .font(.system(size: size, weight: .bold))
                             .lineLimit(2)
                             .contentTransition(.opacity)
-                            .animation(.easeOut(duration: 0.25), value: current)
+                            .wispAnimation(.easeOut(duration: 0.25), value: current)
                         if showsNext, found.isSynced, !next.isEmpty {
                             Text(next).font(.system(size: size * 0.8, weight: .semibold))
                                 .foregroundStyle(Color.secondaryText).lineLimit(1)

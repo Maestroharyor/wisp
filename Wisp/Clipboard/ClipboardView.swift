@@ -194,7 +194,7 @@ struct ClipboardView: View {
                         .padding(.horizontal, 2)
                     }
                     .onChange(of: selected) { _, id in
-                        withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id, anchor: .center) }
+                        withWispAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id, anchor: .center) }
                     }
                 }
             }

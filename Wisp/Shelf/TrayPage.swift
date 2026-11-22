@@ -152,7 +152,7 @@ struct TrayPage: View {
                 .accessibilityLabel(list.selected.isEmpty ? "Clear tray" : "Remove selected")
         }
         .frame(height: 24)
-        .animation(.easeOut(duration: 0.15), value: tray.header)
+        .wispAnimation(.easeOut(duration: 0.15), value: tray.header)
     }
 }
 

@@ -218,7 +218,7 @@ private struct OrbDockView: View {
         .animation(
             model.visible ? .wispPopover : .wispDismiss, value: model.visible
         )
-        .animation(.wispControl, value: hovered)
+        .animation(reduceMotion ? nil : .wispControl, value: hovered)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
@@ -238,7 +238,7 @@ private struct OrbDockView: View {
         } label: {
             ZStack(alignment: .bottom) {
                 RingTileIcon(icon: app.icon, tileHex: app.tileHex, side: side)
-                    .scaleEffect(lit ? 1.15 : 1, anchor: .bottom)
+                    .scaleEffect(lit && !reduceMotion ? 1.15 : 1, anchor: .bottom)
                     .shadow(color: lit ? Color.wispViolet.opacity(0.45) : .clear, radius: 10)
                 if dot != .none {
                     Circle().fill(dot == .frontmost ? Color.wispViolet : Color.primary.opacity(0.55))
