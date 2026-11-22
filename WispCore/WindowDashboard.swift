@@ -79,6 +79,36 @@ public enum WeekStrip {
         let next = min(max(current + step, 0), days.count - 1)
         return next == 0 ? nil : days[next]
     }
+
+    /// The first day of `date`'s week, by the calendar's first weekday.
+    public static func weekStart(of date: Date, calendar: Calendar) -> Date {
+        calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? calendar.startOfDay(for: date)
+    }
+
+    /// The start of the week `step` weeks from the one starting at `start`.
+    public static func steppedWeek(_ start: Date, by step: Int, calendar: Calendar) -> Date {
+        let moved = calendar.date(byAdding: .weekOfYear, value: step, to: start) ?? start
+        return weekStart(of: moved, calendar: calendar)
+    }
+
+    /// Whether `day` falls in today and the next six days, the span the calendar reads ahead.
+    public static func isInComingWeek(_ day: Date, now: Date, calendar: Calendar) -> Bool {
+        let today = calendar.startOfDay(for: now)
+        guard let end = calendar.date(byAdding: .day, value: 7, to: today) else { return false }
+        return day >= today && day < end
+    }
+
+    /// "This week" for the week holding `now`, otherwise "Week of 3 March".
+    public static func title(weekStart: Date, now: Date, calendar: Calendar) -> String {
+        if calendar.isDate(weekStart, inSameDayAs: self.weekStart(of: now, calendar: calendar)) { return "This week" }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = calendar.locale
+        let sameYear = calendar.component(.year, from: weekStart) == calendar.component(.year, from: now)
+        formatter.setLocalizedDateFormatFromTemplate(sameYear ? "d MMMM" : "d MMMM y")
+        return "Week of \(formatter.string(from: weekStart))"
+    }
 }
 
 /// The cards on the window's Home, in the order chosen.

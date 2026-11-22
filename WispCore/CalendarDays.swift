@@ -52,4 +52,19 @@ public enum CalendarDays {
         }
         return zip(starts, buckets).map { Day(label: label(for: $0, now: now, calendar: calendar), items: $1) }
     }
+
+    /// `days` days from `start`, each with its items in order, empty days included. Unlike
+    /// the week from today, items before `start` are left out, for browsing other weeks.
+    public static func week<Item>(
+        _ items: [Item], date: (Item) -> Date, start: Date, now: Date, days: Int = 7, calendar: Calendar = .current
+    ) -> [Day<Item>] {
+        let first = calendar.startOfDay(for: start)
+        let starts = (0..<max(days, 0)).compactMap { calendar.date(byAdding: .day, value: $0, to: first) }
+        var buckets = Array(repeating: [Item](), count: starts.count)
+        for item in items.sorted(by: { date($0) < date($1) }) {
+            guard let index = starts.firstIndex(of: calendar.startOfDay(for: date(item))) else { continue }
+            buckets[index].append(item)
+        }
+        return zip(starts, buckets).map { Day(label: label(for: $0, now: now, calendar: calendar), items: $1) }
+    }
 }

@@ -3,22 +3,59 @@ import EventKit
 import SwiftUI
 import WispCore
 
-/// The calendar in the window: today and the next six days as an hour grid (Week), one day's
-/// grid (Day) or a list (Agenda). Clicking an event opens it in Calendar.
+/// The calendar in the window: a week as an hour grid (Week), one day's grid (Day) or a list
+/// (Agenda), starting from today and the next six days. ⌘← and ⌘→ browse other weeks (days in
+/// Day). Clicking an event opens it in Calendar.
 struct CalendarPage: View {
     let store: CalendarStore
     let preferences: Preferences
-    /// The day the Day layout shows; nil is today.
-    @State private var day: Date?
+    /// The day the page is on; nil is today. Week and Agenda show this day's week.
+    @State private var anchor: Date?
+
+    private var calendar: Calendar { .current }
+    private var layout: CalendarLayout { preferences.calendarLayout }
+    private var anchorDay: Date { calendar.startOfDay(for: anchor ?? .now) }
+    private var weekStart: Date { WeekStrip.weekStart(of: anchorDay, calendar: calendar) }
+
+    /// Whether today's cached week covers what's shown, so the page reads it as it always has.
+    private var showsComingWeek: Bool {
+        switch layout {
+        case .day: WeekStrip.isInComingWeek(anchorDay, now: .now, calendar: calendar)
+        case .week, .agenda: weekStart == WeekStrip.weekStart(of: .now, calendar: calendar)
+        }
+    }
+
+    /// The week read into the store's browsed cache when the coming week doesn't cover it.
+    private var browseStart: Date? { showsComingWeek ? nil : weekStart }
+
+    private var browseLoaded: Bool { browseStart == nil || store.browsedStart == browseStart }
+
+    /// The events of the shown week, finished ones included.
+    private var shownEvents: [CalendarStore.Event] {
+        guard browseStart != nil else { return store.wholeWeek }
+        return browseLoaded ? store.browsed : []
+    }
+
+    /// The seven days shown: today onwards for the coming week, otherwise the anchor's week.
+    private var shownDays: [Date] {
+        WeekStrip.days(from: showsComingWeek ? .now : weekStart, calendar: calendar)
+    }
+
+    private var atToday: Bool { layout == .day ? anchor == nil : showsComingWeek }
+
+    private var subtitle: String {
+        showsComingWeek
+            ? "Today and the next six days" : WeekStrip.title(weekStart: weekStart, now: .now, calendar: calendar)
+    }
 
     var body: some View {
         WindowPageFrame {
             WindowPageHeader(
-                symbol: "calendar", tint: .red, title: "Calendar", subtitle: "Today and the next six days",
-                count: store.access == .fullAccess && store.loaded ? countText : nil
+                symbol: "calendar", tint: .red, title: "Calendar", subtitle: subtitle,
+                count: store.access == .fullAccess && store.loaded && browseLoaded ? countText : nil
             ) {
-                if preferences.calendarLayout == .day, store.access == .fullAccess {
-                    dayButtons
+                if store.access == .fullAccess {
+                    stepButtons
                 }
                 Picker("Layout", selection: Bindable(preferences).calendarLayout) {
                     ForEach(CalendarLayout.allCases) { Text($0.title).tag($0) }
@@ -36,36 +73,43 @@ struct CalendarPage: View {
             content.wispAnimation(.wispSmooth, value: preferences.calendarLayout)
         }
         .onAppear { store.refreshIfStale() }
+        .onChange(of: browseStart, initial: true) { _, start in
+            if let start { store.browse(weekStarting: start) } else { store.stopBrowsing() }
+        }
+        .onDisappear { store.stopBrowsing() }
     }
 
-    /// Previous day, Today and next day for the Day layout, with ⌘←, ⌘T and ⌘→.
-    @ViewBuilder private var dayButtons: some View {
-        let days = WeekStrip.days(from: .now, calendar: .current)
-        let index = day.flatMap { day in days.firstIndex { Calendar.current.isDate($0, inSameDayAs: day) } } ?? 0
+    /// Previous, Today and next: a day at a time in Day, a week in Week and Agenda, with ⌘←,
+    /// ⌘T and ⌘→.
+    @ViewBuilder private var stepButtons: some View {
+        let unit = layout == .day ? "day" : "week"
         ControlGroup {
-            Button("Previous day", systemImage: "chevron.left") { step(-1) }
+            Button("Previous \(unit)", systemImage: "chevron.left") { step(-1) }
                 .keyboardShortcut(.leftArrow, modifiers: .command)
-                .disabled(index == 0)
-                .help("Previous day")
-            Button("Next day", systemImage: "chevron.right") { step(1) }
+                .help("Previous \(unit)")
+            Button("Next \(unit)", systemImage: "chevron.right") { step(1) }
                 .keyboardShortcut(.rightArrow, modifiers: .command)
-                .disabled(index >= days.count - 1)
-                .help("Next day")
+                .help("Next \(unit)")
         }
         .labelStyle(.iconOnly)
         .fixedSize()
-        Button("Today") { day = nil }
+        Button("Today") { anchor = nil }
             .keyboardShortcut("t", modifiers: .command)
-            .disabled(day == nil)
+            .disabled(atToday)
     }
 
     private func step(_ offset: Int) {
-        let calendar = Calendar.current
-        day = WeekStrip.stepped(day, by: offset, in: WeekStrip.days(from: .now, calendar: calendar), calendar: calendar)
+        if layout == .day {
+            let day = calendar.date(byAdding: .day, value: offset, to: anchorDay) ?? anchorDay
+            anchor = calendar.isDateInToday(day) ? nil : day
+        } else {
+            let start = WeekStrip.steppedWeek(weekStart, by: offset, calendar: calendar)
+            anchor = start == WeekStrip.weekStart(of: .now, calendar: calendar) ? nil : start
+        }
     }
 
     private var countText: String {
-        let count = store.wholeWeek.count
+        let count = shownEvents.count
         return count == 1 ? "1 event" : "\(count) events"
     }
 
@@ -84,39 +128,38 @@ struct CalendarPage: View {
             }
             .frame(maxHeight: .infinity)
             .windowCardBackground()
-        } else if !store.loaded {
+        } else if !store.loaded || !browseLoaded {
             LoadingLabel("Loading…").windowCardBackground()
         } else {
-            layout
+            layoutView
                 .id(preferences.calendarLayout)
                 .wispTransition(.opacity.combined(with: .scale(scale: 0.98)))
         }
     }
 
-    @ViewBuilder private var layout: some View {
+    @ViewBuilder private var layoutView: some View {
         Group {
-            switch preferences.calendarLayout {
+            switch layout {
             case .week:
-                if store.wholeWeek.isEmpty {
+                if shownEvents.isEmpty {
                     WindowEmptyState(
                         symbol: "calendar.badge.checkmark", title: "A clear week",
-                        message: "Nothing on your calendars for the next seven days."
+                        message: showsComingWeek
+                            ? "Nothing on your calendars for the next seven days."
+                            : "Nothing on your calendars that week."
                     )
                     .frame(maxHeight: .infinity)
                     .windowCardBackground()
                 } else {
-                    HourGrid(
-                        store: store, days: WeekStrip.days(from: .now, calendar: .current), preferences: preferences)
+                    HourGrid(store: store, events: shownEvents, days: shownDays, preferences: preferences)
                 }
             case .day:
                 VStack(spacing: 12) {
-                    DayPicker(selection: $day)
-                    HourGrid(
-                        store: store, days: [day ?? Calendar.current.startOfDay(for: .now)],
-                        preferences: preferences)
+                    DayPicker(days: shownDays, selection: $anchor)
+                    HourGrid(store: store, events: shownEvents, days: [anchorDay], preferences: preferences)
                 }
             case .agenda:
-                Agenda(store: store)
+                Agenda(store: store, events: showsComingWeek ? nil : shownEvents, start: weekStart)
             }
         }
     }
@@ -124,18 +167,20 @@ struct CalendarPage: View {
 
 // MARK: Day picker
 
-/// Seven day buttons for the Day layout.
+/// The shown week's day buttons for the Day layout.
 private struct DayPicker: View {
+    let days: [Date]
+    /// The chosen day; nil is today.
     @Binding var selection: Date?
 
     var body: some View {
-        let days = WeekStrip.days(from: .now, calendar: .current)
-        let chosen = selection ?? days.first
+        let calendar = Calendar.current
+        let chosen = selection ?? calendar.startOfDay(for: .now)
         HStack(spacing: 6) {
             ForEach(days, id: \.self) { day in
-                let selected = chosen.map { Calendar.current.isDate($0, inSameDayAs: day) } ?? false
+                let selected = calendar.isDate(chosen, inSameDayAs: day)
                 Button {
-                    selection = day == days.first ? nil : day
+                    selection = calendar.isDateInToday(day) ? nil : day
                 } label: {
                     HStack(spacing: 4) {
                         Text(day, format: .dateTime.weekday(.abbreviated))
@@ -164,6 +209,8 @@ private struct DayPicker: View {
 /// they overlap. All-day events sit in a row above.
 private struct HourGrid: View {
     let store: CalendarStore
+    /// The shown week's events, finished ones included.
+    let events: [CalendarStore.Event]
     let days: [Date]
     let preferences: Preferences
 
@@ -174,7 +221,7 @@ private struct HourGrid: View {
     private var calendar: Calendar { .current }
 
     private func events(on day: Date) -> [CalendarStore.Event] {
-        store.wholeWeek.filter { calendar.isDate($0.start, inSameDayAs: day) }
+        events.filter { calendar.isDate($0.start, inSameDayAs: day) }
     }
 
     private var hours: ClosedRange<Int> {
@@ -381,13 +428,16 @@ private struct EventBlock: View {
 /// The week as a list: a card per day with its events.
 private struct Agenda: View {
     let store: CalendarStore
+    /// Another week's events; nil lists what's still to come from today, as before.
+    let events: [CalendarStore.Event]?
+    /// The first day of the browsed week.
+    let start: Date
 
     var body: some View {
         ScrollView(.vertical) {
             TimelineView(.everyMinute) { context in
                 LazyVStack(alignment: .leading, spacing: WindowLayout.spacing) {
-                    ForEach(CalendarDays.week(store.weekEvents, date: \.start, now: context.date), id: \.label) {
-                        day in
+                    ForEach(days(now: context.date), id: \.label) { day in
                         WindowCard(
                             title: day.label, symbol: "calendar", tint: .red,
                             count: day.items.isEmpty ? nil : day.items.count
@@ -409,5 +459,10 @@ private struct Agenda: View {
             }
         }
         .windowScrollEdge()
+    }
+
+    private func days(now: Date) -> [CalendarDays.Day<CalendarStore.Event>] {
+        guard let events else { return CalendarDays.week(store.weekEvents, date: \.start, now: now) }
+        return CalendarDays.week(events, date: \.start, start: start, now: now)
     }
 }

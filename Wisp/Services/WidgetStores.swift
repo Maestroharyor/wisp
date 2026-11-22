@@ -122,6 +122,11 @@ final class CalendarStore {
     /// Every event today with its title, finished and all-day ones included, for the window's
     /// Day Progress page.
     private(set) var todayEvents: [Event] = []
+    /// Another week the window's Calendar is showing, finished events included. Kept apart
+    /// from the arrays above, which the notch, Home and meeting detection read.
+    private(set) var browsed: [Event] = []
+    /// The first day of the week in `browsed`, set once its events have landed.
+    private(set) var browsedStart: Date?
     private(set) var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
     /// The first read since access has landed, so an empty week isn't claimed before it has.
     private(set) var loaded = false
@@ -143,6 +148,8 @@ final class CalendarStore {
     @ObservationIgnored private var hadAccess = false
     /// Times access went away, so the reader makes a fresh store after a new grant.
     @ObservationIgnored private var revocations = 0
+    /// The week the page asked for, read again when the calendars change.
+    @ObservationIgnored private var browsing: Date?
     /// Called on the main actor each time a fresh week lands.
     @ObservationIgnored var onWeekLoaded: () -> Void = {}
 
@@ -170,6 +177,26 @@ final class CalendarStore {
         refresh()
     }
 
+    /// Reads the seven days from `start` into `browsed`, for a week other than this one.
+    func browse(weekStarting start: Date) {
+        browsing = start
+        guard access == .fullAccess else { return }
+        let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? start
+        let revocations = revocations
+        Task {
+            let events = await reader.events(from: start, to: end, revocations: revocations)
+            // A later browse or a revoke while this ran wins.
+            guard access == .fullAccess, browsing == start else { return }
+            browsed = events
+            browsedStart = start
+        }
+    }
+
+    /// Back on this week: stop reading another one on every change.
+    func stopBrowsing() {
+        browsing = nil
+    }
+
     func refresh() {
         #if DEBUG
             if usesSample { return }
@@ -183,6 +210,8 @@ final class CalendarStore {
             dayEvents = []
             todayEvents = []
             wholeWeek = []
+            browsed = []
+            browsedStart = nil
             loaded = false
             lastRefresh = nil
             if hadAccess { revocations += 1 }
@@ -220,6 +249,7 @@ final class CalendarStore {
                 wholeWeek = week.whole
                 loaded = true
                 onWeekLoaded()
+                if let browsing { browse(weekStarting: browsing) }
             }
             if refetch {
                 refetch = false
@@ -529,9 +559,7 @@ private actor CalendarReader {
     /// `revocations` counts the times access went; it travels with the query itself, so a
     /// revoke can't be ordered after the next grant's query.
     func week(from now: Date, calendar: Calendar, revocations: Int) -> Week {
-        let store = storeRevocations == revocations ? self.store ?? EKEventStore() : EKEventStore()
-        self.store = store
-        storeRevocations = revocations
+        let store = currentStore(revocations: revocations)
         let dayStart = calendar.startOfDay(for: now)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? now
         let weekEnd = calendar.date(byAdding: .day, value: 7, to: dayStart) ?? now
@@ -544,6 +572,21 @@ private actor CalendarReader {
         let today = week.filter { $0.startDate < tomorrow && $0.startDate <= $0.endDate }.prefix(50).map(Self.event)
         let whole = week.prefix(300).map(Self.event)
         return Week(upcoming: Array(upcoming), all: all, day: day, today: Array(today), whole: whole)
+    }
+
+    /// Every event from `start` to `end`, finished ones included, soonest first.
+    func events(from start: Date, to end: Date, revocations: Int) -> [CalendarStore.Event] {
+        let store = currentStore(revocations: revocations)
+        return store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: nil))
+            .sorted { $0.startDate < $1.startDate }
+            .prefix(300).map(Self.event)
+    }
+
+    private func currentStore(revocations: Int) -> EKEventStore {
+        let store = storeRevocations == revocations ? self.store ?? EKEventStore() : EKEventStore()
+        self.store = store
+        storeRevocations = revocations
+        return store
     }
 
     private static func event(_ event: EKEvent) -> CalendarStore.Event {
