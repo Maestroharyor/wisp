@@ -105,6 +105,8 @@ final class RingController {
     /// Where the open ring was opened, observed, so an orb it opened over can step aside.
     var openAround: CGPoint? { model.origin }
     private var closeTask: Task<Void, Never>?
+    /// A file drag is under way somewhere on screen.
+    private var fileDragging = false
 
     /// Opens the ring centred near `point`, in global AppKit coordinates.
     func show(at point: CGPoint, holding: Bool = false, dropping: Bool = false) {
@@ -207,6 +209,7 @@ final class RingController {
 
     /// A file drag is moving; one that ended moments ago doesn't take the ring away under it.
     func dragMoved() {
+        fileDragging = true
         guard model.dropping else { return }
         dropEndTask?.cancel()
         dropEndTask = nil
@@ -214,6 +217,7 @@ final class RingController {
 
     /// A file drag ended; give a drop on the ring time to land, then put the ring away.
     func dragEnded() {
+        fileDragging = false
         guard model.dropping else { return }
         dropEndTask?.cancel()
         dropEndTask = Task { [weak self] in
@@ -240,8 +244,9 @@ final class RingController {
         }
     }
 
+    /// The shortcut opens the ring; mid file drag it opens ready to take the files on an action.
     func toggle(at point: CGPoint) {
-        if isVisible { hide() } else { show(at: point) }
+        if isVisible { hide() } else { show(at: point, dropping: fileDragging) }
     }
 
     /// The button's release was lost (its tap was switched off mid-hold): the ring stays open

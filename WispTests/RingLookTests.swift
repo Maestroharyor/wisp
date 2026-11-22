@@ -31,5 +31,16 @@ final class RingLookTests: XCTestCase {
         XCTAssertEqual(read.size, 1.1, accuracy: 0.0001)
         XCTAssertEqual(read.glass, .clear)
         XCTAssertEqual(read.tint, 0.5)
+        XCTAssertEqual(read.centre, .clear)
+    }
+
+    func testTheCentreIsClearUnlessChosen() throws {
+        XCTAssertEqual(RingLook.standard.centre, .clear)
+        var look = RingLook()
+        look.centre = .tinted
+        let data = try JSONEncoder().encode(look)
+        XCTAssertEqual(try JSONDecoder().decode(RingLook.self, from: data).centre, .tinted)
+        let unknown = try JSONDecoder().decode(RingLook.self, from: Data(#"{"centre": "neon"}"#.utf8))
+        XCTAssertEqual(unknown.centre, .clear)
     }
 }

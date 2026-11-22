@@ -111,6 +111,15 @@ final class NotchMachineTests: XCTestCase {
         XCTAssertEqual(machine.handle(.pointerExited), [.scheduleClose])
     }
 
+    func testADragReachingAClosingShelfKeepsItOpen() {
+        var machine = NotchMachine()
+        _ = machine.handle(.pointerEntered)
+        _ = machine.handle(.dwellElapsed)
+        XCTAssertEqual(machine.handle(.pointerExited), [.scheduleClose])
+        XCTAssertEqual(machine.handle(.dragEntered), [.cancelClose])
+        XCTAssertEqual(machine.phase, .open)
+    }
+
     func testStaysOpenWhenPointerLeavesIfAutoCloseIsOff() {
         var machine = NotchMachine()
         machine.closing = .clickElsewhere

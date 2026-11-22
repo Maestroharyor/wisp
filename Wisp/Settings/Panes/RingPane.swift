@@ -26,13 +26,17 @@ struct RingSettings: View {
                     Button("Shortcuts…", action: openShortcuts)
                 }
                 Text(
-                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring."
+                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb open the tray. To use the ring's file actions, press the ring shortcut while dragging and drop the files on one."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
             Section("Look") {
                 Picker("Glass", selection: $preferences.ringLook.glass) {
                     ForEach(PanelGlass.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Picker("Centre", selection: $preferences.ringLook.centre) {
+                    ForEach(RingCentre.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 LabeledContent("Size") {
@@ -51,7 +55,7 @@ struct RingSettings: View {
                         .disabled(preferences.ringLook == .standard)
                 }
                 Text(
-                    "Clear shows the most through, Frosted is easiest to read. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
+                    "Clear shows the most through, Frosted is easiest to read. A clear centre is open onto the desktop; Tinted is a soft violet disc. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }

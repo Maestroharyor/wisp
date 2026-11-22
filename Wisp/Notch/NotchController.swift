@@ -756,15 +756,11 @@ final class NotchController {
     func fileDragMoved(to location: CGPoint) {
         // A new drag right after the last must not be cut short by its end timer.
         dragEndTask?.cancel()
-        let target = layout.hitRegion(for: model.surfaceRect).insetBy(dx: -24, dy: -24)
+        // The orb is small, so its target reaches a little further.
+        let reach: CGFloat = isOrb ? -32 : -24
+        let target = layout.hitRegion(for: model.surfaceRect).insetBy(dx: reach, dy: reach)
         let over = target.contains(location)
-        // Files dragged to the closed orb open the ring, to drop them on an action.
-        if isOrb, over, machine.phase != .open {
-            if !services.ring.isVisible {
-                services.ring.show(at: CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY), dropping: true)
-            }
-            return
-        }
+        // The orb opens the drop tiles too, like the notch: the tray is where files go.
         if over, !model.dragging {
             model.dragging = true
             // So leaving again registers as an exit and the shelf closes.

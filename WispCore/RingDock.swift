@@ -184,6 +184,8 @@ public struct RingLook: Codable, Equatable, Sendable {
     public var size: Double = 1
     /// 0 is plain glass, 1 is twice the standard violet glow.
     public var tint: Double = 0.5
+    /// What fills the middle of the ring.
+    public var centre: RingCentre = .clear
 
     public static let sizeRange: ClosedRange<Double> = 0.8...1.25
     public static let standard = RingLook()
@@ -207,13 +209,24 @@ public struct RingLook: Codable, Equatable, Sendable {
         return CGPoint(x: centre.x + (point.x - centre.x) / scale, y: centre.y + (point.y - centre.y) / scale)
     }
 
-    private enum CodingKeys: String, CodingKey { case glass, size, tint }
+    private enum CodingKeys: String, CodingKey { case glass, size, tint, centre }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         glass = ((try? container.decodeIfPresent(PanelGlass.self, forKey: .glass)) ?? nil) ?? .clear
         size = ((try? container.decodeIfPresent(Double.self, forKey: .size)) ?? nil) ?? 1
         tint = ((try? container.decodeIfPresent(Double.self, forKey: .tint)) ?? nil) ?? 0.5
+        centre = ((try? container.decodeIfPresent(RingCentre.self, forKey: .centre)) ?? nil) ?? .clear
         self = clamped()
     }
+}
+
+/// The middle of the ring: an open hole onto the desktop, plain glass, or the violet disc.
+public enum RingCentre: String, CaseIterable, Identifiable, Sendable, Codable {
+    case clear
+    case frosted
+    case tinted
+
+    public var id: Self { self }
+    public var title: String { rawValue.capitalized }
 }

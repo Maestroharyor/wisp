@@ -144,7 +144,16 @@ struct RingView: View {
             .padding(.vertical, 9)
             .frame(maxWidth: RingGeometry.innerRadius * 1.8)
             // Solid, as on the reference: white in Light, near-black in Dark.
-            .background(Capsule().fill(onCentre ? Color.wispViolet : pillFill))
+            .background {
+                // Solid on a filled centre; glass over an open one, so it sits with the desktop.
+                if onCentre {
+                    Capsule().fill(Color.wispViolet)
+                } else if clearCentre {
+                    Color.clear.wispSurface(Capsule(), glass: .frosted)
+                } else {
+                    Capsule().fill(pillFill)
+                }
+            }
             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
             .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.10), radius: 10, y: 3)
             .fixedSize()
@@ -154,12 +163,19 @@ struct RingView: View {
         } else {
             Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit()
                 .frame(width: 24, height: 24)
-                .foregroundStyle(Color.wispViolet.opacity(0.6))
+                .foregroundStyle(Color.wispViolet.opacity(clearCentre ? 0.85 : 0.6))
+                .frame(width: 48, height: 48)
+                // Over an open centre the glyph sits on a small chip, so it reads on any wallpaper.
+                .background {
+                    if clearCentre { Color.clear.wispSurface(Circle(), glass: .frosted) }
+                }
                 .frame(width: RingGeometry.centreRadius * 2, height: RingGeometry.centreRadius * 2)
                 .transition(.opacity)
                 .accessibilityLabel("Open the shelf")
         }
     }
+
+    private var clearCentre: Bool { Preferences.shared.ringLook.centre == .clear }
 
     private var hoveredTitle: (title: String, key: String?)? {
         if let lifted = model.lifted, model.set.slots.indices.contains(lifted) {
@@ -214,47 +230,91 @@ struct RingView: View {
 }
 
 /// The disc under the icons, kept airy: a nearly clear band of glass with a soft violet glow
-/// toward the middle, and a luminous centre. One wide shadow, no hard edge. Follows Light and
-/// Dark mode (smoky glass in Dark rather than a flat grey).
+/// toward the middle, one wide shadow and no hard edge. The middle is a hole onto the desktop,
+/// plain glass or a soft violet disc, as chosen in Settings › Ring. Follows Light and Dark mode
+/// (smoky glass in Dark rather than a flat grey).
 struct RingDisc: View {
     let centre: CGPoint
     let dark: Bool
+    @Environment(\.colorSchemeContrast) private var contrast
 
-    /// The glass and tint chosen in Settings › Ring.
+    /// The glass, tint and centre chosen in Settings › Ring.
     private var look: RingLook { Preferences.shared.ringLook.clamped() }
 
     var body: some View {
         let outer = (RingGeometry.ringOuter + 10) * 2
         let inner = RingGeometry.innerRadius * 2
         let tint = look.tintFactor
+        let band = RingBand(innerRadius: RingGeometry.innerRadius)
+        let rim = Color.white.opacity(contrast == .increased ? 0.95 : dark ? 0.16 : 0.85)
         ZStack {
-            Color.clear.wispSurface(Circle(), glass: look.glass)
-            // The band: a glow that rises toward the centre and is gone by the rim.
-            Circle().fill(
+            Color.clear.wispSurface(band, glass: look.glass)
+            // The band: a glow that rises toward the middle and is gone by the rim.
+            band.fill(
                 RadialGradient(
                     colors: [
-                        Color.wispViolet.opacity((dark ? 0.22 : 0.14) * tint),
-                        Color.wispViolet.opacity((dark ? 0.08 : 0.04) * tint),
+                        Color.wispViolet.opacity((dark ? 0.20 : 0.12) * tint),
+                        Color.wispViolet.opacity((dark ? 0.07 : 0.035) * tint),
                         .clear,
                     ],
-                    center: .center, startRadius: RingGeometry.innerRadius * 0.9, endRadius: outer / 2))
+                    center: .center, startRadius: RingGeometry.innerRadius, endRadius: outer / 2))
             Circle().strokeBorder(Color.white.opacity(dark ? 0.12 : 0.55), lineWidth: 1)
-            // The centre: lighter in the middle, a touch deeper at its edge.
+            middle(tint: tint)
+                .overlay(Circle().strokeBorder(rim, lineWidth: 1))
+                .frame(width: inner, height: inner)
+        }
+        .frame(width: outer, height: outer)
+        .compositingGroup()
+        .shadow(color: .black.opacity(dark ? 0.30 : 0.08), radius: 40, y: 12)
+        .position(centre)
+    }
+
+    @ViewBuilder private func middle(tint: Double) -> some View {
+        switch look.centre {
+        case .clear:
+            // Open: the desktop shows through, and only the rim marks the edge.
+            Color.clear
+        case .frosted:
+            Color.clear.wispSurface(Circle(), glass: .frosted)
+        case .tinted:
+            // Soft and even: a pale violet wash, a touch lighter in the middle.
             Circle()
                 .fill(
                     RadialGradient(
                         colors: dark
-                            ? [Color.wispViolet.opacity(0.30 * tint), Color.wispViolet.opacity(0.16 * tint)]
-                            : [Color.white.opacity(0.75), Color.wispViolet.opacity(0.16 * tint)],
+                            ? [Color.wispViolet.opacity(0.20 * tint), Color.wispViolet.opacity(0.12 * tint)]
+                            : [Color.wispViolet.opacity(0.08 * tint), Color.wispViolet.opacity(0.14 * tint)],
                         center: .center, startRadius: 0, endRadius: RingGeometry.innerRadius)
                 )
-                .overlay(Circle().strokeBorder(Color.white.opacity(dark ? 0.14 : 0.8), lineWidth: 1))
-                .shadow(color: Color.wispViolet.opacity((dark ? 0.25 : 0.12) * tint), radius: 16)
-                .frame(width: inner, height: inner)
+                .background(Color.clear.wispSurface(Circle(), glass: .clear))
         }
-        .frame(width: outer, height: outer)
-        .shadow(color: .black.opacity(dark ? 0.35 : 0.10), radius: 40, y: 12)
-        .position(centre)
+    }
+}
+
+/// The ring's band: the disc with its middle cut out, so a clear centre is a real hole.
+struct RingBand: InsettableShape {
+    let innerRadius: CGFloat
+    var inset: CGFloat = 0
+
+    func path(in rect: CGRect) -> Path {
+        let centre = CGPoint(x: rect.midX, y: rect.midY)
+        let outer = min(rect.width, rect.height) / 2 - inset
+        // Insetting moves both edges into the band, so the hole grows.
+        let hole = innerRadius + inset
+        var path = Path()
+        path.addArc(center: centre, radius: outer, startAngle: .zero, endAngle: .degrees(360), clockwise: false)
+        path.closeSubpath()
+        guard hole < outer else { return path }
+        // Drawn the other way round, so the default fill leaves it empty.
+        path.addArc(center: centre, radius: hole, startAngle: .degrees(360), endAngle: .zero, clockwise: true)
+        path.closeSubpath()
+        return path
+    }
+
+    func inset(by amount: CGFloat) -> RingBand {
+        var copy = self
+        copy.inset += amount
+        return copy
     }
 }
 
