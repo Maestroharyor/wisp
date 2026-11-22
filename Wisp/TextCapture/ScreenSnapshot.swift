@@ -51,7 +51,7 @@ extension ScreenSnapshot {
     /// The work's result, or `timedOut` once `timeout` passes, whichever comes first. Unlike a
     /// task group it doesn't wait for work that ignores cancellation, so a capture that never
     /// returns can't hold Capture text forever.
-    fileprivate static func firstOf<T: Sendable>(
+    static func firstOf<T: Sendable>(
         timeout: Duration, _ work: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         let once = ResumeOnce<T>()

@@ -112,6 +112,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.services.ring.hovered(.slot(index), distance: RingGeometry.ringRadius)
                 }
             }
+            // Hovers the numbered entry of the open sub-ring, for checking window previews.
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.ringSub"), object: nil, queue: .main
+            ) { [weak self] note in
+                let index = (note.object as? String).flatMap(Int.init) ?? 0
+                MainActor.assumeIsolated {
+                    self?.services.ring.hovered(.sub(index), distance: RingGeometry.subRadius)
+                }
+            }
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.ringPreview"), object: nil, queue: .main
+            ) { [weak self] note in
+                let text = note.object as? String ?? ""
+                MainActor.assumeIsolated { self?.services.ring.debugPreview(text) }
+            }
+            // Converts a file as a drop on a format around Transform would: "gif|/path/to/clip.mov".
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.convert"), object: nil, queue: .main
+            ) { [weak self] note in
+                let text = note.object as? String ?? ""
+                MainActor.assumeIsolated { self?.services.ring.debugConvert(text) }
+            }
             // Opens the shelf window on Home, for checking the window's pages.
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.openWindow"), object: nil, queue: .main

@@ -96,6 +96,8 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "link", "website", "folder", "orb dock", "type to find", "search apps", "flick", "arrow keys",
                 "windows", "switch windows", "app windows", "clicking the orb opens the ring", "ring look",
                 "ring centre", "ring center", "transparent centre", "see through",
+                "try it", "try the ring", "tips", "ring tutorial", "checklist", "window preview", "window count",
+                "convert", "convert files", "gif", "mp4",
                 "frosted ring", "clear ring", "ring size", "bigger ring", "ring tint", "add website", "add link",
                 "add app", "add folder", "custom link", "url",
             ]

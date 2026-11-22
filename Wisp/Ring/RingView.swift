@@ -44,6 +44,8 @@ struct RingView: View {
                         Image(systemName: "minus.circle.fill").font(.system(size: 18))
                             .symbolRenderingMode(.palette).foregroundStyle(.white, Color.red)
                             .transition(.scale.combined(with: .opacity))
+                    } else if let badge = windowBadge(index) {
+                        RingBadge(text: badge).offset(x: -4, y: 4)
                     }
                 }
                 // Running apps that aren't the ring's own sit a little quieter.
@@ -51,6 +53,7 @@ struct RingView: View {
                 .opacity(isLifted && model.removing ? 0.55 : 1)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(slot.action.title)
+                .accessibilityValue(slotValue(index, slot.action))
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { onPick(.slot(index), []) }
                 // Each icon flies out from the middle in turn, and back in on close.
@@ -130,7 +133,11 @@ struct RingView: View {
     /// The middle: the hovered icon's name and key in a pill, or Wisp's glyph (which opens the
     /// shelf).
     @ViewBuilder private var centre: some View {
-        if let hovered = hoveredTitle {
+        if let preview = model.preview, model.lifted == nil {
+            RingPreviewCard(preview: preview)
+                .transition(reduceMotion ? .opacity : .scale(scale: 0.92).combined(with: .opacity))
+                .id(preview.key)
+        } else if let hovered = hoveredTitle {
             let onCentre = model.hover == .centre && model.lifted == nil
             HStack(spacing: 6) {
                 Text(hovered.title).font(.title3.weight(.semibold)).lineLimit(1)
@@ -176,6 +183,22 @@ struct RingView: View {
     }
 
     private var clearCentre: Bool { Preferences.shared.ringLook.centre == .clear }
+
+    private func windowBadge(_ index: Int) -> String? {
+        model.windowCounts[index].flatMap(AppWindows.badge(count:))
+    }
+
+    /// What VoiceOver reads after a segment's name: whether its app is open, and how many windows.
+    private func slotValue(_ index: Int, _ action: RingAction) -> String {
+        var parts: [String] = []
+        switch model.dot(for: action) {
+        case .frontmost: parts.append("In front")
+        case .running: parts.append("Open")
+        case .none: break
+        }
+        if let count = model.windowCounts[index], count > 1 { parts.append("\(count) windows") }
+        return parts.joined(separator: ", ")
+    }
 
     private var hoveredTitle: (title: String, key: String?)? {
         if let lifted = model.lifted, model.set.slots.indices.contains(lifted) {
@@ -459,6 +482,17 @@ private struct SubRing: View {
                     side: RingGeometry.subIconSize, angle: angle,
                     lit: model.hover == .sub(index) || model.picked == .sub(index), dimmed: false, hasMore: false
                 )
+                .overlay(alignment: .topTrailing) {
+                    if ConvertTargets.format(of: item) != nil { RingBadge(text: "\(index + 1)").offset(x: -2, y: 2) }
+                }
+                .overlay(alignment: .bottom) {
+                    if let format = ConvertTargets.format(of: item) {
+                        Text(format.title).font(.system(size: 9, weight: .bold)).foregroundStyle(.primary)
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .background(Capsule().fill(.regularMaterial))
+                            .offset(y: 4)
+                    }
+                }
                 .modifier(FileDragOut(path: FolderPeek.path(of: item), onDragOut: onDragOut))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(item.title)
@@ -486,6 +520,55 @@ private struct SubRing: View {
         return CGPoint(
             x: model.centre.x + RingGeometry.subRadius * sin(radians),
             y: model.centre.y - RingGeometry.subRadius * cos(radians))
+    }
+}
+
+/// A small violet count on a ring icon: an app's windows, or a format's number key.
+private struct RingBadge: View {
+    let text: String
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .bold).monospacedDigit())
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .frame(minWidth: 17, minHeight: 17)
+            .background(Capsule().fill(Color.wispVioletText(contrast: contrast)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.85), lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The hovered window's live picture in the ring's middle, with its title under it.
+private struct RingPreviewCard: View {
+    let preview: RingPreview
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let size = WindowPreview.size(
+            for: CGSize(width: preview.image.width, height: preview.image.height), fitting: RingController.previewSide)
+        VStack(spacing: 8) {
+            Image(decorative: preview.image, scale: 1)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: size.width, height: size.height)
+                .clipShape(RoundedRectangle(cornerRadius: SurfaceRadius.control, style: .continuous))
+                .padding(5)
+                .wispSurface(cornerRadius: SurfaceRadius.control + 5)
+                .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.16), radius: 12, y: 4)
+            Text(preview.title)
+                .font(.callout.weight(.semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .frame(maxWidth: RingGeometry.innerRadius * 1.7)
+                .wispSurface(Capsule(), glass: .frosted)
+                .fixedSize()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Preview of \(preview.title)")
     }
 }
 

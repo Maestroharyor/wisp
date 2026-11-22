@@ -17,6 +17,12 @@ final class RingModel {
     var folderChoices: [Int: [RingChoice]] = [:]
     /// The windows of each running app segment, by segment, when it has more than one.
     var windowChoices: [Int: [RingChoice]] = [:]
+    /// How many windows each running app segment has, for the count on its icon.
+    var windowCounts: [Int: Int] = [:]
+    /// Formats the dragged files can become, fanned out around Transform in drop mode.
+    var convertChoices: [RingChoice] = []
+    /// A live picture of the hovered window, shown in the ring's middle.
+    var preview: RingPreview?
     /// Apps running when the ring opened, for the dots under app segments.
     var running: Set<String> = []
     var frontmost: String?
@@ -53,6 +59,7 @@ final class RingModel {
         if slot.action.kind == .agents { return agentChoices }
         if slot.action.kind == .form { return formChoices }
         if slot.action.kind == .folder { return folderChoices[index] ?? [] }
+        if slot.action.kind == .transform, dropping, !convertChoices.isEmpty { return convertChoices }
         // A sub-ring the user set up for the segment comes first; windows fill an empty one.
         if slot.action.kind == .app, slot.group.isEmpty, let windows = windowChoices[index], !windows.isEmpty {
             return windows
@@ -67,6 +74,14 @@ final class RingModel {
     func dot(for action: RingAction) -> RingRunState {
         RingRunState.dot(for: action, running: running, frontmost: frontmost)
     }
+}
+
+/// A window's picture for the ring's middle, with the title shown under it.
+struct RingPreview {
+    let image: CGImage
+    let title: String
+    /// Which window it is, so the same hover doesn't capture again.
+    let key: String
 }
 
 /// The radial ring: opens at the pointer or around the orb, runs the segment picked, and
@@ -88,6 +103,16 @@ final class RingController {
     private var windowListings = 0
     /// Opened by holding a mouse button; letting go picks.
     private var holding = false
+    /// Each running app segment's windows as Accessibility listed them, for previews.
+    private var windowLists: [Int: (pid: pid_t, windows: [WindowSummary])] = [:]
+    private let previews = WindowPreviewCapture()
+    private var previewTask: Task<Void, Never>?
+    private var previewImages: [String: CGImage] = [:]
+    /// Screen Recording was already on when the ring opened; previews never ask for it.
+    private var canPreview = false
+    /// The square a preview is fitted into, in points: inside the ring's middle with room for
+    /// the title under it.
+    static let previewSide: CGFloat = 132
     /// Where the press that opened the ring was, for telling a flick from a press.
     private var pressPoint: CGPoint = .zero
 
@@ -128,6 +153,13 @@ final class RingController {
         model.frontmost = front
         listFolders()
         listWindows()
+        model.convertChoices =
+            dropping
+            ? ConvertTargets.choices(
+                for: ConvertTargets.formats(forExtensions: Self.draggedFiles().map(\.pathExtension))) : []
+        resetPreviews()
+        canPreview = !dropping && services.preferences.ringAppWindows && CGPreflightScreenCaptureAccess()
+        markTip(.open)
         model.hover = .none
         model.expanded = nil
         model.picked = nil
@@ -233,6 +265,7 @@ final class RingController {
         guard let panel, panel.isVisible, closeTask == nil else { return }
         stopMonitors()
         holding = false
+        resetPreviews()
         model.visible = false
         model.origin = nil
         closeTask = Task { [weak self] in
@@ -289,9 +322,14 @@ final class RingController {
             Feedback.selection()
         }
         model.hover = hit
+        let before = model.expanded
         model.expanded = RingInteraction.expanded(
             current: model.expanded, hit: hit, distance: distance,
             hasSubItems: { [model] in !model.subItems(of: $0).isEmpty })
+        if let index = model.expanded, index != before, model.windowChoices[index]?.isEmpty == false {
+            markTip(.windows)
+        }
+        updatePreview()
     }
 
     /// Runs what was picked; files come from a drop. Apps dropped on the ring (not on a folder)
@@ -326,6 +364,8 @@ final class RingController {
         let formChoices = model.formChoices
         let folderChoices = model.expandedItems
         let windowChoices = model.windowChoices
+        let convertChoices = model.convertChoices
+        let dropping = model.dropping
         hide()
         switch outcome {
         case .openShelf: services.openShelf(.home)
@@ -339,6 +379,8 @@ final class RingController {
                 runFormChoice(formChoices[safe: item])
             } else if slots[index].action.kind == .folder {
                 openFolderChoice(folderChoices[safe: item], in: slots[index].action, files: files)
+            } else if slots[index].action.kind == .transform, dropping, !convertChoices.isEmpty {
+                runConvertChoice(convertChoices[safe: item], files: files)
             } else if slots[index].action.kind == .app, slots[index].group.isEmpty,
                 let windows = windowChoices[index], !windows.isEmpty
             {
@@ -505,6 +547,8 @@ final class RingController {
     /// asked for when Accessibility isn't granted; the segments just have no window sub-ring.
     private func listWindows() {
         model.windowChoices = [:]
+        model.windowCounts = [:]
+        windowLists = [:]
         windowListings += 1
         let listing = windowListings
         guard services.preferences.ringAppWindows, AccessibilityPermission.isTrusted else { return }
@@ -518,7 +562,10 @@ final class RingController {
                 let windows = await AXWindows.list(pid: pid)
                 // Only for this opening, and never under a sub-ring that's already open, so what's
                 // under the pointer doesn't change.
-                guard let self, self.windowListings == listing, self.model.expanded != index else { return }
+                guard let self, self.windowListings == listing else { return }
+                self.windowLists[index] = (pid, windows)
+                self.model.windowCounts[index] = windows.count
+                guard self.model.expanded != index else { return }
                 self.model.windowChoices[index] = AppWindows.choices(appName: name, windows: windows)
             }
         }
@@ -647,11 +694,19 @@ final class RingController {
             }
             return handled ? nil : event
         }
-        // A ring opened by a file drag never takes the keyboard, so Esc is watched for globally.
+        // A ring opened by a file drag never takes the keyboard, so Esc, and the numbers of the
+        // formats fanned out around Transform, are watched for globally.
         if model.dropping {
             escapeMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                guard event.keyCode == KeyCodes.escape else { return }
-                MainActor.assumeIsolated { self?.hide() }
+                let keyCode = event.keyCode
+                let number = event.charactersIgnoringModifiers.flatMap(Int.init)
+                MainActor.assumeIsolated {
+                    if keyCode == KeyCodes.escape {
+                        self?.hide()
+                    } else if let number {
+                        self?.convertDragged(choice: number - 1)
+                    }
+                }
             }
         }
         // A click anywhere else puts the ring away.
@@ -683,6 +738,8 @@ final class RingController {
         case .type(let text):
             model.query = text
             model.results = []
+            markTip(.search)
+            updatePreview()
             search()
         case .moveResult(let step):
             guard !model.results.isEmpty else { break }
@@ -693,8 +750,10 @@ final class RingController {
             ) { [model] in model.subItems(of: $0).count }
             model.hover = cursor.hover
             model.expanded = cursor.expanded
+            updatePreview()
         case .pickSlot(let index):
             guard index < model.set.slots.count else { return true }
+            markTip(.number)
             pick(.slot(index), files: [])
         case .submit:
             submit()
@@ -826,3 +885,161 @@ private struct ScaledRing<Content: View>: View {
             .frame(width: side * scale, height: side * scale)
     }
 }
+
+// MARK: Previews, converting and the checklist
+
+extension RingController {
+    private struct PreviewRequest: Sendable {
+        let pid: pid_t
+        let window: WindowSummary
+        let title: String
+        let key: String
+    }
+
+    /// The window under the pointer: one in an app's sub-ring, or the app's front window when
+    /// its segment is hovered.
+    private func previewRequest() -> PreviewRequest? {
+        let index: Int
+        let place: Int
+        switch model.hover {
+        case .slot(let slot):
+            guard let listed = windowLists[slot], let front = listed.windows.firstIndex(where: { !$0.isMinimised })
+            else { return nil }
+            index = slot
+            place = front
+        case .sub(let item):
+            guard let slot = model.expanded, let listed = windowLists[slot],
+                let target = model.windowChoices[slot]?[safe: item].flatMap(AppWindows.target(of:)),
+                let found = AppWindows.match(target, in: listed.windows)
+            else { return nil }
+            index = slot
+            place = found
+        case .centre, .none:
+            return nil
+        }
+        guard let listed = windowLists[index], let window = listed.windows[safe: place] else { return nil }
+        let title = window.title.flatMap { $0.isEmpty ? nil : $0 } ?? model.set.slots[safe: index]?.action.title ?? ""
+        return PreviewRequest(pid: listed.pid, window: window, title: title, key: "\(listed.pid):\(place)")
+    }
+
+    /// Shows the hovered window's picture, captured after a short pause so sweeping across the
+    /// ring doesn't capture every window on the way.
+    fileprivate func updatePreview() {
+        guard canPreview, model.query.isEmpty, let request = previewRequest() else {
+            previewTask?.cancel()
+            previewTask = nil
+            model.preview = nil
+            return
+        }
+        if model.preview?.key == request.key { return }
+        previewTask?.cancel()
+        if let image = previewImages[request.key] {
+            model.preview = RingPreview(image: image, title: request.title, key: request.key)
+            return
+        }
+        model.preview = nil
+        let previews = previews
+        let pid = request.pid
+        let window = request.window
+        previewTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            let image = try? await ScreenSnapshot.firstOf(timeout: .seconds(2)) {
+                try await previews.image(pid: pid, window: window, side: Self.previewSide)
+            }
+            guard !Task.isCancelled, let self, let image else { return }
+            self.previewImages[request.key] = image
+            self.model.preview = RingPreview(image: image, title: request.title, key: request.key)
+        }
+    }
+
+    /// Pictures are only kept while the ring is open.
+    fileprivate func resetPreviews() {
+        previewTask?.cancel()
+        previewTask = nil
+        previewImages = [:]
+        model.preview = nil
+        let previews = previews
+        Task { await previews.reset() }
+    }
+
+    /// The files being dragged right now, read from the drag pasteboard (their addresses only).
+    fileprivate static func draggedFiles() -> [URL] {
+        let items = NSPasteboard(name: .drag).pasteboardItems ?? []
+        return items.compactMap { $0.string(forType: .fileURL).flatMap(URL.init(string:)) }.filter(\.isFileURL)
+    }
+
+    /// A number pressed mid drag while the formats are fanned out converts the dragged files.
+    fileprivate func convertDragged(choice index: Int) {
+        guard model.dropping, let expanded = model.expanded,
+            model.set.slots[safe: expanded]?.action.kind == .transform,
+            let choice = model.convertChoices[safe: index], ConvertTargets.format(of: choice) != nil
+        else { return }
+        let files = Self.draggedFiles()
+        guard !files.isEmpty else { return }
+        markTip(.number)
+        hide()
+        runConvertChoice(choice, files: files)
+    }
+
+    /// A format from around Transform: converts the files straight to the tray. "More…" opens
+    /// the Transform panel with them.
+    fileprivate func runConvertChoice(_ choice: RingChoice?, files: [URL]) {
+        guard let choice else { return }
+        guard let format = ConvertTargets.format(of: choice) else {
+            services.openTransform(files)
+            return
+        }
+        guard !files.isEmpty else { return }
+        markTip(.convert)
+        let count = files.count
+        services.activities.post(
+            .notice(
+                symbol: "arrow.triangle.2.circlepath",
+                text: "Converting \(count == 1 ? "1 file" : "\(count) files") to \(format.title)…"),
+            slot: .notice, duration: 2)
+        Task { [services] in
+            let outcome = await MediaConvert.run(format, urls: files)
+            services.tray.add(outcome.outputs)
+            let done = outcome.outputs.count
+            let text =
+                outcome.problem.map { done == 0 ? $0 : "\($0). \(done) done, in the tray" }
+                ?? "\(done == 1 ? "1 file" : "\(done) files") converted to \(format.title), in the tray"
+            services.activities.post(
+                .notice(symbol: done == 0 ? "exclamationmark.triangle" : "checkmark.circle", text: text), slot: .notice,
+                duration: 3)
+        }
+    }
+
+    /// Ticks a step off the "Try the ring" checklist, saving only on a change.
+    fileprivate func markTip(_ step: RingTips.Step) {
+        var tips = services.preferences.ringTips
+        guard tips.mark(step) else { return }
+        services.preferences.ringTips = tips
+    }
+}
+
+#if DEBUG
+    extension RingController {
+        /// "slot|path": gives an app segment three windows and shows the image as its preview,
+        /// for checking how they're drawn without granting Screen Recording.
+        func debugPreview(_ text: String) {
+            let parts = text.split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let slot = Int(parts[0]),
+                let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: parts[1]) as CFURL, nil),
+                let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+            else { return }
+            model.windowCounts[slot] = 3
+            model.hover = .slot(slot)
+            model.preview = RingPreview(image: image, title: "Project notes", key: "debug")
+        }
+
+        /// "format|path": converts the file as if it were dropped on that format.
+        func debugConvert(_ text: String) {
+            let parts = text.split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let format = ConvertFormat(rawValue: parts[0]) else { return }
+            let choice = ConvertTargets.choices(for: [format])[0]
+            runConvertChoice(choice, files: [URL(fileURLWithPath: parts[1])])
+        }
+    }
+#endif

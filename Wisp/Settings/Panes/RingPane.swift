@@ -11,9 +11,14 @@ struct RingSettings: View {
     let openShortcuts: () -> Void
 
     @State private var editorShown = false
+    /// Read when the pane shows; macOS doesn't announce a change.
+    @State private var canPreview = CGPreflightScreenCaptureAccess()
 
     var body: some View {
         Form {
+            if !preferences.ringTipsHidden {
+                RingTipsSection(preferences: preferences)
+            }
             Section("Opening") {
                 Picker("Mouse button", selection: $preferences.ringButton) {
                     ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -24,6 +29,11 @@ struct RingSettings: View {
                 Toggle("Clicking the orb opens the ring", isOn: $preferences.ringOnOrbClick)
                 LabeledContent("Keyboard shortcut") {
                     Button("Shortcuts…", action: openShortcuts)
+                }
+                if preferences.ringTipsHidden {
+                    LabeledContent("Try the ring") {
+                        Button("Show checklist") { preferences.ringTipsHidden = false }
+                    }
                 }
                 Text(
                     "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb open the tray. To use the ring's file actions, press the ring shortcut while dragging and drop the files on one."
@@ -71,6 +81,11 @@ struct RingSettings: View {
                         }
                 }
                 Toggle("Show an app's windows around its segment", isOn: $preferences.ringAppWindows)
+                if preferences.ringAppWindows, !canPreview {
+                    LabeledContent("Window previews need Screen Recording") {
+                        Button("Open Settings…") { Permission.screenRecording.openSettings() }
+                    }
+                }
                 Toggle("Fill free places with running apps", isOn: $preferences.ringShowsRunning)
                 Toggle("Show the ring's apps beside the orb", isOn: $preferences.orbDock)
                 Text(
@@ -80,6 +95,49 @@ struct RingSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { canPreview = CGPreflightScreenCaptureAccess() }
+    }
+}
+
+/// "Try the ring": the ring's gestures as a checklist that ticks itself off as they're used.
+private struct RingTipsSection: View {
+    @Bindable var preferences: Preferences
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let tips = preferences.ringTips
+        Section {
+            ForEach(RingTips.Step.allCases) { step in
+                let done = tips.done.contains(step)
+                HStack(spacing: 10) {
+                    Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 16))
+                        .foregroundStyle(done ? Color.wispViolet : Color.secondary)
+                        .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                    Text(step.title)
+                        .foregroundStyle(done ? .secondary : .primary)
+                        .strikethrough(done, color: .secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityValue(done ? "Done" : "Not yet")
+            }
+            HStack {
+                if tips.isComplete {
+                    Label("All done", systemImage: "sparkles").foregroundStyle(Color.wispViolet)
+                } else {
+                    Text("\(tips.done.count) of \(RingTips.Step.allCases.count)").foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                Spacer()
+                if !tips.done.isEmpty {
+                    Button("Start over") { preferences.ringTips.reset() }
+                }
+                Button("Hide") { preferences.ringTipsHidden = true }
+            }
+        } header: {
+            Text("Try the ring")
+        }
+        .animation(reduceMotion ? nil : .wispSmooth, value: tips)
     }
 }
 

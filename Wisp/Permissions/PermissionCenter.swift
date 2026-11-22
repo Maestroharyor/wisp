@@ -43,7 +43,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .accessibility: "Caps Lock shortcut, volume and brightness keys, pasting, hiding system banners"
         case .fullDiskAccess:
             "Reading notifications, Messages chats and Focus status. Click + or drag Wisp into the list, then switch it on"
-        case .screenRecording: "Watching a window region and Capture text"
+        case .screenRecording: "Watching a window region, Capture text and window previews on the ring"
         case .contacts: "Photos and names on notifications"
         case .automation: "Replying in Messages, meeting controls, Up Next in Music, Music fallback"
         case .calendars: "Calendar and Day Progress widgets, and events from Quick add"

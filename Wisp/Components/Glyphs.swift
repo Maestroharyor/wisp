@@ -142,6 +142,13 @@ struct ShelfButton: View {
 extension ShapeStyle where Self == Color {
     /// Wisp's accent: #7A6BFF, the same as the AccentColor asset.
     static var wispViolet: Color { Color(red: 122 / 255, green: 107 / 255, blue: 1) }
+    /// Violet to put white text on. The accent itself is too light for small white text (about
+    /// 3.9:1); this is about 6:1, and 7.7:1 with Increase Contrast.
+    static func wispVioletText(contrast: ColorSchemeContrast) -> Color {
+        contrast == .increased
+            ? Color(red: 74 / 255, green: 58 / 255, blue: 200 / 255)
+            : Color(red: 91 / 255, green: 75 / 255, blue: 224 / 255)
+    }
     static var wispAmber: Color { Color(red: 1, green: 0.72, blue: 0.2) }
     static var wispGreen: Color { Color(red: 0.3, green: 0.85, blue: 0.4) }
     /// Text and icon colour for views shared by the notch and the window: white in Dark mode,

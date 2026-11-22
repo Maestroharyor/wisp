@@ -364,6 +364,8 @@ final class Preferences {
         static let windowHomeCards = "windowHomeCards"
         static let calendarLayout = "calendarLayout"
         static let ringLook = "ringLook"
+        static let ringTips = "ringTips"
+        static let ringTipsHidden = "ringTipsHidden"
         static let dropActions = "dropActions"
         static let ringConfig = "ringConfig"
         static let ringOnOrbClick = "ringOnOrbClick"
@@ -698,6 +700,14 @@ final class Preferences {
     var ringLook: RingLook {
         didSet { defaults.set(try? JSONEncoder().encode(ringLook), forKey: Key.ringLook) }
     }
+
+    /// Which of the ring's gestures have been tried, for the checklist in Settings › Ring.
+    var ringTips: RingTips {
+        didSet { defaults.set(try? JSONEncoder().encode(ringTips), forKey: Key.ringTips) }
+    }
+
+    /// The checklist was put away.
+    var ringTipsHidden: Bool { didSet { defaults.set(ringTipsHidden, forKey: Key.ringTipsHidden) } }
 
     /// Day, Week or Agenda on the window's Calendar page.
     var calendarLayout: CalendarLayout {
@@ -1449,6 +1459,10 @@ final class Preferences {
         ringLook =
             defaults.data(forKey: Key.ringLook).flatMap { try? JSONDecoder().decode(RingLook.self, from: $0) }
             ?? .standard
+        ringTips =
+            defaults.data(forKey: Key.ringTips).flatMap { try? JSONDecoder().decode(RingTips.self, from: $0) }
+            ?? RingTips()
+        ringTipsHidden = defaults.bool(forKey: Key.ringTipsHidden)
         calendarLayout = defaults.string(forKey: Key.calendarLayout).flatMap(CalendarLayout.init(rawValue:)) ?? .week
         scriptCommand = defaults.string(forKey: Key.scriptCommand) ?? ""
         deviceActivity = defaults.bool(forKey: Key.deviceActivity)
