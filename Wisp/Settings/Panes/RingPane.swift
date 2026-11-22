@@ -26,7 +26,7 @@ struct RingSettings: View {
                     Button("Shortcuts…", action: openShortcuts)
                 }
                 Text(
-                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb always open the ring."
+                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb open the tray. To use the ring's file actions, press the ring shortcut while dragging and drop the files on one."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
