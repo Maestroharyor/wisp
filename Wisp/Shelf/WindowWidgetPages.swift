@@ -130,6 +130,7 @@ private struct FlowChips: View {
                         .font(.callout)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
+                        .wispHover(shape: Capsule())
                         .background(Capsule().fill(.primary.opacity(0.08)))
                         .contentShape(Capsule())
                 }
@@ -276,6 +277,7 @@ struct RemindersPage: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
+            .wispHover(cornerRadius: SurfaceRadius.row)
             .background(
                 RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
                     .fill(selected ? Color.wispViolet.opacity(0.22) : .clear)

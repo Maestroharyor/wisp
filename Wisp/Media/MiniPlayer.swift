@@ -194,7 +194,8 @@ private struct MiniPlayerView: View {
         .frame(width: 320, height: 118, alignment: .top)
         .wispSurface(cornerRadius: SurfaceRadius.panel)
         .overlay(alignment: .topTrailing) {
-            if hovering {
+            // Full Keyboard Access users may not hover, so the button stays for them.
+            if hovering || NSApp.isFullKeyboardAccessEnabled {
                 ShelfButton(symbol: "xmark", size: 8, action: close).offset(x: 6, y: -6)
             }
         }

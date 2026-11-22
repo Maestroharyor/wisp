@@ -145,6 +145,7 @@ private struct DayPicker: View {
                     .foregroundStyle(selected ? .white : .primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
+                    .wispHover(shape: Capsule())
                     .background(Capsule().fill(selected ? Color.wispViolet : .primary.opacity(0.06)))
                     .contentShape(Capsule())
                 }

@@ -147,6 +147,7 @@ struct ClipboardPage: View {
             .font(.callout.monospacedDigit())
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+            .wispHover(shape: Capsule())
             .background(Capsule().fill(on ? Color.primary.opacity(0.12) : .clear))
             .contentShape(Capsule())
         }
@@ -167,6 +168,9 @@ struct ClipboardPage: View {
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.secondaryText)
+                    .padding(2)
+                    .wispHover(shape: Circle())
+                    .padding(-2)
             }
         }
         .font(.body)
@@ -223,6 +227,7 @@ struct ClipboardPage: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
+            .wispHover(cornerRadius: SurfaceRadius.row)
             .background(
                 RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
                     .fill(selected ? Color.wispViolet.opacity(0.22) : .clear)

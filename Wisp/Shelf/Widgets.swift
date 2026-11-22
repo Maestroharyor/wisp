@@ -388,6 +388,7 @@ struct ReminderRow: View {
                     .contentShape(Rectangle().inset(by: -2))
             }
             .buttonStyle(.plain)
+            .wispHover(shape: Circle())
             .help(done ? "Mark as not done" : "Mark as done")
             .accessibilityLabel(done ? "Mark \(item.title) as not done" : "Mark \(item.title) as done")
             VStack(alignment: .leading, spacing: 1) {
@@ -410,6 +411,9 @@ struct ReminderRow: View {
             if done {
                 Button("Undo") { store.undo(item) }.buttonStyle(.plain)
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Color.wispViolet)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .wispHover(shape: Capsule())
+                    .padding(.horizontal, -6).padding(.vertical, -2)
             }
         }
         .contentShape(Rectangle())

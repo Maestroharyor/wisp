@@ -140,9 +140,14 @@ private struct WispDisclosure: View {
                     configuration.label
                     Spacer(minLength: 0)
                 }
+                .padding(.vertical, 3)
+                .padding(.horizontal, 5)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .wispHover()
+            .padding(.vertical, -3)
+            .padding(.horizontal, -5)
             .accessibilityValue(expanded ? "Expanded" : "Collapsed")
             if expanded {
                 configuration.content

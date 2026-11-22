@@ -433,8 +433,11 @@ private struct PresetChip: View {
                 .overlay(shape.strokeBorder(selected ? accent : .white.opacity(0.12), lineWidth: 2))
                 Text(preset.name).font(.caption).lineLimit(1)
             }
+            .padding(4)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .wispHover(cornerRadius: 10 * preset.appearance.roundness + 4)
+        .padding(-4)
     }
 }

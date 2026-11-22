@@ -222,6 +222,7 @@ private struct WeekStripView: View {
                     .opacity(busy ? 1 : 0)
             }
             .frame(maxWidth: .infinity, minHeight: 58)
+            .wispHover(cornerRadius: SurfaceRadius.row + 2)
             .background(
                 RoundedRectangle(cornerRadius: SurfaceRadius.row + 2, style: .continuous)
                     .fill(selected ? Color.wispViolet : .clear)
@@ -331,6 +332,7 @@ private struct AgentsCard: View {
                             row(session)
                         }
                         .buttonStyle(.plain)
+                        .rowHover()
                         .help("Show its terminal")
                     }
                 }
@@ -399,6 +401,7 @@ private struct NotesCard: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .rowHover()
                     }
                 }
             }
@@ -473,5 +476,12 @@ struct HomeCardsSheet: View {
             isOn: Binding(
                 get: { preferences.windowHomeCards.contains(card) },
                 set: { _ in preferences.windowHomeCards = HomeCard.toggled(card, in: preferences.windowHomeCards) }))
+    }
+}
+
+extension View {
+    /// A hover highlight that reaches a little past a card row's edges without moving it.
+    fileprivate func rowHover() -> some View {
+        padding(.horizontal, 6).wispHover(cornerRadius: SurfaceRadius.row).padding(.horizontal, -6)
     }
 }

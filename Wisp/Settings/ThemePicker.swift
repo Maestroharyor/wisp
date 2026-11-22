@@ -30,9 +30,12 @@ struct ThemePicker: View {
                             .font(.caption)
                             .foregroundStyle(selected ? .primary : .secondary)
                     }
+                    .padding(4)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .wispHover()
+                .padding(-4)
                 .accessibilityLabel(ThemeCatalog.title(for: id))
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }

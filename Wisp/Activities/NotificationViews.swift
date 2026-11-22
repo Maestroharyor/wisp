@@ -154,14 +154,14 @@ struct NotificationAvatar: View {
     private var appIcon: NSImage? { AppIcon.image(forAppID: item.appID) }
 }
 
-/// The close button drawn in a card's top trailing corner while the pointer is on it. The
-/// click itself is caught by `NotchController` in `SurfaceSizing.cardCloseZone`, since the
+/// The close button drawn in a card's top trailing corner while the pointer is on it, or always
+/// with Full Keyboard Access on, so it doesn't depend on hovering. The click itself is caught by `NotchController` in `SurfaceSizing.cardCloseZone`, since the
 /// closed panel only takes clicks it asks for.
 struct CardCloseGlyph: View {
     let model: NotchModel
 
     var body: some View {
-        if model.showsCloseButton {
+        if model.showsCloseButton || (model.cardClosable && NSApp.isFullKeyboardAccessEnabled) {
             Image(systemName: "xmark")
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.ink.opacity(0.85))

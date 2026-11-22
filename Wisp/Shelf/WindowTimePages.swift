@@ -164,6 +164,7 @@ private struct DayTimeline: View {
                                     height: Self.laneHeight - 4, alignment: .leading
                                 )
                                 .foregroundStyle(event.color)
+                                .wispHover()
                                 .background(
                                     RoundedRectangle(cornerRadius: SurfaceRadius.control, style: .continuous).fill(
                                         event.color.opacity(0.18))
@@ -516,9 +517,14 @@ private struct CityPicker: View {
                         Spacer()
                         Text(identifier).foregroundStyle(.secondary).font(.subheadline)
                     }
+                    .padding(.vertical, 2)
+                    .padding(.horizontal, 6)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .wispHover(cornerRadius: SurfaceRadius.row)
+                .padding(.vertical, -2)
+                .padding(.horizontal, -6)
             }
             .overlay { if matches.isEmpty { ContentUnavailableView.search(text: query) } }
         }
@@ -738,6 +744,7 @@ struct LengthChip: View {
             ChipLabel(title: title, selected: selected)
         }
         .buttonStyle(.plain)
+        .wispHover(shape: Capsule())
     }
 }
 

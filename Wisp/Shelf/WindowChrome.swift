@@ -43,8 +43,11 @@ struct WindowCard<Content: View>: View {
             }
         }
         if let open {
-            Button(action: open) { label.contentShape(Rectangle()) }
+            // The highlight reaches a little past the label without moving it.
+            Button(action: open) { label.padding(4).contentShape(Rectangle()) }
                 .buttonStyle(.plain)
+                .wispHover()
+                .padding(-4)
                 .help("Open \(title)")
                 .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
                 .accessibilityHint("Opens its page")
@@ -259,6 +262,7 @@ struct WindowStatTile: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity)
+            .wispHover(cornerRadius: SurfaceRadius.card)
             .windowCardBackground()
             .overlay(
                 RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous)
