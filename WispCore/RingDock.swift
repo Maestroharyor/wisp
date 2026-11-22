@@ -108,6 +108,83 @@ public enum RingDock {
     }
 }
 
+/// Which apps the orb's dock shows: the ring's, the apps that are open (as the Dock shows them),
+/// or a list of the user's own.
+public enum OrbDockSource: String, CaseIterable, Identifiable, Sendable {
+    case ring
+    case running
+    case chosen
+
+    public var id: Self { self }
+
+    public var title: String {
+        switch self {
+        case .ring: "Ring apps"
+        case .running: "Open apps"
+        case .chosen: "Chosen apps"
+        }
+    }
+}
+
+extension RingDock {
+    /// The dock's apps for a source, each once, at most `limit`. Open apps keep the order they
+    /// were opened in; chosen apps are bundle ids, named from `names` when they're known.
+    public static func apps(
+        source: OrbDockSource, ring: RingSet, running: [RunningApp], chosen: [String], names: [String: String] = [:],
+        limit: Int = size
+    ) -> [RingAction] {
+        switch source {
+        case .ring:
+            return apps(in: ring, limit: limit)
+        case .running:
+            return unique(running.map { ($0.bundleID, $0.name) }, limit: limit)
+        case .chosen:
+            return unique(chosen.map { ($0, names[$0] ?? "") }, limit: limit)
+        }
+    }
+
+    private static func unique(_ apps: [(id: String, name: String)], limit: Int) -> [RingAction] {
+        var seen = Set<String>()
+        var result: [RingAction] = []
+        for app in apps where !app.id.isEmpty && seen.insert(app.id).inserted {
+            result.append(RingAction(.app, value: app.id, label: app.name.isEmpty ? nil : app.name))
+            if result.count == limit { break }
+        }
+        return result
+    }
+}
+
+/// How big text is in the window and Settings (Settings › Appearance › Text size). The notch
+/// keeps its own sizes, since it must fit the notch.
+public enum TextScale: String, CaseIterable, Identifiable, Sendable {
+    case standard
+    case large
+    case larger
+
+    public var id: Self { self }
+
+    public var title: String {
+        switch self {
+        case .standard: "Default"
+        case .large: "Large"
+        case .larger: "Larger"
+        }
+    }
+
+    public var factor: Double {
+        switch self {
+        case .standard: 1
+        case .large: 1.12
+        case .larger: 1.25
+        }
+    }
+
+    /// A stored value this version doesn't know reads as the default.
+    public init(storedValue: String?) {
+        self = storedValue.flatMap(TextScale.init(rawValue:)) ?? .standard
+    }
+}
+
 /// Names for files copied into a folder segment, the way Finder keeps both: "report 2.pdf".
 public enum FolderDrop {
     /// Names are compared ignoring case, as the Mac's disks usually do.

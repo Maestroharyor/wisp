@@ -370,6 +370,9 @@ final class Preferences {
         static let ringConfig = "ringConfig"
         static let ringOnOrbClick = "ringOnOrbClick"
         static let orbDock = "orbDock"
+        static let orbDockSource = "orbDockSource"
+        static let orbDockApps = "orbDockApps"
+        static let textScale = "textScale"
         static let ringAppWindows = "ringAppWindows"
         static let ringShowsRunning = "ringShowsRunning"
         static let ringButton = "ringButton"
@@ -670,6 +673,14 @@ final class Preferences {
     var ringOnOrbClick: Bool { didSet { defaults.set(ringOnOrbClick, forKey: Key.ringOnOrbClick) } }
     /// Hovering the orb shows the ring's apps beside it, as a small dock.
     var orbDock: Bool { didSet { defaults.set(orbDock, forKey: Key.orbDock) } }
+    /// Which apps the orb's dock shows.
+    var orbDockSource: OrbDockSource {
+        didSet { defaults.set(orbDockSource.rawValue, forKey: Key.orbDockSource) }
+    }
+    /// The dock's apps when it shows chosen ones, as bundle ids.
+    var orbDockApps: [String] { didSet { defaults.set(orbDockApps, forKey: Key.orbDockApps) } }
+    /// Text size in the window and Settings.
+    var textScale: TextScale { didSet { defaults.set(textScale.rawValue, forKey: Key.textScale) } }
     /// A running app's segment fans out its windows, to bring one forward.
     var ringAppWindows: Bool { didSet { defaults.set(ringAppWindows, forKey: Key.ringAppWindows) } }
     /// Apps that are open but not on the ring fill its free places, as the Dock shows them.
@@ -1476,6 +1487,9 @@ final class Preferences {
             ?? RingConfig.defaults
         ringOnOrbClick = defaults.bool(forKey: Key.ringOnOrbClick)
         orbDock = defaults.bool(forKey: Key.orbDock)
+        orbDockSource = defaults.string(forKey: Key.orbDockSource).flatMap(OrbDockSource.init(rawValue:)) ?? .ring
+        orbDockApps = defaults.stringArray(forKey: Key.orbDockApps) ?? []
+        textScale = TextScale(storedValue: defaults.string(forKey: Key.textScale))
         ringAppWindows = defaults.bool(forKey: Key.ringAppWindows)
         ringShowsRunning = defaults.bool(forKey: Key.ringShowsRunning)
         ringButton = defaults.string(forKey: Key.ringButton).flatMap(RingButton.init(rawValue:)) ?? .off
