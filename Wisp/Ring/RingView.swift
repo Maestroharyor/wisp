@@ -256,7 +256,7 @@ struct RingView: View {
             model.set.slots[expanded].action.kind == .transform, !model.convertChoices.isEmpty
         {
             if case .sub(let item) = model.hover, model.expandedItems.indices.contains(item) { return nil }
-            return "Drop on a format or press its number"
+            return "Drop on a format"
         }
         switch model.hover {
         case .none: return "Drop on an action"

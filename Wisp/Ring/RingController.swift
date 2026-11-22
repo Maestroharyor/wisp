@@ -154,7 +154,10 @@ final class RingController {
         listFolders()
         listWindows()
         model.convertChoices = []
-        if dropping { offerFormats(for: Self.draggedFiles()) }
+        if dropping {
+            model.set = RingDropSet.withTransform(model.set)
+            offerFormats(for: Self.draggedFiles())
+        }
         resetPreviews()
         canPreview = !dropping && services.preferences.ringAppWindows && CGPreflightScreenCaptureAccess()
         markTip(.open)
@@ -468,7 +471,9 @@ final class RingController {
             let name = (FileManager.default.displayName(atPath: url.path) as NSString).deletingPathExtension
             return RingAction(.app, value: id, label: name)
         }
-        let pinned = Array(model.set.slots.prefix(model.pinnedCount))
+        // From the ring as saved: during a drag the one shown may have lent a place to Transform.
+        let saved = Self.shownSet(preferences: services.preferences, front: model.frontmost).set
+        let pinned = Array(saved.slots.prefix(model.pinnedCount))
         let text: String
         switch RingArrange.insert(actions, into: pinned, at: index) {
         case .added(let slots):

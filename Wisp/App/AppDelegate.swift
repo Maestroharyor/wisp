@@ -131,6 +131,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         probe: self.dropProbe)
                 }
             }
+            // Opens setup on a step: "ring".
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.setup"), object: nil, queue: .main
+            ) { [weak self] note in
+                let name = note.object as? String ?? ""
+                let step = OnboardingStep.allCases.first { "\($0)" == name } ?? .accessibility
+                MainActor.assumeIsolated { self?.onboarding.show(at: step) }
+            }
+            // Opens the ring as a file drag would (with the ring shortcut mid drag).
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.ringDropping"), object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.services.ring.show(at: NSEvent.mouseLocation, dropping: true) }
+            }
             // Hovers the numbered entry of the open sub-ring, for checking window previews.
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.ringSub"), object: nil, queue: .main

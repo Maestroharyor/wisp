@@ -20,18 +20,18 @@ final class OnboardingWindowController {
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
     }
 
-    func show() {
-        let window = window ?? makeWindow()
+    func show(at first: OnboardingStep = .accessibility) {
+        let window = window ?? makeWindow(at: first)
         self.window = window
         NSApp.activate()
         window.center()
         window.makeKeyAndOrderFront(nil)
     }
 
-    private func makeWindow() -> NSWindow {
-        let view = OnboardingView(services: services, granted: { [weak self] in self?.bringForward() }) { [weak self] in
-            self?.finish()
-        }
+    private func makeWindow(at first: OnboardingStep) -> NSWindow {
+        let view = OnboardingView(
+            services: services, granted: { [weak self] in self?.bringForward() },
+            done: { [weak self] in self?.finish() }, step: first)
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Welcome to Wisp"
         window.styleMask = [.titled, .closable, .fullSizeContentView]
@@ -76,7 +76,7 @@ private struct OnboardingView: View {
     let granted: () -> Void
     let done: () -> Void
 
-    @State private var step = OnboardingStep.accessibility
+    @State var step: OnboardingStep
     @State private var trusted = AccessibilityPermission.isTrusted
 
     var body: some View {

@@ -121,3 +121,22 @@ public enum GIFPlan {
     /// How long each frame shows, in seconds.
     public static func delay(fps: Double = fps) -> Double { fps > 0 ? 1 / fps : 0.1 }
 }
+
+/// The ring as it opens for a file drag: a ring without a Transform segment gets one for the
+/// drag, so dragged files can always be converted. A full ring lends it the place of its last
+/// segment that can't take files (dimmed during a drag anyway). Nothing is saved.
+public enum RingDropSet {
+    public static func withTransform(_ set: RingSet) -> RingSet {
+        guard !set.slots.contains(where: { $0.action.kind == .transform }) else { return set }
+        var slots = set.slots
+        let transform = RingSlot(RingAction(.transform))
+        if slots.count < RingSet.maxSlots {
+            slots.append(transform)
+        } else if let spare = slots.lastIndex(where: { !$0.action.acceptsFiles }) {
+            slots[spare] = transform
+        } else {
+            return set
+        }
+        return RingSet(id: set.id, name: set.name, slots: slots, bundleIDs: set.bundleIDs)
+    }
+}
