@@ -156,7 +156,7 @@ struct PhoneAlertsAdvanced: View {
                 "Reply token", draft: $replyToken, saved: push.hasReplyToken,
                 save: { push.setReplyToken($0) })
             Text(
-                "Tokens are for a server that needs a login, and are kept in your Keychain. Wisp uses the access token to send alerts and read replies; it never leaves your Mac except to your server. The Allow and Deny buttons carry only the reply token, which is stored with each notification, so give it write access to the reply topic and nothing else."
+                "Tokens are for a server that needs a login and are kept in your Keychain; the access token sends alerts and reads replies, and goes only to your server. Allow and Deny carry only the reply token, stored with each notification, so give it write access to the reply topic and nothing else."
             )
             .wispFont(.caption).foregroundStyle(.secondary)
         }

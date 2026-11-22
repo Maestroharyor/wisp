@@ -10,12 +10,14 @@ struct ActivitySettings: View {
 
     var body: some View {
         Form {
-            Section("Use Wisp for these pop-ups") {
+            Section {
                 Toggle("Volume", isOn: $preferences.volumeHUD)
                 Toggle("Display brightness", isOn: $preferences.brightnessHUD)
                 Toggle("Caps Lock", isOn: $preferences.capsLockHUD)
+            } header: {
+                Text("Use Wisp for these pop-ups")
+            } footer: {
                 Text("Volume and brightness need Accessibility access to intercept the keys.")
-                    .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Show beside the notch") {
                 Toggle("Now Playing (any app, including browsers)", isOn: $preferences.mediaActivity)
@@ -80,7 +82,7 @@ struct ActivitySettings: View {
                 .disabled(!preferences.batteryHUD && !preferences.accessoryBatteries)
                 Toggle("Headphones connecting, with their battery", isOn: $preferences.deviceActivity)
             }
-            Section("Downloads") {
+            Section {
                 Toggle("AirDrop progress, with Open when it arrives", isOn: $preferences.airDropActivity)
                 Toggle("Download progress, with Open when it's done", isOn: $preferences.downloadActivity)
                 LabeledContent("Downloads") {
@@ -95,16 +97,18 @@ struct ActivitySettings: View {
                 .disabled(!preferences.downloadActivity)
                 Button("Add folder…", action: addDownloadFolder)
                     .disabled(!preferences.downloadActivity)
-                Text(
-                    "Works with Safari, Chrome, Edge, Brave, Arc and Firefox. Wisp reads only file names and sizes, and macOS may ask before it can see the Downloads folder."
-                )
-                .wispFont(.caption).foregroundStyle(.secondary)
                 if !downloads.deniedFolders.isEmpty {
                     Text(
                         "Wisp can't see \(downloads.deniedFolders.map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")). Allow it in System Settings › Privacy & Security › Files and Folders."
                     )
                     .wispFont(.caption).foregroundStyle(.orange)
                 }
+            } header: {
+                Text("Downloads")
+            } footer: {
+                Text(
+                    "For Safari, Chrome, Edge, Brave, Arc and Firefox. Wisp reads only file names and sizes; macOS may ask before it can see Downloads."
+                )
             }
             AdvancedSection {
                 Picker("Pop-ups stay on screen", selection: $preferences.hudDuration) {

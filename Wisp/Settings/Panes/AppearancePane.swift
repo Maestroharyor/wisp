@@ -71,7 +71,7 @@ struct AppearanceSettings: View {
     // MARK: Presets
 
     private var presets: some View {
-        Section("Presets") {
+        Section {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 10)], spacing: 10) {
                 ForEach(preferences.allLookPresets) { preset in
                     PresetChip(preset: preset, selected: preferences.isCurrentLook(preset.appearance)) {
@@ -93,8 +93,11 @@ struct AppearanceSettings: View {
                 Button("Import…", action: importLook)
                 Button("Export…") { export(preferences.appearance, name: "My look") }
             }
-            caption(
-                "A preset sets everything below at once. Right-click one to export it or delete it. To give a profile its own look, see Settings › Widgets."
+        } header: {
+            Text("Presets")
+        } footer: {
+            Text(
+                "A preset sets everything below at once; right-click one to export or delete it. To give a profile its own look, see Settings › Widgets."
             )
         }
     }
@@ -102,7 +105,7 @@ struct AppearanceSettings: View {
     // MARK: Theme
 
     private var theme: some View {
-        Section("Theme") {
+        Section {
             ThemePicker(preferences: preferences)
             if preferences.theme == .custom {
                 ColorPicker("Accent", selection: $preferences.customAccent.color, supportsOpacity: false)
@@ -114,7 +117,10 @@ struct AppearanceSettings: View {
             Picker("Change colour through the day", selection: look.timeOfDay) {
                 ForEach(TimeOfDayMode.allCases) { Text($0.title).tag($0) }
             }
-            caption(themeCaption)
+        } header: {
+            Text("Theme")
+        } footer: {
+            Text(themeCaption)
         }
     }
 
@@ -129,7 +135,7 @@ struct AppearanceSettings: View {
     // MARK: Shape
 
     private var shape: some View {
-        Section("Shape") {
+        Section {
             Picker("Surface", selection: $preferences.surfaceStyle) {
                 ForEach(SurfaceStyle.allCases) { Text($0.title).tag($0) }
             }
@@ -152,7 +158,10 @@ struct AppearanceSettings: View {
                 ForEach(ShelfSize.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            caption("The closed notch keeps its shape and stays black, so it still matches the camera.")
+        } header: {
+            Text("Shape")
+        } footer: {
+            Text("The closed notch keeps its shape and stays black, so it still matches the camera.")
         }
     }
 
@@ -172,14 +181,17 @@ struct AppearanceSettings: View {
     // MARK: Panels
 
     private var panels: some View {
-        Section("Panels") {
+        Section {
             Picker("Glass", selection: look.panelGlass) {
                 ForEach(PanelGlass.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             slider("Violet tint", value: look.panelTint, in: Appearance.panelTintRange)
-            caption(
-                "For the mini player, clipboard, quick pocket and other floating panels. They follow Light and Dark; Frosted is easiest to read, Clear shows the most through. Reduce Transparency makes them solid."
+        } header: {
+            Text("Panels")
+        } footer: {
+            Text(
+                "For the mini player, clipboard, quick pocket and other floating panels, which follow Light and Dark. Frosted is easiest to read and Clear shows the most through; Reduce Transparency makes them solid."
             )
         }
     }
@@ -187,7 +199,7 @@ struct AppearanceSettings: View {
     // MARK: Effects
 
     private var effects: some View {
-        Section("Effects") {
+        Section {
             slider("Glow strength", value: look.glowIntensity, in: Appearance.glowRange)
             Picker("Grain", selection: look.grain) {
                 ForEach(GrainLevel.allCases) { Text($0.title).tag($0) }
@@ -204,7 +216,10 @@ struct AppearanceSettings: View {
                 ForEach(NavPillStyle.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            caption(
+        } header: {
+            Text("Effects")
+        } footer: {
+            Text(
                 preferences.appearance.navPill == .hidden
                     ? "Switch pages from the Open menu when you right-click the notch."
                     : "Glow strength sets the Tinted glow and the rim glows. Shimmer applies to the Tinted surface."
@@ -229,7 +244,7 @@ struct AppearanceSettings: View {
     // MARK: Motion
 
     private var motion: some View {
-        Section("Motion") {
+        Section {
             Picker("Animation", selection: look.animationSpeed) {
                 ForEach(AnimationSpeed.allCases) { Text($0.title).tag($0) }
             }
@@ -238,14 +253,17 @@ struct AppearanceSettings: View {
                 ForEach(HoverFeedback.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            caption("Reduce Motion in System Settings turns off the wobble, the shimmer and confetti.")
+        } header: {
+            Text("Motion")
+        } footer: {
+            Text("Reduce Motion in System Settings turns off the wobble, the shimmer and confetti.")
         }
     }
 
     // MARK: Idle
 
     private var idle: some View {
-        Section("Beside the closed notch") {
+        Section {
             Picker("Left of the notch", selection: look.leftEar) {
                 ForEach(EarSlot.allCases) { Text($0.title).tag($0) }
             }
@@ -262,7 +280,10 @@ struct AppearanceSettings: View {
             }
             Toggle("Breathing glow while an agent works, music plays or a timer runs", isOn: look.breathingGlow)
             Toggle("Glow pulses to the music", isOn: look.musicGlow)
-            caption(
+        } header: {
+            Text("Beside the closed notch")
+        } footer: {
+            Text(
                 "Ears show beside the closed notch when nothing else is there; not on the left or right edge. The music pulse keeps a steady beat; Wisp doesn't listen to the audio."
             )
         }
@@ -271,7 +292,7 @@ struct AppearanceSettings: View {
     // MARK: Sounds
 
     private var sounds: some View {
-        Section("Sounds") {
+        Section {
             Picker("Sound pack", selection: look.soundPack) {
                 ForEach(SoundPackID.allCases) { Text($0.title).tag($0) }
             }
@@ -287,23 +308,30 @@ struct AppearanceSettings: View {
                     soundRow(event)
                 }
             }
-            caption(
+        } header: {
+            Text("Sounds")
+        } footer: {
+            Text(
                 "Interface sounds are quiet clicks when you copy a clip, drop files or allow or deny an agent."
-                    + " Agent sounds, permission requests included, have their own settings in Agents › Sounds.")
+                    + " Agent sounds, permission requests included, have their own settings in Agents › Sounds."
+            )
         }
     }
 
     // MARK: Fun
 
     private var fun: some View {
-        Section("Fun") {
+        Section {
             Toggle("Confetti", isOn: look.confetti)
             HStack {
                 Button("Try confetti") { services.celebrateNow() }
                 Spacer()
             }
             Toggle("Notch pet", isOn: look.pet)
-            caption(funCaption)
+        } header: {
+            Text("Fun")
+        } footer: {
+            Text(funCaption)
         }
     }
 

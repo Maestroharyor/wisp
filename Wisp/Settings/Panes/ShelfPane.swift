@@ -12,18 +12,20 @@ struct ShelfSettings: View {
 
     var body: some View {
         Form {
-            Section("Widgets") {
+            Section {
                 ForEach(WidgetKind.allCases) { kind in
                     Toggle(isOn: binding(for: kind)) {
                         Label(kind.title, systemImage: kind.symbol)
                     }
                 }
+            } header: {
+                Text("Widgets")
+            } footer: {
                 Text(
-                    "Switched-on widgets appear as icons on the Widgets page: click one to open it, drag one to reorder. Up to four also sit on Home: right-click the notch and choose Tools › Customise Home to add, resize or reorder them."
+                    "Switched-on widgets appear as icons on the Widgets page: click one to open it, drag to reorder. Up to four also sit on Home; right-click the notch and choose Tools › Customise Home to add, resize or reorder them."
                 )
-                .wispFont(.caption).foregroundStyle(.secondary)
             }
-            Section("Shortcuts") {
+            Section {
                 if shortcuts.available.isEmpty {
                     Text("No Shortcuts found. Make some in the Shortcuts app.").foregroundStyle(.secondary)
                 } else {
@@ -35,12 +37,14 @@ struct ShelfSettings: View {
                         ForEach(shortcuts.available, id: \.self) { Text($0).tag($0) }
                     }
                 }
+            } header: {
+                Text("Shortcuts")
+            } footer: {
                 Text(
                     "Ticked Shortcuts appear in the Shortcuts widget. macOS has no public Focus switch, so the Quick Toggles Focus button runs the Shortcut you choose (for example one using Set Focus)."
                 )
-                .wispFont(.caption).foregroundStyle(.secondary)
             }
-            Section("Command output") {
+            Section {
                 // A draft, saved only on Return or Save: a half-typed command must never run.
                 HStack {
                     TextField("Command", text: $scriptDraft, prompt: Text("/usr/bin/uptime"))
@@ -56,10 +60,12 @@ struct ShelfSettings: View {
                     Text("5 minutes").tag(300.0)
                     Text("15 minutes").tag(900.0)
                 }
+            } header: {
+                Text("Command output")
+            } footer: {
                 Text(
                     "The Script widget shows the first lines the command prints, only while the widget is on screen. It runs directly, not in a shell; for pipes, write zsh -c \"…\" yourself."
                 )
-                .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Timer") {
                 DurationField(title: "New timers start at", seconds: $preferences.defaultTimerSeconds)
@@ -73,7 +79,7 @@ struct ShelfSettings: View {
                     "Day ends at \(preferences.workdayEnd):00", value: $preferences.workdayEnd,
                     in: (preferences.workdayStart + 1)...24)
             }
-            Section("World Clocks") {
+            Section {
                 // One empty slot after the last city, up to the limit.
                 let slots = min(max(preferences.worldClockZones.count + 1, 3), WorldClock.maximumCities)
                 ForEach(0..<slots, id: \.self) { index in
@@ -82,8 +88,10 @@ struct ShelfSettings: View {
                         ForEach(Self.zones, id: \.self) { Text(WorldClock.cityName($0) + "  (\($0))").tag($0) }
                     }
                 }
+            } header: {
+                Text("World Clocks")
+            } footer: {
                 Text("The notch shows the first three cities; the window shows them all.")
-                    .wispFont(.caption).foregroundStyle(.secondary)
             }
             ProfilesSection(preferences: preferences, context: context)
             AdvancedSection {

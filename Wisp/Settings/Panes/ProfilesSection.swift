@@ -10,7 +10,7 @@ struct ProfilesSection: View {
     @State private var newName = ""
 
     var body: some View {
-        Section("Profiles") {
+        Section {
             ForEach(Array(preferences.profiles.enumerated()), id: \.element.name) { index, profile in
                 HStack {
                     Image(
@@ -60,12 +60,14 @@ struct ProfilesSection: View {
                     newName = ""
                 }
             }
+        } header: {
+            Text("Profiles")
+        } footer: {
             Text(
-                "A profile is a Home layout, the page the shelf opens on, and the surface style. Changes you make to Home while a profile is active are saved into it. A profile with a look applies it when it switches; one without a look brings yours back."
+                "A profile is a Home layout, the page the shelf opens on and the surface style; Home changes made while it's active are saved into it. A profile with a look applies it when it switches, and one without brings yours back."
             )
-            .wispFont(.caption).foregroundStyle(.secondary)
         }
-        Section("Switch profiles automatically") {
+        Section {
             Toggle("Change profile to fit what you're doing", isOn: $preferences.contextAware)
             ForEach($preferences.contextRules) { $rule in
                 Toggle(isOn: $rule.enabled) {
@@ -76,8 +78,10 @@ struct ProfilesSection: View {
                 }
                 .disabled(!preferences.contextAware)
             }
+        } header: {
+            Text("Switch profiles automatically")
+        } footer: {
             Text("A profile you pick yourself stays for 30 minutes before rules take over again.")
-                .wispFont(.caption).foregroundStyle(.secondary)
         }
     }
 

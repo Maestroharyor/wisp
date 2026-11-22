@@ -29,7 +29,7 @@ struct GeneralSettings: View {
                 }
             }
 
-            Section("Dictation") {
+            Section {
                 Toggle("Dictate by holding a key", isOn: $preferences.dictationEnabled)
                     .onChange(of: preferences.dictationEnabled) { _, on in
                         // Asked only now, when the feature is turned on.
@@ -52,10 +52,12 @@ struct GeneralSettings: View {
                         }
                     }
                 }
+            } header: {
+                Text("Dictation")
+            } footer: {
                 Text(
-                    "Speak while you hold the key and let go to type it: into the prompt draft when a session is open in the Agents view, into a question card's answer, or else into the app in front. If the key also opens the shelf, a quick press still does. Speech is turned into text on this Mac; the audio never leaves it and nothing is kept."
+                    "Hold the key, speak and let go to type it into the open Agents session's prompt draft, a question card's answer or the app in front; a quick press still opens the shelf if the key does that too. Speech becomes text on this Mac, and the audio never leaves it or is kept."
                 )
-                .wispFont(.caption).foregroundStyle(.secondary)
             }
             .onAppear { dictation.refreshReadiness() }
 

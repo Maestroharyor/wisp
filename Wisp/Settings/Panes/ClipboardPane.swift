@@ -22,7 +22,7 @@ struct ClipboardSettings: View {
     }
 
     private var history: some View {
-        Section("History") {
+        Section {
             Toggle("Keep clipboard history", isOn: $preferences.clipboardEnabled)
             Button("Clear history (keeps pinned items)…", role: .destructive) { confirmingClear = true }
                 .confirmationDialog("Clear clipboard history?", isPresented: $confirmingClear) {
@@ -48,10 +48,12 @@ struct ClipboardSettings: View {
                     Button("Add app…") { addApp() }
                 }
             }
+        } header: {
+            Text("History")
+        } footer: {
             Text(
-                "Passwords and other items that apps mark as concealed are never saved, and neither is anything copied while one of the apps above is in front. History is stored only on this Mac."
+                "Items apps mark as concealed, such as passwords, are never saved, nor is anything copied while one of the apps above is in front. History stays on this Mac."
             )
-            .wispFont(.caption).foregroundStyle(.secondary)
         }
     }
 

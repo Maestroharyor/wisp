@@ -17,14 +17,10 @@ struct NotchSettings: View {
             Section {
                 NotchPreview(preferences: preferences, accent: accent, glow: glow)
             }
-            Section("Position") {
+            Section {
                 Picker("Sit at", selection: $preferences.placement) {
                     ForEach(Placement.allCases) { Text($0.title).tag($0) }
                 }
-                Text(
-                    "Top uses the notch. The bottom is the notch upside down, resting on the Dock. The left and right edges get a notch on its side. The corners float an island below the menu bar; drag one to move it, and it stays where you drop it on that display. The floating orb goes anywhere: drag it, or pull the notch down to tear it off, and drop it at the top centre to dock it. The shelf grows out from wherever it sits."
-                )
-                .wispFont(.caption).foregroundStyle(.secondary)
                 if hasSystemIsland {
                     Text("Apple's Dynamic Island sits at the top of this Mac, so Top moves to the top right.")
                         .wispFont(.caption).foregroundStyle(.secondary)
@@ -32,13 +28,21 @@ struct NotchSettings: View {
                 Picker("On displays without a notch", selection: $preferences.notchlessDisplays) {
                     ForEach(NotchlessDisplayChoice.allCases) { Text($0.title).tag($0) }
                 }
-            }
-            Section("Window") {
-                Toggle("Open the shelf in a window", isOn: windowForm)
+            } header: {
+                Text("Position")
+            } footer: {
                 Text(
-                    "The Window form: Wisp's pages open in a normal window you can move and resize. Minimise or close it and Wisp goes back to the notch, island or orb it was; click that, or press the shortcut, to bring the window back. Pick another form to leave it. For a one-off window, choose Form › Open as Window from the right-click menu, or pull the open shelf away by its edge."
+                    "Top uses the notch, Bottom turns it upside down on the Dock, and Left and Right lay it on its side. Corner islands and the orb go where you drag them (pull the notch down to tear off the orb, drop it at the top centre to dock it), and the shelf grows out from wherever Wisp sits."
                 )
-                .wispFont(.caption).foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle("Open the shelf in a window", isOn: windowForm)
+            } header: {
+                Text("Window")
+            } footer: {
+                Text(
+                    "Wisp's pages open in a window you can move and resize; minimise or close it to go back to the notch, island or orb, and click that or press the shortcut to return. For a one-off window, choose Form › Open as Window from the right-click menu or pull the open shelf away by its edge."
+                )
             }
             Section("Opening") {
                 Picker("Open the shelf on", selection: $preferences.openTrigger) {
@@ -80,12 +84,14 @@ struct NotchSettings: View {
                 )
                 .wispFont(.caption).foregroundStyle(.secondary)
             }
-            Section("Dragging files") {
+            Section {
                 Picker("Show the drop pocket", selection: $preferences.pocketTrigger) {
                     ForEach(PocketTrigger.allCases) { Text($0.title).tag($0) }
                 }
+            } header: {
+                Text("Dragging files")
+            } footer: {
                 Text("The pocket appears next to the pointer with Drop, Transform, Zip and AirDrop.")
-                    .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Drop actions") {
                 DropActionsEditor(preferences: preferences, shortcuts: shortcuts)

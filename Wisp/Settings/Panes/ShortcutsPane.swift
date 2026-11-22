@@ -9,7 +9,7 @@ struct ShortcutsSettings: View {
 
     var body: some View {
         Form {
-            Section("Caps Lock") {
+            Section {
                 Toggle("Use Caps Lock as Hyper", isOn: usesCapsLock)
                 LabeledContent("Status") {
                     HStack {
@@ -19,13 +19,15 @@ struct ShortcutsSettings: View {
                         }
                     }
                 }
+            } header: {
+                Text("Caps Lock")
+            } footer: {
                 Text(
-                    "Held, Caps Lock becomes Hyper (⇪), a modifier no other app uses, so ⇪ shortcuts never clash. A quick press can still turn Caps Lock on; see General › Advanced. Needs Accessibility."
+                    "Held, Caps Lock becomes Hyper (⇪), a modifier no other app uses, so ⇪ shortcuts never clash. A quick press can still turn Caps Lock on (General › Advanced); needs Accessibility."
                 )
-                .wispFont(.caption).foregroundStyle(.secondary)
             }
 
-            Section("Shortcuts") {
+            Section {
                 LabeledContent("Open or close the shelf") {
                     if preferences.hotkey.usesHyper {
                         KeyCap(Hotkey.hyperSpace.description)
@@ -42,10 +44,12 @@ struct ShortcutsSettings: View {
                     preferences.shortcuts = ShortcutMap()
                 }
                 .disabled(preferences.shortcuts == ShortcutMap())
+            } header: {
+                Text("Shortcuts")
+            } footer: {
                 Text(
-                    "Click a shortcut and press the new keys; Esc cancels. Keys already in use are refused and the button says what uses them. ⇪ shortcuts need Caps Lock as Hyper."
+                    "Click a shortcut and press the new keys; Esc cancels. Keys already in use are refused with what uses them, and ⇪ shortcuts need Caps Lock as Hyper."
                 )
-                .wispFont(.caption).foregroundStyle(.secondary)
             }
 
             Section("Fixed keys") {
