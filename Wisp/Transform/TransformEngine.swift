@@ -13,6 +13,7 @@ enum ImageFormat: String, CaseIterable, Identifiable, Sendable {
     case png
     case heic
     case tiff
+    case gif
 
     var id: Self { self }
     var title: String { rawValue.uppercased() }
@@ -24,6 +25,7 @@ enum ImageFormat: String, CaseIterable, Identifiable, Sendable {
         case .png: .png
         case .heic: .heic
         case .tiff: .tiff
+        case .gif: .gif
         }
     }
 }
