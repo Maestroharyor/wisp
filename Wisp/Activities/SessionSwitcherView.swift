@@ -33,6 +33,7 @@ struct SessionSwitcherView: View {
                                 SwitcherRow(session: session, selected: session.id == selected, hidden: hidden)
                                     .id(session.id)
                                     .onTapGesture { model.jumpFromSwitcher(to: session.id) }
+                                    .accessibilityAction { model.jumpFromSwitcher(to: session.id) }
                             }
                         }
                     }

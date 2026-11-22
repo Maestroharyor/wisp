@@ -25,11 +25,14 @@ struct RingView: View {
         let slots = model.set.slots
         let shown = model.visible
         ZStack {
-            RingDisc(centre: model.centre, dark: colorScheme == .dark)
-                .scaleEffect(shown || reduceMotion ? 1 : 0.85, anchor: unit(model.centre))
-                .opacity(shown ? 1 : 0)
-                .animation(
-                    shown ? .wispPopover : .wispDismiss, value: shown)
+            RingDisc(
+                centre: model.centre, dark: colorScheme == .dark, shown: shown, hoverAngle: hoverAngle,
+                reduceMotion: reduceMotion
+            )
+            .scaleEffect(shown || reduceMotion ? 1 : 0.85, anchor: unit(model.centre))
+            .opacity(shown ? 1 : 0)
+            .animation(
+                shown ? .wispPopover : .wispDismiss, value: shown)
             ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
                 let angle = RingGeometry.slotAngle(index, count: slots.count)
                 let isLifted = model.lifted == index
@@ -43,7 +46,9 @@ struct RingView: View {
                     if isLifted, model.removing {
                         Image(systemName: "minus.circle.fill").font(.system(size: 18))
                             .symbolRenderingMode(.palette).foregroundStyle(.white, Color.red)
-                            .transition(.scale.combined(with: .opacity))
+                            .wispTransition(.scale.combined(with: .opacity))
+                    } else if let badge = windowBadge(index) {
+                        RingBadge(text: badge).offset(x: -4, y: 4)
                     }
                 }
                 // Running apps that aren't the ring's own sit a little quieter.
@@ -51,6 +56,7 @@ struct RingView: View {
                 .opacity(isLifted && model.removing ? 0.55 : 1)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(slot.action.title)
+                .accessibilityValue(slotValue(index, slot.action))
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { onPick(.slot(index), []) }
                 // Each icon flies out from the middle in turn, and back in on close.
@@ -82,12 +88,12 @@ struct RingView: View {
             if searching, shown {
                 RingSearchCard(model: model, onPick: onPickResult)
                     .position(model.centre)
-                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+                    .wispTransition(.scale(scale: 0.92).combined(with: .opacity))
             }
         }
-        .animation(.wispSmooth, value: searching)
+        .animation(reduceMotion ? nil : .wispSmooth, value: searching)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.wispControl, value: model.hover)
+        .animation(reduceMotion ? nil : .wispControl, value: model.hover)
         .contentShape(Rectangle())
         .onContinuousHover { phase in
             switch phase {
@@ -130,7 +136,11 @@ struct RingView: View {
     /// The middle: the hovered icon's name and key in a pill, or Wisp's glyph (which opens the
     /// shelf).
     @ViewBuilder private var centre: some View {
-        if let hovered = hoveredTitle {
+        if let preview = model.preview, model.lifted == nil {
+            RingPreviewCard(preview: preview)
+                .transition(reduceMotion ? .opacity : .scale(scale: 0.92).combined(with: .opacity))
+                .id(preview.key)
+        } else if let hovered = hoveredTitle {
             let onCentre = model.hover == .centre && model.lifted == nil
             HStack(spacing: 6) {
                 Text(hovered.title).font(.title3.weight(.semibold)).lineLimit(1)
@@ -157,13 +167,21 @@ struct RingView: View {
             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
             .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.10), radius: 10, y: 3)
             .fixedSize()
-            .transition(.scale(scale: 0.9).combined(with: .opacity))
+            .wispTransition(.scale(scale: 0.9).combined(with: .opacity))
             .id(hovered.title)
             .help(model.canUndo ? "Undo the removal" : "Open the shelf")
         } else {
             Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit()
                 .frame(width: 24, height: 24)
-                .foregroundStyle(Color.wispViolet.opacity(clearCentre ? 0.85 : 0.6))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.wispViolet.opacity(0.75), Color.wispViolet],
+                        startPoint: .bottom, endPoint: .top)
+                )
+                .shadow(color: Color.wispViolet.opacity(hoverAngle == nil ? 0.25 : 0.6), radius: 8)
+                // The flame leans toward what's pointed at, as a flame bends in a draught.
+                .rotationEffect(.degrees(lean), anchor: .bottom)
+                .animation(reduceMotion ? nil : .wispControl, value: lean)
                 .frame(width: 48, height: 48)
                 // Over an open centre the glyph sits on a small chip, so it reads on any wallpaper.
                 .background {
@@ -176,6 +194,39 @@ struct RingView: View {
     }
 
     private var clearCentre: Bool { Preferences.shared.ringLook.centre == .clear }
+
+    /// Where round the ring the pointed-at segment is, for the trail and the flame's lean.
+    private var hoverAngle: CGFloat? {
+        let index: Int? =
+            switch model.hover {
+            case .slot(let slot): slot
+            case .sub: model.expanded
+            case .centre, .none: nil
+            }
+        guard let index, model.set.slots.indices.contains(index) else { return nil }
+        return RingGeometry.slotAngle(index, count: model.set.slots.count)
+    }
+
+    private var lean: Double {
+        guard let hoverAngle, !reduceMotion else { return 0 }
+        return sin(Double(hoverAngle) * .pi / 180) * 16
+    }
+
+    private func windowBadge(_ index: Int) -> String? {
+        model.windowCounts[index].flatMap(AppWindows.badge(count:))
+    }
+
+    /// What VoiceOver reads after a segment's name: whether its app is open, and how many windows.
+    private func slotValue(_ index: Int, _ action: RingAction) -> String {
+        var parts: [String] = []
+        switch model.dot(for: action) {
+        case .frontmost: parts.append("In front")
+        case .running: parts.append("Open")
+        case .none: break
+        }
+        if let count = model.windowCounts[index], count > 1 { parts.append("\(count) windows") }
+        return parts.joined(separator: ", ")
+    }
 
     private var hoveredTitle: (title: String, key: String?)? {
         if let lifted = model.lifted, model.set.slots.indices.contains(lifted) {
@@ -229,64 +280,120 @@ struct RingView: View {
     }
 }
 
-/// The disc under the icons, kept airy: a nearly clear band of glass with a soft violet glow
-/// toward the middle, one wide shadow and no hard edge. The middle is a hole onto the desktop,
-/// plain glass or a soft violet disc, as chosen in Settings › Ring. Follows Light and Dark mode
-/// (smoky glass in Dark rather than a flat grey).
+/// What the ring stands on: the glass band (in the glass, colour and tint chosen in Settings),
+/// or nothing, and a comet trail along the icons' circle to whatever is pointed at. The middle is
+/// open, frosted or a soft glow (Settings › Ring › Centre).
 struct RingDisc: View {
     let centre: CGPoint
     let dark: Bool
-    @Environment(\.colorSchemeContrast) private var contrast
+    let shown: Bool
+    /// The pointed-at segment's angle, clockwise from 12 o'clock.
+    let hoverAngle: CGFloat?
+    let reduceMotion: Bool
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    /// The trail's heading, unwrapped so it always turns the short way round.
+    @State private var heading: Double = 0
 
     /// The glass, tint and centre chosen in Settings › Ring.
     private var look: RingLook { Preferences.shared.ringLook.clamped() }
 
+    /// How much of the orbit the trail covers.
+    private static let trail: CGFloat = 0.22
+
     var body: some View {
-        let outer = (RingGeometry.ringOuter + 10) * 2
-        let inner = RingGeometry.innerRadius * 2
+        let radius = RingGeometry.ringRadius
         let tint = look.tintFactor
-        let band = RingBand(innerRadius: RingGeometry.innerRadius)
-        let rim = Color.white.opacity(contrast == .increased ? 0.95 : dark ? 0.16 : 0.85)
+        let side = (RingGeometry.ringOuter + 10) * 2
         ZStack {
-            Color.clear.wispSurface(band, glass: look.glass)
-            // The band: a glow that rises toward the middle and is gone by the rim.
-            band.fill(
+            if look.backdrop == .band { band(tint: tint, side: side) }
+            middle(tint: tint)
+                .frame(width: RingGeometry.innerRadius * 2, height: RingGeometry.innerRadius * 2)
+            comet(radius: radius)
+        }
+        .frame(width: side, height: side)
+        .position(centre)
+        .onChange(of: hoverAngle) { _, angle in
+            guard let angle else { return }
+            heading += RingGeometry.shortTurn(from: heading, to: Double(angle))
+        }
+        .onAppear { heading = Double(hoverAngle ?? 0) }
+    }
+
+    /// The glass band the icons sit on, in the glass and tint chosen in Settings, with the
+    /// middle cut out so a clear centre stays open. It opens with the ring.
+    private func band(tint: Double, side: CGFloat) -> some View {
+        let shape = RingBand(innerRadius: RingGeometry.innerRadius)
+        return ZStack {
+            Color.clear.wispSurface(shape, glass: look.glass)
+            if let colour = look.colour {
+                shape.fill(Color(rgb: colour).opacity(look.colourOpacity))
+            }
+            // A violet glow that rises toward the middle and is gone by the rim.
+            shape.fill(
                 RadialGradient(
                     colors: [
                         Color.wispViolet.opacity((dark ? 0.20 : 0.12) * tint),
-                        Color.wispViolet.opacity((dark ? 0.07 : 0.035) * tint),
-                        .clear,
+                        Color.wispViolet.opacity((dark ? 0.07 : 0.035) * tint), .clear,
                     ],
-                    center: .center, startRadius: RingGeometry.innerRadius, endRadius: outer / 2))
-            Circle().strokeBorder(Color.white.opacity(dark ? 0.12 : 0.55), lineWidth: 1)
-            middle(tint: tint)
-                .overlay(Circle().strokeBorder(rim, lineWidth: 1))
-                .frame(width: inner, height: inner)
+                    center: .center, startRadius: RingGeometry.innerRadius, endRadius: side / 2))
         }
-        .frame(width: outer, height: outer)
+        .frame(width: side, height: side)
         .compositingGroup()
         .shadow(color: .black.opacity(dark ? 0.30 : 0.08), radius: 40, y: 12)
-        .position(centre)
     }
+
+    /// The trail: a bright head on the hovered icon fading back along the orbit behind it.
+    private func comet(radius: CGFloat) -> some View {
+        let span = Double(Self.trail) * 360
+        let fade = AngularGradient(
+            stops: [
+                .init(color: Color.wispViolet.opacity(0), location: 0),
+                .init(color: Color.wispViolet.opacity(0.9), location: 0.85),
+                .init(color: .white, location: 1),
+            ],
+            center: .center, startAngle: .zero, endAngle: .degrees(span))
+        // Trimmed arcs start at 3 o'clock; turned so the head lands on the heading.
+        let turn = Angle.degrees(heading - 90 - span)
+        return ZStack {
+            Circle().trim(from: 0, to: Self.trail)
+                .stroke(fade, style: StrokeStyle(lineWidth: 16, lineCap: .round))
+                .blur(radius: reduceTransparency ? 0 : 8)
+                .opacity(reduceTransparency ? 0 : 0.9)
+            Circle().trim(from: 0, to: Self.trail)
+                .stroke(fade, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+        }
+        .rotationEffect(turn)
+        .frame(width: radius * 2, height: radius * 2)
+        .opacity(hoverAngle == nil || !shown ? 0 : 1)
+        .animation(reduceMotion ? nil : .wispControl, value: heading)
+        .animation(reduceMotion ? nil : .wispSmooth, value: hoverAngle == nil)
+        .allowsHitTesting(false)
+    }
+
+    /// A tinted centre glows in the chosen colour, or Wisp violet.
+    private var centreTint: Color { look.colour.map { Color(rgb: $0) } ?? Color.wispViolet }
 
     @ViewBuilder private func middle(tint: Double) -> some View {
         switch look.centre {
         case .clear:
-            // Open: the desktop shows through, and only the rim marks the edge.
+            // Open: the desktop shows through.
             Color.clear
         case .frosted:
             Color.clear.wispSurface(Circle(), glass: .frosted)
+                .overlay {
+                    if let colour = look.colour { Circle().fill(Color(rgb: colour).opacity(look.colourOpacity)) }
+                }
         case .tinted:
-            // Soft and even: a pale violet wash, a touch lighter in the middle.
+            // A violet glow that's brightest round the flame and fades out before the orbit.
             Circle()
                 .fill(
                     RadialGradient(
-                        colors: dark
-                            ? [Color.wispViolet.opacity(0.20 * tint), Color.wispViolet.opacity(0.12 * tint)]
-                            : [Color.wispViolet.opacity(0.08 * tint), Color.wispViolet.opacity(0.14 * tint)],
-                        center: .center, startRadius: 0, endRadius: RingGeometry.innerRadius)
-                )
-                .background(Color.clear.wispSurface(Circle(), glass: .clear))
+                        colors: [
+                            centreTint.opacity((dark ? 0.32 : 0.22) * tint),
+                            centreTint.opacity((dark ? 0.10 : 0.06) * tint), .clear,
+                        ],
+                        center: .center, startRadius: 0, endRadius: RingGeometry.innerRadius))
         }
     }
 }
@@ -318,8 +425,8 @@ struct RingBand: InsettableShape {
     }
 }
 
-/// One icon on the ring: lifted, with a frosted halo and a violet glow, when it's under the
-/// pointer; a dot below for a running app; a small mark on the outside when it opens choices.
+/// One icon on the ring's orbit: ringed in violet when it's under the pointer, a dot below for
+/// a running app, and a small mark on the outside when it opens choices.
 struct RingIconCell: View {
     let icon: RingIcon
     let tileHex: String
@@ -331,6 +438,7 @@ struct RingIconCell: View {
     let hasMore: Bool
     var dot: RingRunState = .none
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var dark: Bool { colorScheme == .dark }
 
@@ -338,17 +446,19 @@ struct RingIconCell: View {
         let radians = angle * .pi / 180
         ZStack {
             if lit {
-                // A frosted halo with a violet bloom that spills into the disc.
+                // Lit on the orbit: a violet ring with a glow, the trail's head arriving.
                 Circle()
-                    .fill(.thinMaterial)
-                    .overlay(Circle().fill(Color.white.opacity(dark ? 0.08 : 0.55)))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(dark ? 0.25 : 0.9), lineWidth: 1))
-                    .frame(width: side * 1.45, height: side * 1.45)
-                    .shadow(color: Color.wispViolet.opacity(0.35), radius: 28)
-                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+                    .fill(Color.wispViolet.opacity(dark ? 0.22 : 0.14))
+                    .overlay(Circle().strokeBorder(Color.wispViolet, lineWidth: 2))
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.7), lineWidth: 0.5).padding(2))
+                    .frame(width: side * 1.42, height: side * 1.42)
+                    .shadow(color: Color.wispViolet.opacity(0.6), radius: 14)
+                    .wispTransition(.scale(scale: 0.7).combined(with: .opacity))
             }
             RingTileIcon(icon: icon, tileHex: tileHex, side: side)
-                .scaleEffect(lit ? 1.08 : 1)
+                // With no band behind it, a soft shadow keeps it off a busy wallpaper.
+                .shadow(color: .black.opacity(dark ? 0.45 : 0.22), radius: 7, y: 3)
+                .scaleEffect(lit && !reduceMotion ? 1.08 : 1)
             if dot != .none {
                 // Like the Dock: a dot under a running app, violet for the one in front.
                 Circle().fill(dot == .frontmost ? Color.wispViolet : Color.primary.opacity(0.55))
@@ -403,13 +513,14 @@ private struct RingSearchCard: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(index == model.selectedResult ? .isSelected : [])
             }
         }
         .padding(8)
         .frame(width: 210, alignment: .leading)
         .wispSurface(cornerRadius: SurfaceRadius.card, role: .card)
         .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
-        .animation(.wispControl, value: model.selectedResult)
+        .wispAnimation(.wispControl, value: model.selectedResult)
     }
 }
 
@@ -435,22 +546,29 @@ private struct SubRing: View {
         let parentHex = model.set.slots.indices.contains(parent) ? model.set.slots[parent].action.tileHex : "#8E8E93"
         ZStack {
             if !items.isEmpty {
-                // Every choice starts folded on the parent's angle and swings to its own.
-                SectorShape(
-                    start: open ? first.start - 2 : parentAngle - half, end: open ? last.end + 2 : parentAngle + half,
-                    inner: RingGeometry.subInner, outer: RingGeometry.subOuter, centre: model.centre
-                )
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    SectorShape(
-                        start: open ? first.start - 2 : parentAngle - half,
-                        end: open ? last.end + 2 : parentAngle + half,
-                        inner: RingGeometry.subInner, outer: RingGeometry.subOuter, centre: model.centre
+                // The choices' arc, swinging open from the parent's angle.
+                let arc = OrbitArc(
+                    start: open ? first.start + half * 0.4 : parentAngle,
+                    end: open ? last.end - half * 0.4 : parentAngle,
+                    radius: RingGeometry.subRadius, centre: model.centre)
+                let look = Preferences.shared.ringLook.clamped()
+                if look.backdrop == .band {
+                    // On the band's glass, as the ring is: a rounded strip under the choices.
+                    arc.stroke(
+                        .ultraThinMaterial,
+                        style: StrokeStyle(lineWidth: RingGeometry.subOuter - RingGeometry.subInner, lineCap: .round)
                     )
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
-                .opacity(fanned || reduceMotion ? 1 : 0)
+                    .overlay {
+                        if let colour = look.colour {
+                            arc.stroke(
+                                Color(rgb: colour).opacity(look.colourOpacity),
+                                style: StrokeStyle(
+                                    lineWidth: RingGeometry.subOuter - RingGeometry.subInner, lineCap: .round))
+                        }
+                    }
+                    .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
+                    .opacity(fanned || reduceMotion ? 1 : 0)
+                }
             }
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 let angle = open ? RingGeometry.subAngle(index, count: items.count, around: parentAngle) : parentAngle
@@ -459,6 +577,17 @@ private struct SubRing: View {
                     side: RingGeometry.subIconSize, angle: angle,
                     lit: model.hover == .sub(index) || model.picked == .sub(index), dimmed: false, hasMore: false
                 )
+                .overlay(alignment: .topTrailing) {
+                    if ConvertTargets.format(of: item) != nil { RingBadge(text: "\(index + 1)").offset(x: -2, y: 2) }
+                }
+                .overlay(alignment: .bottom) {
+                    if let format = ConvertTargets.format(of: item) {
+                        Text(format.title).font(.system(size: 9, weight: .bold)).foregroundStyle(.primary)
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .background(Capsule().fill(.regularMaterial))
+                            .offset(y: 4)
+                    }
+                }
                 .modifier(FileDragOut(path: FolderPeek.path(of: item), onDragOut: onDragOut))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(item.title)
@@ -469,7 +598,7 @@ private struct SubRing: View {
             }
         }
         .onAppear {
-            withAnimation(.wispPopover) { fanned = true }
+            withAnimation(reduceMotion ? nil : .wispPopover) { fanned = true }
         }
     }
 
@@ -489,6 +618,83 @@ private struct SubRing: View {
     }
 }
 
+/// Part of a circle round the ring's centre, between two angles clockwise from 12 o'clock;
+/// animatable, so a sub-ring's orbit swings open.
+struct OrbitArc: Shape {
+    var start: CGFloat
+    var end: CGFloat
+    let radius: CGFloat
+    let centre: CGPoint
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(start, end) }
+        set {
+            start = newValue.first
+            end = newValue.second
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let steps = max(Int(abs(end - start) / 2), 1)
+        for step in 0...steps {
+            let angle = (start + (end - start) * CGFloat(step) / CGFloat(steps)) * .pi / 180
+            let point = CGPoint(x: centre.x + radius * sin(angle), y: centre.y - radius * cos(angle))
+            if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        return path
+    }
+}
+
+/// A small violet count on a ring icon: an app's windows, or a format's number key.
+private struct RingBadge: View {
+    let text: String
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .bold).monospacedDigit())
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .frame(minWidth: 17, minHeight: 17)
+            .background(Capsule().fill(Color.wispVioletText(contrast: contrast)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.85), lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The hovered window's live picture in the ring's middle, with its title under it.
+private struct RingPreviewCard: View {
+    let preview: RingPreview
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let size = WindowPreview.size(
+            for: CGSize(width: preview.image.width, height: preview.image.height), fitting: RingController.previewSide)
+        VStack(spacing: 8) {
+            Image(decorative: preview.image, scale: 1)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: size.width, height: size.height)
+                .clipShape(RoundedRectangle(cornerRadius: SurfaceRadius.control, style: .continuous))
+                .padding(5)
+                .wispSurface(cornerRadius: SurfaceRadius.control + 5)
+                .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.16), radius: 12, y: 4)
+            Text(preview.title)
+                .font(.callout.weight(.semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .frame(maxWidth: RingGeometry.innerRadius * 1.7)
+                .wispSurface(Capsule(), glass: .frosted)
+                .fixedSize()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Preview of \(preview.title)")
+    }
+}
+
 /// Lets a folder's file be dragged out of its icon, like from a Finder window.
 private struct FileDragOut: ViewModifier {
     let path: String?
@@ -505,34 +711,6 @@ private struct FileDragOut: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-/// An annular sector, angles clockwise from 12 o'clock, in a view whose y runs down.
-struct SectorShape: Shape {
-    var start: CGFloat
-    var end: CGFloat
-    let inner: CGFloat
-    let outer: CGFloat
-    let centre: CGPoint
-
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(start, end) }
-        set {
-            start = newValue.first
-            end = newValue.second
-        }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        // SwiftUI's angles start at 3 o'clock and run clockwise in a y-down view.
-        let from = Angle.degrees(Double(start) - 90)
-        let to = Angle.degrees(Double(end) - 90)
-        var path = Path()
-        path.addArc(center: centre, radius: outer, startAngle: from, endAngle: to, clockwise: false)
-        path.addArc(center: centre, radius: inner, startAngle: to, endAngle: from, clockwise: true)
-        path.closeSubpath()
-        return path
     }
 }
 

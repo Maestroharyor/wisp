@@ -90,7 +90,7 @@ struct DownloadDoneCard: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.ink)
-        .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
+        .cardClose(model)
     }
 
     private var url: URL { URL(fileURLWithPath: download.path) }

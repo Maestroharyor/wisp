@@ -129,6 +129,7 @@ final class ClipboardPanelController {
     /// Copies the item, closes the panel and sends ⌘V to the app in front.
     func paste(_ item: ClipItem) {
         services.clipboard.copy(item)
+        Feedback.selection()
         hide()
         guard AccessibilityPermission.isTrusted else { return }
         Task {
@@ -144,6 +145,7 @@ final class ClipboardPanelController {
                 .notice(symbol: "doc.on.clipboard", text: "Nothing to paste together"), slot: .notice, duration: 2)
             return
         }
+        Feedback.selection()
         hide()
         guard AccessibilityPermission.isTrusted else { return }
         Task {
@@ -207,8 +209,8 @@ final class ClipboardPanelController {
     private func handleKey(_ keyCode: UInt16, command: Bool, commandOnly: Bool) -> Bool {
         guard isVisible else { return false }
         switch keyCode {
-        case 53:  // Esc
-            hide()
+        case 53:  // Esc: clears a search first, then closes
+            if model.query.isEmpty { hide() } else { model.query = "" }
         case 123:  // Left
             model.move(by: -1)
         case 124:  // Right

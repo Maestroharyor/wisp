@@ -29,7 +29,7 @@ struct AIResultCardView: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.ink)
-        .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
+        .cardClose(model)
     }
 
     private var header: some View {

@@ -30,6 +30,28 @@ enum AXTree {
         return value as? String
     }
 
+    /// A window's frame, top-left origin like Core Graphics; nil when the app doesn't say.
+    static func frame(of element: AXUIElement) -> CGRect? {
+        guard let position = axValue(of: element, attribute: kAXPositionAttribute),
+            let sizeValue = axValue(of: element, attribute: kAXSizeAttribute)
+        else { return nil }
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue(position, .cgPoint, &origin), AXValueGetValue(sizeValue, .cgSize, &size) else {
+            return nil
+        }
+        return CGRect(origin: origin, size: size)
+    }
+
+    /// Position and size come wrapped in AXValues; the type id is checked before the exact downcast.
+    private static func axValue(of element: AXUIElement, attribute: String) -> AXValue? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success, let value,
+            CFGetTypeID(value) == AXValueGetTypeID()
+        else { return nil }
+        return unsafeDowncast(value, to: AXValue.self)
+    }
+
     static func bool(of element: AXUIElement, attribute: String) -> Bool? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
@@ -104,7 +126,8 @@ enum AXWindows {
             reading.summaries.append(
                 WindowSummary(
                     title: AXTree.string(of: window, attribute: kAXTitleAttribute),
-                    isMinimised: AXTree.bool(of: window, attribute: kAXMinimizedAttribute) ?? false))
+                    isMinimised: AXTree.bool(of: window, attribute: kAXMinimizedAttribute) ?? false,
+                    frame: AXTree.frame(of: window)))
         }
         return reading
     }

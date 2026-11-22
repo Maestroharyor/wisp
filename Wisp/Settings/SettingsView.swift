@@ -106,6 +106,8 @@ struct SettingsView: View {
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                // A short fade between panes, none with Reduce Motion.
+                .wispAnimation(.easeOut(duration: 0.12), value: model.selection)
         }
         .frame(minWidth: 700, minHeight: 480)
         // A "Settings for …" button elsewhere picks the pane while this window is already open.
@@ -144,6 +146,7 @@ struct SettingsView: View {
                     .environment(\.settingsQuery, model.query)
             }
             .id(pane)
+            .transition(.opacity)
         } else {
             ContentUnavailableView.search(text: model.query)
         }

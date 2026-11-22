@@ -21,6 +21,7 @@ struct CloudTasksLane: View {
                     ForEach(shown) { task in
                         CloudTaskRow(task: task, hidden: hidden, applying: store.applying == task.id)
                             .onTapGesture { store.open(task) }
+                            .accessibilityAction { store.open(task) }
                             .contextMenu { menu(for: task) }
                             .help("Open on the web")
                     }

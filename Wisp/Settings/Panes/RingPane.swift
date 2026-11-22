@@ -11,9 +11,21 @@ struct RingSettings: View {
     let openShortcuts: () -> Void
 
     @State private var editorShown = false
+    /// The ring's colour, starting from a dark violet the first time one is picked.
+    private var ringColour: Binding<RGB> {
+        Binding(
+            get: { preferences.ringLook.colour ?? RGB(red: 0.16, green: 0.13, blue: 0.3) },
+            set: { preferences.ringLook.colour = $0 })
+    }
+
+    /// Read when the pane shows; macOS doesn't announce a change.
+    @State private var canPreview = CGPreflightScreenCaptureAccess()
 
     var body: some View {
         Form {
+            if !preferences.ringTipsHidden {
+                RingTipsSection(preferences: preferences)
+            }
             Section("Opening") {
                 Picker("Mouse button", selection: $preferences.ringButton) {
                     ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -25,16 +37,40 @@ struct RingSettings: View {
                 LabeledContent("Keyboard shortcut") {
                     Button("Shortcuts…", action: openShortcuts)
                 }
+                if preferences.ringTipsHidden {
+                    LabeledContent("Try the ring") {
+                        Button("Show checklist") { preferences.ringTipsHidden = false }
+                    }
+                }
                 Text(
                     "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb open the tray. To use the ring's file actions, press the ring shortcut while dragging and drop the files on one."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
             Section("Look") {
+                Picker("Background", selection: $preferences.ringLook.backdrop) {
+                    ForEach(RingBackdrop.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
                 Picker("Glass", selection: $preferences.ringLook.glass) {
                     ForEach(PanelGlass.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                .disabled(preferences.ringLook.backdrop == .orbit)
+                LabeledContent("Colour") {
+                    HStack {
+                        if preferences.ringLook.colour != nil {
+                            Button("Default glass") { preferences.ringLook.colour = nil }
+                        }
+                        ColorPicker("Colour", selection: ringColour.color, supportsOpacity: false)
+                            .labelsHidden()
+                    }
+                }
+                if preferences.ringLook.colour != nil {
+                    LabeledContent("Colour strength") {
+                        Slider(value: $preferences.ringLook.colourAmount, in: 0...1)
+                    }
+                }
                 Picker("Centre", selection: $preferences.ringLook.centre) {
                     ForEach(RingCentre.allCases) { Text($0.title).tag($0) }
                 }
@@ -55,7 +91,7 @@ struct RingSettings: View {
                         .disabled(preferences.ringLook == .standard)
                 }
                 Text(
-                    "Clear shows the most through, Frosted is easiest to read. A clear centre is open onto the desktop; Tinted is a soft violet disc. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
+                    "The icons sit on a glass band, or on nothing with None. Clear glass shows the most through, Frosted is easiest to read over busy windows. Colour tints the band and a Frosted or Tinted centre; Default glass takes it off. A clear centre is open onto the desktop; Tinted is a soft violet glow. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -71,6 +107,11 @@ struct RingSettings: View {
                         }
                 }
                 Toggle("Show an app's windows around its segment", isOn: $preferences.ringAppWindows)
+                if preferences.ringAppWindows, !canPreview {
+                    LabeledContent("Window previews need Screen Recording") {
+                        Button("Open Settings…") { Permission.screenRecording.openSettings() }
+                    }
+                }
                 Toggle("Fill free places with running apps", isOn: $preferences.ringShowsRunning)
                 Toggle("Show the ring's apps beside the orb", isOn: $preferences.orbDock)
                 Text(
@@ -80,6 +121,68 @@ struct RingSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { canPreview = CGPreflightScreenCaptureAccess() }
+    }
+}
+
+/// "Try the ring": the ring's gestures as a checklist that ticks itself off as they're used.
+private struct RingTipsSection: View {
+    @Bindable var preferences: Preferences
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var canPreview = CGPreflightScreenCaptureAccess()
+
+    /// What showing windows needs that this Mac doesn't have yet.
+    private var windowsNeed: String? {
+        if !preferences.ringAppWindows { return "Turn on \u{201C}Show an app's windows\u{201D} below." }
+        if !AccessibilityPermission.isTrusted { return "Needs Accessibility, to list the app's windows." }
+        if !canPreview { return "The app's windows fan out; live previews also need Screen Recording." }
+        return nil
+    }
+
+    var body: some View {
+        let tips = preferences.ringTips
+        Section {
+            ForEach(RingTips.Step.allCases) { step in
+                let done = tips.done.contains(step)
+                HStack(spacing: 10) {
+                    Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 16))
+                        .foregroundStyle(done ? Color.wispViolet : Color.secondary)
+                        .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(step.title)
+                            .foregroundStyle(done ? .secondary : .primary)
+                            .strikethrough(done, color: .secondary)
+                        if step == .windows, !done, let need = windowsNeed {
+                            Text(need).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    if step == .windows, !done, !canPreview {
+                        Button("Screen Recording…") { Permission.screenRecording.openSettings() }
+                            .controlSize(.small)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityValue(done ? "Done" : "Not yet")
+            }
+            HStack {
+                if tips.isComplete {
+                    Label("All done", systemImage: "sparkles").foregroundStyle(Color.wispViolet)
+                } else {
+                    Text("\(tips.done.count) of \(RingTips.Step.allCases.count)").foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                Spacer()
+                if !tips.done.isEmpty {
+                    Button("Start over") { preferences.ringTips.reset() }
+                }
+                Button("Hide") { preferences.ringTipsHidden = true }
+            }
+        } header: {
+            Text("Try the ring")
+        }
+        .animation(reduceMotion ? nil : .wispSmooth, value: tips)
     }
 }
 
@@ -205,14 +308,11 @@ private struct RingSetEditor: View {
         let centre = CGPoint(x: Self.side / 2, y: Self.side / 2)
         let slots = set.slots
         return ZStack {
-            Circle().fill(.regularMaterial)
-                .overlay(Circle().fill(Color.wispViolet.opacity(0.07)))
-                .overlay(Circle().strokeBorder(Color.primary.opacity(0.1)))
-                .frame(width: Self.side, height: Self.side)
-            Circle().fill(Color.wispViolet.opacity(0.08))
-                .overlay(Circle().strokeBorder(Color.primary.opacity(0.08)))
+            // The ring's band, as it's drawn on screen.
+            Circle()
+                .stroke(.quaternary, lineWidth: (RingGeometry.ringOuter - RingGeometry.innerRadius) * Self.scale)
                 .frame(
-                    width: RingGeometry.innerRadius * 2 * Self.scale, height: RingGeometry.innerRadius * 2 * Self.scale)
+                    width: RingGeometry.ringRadius * 2 * Self.scale, height: RingGeometry.ringRadius * 2 * Self.scale)
             ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
                 let angle = RingGeometry.slotAngle(index, count: slots.count)
                 let radians = angle * .pi / 180
@@ -330,6 +430,7 @@ private struct SubRingEditor: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Remove from the sub-ring")
+                    .accessibilityLabel("Remove from the sub-ring")
                 }
             }
             Button(slot.group.isEmpty ? "Add a sub-ring" : "Add to the sub-ring") {

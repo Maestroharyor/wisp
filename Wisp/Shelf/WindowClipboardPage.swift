@@ -30,7 +30,9 @@ struct ClipboardPage: View {
     @State private var previewing: ClipItem?
     @State private var copied: ClipItem.ID?
     @State private var width: CGFloat = 0
+    @State private var gridWidth: CGFloat = 0
     @FocusState private var gridFocused: Bool
+    @FocusState private var searching: Bool
 
     /// What the filters, the app and the search leave.
     private var items: [ClipItem] {
@@ -158,6 +160,8 @@ struct ClipboardPage: View {
             Image(systemName: "magnifyingglass").foregroundStyle(Color.secondaryText)
             TextField(count == 1 ? "Search 1 clip" : "Search among \(count) clips", text: $query)
                 .textFieldStyle(.plain)
+                .focused($searching)
+                .onKeyPress(.escape) { clearSearch() }
             if !query.isEmpty {
                 Button("Clear search", systemImage: "xmark.circle.fill") { query = "" }
                     .labelStyle(.iconOnly)
@@ -170,6 +174,18 @@ struct ClipboardPage: View {
         .padding(.vertical, 8)
         .background(Capsule().fill(.primary.opacity(0.08)))
         .frame(maxWidth: 520)
+        .findShortcut($searching)
+    }
+
+    private func clearSearch() -> KeyPress.Result {
+        guard !query.isEmpty else { return .ignored }
+        query = ""
+        return .handled
+    }
+
+    /// Cards in a row of the grid, for moving up and down with the arrow keys.
+    private var gridColumns: Int {
+        WindowLayout.columns(width: Double(gridWidth), minimum: 200, spacing: 12, maximum: 99)
     }
 
     private func appsColumn(_ all: [ClipItem]) -> some View {
@@ -219,9 +235,7 @@ struct ClipboardPage: View {
     }
 
     private static func icon(_ bundleID: String) -> NSImage? {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).map {
-            NSWorkspace.shared.icon(forFile: $0.path)
-        }
+        RingIconCache.shared.image(for: .app(bundleID: bundleID))
     }
 
     // MARK: Grid
@@ -249,8 +263,21 @@ struct ClipboardPage: View {
                 }
             }
             .padding(2)
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width - 4
+            } action: {
+                gridWidth = $0
+            }
         }
         .scrollFade()
+        .background {
+            // ⌘A picks every card shown, only while the grid has focus so the search field keeps its own.
+            Button("Select all") { selection = Set(items.map(\.id)) }
+                .keyboardShortcut(gridFocused ? KeyboardShortcut("a", modifiers: .command) : nil)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
         .focusable()
         .focusEffectDisabled()
         .focused($gridFocused)
@@ -275,9 +302,14 @@ struct ClipboardPage: View {
             move(by: press.key == .leftArrow ? -1 : 1, in: items)
             return .handled
         }
-        .onKeyPress(keys: [.delete], phases: .down) { press in
+        .onKeyPress(keys: [.upArrow, .downArrow]) { press in
+            move(by: press.key == .upArrow ? -gridColumns : gridColumns, in: items)
+            return .handled
+        }
+        .onKeyPress(.escape) { clearSearch() }
+        .onKeyPress(keys: [.delete, .deleteForward], phases: .down) { _ in
             let many = ordered(selection, in: items)
-            guard press.modifiers.contains(.command), !many.isEmpty else { return .ignored }
+            guard !many.isEmpty else { return .ignored }
             // One item goes even when pinned, as before; several leave the pinned ones.
             if many.count == 1 { many.forEach(remove) } else { many.filter { !$0.pinned }.forEach(remove) }
             return .handled
@@ -315,8 +347,9 @@ struct ClipboardPage: View {
     }
 
     private func move(by step: Int, in items: [ClipItem]) {
-        let current = items.firstIndex { selection.contains($0.id) } ?? (step > 0 ? -1 : items.count)
-        let next = min(max(current + step, 0), items.count - 1)
+        // With nothing picked, any arrow starts at the first card (or the last, going back).
+        let current = items.firstIndex { selection.contains($0.id) }
+        let next = current.map { min(max($0 + step, 0), items.count - 1) } ?? (step > 0 ? 0 : items.count - 1)
         guard items.indices.contains(next) else { return }
         selection = [items[next].id]
     }

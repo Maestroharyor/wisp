@@ -153,6 +153,7 @@ struct NotchView: View {
 private struct SurfaceView: View {
     let model: NotchModel
     let radii: (top: CGFloat, bottom: CGFloat)
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         let isOpen = model.phase == .open
@@ -210,6 +211,12 @@ private struct SurfaceView: View {
                     lineWidth: look.outline.lineWidth
                 )
                 .opacity(isOpen ? 1 : 0)
+            }
+        }
+        .overlay {
+            // Increase Contrast gets a clear edge on the open shelf, as Wisp's panels do.
+            if contrast == .increased, isOpen {
+                shape.stroke(.white.opacity(0.35), lineWidth: 1)
             }
         }
         .overlay {
@@ -396,6 +403,7 @@ struct SurfaceBackground: View {
     var shimmer: Double?
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         switch style {
@@ -412,12 +420,12 @@ struct SurfaceBackground: View {
             Rectangle()
                 .fill(.clear)
                 .glassEffect(.regular.tint(accent.opacity(0.18)), in: Rectangle())
-                .overlay(Color.black.opacity(0.42))
+                .overlay(Color.black.opacity(contrast == .increased ? 0.6 : 0.42))
                 .overlay(notchShade)
         } else {
             ZStack {
                 VisualEffectBlur()
-                Color.black.opacity(0.55)
+                Color.black.opacity(contrast == .increased ? 0.7 : 0.55)
                 accent.opacity(0.08)
                 notchShade
             }
@@ -523,12 +531,7 @@ private struct OrbFace: View {
             let working = agents.sessions.anyWorking(now: context.date)
             ZStack {
                 OrbGlass(lifted: model.spec == .peek)
-                Image("MenuGlyph")
-                    .resizable()
-                    .renderingMode(.template)
-                    .scaledToFit()
-                    .frame(width: 18, height: 18)
-                    .foregroundStyle(.white.opacity(0.92))
+                OrbEmber(lifted: model.spec == .peek, reduceMotion: model.reduceMotion)
                 if waiting > 0 {
                     Circle().strokeBorder(Color.orange, lineWidth: 2)
                 } else if working {
@@ -588,6 +591,55 @@ private struct OrbGlass: View {
                 .blur(radius: 1)
             Circle().strokeBorder(.white.opacity(lifted ? 0.32 : 0.18), lineWidth: 1)
         }
+    }
+}
+
+/// Wisp's flame at the orb's heart: white-hot at its base and violet at its tip, on an ember
+/// glow, inside a thin orbit like the ring's. Pointed at, it brightens and breathes; it's
+/// still at rest, so an idle orb costs nothing to draw.
+private struct OrbEmber: View {
+    let lifted: Bool
+    let reduceMotion: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color.wispViolet.opacity(lifted ? 0.85 : 0.5), Color.wispViolet.opacity(0)],
+                        center: UnitPoint(x: 0.5, y: 0.58), startRadius: 0, endRadius: 15)
+                )
+                .padding(2)
+                .keyframeAnimator(initialValue: CGFloat(1), repeating: lifted && !reduceMotion) { view, scale in
+                    view.scaleEffect(scale)
+                } keyframes: { _ in
+                    CubicKeyframe(1.14, duration: 0.9)
+                    CubicKeyframe(1, duration: 0.9)
+                }
+            Circle()
+                .strokeBorder(
+                    AngularGradient(
+                        colors: [
+                            Color.wispViolet, .white.opacity(0.55), Color.wispViolet, .white.opacity(0.55),
+                            Color.wispViolet,
+                        ],
+                        center: .center),
+                    lineWidth: 1
+                )
+                .padding(4)
+                .opacity(lifted ? 0.95 : 0.6)
+            Image("MenuGlyph")
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .frame(width: 17, height: 17)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.white, Color(red: 0.78, green: 0.74, blue: 1)], startPoint: .bottom, endPoint: .top)
+                )
+                .shadow(color: Color.wispViolet.opacity(lifted ? 0.9 : 0.6), radius: lifted ? 6 : 3)
+        }
+        .animation(reduceMotion ? nil : .wispControl, value: lifted)
     }
 }
 

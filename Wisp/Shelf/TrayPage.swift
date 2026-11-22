@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 import WispCore
@@ -7,6 +8,7 @@ struct TrayPage: View {
     let model: NotchModel
 
     @State private var targeted = false
+    @State private var quickLook: URL?
     @Environment(\.shelfHost) private var host
 
     private var tray: TrayStore { model.services.tray }
@@ -30,6 +32,9 @@ struct TrayPage: View {
                 subtitle: "Park files here, then AirDrop, zip or convert them in one go",
                 count: list.urls.isEmpty ? nil : tray.header
             ) {
+                Button("Choose files…", systemImage: "plus") { chooseFiles() }
+                    .labelStyle(.iconOnly)
+                    .help("Choose files to add")
                 if !list.urls.isEmpty {
                     Button(
                         allSelected ? "Deselect all" : "Select all",
@@ -42,6 +47,8 @@ struct TrayPage: View {
                     }
                     .labelStyle(.iconOnly)
                     .help(list.selected.isEmpty ? "Clear tray" : "Remove selected")
+                    // ⌘⌫ only removes a selection; clearing the whole tray stays a click.
+                    .keyboardShortcut(list.selected.isEmpty ? nil : KeyboardShortcut(.delete, modifiers: .command))
                     Button("Zip", systemImage: "doc.zipper") { tray.zip(list.actionTargets) }
                     Button("Transform", systemImage: "wand.and.stars") {
                         model.services.openTransform(list.actionTargets)
@@ -87,7 +94,26 @@ struct TrayPage: View {
             }
             .contentShape(Rectangle())
             .onDrop(of: [.fileURL], isTargeted: $targeted, perform: FileDrop.handler { tray.add($0) })
+            .background {
+                // Space previews the selection in Quick Look, as in Finder.
+                Button("Quick Look") { quickLook = list.urls.first { list.selected.contains($0) } }
+                    .keyboardShortcut(list.selected.isEmpty ? nil : KeyboardShortcut(.space, modifiers: []))
+                    .opacity(0)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
+            .quickLookPreview($quickLook, in: list.urls.filter { list.selected.contains($0) })
         }
+    }
+
+    private func chooseFiles() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.prompt = "Add to tray"
+        guard panel.runModal() == .OK else { return }
+        tray.add(panel.urls)
     }
 
     private var notchBody: some View {
@@ -152,7 +178,7 @@ struct TrayPage: View {
                 .accessibilityLabel(list.selected.isEmpty ? "Clear tray" : "Remove selected")
         }
         .frame(height: 24)
-        .animation(.easeOut(duration: 0.15), value: tray.header)
+        .wispAnimation(.easeOut(duration: 0.15), value: tray.header)
     }
 }
 

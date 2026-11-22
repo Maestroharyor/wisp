@@ -91,12 +91,12 @@ private struct OnboardingView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.horizontal, 32)
-            .transition(.opacity.combined(with: .offset(y: 6)))
+            .wispTransition(.opacity.combined(with: .offset(y: 6)))
             .id(step)
             footer
         }
         .frame(width: 520, height: 520)
-        .animation(.wispSmooth, value: step)
+        .wispAnimation(.wispSmooth, value: step)
         .task {
             // Accessibility is granted in System Settings; watch for it.
             while !Task.isCancelled {
@@ -193,7 +193,7 @@ private struct AccessibilityStep: View {
                 }
             }
             .padding(.leading, 44)
-            .animation(.easeOut(duration: 0.2), value: trusted)
+            .wispAnimation(.easeOut(duration: 0.2), value: trusted)
         }
     }
 }

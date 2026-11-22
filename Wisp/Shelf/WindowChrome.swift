@@ -48,13 +48,26 @@ struct WindowCard<Content: View>: View {
                 .help("Open \(title)")
                 .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
                 .accessibilityHint("Opens its page")
+                .accessibilityAddTraits(.isHeader)
         } else {
             label.accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
         }
     }
 }
 
 extension View {
+    /// ⌘F puts the cursor in the search field `focus` is bound to, as in Finder and Mail.
+    func findShortcut(_ focus: FocusState<Bool>.Binding) -> some View {
+        background {
+            Button("Find") { focus.wrappedValue = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
+    }
+
     /// The fill and hairline of a card in the window: a step up from the window's background,
     /// solid, so it reads the same over any desktop.
     func windowCardBackground() -> some View {

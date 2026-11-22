@@ -501,7 +501,7 @@ struct MediaPage: View {
                         symbol: showsLyrics ? "quote.bubble.fill" : "quote.bubble", size: 12,
                         tint: showsLyrics ? .wispViolet : .ink, hint: "Lyrics (from LRCLIB)"
                     ) {
-                        withAnimation(.easeOut(duration: 0.2)) {
+                        withWispAnimation(.easeOut(duration: 0.2)) {
                             model.showsLyrics.toggle()
                             model.showsAppVolume = false
                         }
@@ -512,7 +512,7 @@ struct MediaPage: View {
                         symbol: "slider.horizontal.3", size: 12, tint: showsVolume ? .wispViolet : .ink,
                         hint: "App volume"
                     ) {
-                        withAnimation(.easeOut(duration: 0.2)) {
+                        withWispAnimation(.easeOut(duration: 0.2)) {
                             model.showsAppVolume.toggle()
                             model.showsLyrics = false
                         }

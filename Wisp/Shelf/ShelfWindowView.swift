@@ -188,12 +188,16 @@ private struct WindowDetail: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             let hub = services.agents
-            if let approval = hub.approvals.first {
-                ApprovalBar(approval: approval, hub: hub, model: model)
-                    .id(approval.id)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 12)
+            ZStack {
+                if let approval = hub.approvals.first {
+                    ApprovalBar(approval: approval, hub: hub, model: model)
+                        .id(approval.id)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 12)
+                        .wispTransition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
+            .wispAnimation(.wispSmooth, value: hub.approvals.first?.id)
         }
         .background(WindowCanvas())
         .hoverHintHost()

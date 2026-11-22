@@ -43,4 +43,29 @@ final class RingLookTests: XCTestCase {
         let unknown = try JSONDecoder().decode(RingLook.self, from: Data(#"{"centre": "neon"}"#.utf8))
         XCTAssertEqual(unknown.centre, .clear)
     }
+
+    func testTheRingHasItsGlassBandUnlessChosen() throws {
+        XCTAssertEqual(RingLook.standard.backdrop, .band)
+        var look = RingLook()
+        look.backdrop = .orbit
+        let data = try JSONEncoder().encode(look)
+        XCTAssertEqual(try JSONDecoder().decode(RingLook.self, from: data).backdrop, .orbit)
+        let old = try JSONDecoder().decode(RingLook.self, from: Data(#"{"centre": "frosted"}"#.utf8))
+        XCTAssertEqual(old.backdrop, .band)
+        XCTAssertEqual(old.centre, .frosted)
+    }
+
+    func testTheBackgroundColourIsOptionalAndKeptInRange() throws {
+        XCTAssertNil(RingLook.standard.colour)
+        var look = RingLook()
+        look.colour = RGB(red: 0.1, green: 0.2, blue: 0.3)
+        look.colourAmount = 4
+        XCTAssertEqual(look.clamped().colourAmount, 1)
+        XCTAssertEqual(look.colourOpacity, 0.9, accuracy: 0.0001)
+        look.colourAmount = 0
+        XCTAssertEqual(look.colourOpacity, 0.15, accuracy: 0.0001)
+        let data = try JSONEncoder().encode(look)
+        XCTAssertEqual(try JSONDecoder().decode(RingLook.self, from: data).colour, look.colour)
+        XCTAssertNil(try JSONDecoder().decode(RingLook.self, from: Data(#"{"colour": "pink"}"#.utf8)).colour)
+    }
 }

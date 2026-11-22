@@ -28,10 +28,13 @@ struct AgentAwayCard: View {
             .frame(height: SurfaceSizing.notificationCardHeight - 8)
             .contentShape(Rectangle())
             .onTapGesture { openHistory() }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { openHistory() }
             Spacer(minLength: 0)
         }
         .foregroundStyle(.ink)
-        .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
+        .cardClose(model)
     }
 
     private func openHistory() {

@@ -179,6 +179,7 @@ struct PaneHeader: View {
             IconTile(symbol: pane.symbol, tint: pane.tint, size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(pane.title).font(.title.weight(.bold))
+                    .accessibilityAddTraits(.isHeader)
                 Text(pane.subtitle).font(.callout).foregroundStyle(.secondary)
             }
             Spacer()

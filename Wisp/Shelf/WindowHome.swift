@@ -78,7 +78,8 @@ private struct WindowHero: View {
     @Environment(\.openWindowRow) private var openRow
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        // Hours and minutes only, so it ticks on the minute.
+        TimelineView(.everyMinute) { context in
             let hour = Calendar.current.component(.hour, from: context.date)
             let palette = WindowGreeting.palette(hour: hour, isDark: scheme == .dark)
             VStack(alignment: .leading, spacing: 18) {
@@ -287,8 +288,12 @@ private struct RemindersCard: View {
                     Button("Allow Reminders") { store.requestAccess() }
                 }
             } else if store.items.isEmpty {
-                if store.loaded || store.failed {
-                    CardMessage(text: store.failed ? "Couldn't read Reminders." : "All done.")
+                if store.failed {
+                    CardMessage(text: "Couldn't read Reminders.") {
+                        Button("Try again") { store.refresh() }
+                    }
+                } else if store.loaded {
+                    CardMessage(text: "All done.")
                 } else {
                     LoadingLabel("Loading…")
                 }

@@ -13,6 +13,7 @@ struct NotesPage: View {
     /// The last note deleted, for Undo.
     @State private var deleted: Note?
     @FocusState private var editing: Bool
+    @FocusState private var searching: Bool
 
     var body: some View {
         let notes = store.book.search(query)
@@ -27,6 +28,8 @@ struct NotesPage: View {
                         store.restore(deleted)
                         self.deleted = nil
                     }
+                    // While typing, ⌘Z stays the text field's own undo.
+                    .keyboardShortcut(editing || searching ? nil : KeyboardShortcut("z", modifiers: .command))
                 }
                 WindowPrimaryButton(title: "New note", symbol: "square.and.pencil") {
                     store.newNote()
@@ -57,10 +60,17 @@ struct NotesPage: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Color.secondaryText)
                 TextField("Search notes", text: $query).textFieldStyle(.plain)
+                    .focused($searching)
+                    .onKeyPress(.escape) {
+                        guard !query.isEmpty else { return .ignored }
+                        query = ""
+                        return .handled
+                    }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background(Capsule().fill(.primary.opacity(0.08)))
+            .findShortcut($searching)
             if notes.isEmpty {
                 WindowEmptyState(
                     symbol: query.isEmpty ? "note.text" : "magnifyingglass",
@@ -117,6 +127,8 @@ struct NotesPage: View {
                     Button("Delete", systemImage: "trash", role: .destructive) { delete(note) }
                         .labelStyle(.iconOnly)
                         .help("Delete the note")
+                        // Only outside the editor, where ⌘⌫ deletes to the start of the line.
+                        .keyboardShortcut(editing || searching ? nil : KeyboardShortcut(.delete, modifiers: .command))
                 }
                 .buttonStyle(.borderless)
                 TextEditor(text: $store.text)
@@ -211,6 +223,7 @@ struct ShortcutsPage: View {
     let preferences: Preferences
 
     @State private var query = ""
+    @FocusState private var searching: Bool
 
     var body: some View {
         let favourites = ShortcutList.matching(
@@ -232,11 +245,18 @@ struct ShortcutsPage: View {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Color.secondaryText)
                     TextField("Search Shortcuts", text: $query).textFieldStyle(.plain)
+                        .focused($searching)
+                        .onKeyPress(.escape) {
+                            guard !query.isEmpty else { return .ignored }
+                            query = ""
+                            return .handled
+                        }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(Capsule().fill(.primary.opacity(0.08)))
                 .frame(maxWidth: 520)
+                .findShortcut($searching)
                 if !runner.hasListed {
                     LoadingLabel("Reading your Shortcuts…").frame(minHeight: 200).windowCardBackground()
                 } else if runner.available.isEmpty {

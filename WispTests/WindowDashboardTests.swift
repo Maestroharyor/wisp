@@ -64,6 +64,22 @@ final class WindowDashboardTests: XCTestCase {
         }
     }
 
+    func testSteppingADayStaysInTheStrip() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 21, hour: 9)))
+        let days = WeekStrip.days(from: now, calendar: calendar)
+        // Nil stands for today, the strip's first day.
+        XCTAssertEqual(WeekStrip.stepped(nil, by: 1, in: days, calendar: calendar), days[1])
+        XCTAssertNil(WeekStrip.stepped(nil, by: -1, in: days, calendar: calendar))
+        XCTAssertNil(WeekStrip.stepped(days[1], by: -1, in: days, calendar: calendar))
+        XCTAssertEqual(WeekStrip.stepped(days[6], by: 1, in: days, calendar: calendar), days[6])
+        XCTAssertEqual(WeekStrip.stepped(days[3], by: 2, in: days, calendar: calendar), days[5])
+        // A day outside the strip (left over from yesterday) starts again from today.
+        let stale = try XCTUnwrap(calendar.date(byAdding: .day, value: -2, to: days[0]))
+        XCTAssertEqual(WeekStrip.stepped(stale, by: 1, in: days, calendar: calendar), days[1])
+    }
+
     // MARK: Cards
 
     func testHomeCardsReadWhatWasSaved() {
