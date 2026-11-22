@@ -86,6 +86,7 @@ private struct OnboardingView: View {
                 switch step {
                 case .accessibility: AccessibilityStep(trusted: trusted)
                 case .opening: OpeningStep(preferences: services.preferences, accent: services.accent)
+                case .ring: RingStep(preferences: services.preferences)
                 case .agents: AgentsStep(hub: services.agents)
                 }
             }
@@ -125,14 +126,16 @@ private struct OnboardingView: View {
         switch step {
         case .accessibility: "Welcome to Wisp"
         case .opening: "How should the shelf open?"
+        case .ring: "Meet the ring"
         case .agents: "Bring your coding agents"
         }
     }
 
     private var subtitle: String {
         switch step {
-        case .accessibility: "Your notch, for people who build. Three quick steps and you're set."
+        case .accessibility: "Your notch, for people who build. Four quick steps and you're set."
         case .opening: "You can change this any time in Settings."
+        case .ring: "Your apps and actions in a circle at the pointer. Pick one with a flick, a click or a number."
         case .agents:
             "Watch your coding agents work. Approve Claude Code, Codex, OpenCode, Qwen Code and Qoder CLI "
                 + "requests from the notch."
@@ -235,6 +238,82 @@ private struct OpeningStep: View {
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// The ring: what it looks like, how to open it, and (optionally) window previews.
+private struct RingStep: View {
+    @Bindable var preferences: Preferences
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var canPreview = CGPreflightScreenCaptureAccess()
+
+    private static let scale: CGFloat = 0.4
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 24) {
+            picture
+            VStack(alignment: .leading, spacing: 14) {
+                LabeledContent("Shortcut") {
+                    if let key = preferences.shortcuts.key(for: .ring, shelf: preferences.hotkey) {
+                        KeyCap(key.description)
+                    } else {
+                        Text("Off").foregroundStyle(.secondary)
+                    }
+                }
+                Picker("Mouse button", selection: $preferences.ringButton) {
+                    ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    if canPreview {
+                        Label("Window previews are on", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(Color.wispViolet)
+                    } else {
+                        Button("Show window previews…") {
+                            Permission.screenRecording.request()
+                        }
+                        Text("Optional: a live picture of a window when you point at it. Needs Screen Recording.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .task {
+            // The grant happens in System Settings; look again now and then.
+            while !Task.isCancelled, !canPreview {
+                try? await Task.sleep(for: .seconds(1))
+                canPreview = CGPreflightScreenCaptureAccess()
+            }
+        }
+    }
+
+    /// The ring as it looks, drawn at full size and scaled down.
+    private var picture: some View {
+        let slots = preferences.ringConfig.standard.slots
+        let full = (RingGeometry.ringOuter + 10) * 2
+        let centre = CGPoint(x: full / 2, y: full / 2)
+        return ZStack {
+            RingDisc(centre: centre, dark: colorScheme == .dark, shown: true, hoverAngle: nil, reduceMotion: true)
+            ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
+                let angle = RingGeometry.slotAngle(index, count: slots.count)
+                let radians = angle * .pi / 180
+                RingIconCell(
+                    icon: slot.action.icon, tileHex: slot.action.tileHex, side: RingGeometry.iconSize, angle: angle,
+                    lit: false, dimmed: false, hasMore: false
+                )
+                .position(
+                    x: centre.x + RingGeometry.ringRadius * sin(radians),
+                    y: centre.y - RingGeometry.ringRadius * cos(radians))
+            }
+            Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit().frame(width: 24, height: 24)
+                .foregroundStyle(Color.wispViolet)
+        }
+        .frame(width: full, height: full)
+        .scaleEffect(Self.scale)
+        .frame(width: full * Self.scale, height: full * Self.scale)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("The ring, with \(slots.count) apps and actions around Wisp's flame")
     }
 }
 
