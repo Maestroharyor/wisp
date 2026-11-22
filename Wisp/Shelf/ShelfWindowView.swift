@@ -32,6 +32,8 @@ final class WindowNavigation {
     var columns: NavigationSplitViewVisibility = .all
     /// The window Home's card picker is showing.
     var customisingHome = false
+    /// The ⌘K bar that finds and creates things is open.
+    var showsCommandBar = false
 
     init(preferences: Preferences) {
         self.preferences = preferences
@@ -78,6 +80,7 @@ final class WindowNavigation {
         switch action {
         case .select(let page): select(.page(page))
         case .toggleSidebar: columns = columns == .detailOnly ? .all : .detailOnly
+        case .commandBar: showsCommandBar.toggle()
         }
     }
 }

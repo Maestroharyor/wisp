@@ -161,4 +161,11 @@ final class ShelfWindowFrameSizeTests: XCTestCase {
         let roomy = CGRect(x: 100, y: 100, width: 800, height: 520)
         XCTAssertEqual(ShelfWindowFrame.fitted(roomy, screens: [main], main: main), roomy)
     }
+
+    // MARK: Command bar
+
+    func testCommandKOpensTheCommandBar() {
+        XCTAssertEqual(WindowKeys.action(keyCode: 0x28, commandOnly: true), .commandBar)
+        XCTAssertNil(WindowKeys.action(keyCode: 0x28, commandOnly: false))
+    }
 }
