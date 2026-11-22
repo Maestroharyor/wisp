@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import WispCore
 
@@ -10,8 +11,10 @@ struct NotesPage: View {
     @Bindable var store: NotesStore
     @State private var query = ""
     @State private var width: CGFloat = 0
-    /// The last note deleted, for Undo.
-    @State private var deleted: Note?
+    /// The window's undo stack, which holds note deletes and pins as well as typing.
+    @Environment(\.undoManager) private var undoManager
+    /// The name of the note action Undo would reverse next, if it's one of this page's.
+    @State private var undoName: String?
     @FocusState private var editing: Bool
     @FocusState private var searching: Bool
 
@@ -23,13 +26,10 @@ struct NotesPage: View {
                 subtitle: "Jot it down, find it later. Kept on this Mac.",
                 count: store.book.notes.count == 1 ? "1 note" : "\(store.book.notes.count) notes"
             ) {
-                if let deleted {
-                    Button("Undo delete") {
-                        store.restore(deleted)
-                        self.deleted = nil
-                    }
-                    // While typing, ⌘Z stays the text field's own undo.
-                    .keyboardShortcut(editing || searching ? nil : KeyboardShortcut("z", modifiers: .command))
+                if let undoName {
+                    Button("Undo \(undoName.lowercased())") { undoManager?.undo() }
+                        // While typing, ⌘Z stays the text field's own undo.
+                        .keyboardShortcut(editing || searching ? nil : KeyboardShortcut("z", modifiers: .command))
                 }
                 WindowPrimaryButton(title: "New note", symbol: "square.and.pencil") {
                     store.newNote()
@@ -53,6 +53,26 @@ struct NotesPage: View {
                 width = $0
             }
         }
+        .onReceive(undoChanges) { _ in readUndoName() }
+        .onAppear(perform: readUndoName)
+    }
+
+    /// Every change to the undo stack, so the Undo button follows what ⌘Z would do.
+    private var undoChanges: some Publisher<Notification, Never> {
+        let center = NotificationCenter.default
+        return Publishers.Merge3(
+            center.publisher(for: .NSUndoManagerDidCloseUndoGroup, object: undoManager),
+            center.publisher(for: .NSUndoManagerDidUndoChange, object: undoManager),
+            center.publisher(for: .NSUndoManagerDidRedoChange, object: undoManager))
+    }
+
+    private func readUndoName() {
+        guard let undoManager, undoManager.canUndo else {
+            undoName = nil
+            return
+        }
+        let name = undoManager.undoActionName
+        undoName = NoteUndo.names.contains(name) ? name : nil
     }
 
     private func list(_ notes: [Note]) -> some View {
@@ -114,7 +134,7 @@ struct NotesPage: View {
                     }
                     Spacer()
                     Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
-                        store.togglePin(note.id)
+                        togglePin(note)
                     }
                     .labelStyle(.iconOnly)
                     .help(note.pinned ? "Unpin" : "Pin to the top")
@@ -132,6 +152,8 @@ struct NotesPage: View {
                 }
                 .buttonStyle(.borderless)
                 TextEditor(text: $store.text)
+                    // A fresh text view per note, so undoing typing can't change a different note.
+                    .id(note.id)
                     .wispFont(.title3)
                     .lineSpacing(4)
                     .scrollContentBackground(.hidden)
@@ -161,7 +183,7 @@ struct NotesPage: View {
     }
 
     @ViewBuilder private func menu(_ note: Note) -> some View {
-        Button(note.pinned ? "Unpin" : "Pin") { store.togglePin(note.id) }
+        Button(note.pinned ? "Unpin" : "Pin") { togglePin(note) }
         Button("Copy") {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(note.body, forType: .string)
@@ -171,7 +193,42 @@ struct NotesPage: View {
     }
 
     private func delete(_ note: Note) {
-        deleted = store.remove(note.id)
+        NoteUndo.delete(note.id, in: store, undoManager: undoManager)
+    }
+
+    private func togglePin(_ note: Note) {
+        NoteUndo.togglePin(note.id, in: store, undoManager: undoManager)
+    }
+}
+
+/// Note deletes and pins that Undo and Redo can reverse in turn, however many there are.
+@MainActor
+private enum NoteUndo {
+    static let names: Set<String> = ["Delete", "Pin", "Unpin"]
+
+    static func delete(_ id: UUID, in store: NotesStore, undoManager: UndoManager?) {
+        guard let note = store.remove(id) else { return }
+        undoManager?.registerUndo(withTarget: store) { store in
+            restore(note, in: store, undoManager: undoManager)
+        }
+        undoManager?.setActionName("Delete")
+    }
+
+    private static func restore(_ note: Note, in store: NotesStore, undoManager: UndoManager?) {
+        store.restore(note)
+        undoManager?.registerUndo(withTarget: store) { store in
+            delete(note.id, in: store, undoManager: undoManager)
+        }
+        undoManager?.setActionName("Delete")
+    }
+
+    static func togglePin(_ id: UUID, in store: NotesStore, undoManager: UndoManager?) {
+        let wasPinned = store.book.note(id)?.pinned ?? false
+        store.togglePin(id)
+        undoManager?.registerUndo(withTarget: store) { store in
+            togglePin(id, in: store, undoManager: undoManager)
+        }
+        undoManager?.setActionName(wasPinned ? "Unpin" : "Pin")
     }
 }
 
