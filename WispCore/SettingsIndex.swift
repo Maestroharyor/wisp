@@ -120,7 +120,7 @@ public enum SettingsPaneID: String, CaseIterable, Sendable, Identifiable {
                 "change colour through the day", "change color through the day", "beside the closed notch",
                 "sounds", "shell", "finish", "glass edge", "numbers in", "through the day", "while idle",
                 "match the desktop picture", "tint with the playing album", "motion", "reduce motion",
-                "page switcher",
+                "page switcher", "text size", "font size", "bigger text", "larger text",
             ]
         case .activities:
             [

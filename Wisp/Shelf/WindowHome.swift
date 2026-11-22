@@ -76,6 +76,7 @@ private struct WindowHero: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.openWindowRow) private var openRow
+    @Environment(\.wispTextScale) private var textScale
 
     var body: some View {
         // Hours and minutes only, so it ticks on the minute.
@@ -86,17 +87,21 @@ private struct WindowHero: View {
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(WindowGreeting.greeting(hour: hour, fullName: NSFullUserName()))
-                            .font(.largeTitle.bold())
+                            .wispFont(.largeTitle, weight: .bold)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                             .accessibilityAddTraits(.isHeader)
                         Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
-                            .font(.title3)
+                            .wispFont(.title3)
                             .foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 12)
                     Text(context.date, format: .dateTime.hour().minute())
-                        .font(.system(size: 44, weight: .semibold, design: .rounded).monospacedDigit())
+                        .font(
+                            .system(
+                                size: TextStyleSize.scaled(44, by: textScale), weight: .semibold, design: .rounded
+                            ).monospacedDigit()
+                        )
                         .lineLimit(1)
                         .contentTransition(.numericText())
                 }
@@ -164,11 +169,11 @@ private struct HeroAction: View {
         Button(action: action) {
             if labelled {
                 Label(title, systemImage: symbol)
-                    .font(.callout.weight(.medium))
+                    .wispFont(.callout, weight: .medium)
             } else {
                 Label(title, systemImage: symbol)
                     .labelStyle(.iconOnly)
-                    .font(.callout.weight(.medium))
+                    .wispFont(.callout, weight: .medium)
             }
         }
         .help(title)
@@ -190,7 +195,7 @@ private struct WeekStripView: View {
             let days = WeekStrip.days(from: context.date, calendar: .current)
             HStack(spacing: 6) {
                 Text(context.date, format: .dateTime.month(.wide).year())
-                    .font(.title3.weight(.semibold))
+                    .wispFont(.title3, weight: .semibold)
                     .frame(minWidth: 150, alignment: .leading)
                 ForEach(days, id: \.self) { day in
                     dayButton(day, today: days.first)
@@ -213,10 +218,10 @@ private struct WeekStripView: View {
         } label: {
             VStack(spacing: 2) {
                 Text(day, format: .dateTime.weekday(.abbreviated))
-                    .font(.caption.weight(.medium))
+                    .wispFont(.caption, weight: .medium)
                     .foregroundStyle(selected ? .white.opacity(0.85) : Color.secondaryText)
                 Text(day, format: .dateTime.day())
-                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .wispFont(.title3, weight: .semibold).monospacedDigit()
                     .foregroundStyle(selected ? .white : .primary)
                 Circle().fill(selected ? .white : Color.wispViolet).frame(width: 4, height: 4)
                     .opacity(busy ? 1 : 0)
@@ -346,9 +351,9 @@ private struct AgentsCard: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(session.project.isEmpty ? session.source.displayName : session.project)
-                    .font(.body.weight(.semibold)).lineLimit(1)
+                    .wispFont(.body, weight: .semibold).lineLimit(1)
                 Text("\(session.source.displayName) · \(session.stateLabel)")
-                    .font(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(1)
+                    .wispFont(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(1)
             }
             Spacer(minLength: 8)
             if let percent = session.contextPercent {
@@ -390,9 +395,9 @@ private struct NotesCard: View {
                             open()
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(note.title).font(.body.weight(.semibold)).lineLimit(1)
+                                Text(note.title).wispFont(.body, weight: .semibold).lineLimit(1)
                                 if !note.preview.isEmpty {
-                                    Text(note.preview).font(.subheadline).foregroundStyle(Color.secondaryText)
+                                    Text(note.preview).wispFont(.subheadline).foregroundStyle(Color.secondaryText)
                                         .lineLimit(2)
                                 }
                             }
@@ -417,7 +422,7 @@ private struct CardMessage<Action: View>: View {
     var body: some View {
         VStack(spacing: 10) {
             Text(text)
-                .font(.callout)
+                .wispFont(.callout)
                 .foregroundStyle(Color.secondaryText)
                 .multilineTextAlignment(.center)
             action
@@ -442,9 +447,9 @@ struct HomeCardsSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Customise Home").font(.title2.bold())
+            Text("Customise Home").wispFont(.title2, weight: .bold)
             Text("Choose the cards on Home and drag to reorder them.")
-                .font(.subheadline).foregroundStyle(Color.secondaryText)
+                .wispFont(.subheadline).foregroundStyle(Color.secondaryText)
             List {
                 ForEach(preferences.windowHomeCards) { card in
                     toggle(card)

@@ -55,7 +55,7 @@ struct GeneralSettings: View {
                 Text(
                     "Speak while you hold the key and let go to type it: into the prompt draft when a session is open in the Agents view, into a question card's answer, or else into the app in front. If the key also opens the shelf, a quick press still does. Speech is turned into text on this Mac; the audio never leaves it and nothing is kept."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
             .onAppear { dictation.refreshReadiness() }
 
@@ -63,7 +63,7 @@ struct GeneralSettings: View {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
                 if let launchError {
-                    Text(launchError).font(.caption).foregroundStyle(.red)
+                    Text(launchError).wispFont(.caption).foregroundStyle(.red)
                 }
             }
 
@@ -71,7 +71,7 @@ struct GeneralSettings: View {
                 Toggle("Show Wisp in the menu bar", isOn: $preferences.showMenuBarIcon)
                 if !preferences.showMenuBarIcon {
                     Text("Open Wisp again from Finder or Spotlight to get back to Settings.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .wispFont(.caption).foregroundStyle(.secondary)
                 }
                 if preferences.hotkey.usesHyper {
                     Toggle(

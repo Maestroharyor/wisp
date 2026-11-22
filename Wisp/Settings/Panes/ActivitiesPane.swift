@@ -15,7 +15,7 @@ struct ActivitySettings: View {
                 Toggle("Display brightness", isOn: $preferences.brightnessHUD)
                 Toggle("Caps Lock", isOn: $preferences.capsLockHUD)
                 Text("Volume and brightness need Accessibility access to intercept the keys.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Show beside the notch") {
                 Toggle("Now Playing (any app, including browsers)", isOn: $preferences.mediaActivity)
@@ -26,7 +26,7 @@ struct ActivitySettings: View {
                 Text(
                     "Reads the address of the playing tab in Safari, Chrome, Arc, Brave, Edge, Vivaldi or Opera through Automation; macOS asks once per browser. Firefox and Zen can't share their tab, so they use live captions."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
                 Toggle("Live captions for anything else that plays", isOn: $preferences.liveCaptions)
                     .disabled(!Self.processTapsAvailable)
                 if preferences.liveCaptions {
@@ -35,7 +35,7 @@ struct ActivitySettings: View {
                 Text(
                     "Listens to the playing app's sound and writes what's said, on this Mac only: nothing is recorded, saved or sent. Needs System Audio Recording and Speech Recognition, and a language macOS can recognise offline."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
                 Toggle(
                     "Find missing album art on iTunes (sends the song title and artist)",
                     isOn: $preferences.artworkLookup)
@@ -47,12 +47,12 @@ struct ActivitySettings: View {
                         ? "Needs System Audio Recording, which macOS asks for the first time you turn an app down. Wisp reads only the apps you turn down and plays them back at your level; their sound is never saved or sent. Quitting Wisp gives every app its own volume back."
                         : "Needs macOS 14.2 or later."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
                 Toggle("Up Next: the rest of Music's playlist under the player", isOn: $preferences.upNext)
                 Text(
                     "Reads Music through Automation. Music doesn't share its Up Next queue and Spotify doesn't share one at all, so this is the playlist order, hidden while shuffle is on."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
                 Toggle(
                     "Calls and recordings: a pill while the microphone is on, and a Join card before calls",
                     isOn: $preferences.meetingActivity)
@@ -69,7 +69,7 @@ struct ActivitySettings: View {
                 }
                 Toggle("Show more than one activity at once", isOn: $preferences.activityBubbles)
                 Text("Extra activities get their own bubbles beside the notch.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Batteries") {
                 Toggle("Battery and charging", isOn: $preferences.batteryHUD)
@@ -98,12 +98,12 @@ struct ActivitySettings: View {
                 Text(
                     "Works with Safari, Chrome, Edge, Brave, Arc and Firefox. Wisp reads only file names and sizes, and macOS may ask before it can see the Downloads folder."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
                 if !downloads.deniedFolders.isEmpty {
                     Text(
                         "Wisp can't see \(downloads.deniedFolders.map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")). Allow it in System Settings › Privacy & Security › Files and Folders."
                     )
-                    .font(.caption).foregroundStyle(.orange)
+                    .wispFont(.caption).foregroundStyle(.orange)
                 }
             }
             AdvancedSection {
@@ -117,7 +117,7 @@ struct ActivitySettings: View {
                 }
                 .pickerStyle(.segmented)
                 Text("Hold Option and Shift while changing the volume for steps four times finer.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .wispFont(.caption).foregroundStyle(.secondary)
                 Toggle(
                     "Call controls for Teams and Google Meet in Chromium browsers",
                     isOn: $preferences.meetingShortcutControls
@@ -126,7 +126,7 @@ struct ActivitySettings: View {
                 Text(
                     "Wisp types their keyboard shortcuts into the call window. Teams and Meet don't say whether you're muted, so their buttons only toggle. Wisp can't always tell Teams' call window from its other windows, so this is off until you turn it on."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
                 Picker("First bubble", selection: $preferences.firstBubbleOnLeft) {
                     Text("Right").tag(false)
                     Text("Left").tag(true)

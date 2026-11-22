@@ -54,11 +54,11 @@ struct PhoneAlertsSection: View {
                 "The server under Advanced needs an https address, such as \(PushTopic.defaultServer).",
                 systemImage: "exclamationmark.triangle"
             )
-            .font(.caption).foregroundStyle(.orange)
+            .wispFont(.caption).foregroundStyle(.orange)
         }
         LabeledContent("Topic") {
             HStack {
-                Text(preferences.pushTopic).font(.caption.monospaced()).textSelection(.enabled)
+                Text(preferences.pushTopic).wispFont(.caption, design: .monospaced).textSelection(.enabled)
                 Button("Copy") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(preferences.pushTopic, forType: .string)
@@ -76,14 +76,14 @@ struct PhoneAlertsSection: View {
                 Text(
                     "Install the ntfy app on your phone and subscribe to this topic, or scan the code to open it. Your Apple Watch shows the iPhone's notifications."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
         }
         HStack {
             Button("Send test") { Task { await push.sendTest() } }
                 .disabled(push.testing || push.server == nil)
             if let problem = push.problem {
-                Label(problem, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                Label(problem, systemImage: "exclamationmark.triangle").wispFont(.caption).foregroundStyle(.orange)
             }
         }
     }
@@ -109,17 +109,17 @@ struct PhoneAlertsAdvanced: View {
 
     var body: some View {
         Group {
-            Text("Phone alerts").font(.headline).padding(.top, 6)
+            Text("Phone alerts").wispFont(.headline).padding(.top, 6)
             Toggle("Add the command or file name", isOn: $preferences.pushDetails)
             Text(
                 "Adds the command or file name to permission requests, with secrets masked, and the session summary to Done. Hidden while agent details are hidden in the notch."
             )
-            .font(.caption).foregroundStyle(.secondary)
+            .wispFont(.caption).foregroundStyle(.secondary)
             if preferences.pushMode == .away {
                 Stepper(value: $preferences.pushIdleMinutes, in: PushPolicy.idleMinutesRange) {
                     LabeledContent("Away after", value: "\(preferences.pushIdleMinutes) min idle")
                 }
-                Text("Also when the screen is locked.").font(.caption).foregroundStyle(.secondary)
+                Text("Also when the screen is locked.").wispFont(.caption).foregroundStyle(.secondary)
             }
             Picker(
                 "Wait for an answer",
@@ -135,8 +135,8 @@ struct PhoneAlertsAdvanced: View {
             Text(
                 "Permission prompts wait this long for Allow or Deny from the notch or your phone, then go back to the terminal. Changing it updates your agents' hooks; Codex asks you to trust them again in /hooks."
             )
-            .font(.caption).foregroundStyle(.secondary)
-            Text("Your own ntfy server").font(.headline).padding(.top, 6)
+            .wispFont(.caption).foregroundStyle(.secondary)
+            Text("Your own ntfy server").wispFont(.headline).padding(.top, 6)
             LabeledContent("Server") {
                 TextField("Server", text: $preferences.pushServer, prompt: Text(PushTopic.defaultServer))
                     .labelsHidden()
@@ -147,7 +147,7 @@ struct PhoneAlertsAdvanced: View {
                 Label(
                     "Use an https address, such as \(PushTopic.defaultServer).", systemImage: "exclamationmark.triangle"
                 )
-                .font(.caption).foregroundStyle(.orange)
+                .wispFont(.caption).foregroundStyle(.orange)
             }
             tokenRow(
                 "Access token", draft: $token, saved: push.hasToken,
@@ -158,7 +158,7 @@ struct PhoneAlertsAdvanced: View {
             Text(
                 "Tokens are for a server that needs a login, and are kept in your Keychain. Wisp uses the access token to send alerts and read replies; it never leaves your Mac except to your server. The Allow and Deny buttons carry only the reply token, which is stored with each notification, so give it write access to the reply topic and nothing else."
             )
-            .font(.caption).foregroundStyle(.secondary)
+            .wispFont(.caption).foregroundStyle(.secondary)
         }
     }
 

@@ -30,6 +30,7 @@ struct AppearanceSettings: View {
         Form {
             presets
             theme
+            textSize
             shape
             panels
             effects
@@ -155,6 +156,19 @@ struct AppearanceSettings: View {
         }
     }
 
+    // MARK: Text size
+
+    private var textSize: some View {
+        Section {
+            Picker("Text size", selection: $preferences.textScale) {
+                ForEach(TextScale.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+        } footer: {
+            Text("For the window and Settings. The notch keeps its size so it fits.")
+        }
+    }
+
     // MARK: Panels
 
     private var panels: some View {
@@ -205,7 +219,7 @@ struct AppearanceSettings: View {
             Toggle("Minimal pill (an icon and a dot, no labels)", isOn: look.minimalPill)
             Picker("Number style", selection: look.valueFont) {
                 ForEach(ValueFont.allCases) { font in
-                    Text(font.title).font(.system(.body, design: font.design)).tag(font)
+                    Text(font.title).wispFont(.body, design: font.design).tag(font)
                 }
             }
             .pickerStyle(.segmented)
@@ -364,7 +378,7 @@ struct AppearanceSettings: View {
     }
 
     private func caption(_ text: String) -> some View {
-        Text(text).font(.caption).foregroundStyle(.secondary)
+        Text(text).wispFont(.caption).foregroundStyle(.secondary)
     }
 
     private static var lookType: UTType { UTType(filenameExtension: LookFile.fileExtension) ?? .json }
@@ -431,7 +445,7 @@ private struct PresetChip: View {
                 .clipShape(shape)
                 .frame(height: 40)
                 .overlay(shape.strokeBorder(selected ? accent : .white.opacity(0.12), lineWidth: 2))
-                Text(preset.name).font(.caption).lineLimit(1)
+                Text(preset.name).wispFont(.caption).lineLimit(1)
             }
             .padding(4)
             .contentShape(Rectangle())

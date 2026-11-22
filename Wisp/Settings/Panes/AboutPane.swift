@@ -20,16 +20,16 @@ struct AboutSettings: View {
                         .resizable()
                         .frame(width: 56, height: 56)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Wisp").font(.system(size: 18, weight: .bold))
+                        Text("Wisp").wispFont(.title2, weight: .bold)
                         Text("Version \(Self.version)").foregroundStyle(.secondary)
                         Text("The notch for people who build.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .wispFont(.caption).foregroundStyle(.secondary)
                         if let author = Self.author {
                             HStack(spacing: 4) {
                                 Text("Made by")
                                 Link("Ayomide Odewale", destination: author)
                             }
-                            .font(.caption)
+                            .wispFont(.caption)
                             .padding(.top, 2)
                         }
                     }
@@ -68,7 +68,7 @@ struct AboutSettings: View {
                 Text(
                     "With automatic checks on, Wisp looks at GitHub Releases once a day. Updates are signed, and your settings and permissions are kept."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section {
                 Button("Copy diagnostics", action: copyDiagnostics)
@@ -78,7 +78,7 @@ struct AboutSettings: View {
                 Text(
                     "Copies Wisp's version, the macOS version and the screen measurements Wisp uses to find the notch, to paste into an issue. Nothing is sent."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section {
                 Button("Run Setup Again", action: runSetup)
@@ -87,7 +87,7 @@ struct AboutSettings: View {
                 Text(
                     "Puts every Wisp setting back to its default and relaunches Wisp. Your tray, notes, clipboard history and chat logins are kept."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

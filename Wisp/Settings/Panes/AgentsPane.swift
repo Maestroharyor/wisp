@@ -82,7 +82,7 @@ struct AgentSettings: View {
             Section("Power") {
                 Toggle("Keep the Mac awake while an agent works", isOn: $preferences.agentKeepAwake)
                 Text("The display can still sleep. Sessions waiting on you don't keep it awake.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .wispFont(.caption).foregroundStyle(.secondary)
             }
             historySection
             CloudAgentsSection(cloud: cloud, preferences: preferences)
@@ -97,7 +97,7 @@ struct AgentSettings: View {
                 } else {
                     // Keeps a search for the server, tokens or wait landing on something.
                     Text("Turn on Phone alerts to set the server, tokens and wait.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .wispFont(.caption).foregroundStyle(.secondary)
                 }
             }
         }
@@ -121,7 +121,7 @@ struct AgentSettings: View {
                 range: min(Double(preferences.contextWarnPercent) + ContextUsage.Thresholds.gap, 95)...100
             ) { _ in }
             Text("The context ring turns amber at Warn at and red at Critical at.")
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             Toggle("Alert when a tool runs long", isOn: $preferences.toolAlert)
                 .disabled(!preferences.agentToolActivity)
             if preferences.toolAlert {
@@ -131,7 +131,7 @@ struct AgentSettings: View {
                 .disabled(!preferences.agentToolActivity)
             }
             if !preferences.agentToolActivity {
-                Text("Needs Show what agents are doing, under Advanced.").font(.caption).foregroundStyle(.secondary)
+                Text("Needs Show what agents are doing, under Advanced.").wispFont(.caption).foregroundStyle(.secondary)
             }
             Toggle("Nudge me when a session is still waiting", isOn: $preferences.nudgeAlert)
             if preferences.nudgeAlert {
@@ -151,7 +151,7 @@ struct AgentSettings: View {
             Text(
                 "Covers Claude Code's and Codex's 5 h and weekly limits. A reset is only announced for a limit that passed the alert level. Each has a sound under Sounds."
             )
-            .font(.caption).foregroundStyle(.secondary)
+            .wispFont(.caption).foregroundStyle(.secondary)
             Toggle("Alert at 80% and 100% of a daily budget", isOn: $preferences.budgetAlert)
             if preferences.budgetAlert {
                 dollars("Daily budget", value: budget)
@@ -162,7 +162,7 @@ struct AgentSettings: View {
                 Text(
                     "Asks Keep going, Raise or Stop, and holds the session's next request until you choose. Stop presses Esc in its terminal (needs Accessibility). Codex spend is estimated from tokens, and Claude Code without a status line Wisp reads is checked only when a turn ends."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -207,13 +207,13 @@ struct AgentSettings: View {
                 "\(names) hooks don't match this choice. Turn it off and on again to apply it.",
                 systemImage: "exclamationmark.triangle"
             )
-            .font(.caption).foregroundStyle(.orange)
+            .wispFont(.caption).foregroundStyle(.orange)
         }
         Text(
             "Shows the command an agent is running or the file it's editing in the notch, and how many other sessions are going. Adds hooks for tool calls that never wait for Wisp. Secrets in commands are masked, the privacy setting applies, and nothing leaves your Mac."
                 + (hub.isConnected(.claude) ? "" : " Applies when you connect Claude Code.")
         )
-        .font(.caption).foregroundStyle(.secondary)
+        .wispFont(.caption).foregroundStyle(.secondary)
     }
 }
 
@@ -436,9 +436,9 @@ private struct StatusLineSettings: View {
             }
             if preferences.terminalBarMode == .wisp { preview }
             if let mismatch = mismatch {
-                Label(mismatch, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                Label(mismatch, systemImage: "exclamationmark.triangle").wispFont(.caption).foregroundStyle(.orange)
             }
-            Text(explanation(hasOwnBar: hasOwnBar)).font(.caption).foregroundStyle(.secondary)
+            Text(explanation(hasOwnBar: hasOwnBar)).wispFont(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -451,7 +451,7 @@ private struct StatusLineSettings: View {
             let rgb = StatusBarRenderer.rgb(code: code)
             return line + piece.foregroundColor(Color(red: rgb.red, green: rgb.green, blue: rgb.blue))
         }
-        .font(.system(size: 12, design: .monospaced))
+        .wispFont(.callout, design: .monospaced)
         .lineLimit(1)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -518,7 +518,7 @@ private struct CommandLineSettings: View {
             }
             .onAppear { installer.refresh() }
             if let problem = installer.problem {
-                Label(problem, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                Label(problem, systemImage: "exclamationmark.triangle").wispFont(.caption).foregroundStyle(.orange)
             }
             if installer.state == .installed, installer.path == .notOnPath {
                 let advice = CommandLineTool.pathAdvice(shell: ProcessInfo.processInfo.environment["SHELL"])
@@ -530,20 +530,20 @@ private struct CommandLineSettings: View {
                     .foregroundStyle(.orange)
                     HStack {
                         Text(advice.line)
-                            .font(.system(size: 11, design: .monospaced))
+                            .wispFont(.subheadline, design: .monospaced)
                             .textSelection(.enabled)
                         Spacer()
                         Button("Check again") { installer.checkPathAgain() }
                     }
                 }
-                .font(.caption)
+                .wispFont(.caption)
             }
             Text(
                 "Run wisp status, wisp watch or wisp spend in a terminal to see your sessions and spend. Wisp must be running. The privacy setting applies there too."
                     + (installer.path == .unknown && installer.state == .installed
                         ? " Wisp couldn't check your PATH; if wisp isn't found, add ~/.local/bin to it." : "")
             )
-            .font(.caption).foregroundStyle(.secondary)
+            .wispFont(.caption).foregroundStyle(.secondary)
         }
     }
 

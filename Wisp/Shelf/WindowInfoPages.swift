@@ -63,7 +63,7 @@ struct BatteryPage: View {
             Spacer()
             Text(value).fontWeight(.medium)
         }
-        .font(.callout)
+        .wispFont(.callout)
         .accessibilityElement(children: .combine)
     }
 
@@ -112,9 +112,9 @@ private struct MacBatteryCard: View {
             .frame(width: 96, height: 96)
             VStack(alignment: .leading, spacing: 4) {
                 Label(BatteryText.status(state), systemImage: state.isPluggedIn ? "bolt.fill" : "battery.75percent")
-                    .font(.title2.weight(.semibold))
+                    .wispFont(.title2, weight: .semibold)
                 Text(BatteryText.remaining(minutes: minutes, state: state) ?? "Working out the time left")
-                    .font(.body).foregroundStyle(Color.secondaryText)
+                    .wispFont(.body).foregroundStyle(Color.secondaryText)
             }
             Spacer(minLength: 0)
         }
@@ -133,15 +133,15 @@ private struct AccessoryBatteryCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: device.symbol)
-                    .font(.title3.weight(.semibold))
+                    .wispFont(.title3, weight: .semibold)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(.ink.opacity(0.1)))
-                Text(device.name).font(.body.weight(.semibold)).lineLimit(1)
+                Text(device.name).wispFont(.body, weight: .semibold).lineLimit(1)
             }
             ForEach(BatteryText.parts(of: device, lowLevel: lowLevel), id: \.label) { part in
                 HStack(spacing: 8) {
                     Text(part.label)
-                        .font(.callout).foregroundStyle(Color.secondaryText)
+                        .wispFont(.callout).foregroundStyle(Color.secondaryText)
                         .frame(width: 52, alignment: .leading)
                     GeometryReader { proxy in
                         ZStack(alignment: .leading) {
@@ -153,7 +153,7 @@ private struct AccessoryBatteryCard: View {
                     }
                     .frame(height: 6)
                     Text("\(part.level)%")
-                        .font(.callout.weight(.semibold)).monospacedDigit()
+                        .wispFont(.callout, weight: .semibold).monospacedDigit()
                         .foregroundStyle(part.isLow ? Color.red : .ink)
                         .frame(width: 40, alignment: .trailing)
                 }
@@ -192,7 +192,7 @@ struct SystemStatsPage: View {
                 }
                 MacInfoCard(memory: store.memory)
                 Text("The charts show about the last 40 seconds.")
-                    .font(.subheadline).foregroundStyle(Color.secondaryText)
+                    .wispFont(.subheadline).foregroundStyle(Color.secondaryText)
             }
         }
         .onAppear { store.attach() }
@@ -229,8 +229,8 @@ private struct MacInfoCard: View {
 
     private func fact(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.subheadline).foregroundStyle(Color.secondaryText)
-            Text(value).font(.body.weight(.semibold)).lineLimit(1)
+            Text(label).wispFont(.subheadline).foregroundStyle(Color.secondaryText)
+            Text(value).wispFont(.body, weight: .semibold).lineLimit(1)
         }
         .accessibilityElement(children: .combine)
     }
@@ -265,11 +265,11 @@ private struct StatCard: View {
                 } icon: {
                     Image(systemName: symbol).foregroundStyle(tint)
                 }
-                .font(.body.weight(.semibold))
+                .wispFont(.body, weight: .semibold)
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 1) {
                     ValueText(text: value.map { "\(LevelStep.percent($0))" } ?? "–", size: 30)
-                    Text("%").font(.body.weight(.semibold)).foregroundStyle(Color.secondaryText)
+                    Text("%").wispFont(.body, weight: .semibold).foregroundStyle(Color.secondaryText)
                 }
             }
             Sparkline(values: history.values, tint: tint, filled: filled)
@@ -281,7 +281,7 @@ private struct StatCard: View {
                 Spacer()
                 if let detail { Text(detail) }
             }
-            .font(.subheadline)
+            .wispFont(.subheadline)
             .foregroundStyle(Color.secondaryText)
         }
         .padding(16)
@@ -296,6 +296,7 @@ private struct StatCard: View {
 /// has. Nothing new is fetched; the store reads at most every 30 minutes.
 struct WeatherPage: View {
     let store: WeatherStore
+    @Environment(\.wispTextScale) private var textScale
 
     var body: some View {
         WindowWidgetPage(width: .readable) {
@@ -348,12 +349,12 @@ struct WeatherPage: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Label(reading.place.isEmpty ? "Here" : reading.place, systemImage: "location.fill")
-                    .font(.body.weight(.semibold))
+                    .wispFont(.body, weight: .semibold)
                     .foregroundStyle(Color.secondaryText)
                 Text("\(Int(reading.temperature.rounded()))°")
-                    .font(.system(size: 60, weight: .regular, design: .rounded))
+                    .font(.system(size: TextStyleSize.scaled(60, by: textScale), weight: .regular, design: .rounded))
                 Text("\(now.title) · H:\(Int(reading.high.rounded()))° L:\(Int(reading.low.rounded()))°")
-                    .font(.body.weight(.medium))
+                    .wispFont(.body, weight: .medium)
             }
             Spacer(minLength: 0)
         }
@@ -366,11 +367,11 @@ struct WeatherPage: View {
         let date = Calendar.current.date(bySettingHour: hour.hour % 24, minute: 0, second: 0, of: .now) ?? .now
         return VStack(spacing: 8) {
             Text(date, format: .dateTime.hour())
-                .font(.callout.weight(.medium)).foregroundStyle(Color.secondaryText)
+                .wispFont(.callout, weight: .medium).foregroundStyle(Color.secondaryText)
             Image(systemName: WeatherCode.describe(hour.code, isDay: hour.isDay).symbol)
                 .symbolRenderingMode(.multicolor)
                 .font(.system(size: 24))
-            Text("\(Int(hour.temperature.rounded()))°").font(.title3.weight(.semibold))
+            Text("\(Int(hour.temperature.rounded()))°").wispFont(.title3, weight: .semibold)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)

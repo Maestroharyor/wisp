@@ -53,19 +53,19 @@ struct DayProgressPage: View {
                 let left = day.minutesLeft(at: now)
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     ValueText(text: "\(Int((day.fraction(at: now) * 100).rounded()))%", tint: .wispViolet, size: 48)
-                    Text("of the working day").font(.title3).foregroundStyle(Color.secondaryText)
+                    Text("of the working day").wispFont(.title3).foregroundStyle(Color.secondaryText)
                 }
                 Text("\(DurationText.text(for: TimeInterval(left * 60))) left · \(range)")
-                    .font(.body.weight(.medium)).foregroundStyle(.ink.opacity(0.85))
+                    .wispFont(.body, weight: .medium).foregroundStyle(.ink.opacity(0.85))
             } else {
                 let next = day.nextStart(after: now)
                 let ended = day.fraction(at: now) >= 1
                 Text(ended ? "Done for today" : "Your day hasn't started")
-                    .font(.title.weight(.semibold))
+                    .wispFont(.title, weight: .semibold)
                 Text(
                     "Starts \(Calendar.current.isDateInToday(next) ? "today" : "tomorrow") at \(next.formatted(date: .omitted, time: .shortened)) · \(range)"
                 )
-                .font(.body.weight(.medium)).foregroundStyle(Color.secondaryText)
+                .wispFont(.body, weight: .medium).foregroundStyle(Color.secondaryText)
             }
         }
     }
@@ -75,7 +75,7 @@ struct DayProgressPage: View {
             if calendar.access != .fullAccess {
                 HStack(spacing: 10) {
                     Text("Your calendar's events can show on the timeline.")
-                        .font(.body).foregroundStyle(Color.secondaryText)
+                        .wispFont(.body).foregroundStyle(Color.secondaryText)
                     // macOS asks only once; after a denial the switch is in System Settings.
                     if calendar.access == .notDetermined {
                         Button("Show events") { calendar.requestAccess() }
@@ -86,7 +86,7 @@ struct DayProgressPage: View {
             } else {
                 let rest = calendar.todayEvents.filter { $0.end > now }
                 if rest.isEmpty {
-                    Text("Nothing else today").font(.body).foregroundStyle(Color.secondaryText)
+                    Text("Nothing else today").wispFont(.body).foregroundStyle(Color.secondaryText)
                 } else {
                     ForEach(rest) { event in
                         DayEventRow(event: event) { calendar.open(event) }
@@ -156,7 +156,7 @@ private struct DayTimeline: View {
                             open(event)
                         } label: {
                             Text(event.title)
-                                .font(.subheadline.weight(.semibold))
+                                .wispFont(.subheadline, weight: .semibold)
                                 .lineLimit(1)
                                 .padding(.horizontal, 6)
                                 .frame(
@@ -186,7 +186,7 @@ private struct DayTimeline: View {
                 ForEach(Array(hours.enumerated()), id: \.offset) { index, mark in
                     if index % step == 0 || index == hours.count - 1 {
                         Text(hourText(mark.hour))
-                            .font(.caption.weight(.medium))
+                            .wispFont(.caption, weight: .medium)
                             .foregroundStyle(Color.secondaryText)
                             .fixedSize()
                             .frame(
@@ -220,8 +220,8 @@ struct DayEventRow: View {
                     RoundedRectangle(cornerRadius: 1.5, style: .continuous).fill(event.color).frame(
                         width: 4, height: 32)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(event.title).font(.body.weight(.semibold)).lineLimit(1)
-                        Text(timeText).font(.subheadline).foregroundStyle(Color.secondaryText)
+                        Text(event.title).wispFont(.body, weight: .semibold).lineLimit(1)
+                        Text(timeText).wispFont(.subheadline).foregroundStyle(Color.secondaryText)
                     }
                     Spacer(minLength: 8)
                 }
@@ -330,11 +330,11 @@ struct WorldClocksPage: View {
             )
             .frame(width: 72, height: 72)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Here").font(.subheadline).foregroundStyle(Color.secondaryText)
+                Text("Here").wispFont(.subheadline).foregroundStyle(Color.secondaryText)
                 Text(shown, format: .dateTime.hour().minute())
-                    .font(.system(.largeTitle, design: .rounded).weight(.semibold).monospacedDigit())
+                    .wispFont(.largeTitle, weight: .semibold, design: .rounded).monospacedDigit()
                 Text(TimeZone.current.localizedName(for: .standard, locale: .current) ?? TimeZone.current.identifier)
-                    .font(.subheadline).foregroundStyle(Color.secondaryText)
+                    .wispFont(.subheadline).foregroundStyle(Color.secondaryText)
             }
             Spacer(minLength: 0)
         }
@@ -372,7 +372,7 @@ struct WorldClocksPage: View {
                     Button("Now") { resetShift() }.controlSize(.small)
                 }
             }
-            .font(.body.weight(.medium))
+            .wispFont(.body, weight: .medium)
             .frame(height: 22)
             Slider(
                 value: Binding(
@@ -388,9 +388,9 @@ struct WorldClocksPage: View {
             ) {
                 Text("Time shift")
             } minimumValueLabel: {
-                Text("−12h").font(.caption).foregroundStyle(Color.secondaryText)
+                Text("−12h").wispFont(.caption).foregroundStyle(Color.secondaryText)
             } maximumValueLabel: {
-                Text("+12h").font(.caption).foregroundStyle(Color.secondaryText)
+                Text("+12h").wispFont(.caption).foregroundStyle(Color.secondaryText)
             }
             .labelsHidden()
         }
@@ -425,7 +425,7 @@ private struct ClockCard: View {
             AnalogFace(hour: hour, minute: parts.minute ?? 0, daytime: day)
                 .frame(width: 64, height: 64)
             VStack(alignment: .leading, spacing: 3) {
-                Text(WorldClock.cityName(zone.identifier)).font(.body.weight(.semibold)).lineLimit(1)
+                Text(WorldClock.cityName(zone.identifier)).wispFont(.body, weight: .semibold).lineLimit(1)
                 ValueText(text: time.formatted(style), size: 20)
                 HStack(spacing: 4) {
                     Image(systemName: day ? "sun.max.fill" : "moon.fill")
@@ -433,7 +433,7 @@ private struct ClockCard: View {
                     Text("\(time.formatted(weekday)) · \(WorldClock.offsetLabel(seconds: offset))")
                         .foregroundStyle(Color.secondaryText)
                 }
-                .font(.subheadline)
+                .wispFont(.subheadline)
                 .lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -515,7 +515,7 @@ private struct CityPicker: View {
                     HStack {
                         Text(WorldClock.cityName(identifier))
                         Spacer()
-                        Text(identifier).foregroundStyle(.secondary).font(.subheadline)
+                        Text(identifier).foregroundStyle(.secondary).wispFont(.subheadline)
                     }
                     .padding(.vertical, 2)
                     .padding(.horizontal, 6)
@@ -642,7 +642,7 @@ struct PomodoroPage: View {
                             Text(
                                 "minutes of focus in \(sessions.count) \(sessions.count == 1 ? "session" : "sessions")"
                             )
-                            .font(.callout).foregroundStyle(Color.secondaryText)
+                            .wispFont(.callout).foregroundStyle(Color.secondaryText)
                         }
                         ForEach(sessions.reversed()) { session in
                             HStack {
@@ -657,7 +657,7 @@ struct PomodoroPage: View {
                                 Spacer()
                                 Text("\(session.minutes) min").foregroundStyle(Color.secondaryText)
                             }
-                            .font(.body)
+                            .wispFont(.body)
                             .padding(.vertical, 6)
                             .padding(.horizontal, 10)
                             .background(
@@ -712,11 +712,11 @@ struct CountdownRing: View {
                 .animation(animated && countdown.isRunning ? .linear(duration: 1) : nil, value: progress)
             VStack(spacing: 6) {
                 Text(title.uppercased())
-                    .font(.callout.weight(.bold))
+                    .wispFont(.callout, weight: .bold)
                     .foregroundStyle(Color.wispViolet)
                 ValueText(text: Countdown.format(countdown.remaining(now: now)), size: 52)
                 Text(status)
-                    .font(.callout)
+                    .wispFont(.callout)
                     .foregroundStyle(Color.secondaryText)
             }
         }
@@ -754,7 +754,7 @@ struct ChipLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.callout.weight(.semibold))
+            .wispFont(.callout, weight: .semibold)
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .background(Capsule().fill(selected ? AnyShapeStyle(Color.wispViolet) : AnyShapeStyle(.ink.opacity(0.08))))
@@ -859,7 +859,7 @@ struct TimerPage: View {
                             HStack(spacing: 10) {
                                 Image(systemName: row.countdown.isRunning ? "timer" : "pause.circle")
                                     .foregroundStyle(Color.wispViolet)
-                                Text(row.title).font(.body.weight(.medium))
+                                Text(row.title).wispFont(.body, weight: .medium)
                                 Spacer()
                                 ValueText(text: Countdown.format(row.countdown.remaining(now: context.date)), size: 15)
                                 Button(

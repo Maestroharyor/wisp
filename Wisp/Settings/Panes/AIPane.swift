@@ -61,7 +61,7 @@ struct AISettings: View {
                         "Use an address on this Mac, such as \(OllamaEndpoint.defaultAddress).",
                         systemImage: "exclamationmark.triangle"
                     )
-                    .font(.caption).foregroundStyle(.orange)
+                    .wispFont(.caption).foregroundStyle(.orange)
                 }
                 Picker("Model", selection: $preferences.ollamaModel) {
                     Text("First available").tag("")
@@ -143,11 +143,11 @@ struct AISettings: View {
                 Text(answer.text).textSelection(.enabled)
                 if answer.truncated {
                     Text("The text was too long, so only its start and end were used.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .wispFont(.caption).foregroundStyle(.secondary)
                 }
             }
             if let failure {
-                Label(failure, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                Label(failure, systemImage: "exclamationmark.triangle").wispFont(.caption).foregroundStyle(.orange)
             }
         } header: {
             Text("Try it")

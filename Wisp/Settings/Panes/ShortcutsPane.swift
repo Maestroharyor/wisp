@@ -22,7 +22,7 @@ struct ShortcutsSettings: View {
                 Text(
                     "Held, Caps Lock becomes Hyper (⇪), a modifier no other app uses, so ⇪ shortcuts never clash. A quick press can still turn Caps Lock on; see General › Advanced. Needs Accessibility."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
 
             Section("Shortcuts") {
@@ -45,7 +45,7 @@ struct ShortcutsSettings: View {
                 Text(
                     "Click a shortcut and press the new keys; Esc cancels. Keys already in use are refused and the button says what uses them. ⇪ shortcuts need Caps Lock as Hyper."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
 
             Section("Fixed keys") {
@@ -101,7 +101,7 @@ struct ShortcutsSettings: View {
                     ? "\(current.description) needs Caps Lock as Hyper. Turn it on above, or choose another shortcut."
                     : "Another app uses \(current.description). Choose another shortcut."
             )
-            .font(.caption).foregroundStyle(.orange)
+            .wispFont(.caption).foregroundStyle(.orange)
         }
     }
 
@@ -150,7 +150,7 @@ struct KeyCap: View {
 
     var body: some View {
         Text(keys)
-            .font(.callout.weight(.medium))
+            .wispFont(.callout, weight: .medium)
             .fontDesign(.rounded)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)

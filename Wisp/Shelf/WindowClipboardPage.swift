@@ -66,7 +66,7 @@ struct ClipboardPage: View {
                         grid(items)
                     }
                     Label("Everything here is stored only on this Mac.", systemImage: "lock.fill")
-                        .font(.caption)
+                        .wispFont(.caption)
                         .foregroundStyle(Color.secondaryText)
                 }
             }
@@ -144,7 +144,7 @@ struct ClipboardPage: View {
                 Text(title).fontWeight(on ? .semibold : .regular)
                 Text("\(count)").foregroundStyle(on ? Color.primary.opacity(0.7) : Color.secondaryText)
             }
-            .font(.callout.monospacedDigit())
+            .wispFont(.callout).monospacedDigit()
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .wispHover(shape: Capsule())
@@ -173,7 +173,7 @@ struct ClipboardPage: View {
                     .padding(-2)
             }
         }
-        .font(.body)
+        .wispFont(.body)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Capsule().fill(.primary.opacity(0.08)))
@@ -217,13 +217,13 @@ struct ClipboardPage: View {
                     Image(nsImage: icon).resizable().frame(width: 20, height: 20)
                 } else {
                     Image(systemName: bundleID == nil && name == "All apps" ? "asterisk" : "app")
-                        .font(.callout.weight(.semibold))
+                        .wispFont(.callout, weight: .semibold)
                         .foregroundStyle(Color.wispViolet)
                         .frame(width: 20, height: 20)
                 }
-                Text(name).font(.body).lineLimit(1)
+                Text(name).wispFont(.body).lineLimit(1)
                 Spacer(minLength: 4)
-                Text("\(count)").font(.subheadline.monospacedDigit()).foregroundStyle(Color.secondaryText)
+                Text("\(count)").wispFont(.subheadline).monospacedDigit().foregroundStyle(Color.secondaryText)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
@@ -437,7 +437,7 @@ private struct ClipPreview: View {
                     detail("Copied", item.date.formatted(date: .abbreviated, time: .shortened))
                     if let size = ClipText.size(item) { detail("Size", size) }
                 }
-                .font(.system(size: 12))
+                .wispFont(.callout)
             }
             .padding(16)
         } else {
@@ -456,13 +456,13 @@ private struct ClipPreview: View {
                     .fill(ClipText.color(item) ?? .clear)
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator))
                     .frame(height: 120)
-                Text(item.text ?? "").font(.system(size: 15, weight: .semibold, design: .monospaced))
+                Text(item.text ?? "").wispFont(.title3, weight: .semibold, design: .monospaced)
                     .textSelection(.enabled)
             }
         case .text, .link:
             ScrollView(.vertical) {
                 Text(item.text ?? "")
-                    .font(.system(size: 13))
+                    .wispFont(.body)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }

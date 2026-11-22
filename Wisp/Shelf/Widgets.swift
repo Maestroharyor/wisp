@@ -70,10 +70,10 @@ struct NowPlayingWidget: View {
                         .accessibilityAction { monitor.openPlayer() }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(info.title)
-                            .font(.title3.weight(.semibold))
+                            .wispFont(.title3, weight: .semibold)
                             .lineLimit(1)
                         Text(info.artist.isEmpty ? (info.appName ?? "") : info.artist)
-                            .font(.body)
+                            .wispFont(.body)
                             .foregroundStyle(Color.secondaryText)
                             .lineLimit(1)
                     }
@@ -97,9 +97,9 @@ struct NowPlayingWidget: View {
             HStack(spacing: 12) {
                 ArtworkView(image: nil, size: 50, radius: 11)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Nothing playing").font(.title3.weight(.semibold))
+                    Text("Nothing playing").wispFont(.title3, weight: .semibold)
                     Text("Play something in any app or browser")
-                        .font(.callout).foregroundStyle(Color.secondaryText)
+                        .wispFont(.callout).foregroundStyle(Color.secondaryText)
                 }
                 Spacer(minLength: 0)
             }
@@ -263,14 +263,14 @@ struct CalendarWidget: View {
                     Text("W\(Calendar.current.component(.weekOfYear, from: context.date))")
                         .foregroundStyle(.red.opacity(0.75))
                 }
-                .font(.callout.weight(.bold))
+                .wispFont(.callout, weight: .bold)
             }
             if store.access == .fullAccess {
                 if !store.loaded {
                     LoadingLabel("Loading…")
                 } else if store.events.isEmpty {
                     Text("Nothing in the next week")
-                        .font(.callout).foregroundStyle(Color.secondaryText)
+                        .wispFont(.callout).foregroundStyle(Color.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
@@ -285,7 +285,7 @@ struct CalendarWidget: View {
                                 } header: {
                                     if day.label != "Today" {
                                         Text(day.label.uppercased())
-                                            .font(.caption.weight(.bold))
+                                            .wispFont(.caption, weight: .bold)
                                             .foregroundStyle(Color.secondaryText)
                                             .padding(.top, 4)
                                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -303,7 +303,7 @@ struct CalendarWidget: View {
                 }
             } else {
                 VStack(spacing: 6) {
-                    Text("See today's events here").font(.callout).foregroundStyle(Color.secondaryText)
+                    Text("See today's events here").wispFont(.callout).foregroundStyle(Color.secondaryText)
                     Button("Allow Calendar Access") { store.requestAccess() }.controlSize(.small)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -323,12 +323,12 @@ struct RemindersWidget: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("REMINDERS").font(.caption.weight(.bold)).foregroundStyle(Color.secondaryText)
+                Text("REMINDERS").wispFont(.caption, weight: .bold).foregroundStyle(Color.secondaryText)
                 Spacer()
                 Button {
                     store.openApp()
                 } label: {
-                    Image(systemName: "arrow.up.forward.app").font(.subheadline)
+                    Image(systemName: "arrow.up.forward.app").wispFont(.subheadline)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.secondaryText)
@@ -338,7 +338,7 @@ struct RemindersWidget: View {
                 if store.items.isEmpty {
                     VStack(spacing: 6) {
                         Text(store.failed ? "Couldn't read Reminders" : store.loaded ? "All done" : "Loading…")
-                            .font(.callout).foregroundStyle(Color.secondaryText)
+                            .wispFont(.callout).foregroundStyle(Color.secondaryText)
                         if store.failed {
                             Button("Try again") { store.refresh() }
                                 .controlSize(.small)
@@ -361,7 +361,7 @@ struct RemindersWidget: View {
                 }
             } else {
                 VStack(spacing: 6) {
-                    Text("See your reminders here").font(.callout).foregroundStyle(Color.secondaryText)
+                    Text("See your reminders here").wispFont(.callout).foregroundStyle(Color.secondaryText)
                     Button("Allow Reminders Access") { store.requestAccess() }.controlSize(.small)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -382,7 +382,7 @@ struct ReminderRow: View {
                 if done { store.undo(item) } else { store.complete(item) }
             } label: {
                 Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                    .font(.body)
+                    .wispFont(.body)
                     .foregroundStyle(done ? Color.wispViolet : Color.secondaryText)
                     .frame(width: 20, height: 20)
                     .contentShape(Rectangle().inset(by: -2))
@@ -393,7 +393,7 @@ struct ReminderRow: View {
             .accessibilityLabel(done ? "Mark \(item.title) as not done" : "Mark \(item.title) as done")
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title)
-                    .font(.callout.weight(.medium))
+                    .wispFont(.callout, weight: .medium)
                     .strikethrough(done)
                     .foregroundStyle(done ? Color.secondaryText : .primary)
                     .lineLimit(1)
@@ -401,7 +401,7 @@ struct ReminderRow: View {
                     // Redrawn each minute, so a reminder turns red as it falls due.
                     TimelineView(.everyMinute) { context in
                         Text(due, format: .relative(presentation: .named))
-                            .font(.caption)
+                            .wispFont(.caption)
                             .foregroundStyle(
                                 ReminderList.isOverdue(item, now: context.date) ? Color.red : Color.secondaryText)
                     }
@@ -410,7 +410,7 @@ struct ReminderRow: View {
             Spacer(minLength: 0)
             if done {
                 Button("Undo") { store.undo(item) }.buttonStyle(.plain)
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.wispViolet)
+                    .wispFont(.subheadline, weight: .semibold).foregroundStyle(Color.wispViolet)
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .wispHover(shape: Capsule())
                     .padding(.horizontal, -6).padding(.vertical, -2)
@@ -429,8 +429,8 @@ private struct EventRow: View {
         HStack(spacing: 7) {
             RoundedRectangle(cornerRadius: 1.5, style: .continuous).fill(event.color).frame(width: 3)
             VStack(alignment: .leading, spacing: 0) {
-                Text(event.title).font(.callout.weight(.semibold)).lineLimit(1)
-                Text(timeText).font(.subheadline).opacity(0.8).lineLimit(1)
+                Text(event.title).wispFont(.callout, weight: .semibold).lineLimit(1)
+                Text(timeText).wispFont(.subheadline).opacity(0.8).lineLimit(1)
             }
             .foregroundStyle(event.color)
             Spacer(minLength: 0)
@@ -523,7 +523,7 @@ struct PomodoroWidget: View {
             if let label = store.focusLabel {
                 HStack(spacing: 4) {
                     Image(systemName: "checklist").font(.system(size: 9))
-                    Text(label).font(.subheadline.weight(.medium)).lineLimit(1)
+                    Text(label).wispFont(.subheadline, weight: .medium).lineLimit(1)
                     Button {
                         store.clearFocusLabel()
                     } label: {
@@ -573,7 +573,7 @@ struct PomodoroWidget: View {
             store.setPhase(phase)
         } label: {
             Text(phase.title)
-                .font(.subheadline.weight(.semibold))
+                .wispFont(.subheadline, weight: .semibold)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 3)
                 .background(Capsule().fill(store.phase == phase ? Color.wispAmber.opacity(0.28) : .ink.opacity(0.1)))
@@ -688,7 +688,7 @@ struct BatteryWidget: View {
                     Image(systemName: device.symbol)
                     Text("\(level)%").monospacedDigit()
                 }
-                .font(.subheadline.weight(.semibold))
+                .wispFont(.subheadline, weight: .semibold)
                 .foregroundStyle(level <= lowLevel ? Color.red : Color.secondaryText)
                 .fixedSize()
                 .hoverHint("\(device.name): \(level)%")
@@ -718,14 +718,14 @@ struct BatteryWidget: View {
                         state.isCharging ? "Charging" : state.isPluggedIn ? "On power" : "On battery",
                         systemImage: state.isPluggedIn ? "bolt.fill" : "battery.75percent"
                     )
-                    .font(.body.weight(.semibold))
+                    .wispFont(.body, weight: .semibold)
                     if let minutes = monitor.minutesRemaining {
                         Text("\(minutes / 60)h \(minutes % 60)m \(state.isPluggedIn ? "to full" : "left")")
-                            .font(.subheadline).foregroundStyle(Color.secondaryText)
+                            .wispFont(.subheadline).foregroundStyle(Color.secondaryText)
                     }
                 }
             } else {
-                Text("No battery").font(.body).foregroundStyle(Color.secondaryText)
+                Text("No battery").wispFont(.body).foregroundStyle(Color.secondaryText)
             }
             Spacer(minLength: 0)
         }
@@ -764,14 +764,14 @@ struct SystemStatsWidget: View {
             HStack(spacing: 8) {
                 ZStack {
                     ProgressRing(progress: value ?? 0, tint: tint, lineWidth: 4)
-                    Image(systemName: symbol).font(.callout.weight(.semibold)).foregroundStyle(tint)
+                    Image(systemName: symbol).wispFont(.callout, weight: .semibold).foregroundStyle(tint)
                 }
                 .frame(width: 34, height: 34)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(title).font(.caption.weight(.semibold)).foregroundStyle(tint)
+                    Text(title).wispFont(.caption, weight: .semibold).foregroundStyle(tint)
                     HStack(alignment: .firstTextBaseline, spacing: 1) {
                         ValueText(text: value.map { "\(LevelStep.percent($0))" } ?? "–", size: 18)
-                        Text("%").font(.caption.weight(.semibold)).foregroundStyle(Color.secondaryText)
+                        Text("%").wispFont(.caption, weight: .semibold).foregroundStyle(Color.secondaryText)
                     }
                 }
             }
@@ -831,28 +831,28 @@ struct WeatherWidget: View {
                     HStack {
                         Label(reading.place.isEmpty ? "Here" : reading.place, systemImage: "location.fill")
                             .labelStyle(TrailingIconLabel())
-                            .font(.subheadline.weight(.semibold))
+                            .wispFont(.subheadline, weight: .semibold)
                             .lineLimit(1)
                         Spacer()
-                        Image(systemName: now.symbol).symbolRenderingMode(.multicolor).font(.body)
+                        Image(systemName: now.symbol).symbolRenderingMode(.multicolor).wispFont(.body)
                     }
                     HStack(alignment: .top) {
                         Text("\(Int(reading.temperature.rounded()))°")
                             .font(.system(size: 30, weight: .regular, design: .rounded))
                         Spacer()
                         VStack(alignment: .trailing, spacing: 0) {
-                            Text(now.title).font(.caption.weight(.semibold))
+                            Text(now.title).wispFont(.caption, weight: .semibold)
                             Text("H:\(Int(reading.high.rounded()))° L:\(Int(reading.low.rounded()))°")
-                                .font(.caption)
+                                .wispFont(.caption)
                         }
                     }
                     if !reading.hours.isEmpty {
                         HStack {
                             ForEach(reading.hours) { hour in
                                 VStack(spacing: 1) {
-                                    Text("\(hour.hour)").font(.caption2).opacity(0.8)
+                                    Text("\(hour.hour)").wispFont(.caption2).opacity(0.8)
                                     Image(systemName: WeatherCode.describe(hour.code, isDay: hour.isDay).symbol)
-                                        .symbolRenderingMode(.multicolor).font(.caption)
+                                        .symbolRenderingMode(.multicolor).wispFont(.caption)
                                     Text("\(Int(hour.temperature.rounded()))°").font(
                                         .system(size: 8, weight: .semibold))
                                 }
@@ -869,7 +869,7 @@ struct WeatherWidget: View {
                     } else {
                         Image(systemName: "cloud.sun.fill").symbolRenderingMode(.multicolor).font(.system(size: 24))
                     }
-                    Text(store.status).font(.subheadline).multilineTextAlignment(.center)
+                    Text(store.status).wispFont(.subheadline).multilineTextAlignment(.center)
                     if store.failed {
                         Button("Try again") { store.retry() }
                             .controlSize(.small)
@@ -916,8 +916,8 @@ struct NotesWidget: View {
                     Button("New note") { store.newNote() }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(store.selected?.title ?? "Notes").font(.caption.weight(.semibold)).lineLimit(1)
-                        Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+                        Text(store.selected?.title ?? "Notes").wispFont(.caption, weight: .semibold).lineLimit(1)
+                        Image(systemName: "chevron.down").wispFont(.caption2, weight: .semibold)
                     }
                     .foregroundStyle(Color.secondaryText)
                 }
@@ -928,12 +928,12 @@ struct NotesWidget: View {
                 .help("Switch note")
             }
             TextEditor(text: $store.text)
-                .font(.callout)
+                .wispFont(.callout)
                 .scrollContentBackground(.hidden)
                 .overlay(alignment: .topLeading) {
                     if store.text.isEmpty {
                         Text("Jot something down…")
-                            .font(.callout).foregroundStyle(Color.secondaryText)
+                            .wispFont(.callout).foregroundStyle(Color.secondaryText)
                             .padding(.leading, 5)
                             .allowsHitTesting(false)
                     }

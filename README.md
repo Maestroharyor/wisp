@@ -109,6 +109,7 @@ Wisp updates itself with [Sparkle](https://sparkle-project.org) from GitHub Rele
 - **Appearance** (its own Settings pane)
   - **Presets:** Default, Calm, Arcade, Minimal and Neon each set the whole look at once. Save your own and share looks as `.wisplook` files. Each profile can apply a look of its own (Settings › Widgets).
   - **Theme:** the accent follows the theme, the desktop picture or the playing album, and can change colour through the day.
+  - **Text size:** Default, Large or Larger text in the window and Settings. The notch keeps its size so it fits.
   - **Shape and effects:** roundness, shadow, opacity, shelf size (compact, standard, roomy), an edge highlight on the Black surface, glow strength and reach, grain, a slow shimmer, an outline, and the page switcher as a pill, dots or hidden.
   - **Panels:** the mini player, clipboard, quick pocket, region watch setup, Transform, the ring, the orb dock, the page switcher and hover labels are Liquid Glass on macOS 26 (a system material on macOS 14 and 15) and follow Light and Dark mode, like Apple's own panels; the lock screen player stays dark. Glass is Clear, Tinted or Frosted, with an optional violet tint. Reduce Transparency makes them solid, and Increase Contrast strengthens their edges.
   - **Pills and motion:** a minimal pill (an icon and a dot), the number style, and what the notch does when the pointer arrives: grow, glow, wobble or nothing.

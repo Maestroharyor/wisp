@@ -141,7 +141,7 @@ private struct DayPicker: View {
                         Text(day, format: .dateTime.weekday(.abbreviated))
                         Text(day, format: .dateTime.day()).fontWeight(.semibold)
                     }
-                    .font(.callout)
+                    .wispFont(.callout)
                     .foregroundStyle(selected ? .white : .primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -241,7 +241,7 @@ private struct HourGrid: View {
                         .padding(.vertical, today ? 2 : 0)
                         .background(Capsule().fill(today ? Color.wispViolet : .clear))
                 }
-                .font(.callout)
+                .wispFont(.callout)
                 .frame(width: columnWidth)
                 .accessibilityElement(children: .combine)
             }
@@ -253,7 +253,7 @@ private struct HourGrid: View {
         let allDay = days.map { day in events(on: day).filter(\.isAllDay) }
         if allDay.contains(where: { !$0.isEmpty }) {
             HStack(alignment: .top, spacing: 0) {
-                Text("All day").font(.caption).foregroundStyle(Color.secondaryText)
+                Text("All day").wispFont(.caption).foregroundStyle(Color.secondaryText)
                     .frame(width: Self.gutter - 8, alignment: .trailing)
                     .padding(.trailing, 8)
                 ForEach(Array(days.enumerated()), id: \.element) { index, _ in
@@ -276,7 +276,7 @@ private struct HourGrid: View {
             ForEach(Array(hours), id: \.self) { hour in
                 HStack(alignment: .top, spacing: 6) {
                     Text(label(hour))
-                        .font(.caption.monospacedDigit())
+                        .wispFont(.caption).monospacedDigit()
                         .foregroundStyle(Color.secondaryText)
                         .frame(width: Self.gutter - 10, alignment: .trailing)
                         .offset(y: -7)
@@ -340,10 +340,10 @@ private struct EventBlock: View {
             HStack(alignment: .top, spacing: 5) {
                 RoundedRectangle(cornerRadius: 1.5).fill(event.color).frame(width: 3)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(event.title).font(.caption.weight(.semibold)).lineLimit(compact ? 1 : 2)
+                    Text(event.title).wispFont(.caption, weight: .semibold).lineLimit(compact ? 1 : 2)
                     if !compact, !event.isAllDay {
                         Text(event.start, format: .dateTime.hour().minute())
-                            .font(.caption2).foregroundStyle(Color.secondaryText)
+                            .wispFont(.caption2).foregroundStyle(Color.secondaryText)
                     }
                 }
                 Spacer(minLength: 0)
@@ -393,7 +393,7 @@ private struct Agenda: View {
                             count: day.items.isEmpty ? nil : day.items.count
                         ) {
                             if day.items.isEmpty {
-                                Text("Nothing planned").font(.callout).foregroundStyle(Color.secondaryText)
+                                Text("Nothing planned").wispFont(.callout).foregroundStyle(Color.secondaryText)
                             } else {
                                 VStack(spacing: 8) {
                                     ForEach(day.items) { event in

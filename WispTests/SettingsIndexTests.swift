@@ -280,6 +280,12 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "system audio recording").first, .activities)
     }
 
+    func testFindsTextSize() {
+        for query in ["text size", "font size", "bigger text", "larger text"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .appearance, query)
+        }
+    }
+
     func testFindsTheNewAppearanceAndHUDOptions() {
         XCTAssertEqual(SettingsIndex.panes(matching: "theme").first, .appearance)
         XCTAssertEqual(SettingsIndex.panes(matching: "wallpaper").first, .appearance)

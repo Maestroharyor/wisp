@@ -21,7 +21,7 @@ struct ShelfSettings: View {
                 Text(
                     "Switched-on widgets appear as icons on the Widgets page: click one to open it, drag one to reorder. Up to four also sit on Home: right-click the notch and choose Tools › Customise Home to add, resize or reorder them."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Shortcuts") {
                 if shortcuts.available.isEmpty {
@@ -38,13 +38,13 @@ struct ShelfSettings: View {
                 Text(
                     "Ticked Shortcuts appear in the Shortcuts widget. macOS has no public Focus switch, so the Quick Toggles Focus button runs the Shortcut you choose (for example one using Set Focus)."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Command output") {
                 // A draft, saved only on Return or Save: a half-typed command must never run.
                 HStack {
                     TextField("Command", text: $scriptDraft, prompt: Text("/usr/bin/uptime"))
-                        .font(.system(.body, design: .monospaced))
+                        .wispFont(.body, design: .monospaced)
                         .onSubmit(saveScript)
                     Button("Save", action: saveScript)
                         .disabled(scriptDraft == preferences.scriptCommand)
@@ -59,11 +59,11 @@ struct ShelfSettings: View {
                 Text(
                     "The Script widget shows the first lines the command prints, only while the widget is on screen. It runs directly, not in a shell; for pipes, write zsh -c \"…\" yourself."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Timer") {
                 DurationField(title: "New timers start at", seconds: $preferences.defaultTimerSeconds)
-                Text("Type a length such as 10, 1h30m or 90s.").font(.caption).foregroundStyle(.secondary)
+                Text("Type a length such as 10, 1h30m or 90s.").wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Day Progress") {
                 Stepper(
@@ -83,7 +83,7 @@ struct ShelfSettings: View {
                     }
                 }
                 Text("The notch shows the first three cities; the window shows them all.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .wispFont(.caption).foregroundStyle(.secondary)
             }
             ProfilesSection(preferences: preferences, context: context)
             AdvancedSection {
@@ -95,7 +95,7 @@ struct ShelfSettings: View {
                 Text(
                     "Rows of icons on the Widgets page. Five or fewer widgets always sit in one row with larger icons."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

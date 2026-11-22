@@ -51,7 +51,7 @@ struct ClipboardSettings: View {
             Text(
                 "Passwords and other items that apps mark as concealed are never saved, and neither is anything copied while one of the apps above is in front. History is stored only on this Mac."
             )
-            .font(.caption).foregroundStyle(.secondary)
+            .wispFont(.caption).foregroundStyle(.secondary)
         }
     }
 

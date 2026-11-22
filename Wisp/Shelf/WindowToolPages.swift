@@ -110,7 +110,7 @@ struct NotesPage: View {
                     }
                     TimelineView(.everyMinute) { context in
                         Text("Edited \(RelativeAge.long(from: note.updated, to: context.date))")
-                            .font(.subheadline).foregroundStyle(Color.secondaryText)
+                            .wispFont(.subheadline).foregroundStyle(Color.secondaryText)
                     }
                     Spacer()
                     Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
@@ -132,14 +132,14 @@ struct NotesPage: View {
                 }
                 .buttonStyle(.borderless)
                 TextEditor(text: $store.text)
-                    .font(.title3)
+                    .wispFont(.title3)
                     .lineSpacing(4)
                     .scrollContentBackground(.hidden)
                     .focused($editing)
                     .overlay(alignment: .topLeading) {
                         if store.text.isEmpty {
                             Text("Start typing. The first line is the title.")
-                                .font(.title3).foregroundStyle(Color.secondaryText)
+                                .wispFont(.title3).foregroundStyle(Color.secondaryText)
                                 .padding(.leading, 5)
                                 .allowsHitTesting(false)
                         }
@@ -184,7 +184,7 @@ private struct NoteRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: note.pinned ? "pin.fill" : "note.text")
-                .font(.callout.weight(.semibold))
+                .wispFont(.callout, weight: .semibold)
                 .foregroundStyle(note.pinned ? Color.orange : Color.yellow)
                 .frame(width: 34, height: 34)
                 .background(
@@ -192,15 +192,15 @@ private struct NoteRow: View {
                         .fill((note.pinned ? Color.orange : Color.yellow).opacity(0.15)))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(note.title).font(.body.weight(.semibold)).lineLimit(1)
+                    Text(note.title).wispFont(.body, weight: .semibold).lineLimit(1)
                     Spacer(minLength: 4)
                     TimelineView(.everyMinute) { context in
                         Text(RelativeAge.short(from: note.updated, to: context.date))
-                            .font(.caption).foregroundStyle(Color.secondaryText)
+                            .wispFont(.caption).foregroundStyle(Color.secondaryText)
                     }
                 }
                 Text(note.preview.isEmpty ? "No more text" : note.preview)
-                    .font(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(2)
+                    .wispFont(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(2)
             }
         }
         .padding(10)
@@ -322,14 +322,14 @@ private struct ShortcutTile: View {
                         ProgressView().controlSize(.small)
                     } else {
                         Image(systemName: "bolt.fill")
-                            .font(.body.weight(.semibold))
+                            .wispFont(.body, weight: .semibold)
                             .foregroundStyle(.white)
                     }
                 }
                 .frame(width: 30, height: 30)
                 .background(Circle().fill(running ? AnyShapeStyle(.ink.opacity(0.1)) : AnyShapeStyle(Color.pink)))
                 Text(name)
-                    .font(.body.weight(.medium))
+                    .wispFont(.body, weight: .medium)
                     .foregroundStyle(.ink)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -453,9 +453,9 @@ struct ScriptPage: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
-                        Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.green)
+                        Image(systemName: "chevron.right").wispFont(.caption, weight: .bold).foregroundStyle(.green)
                         Text(preferences.scriptCommand)
-                            .font(.system(.callout, design: .monospaced))
+                            .wispFont(.callout, design: .monospaced)
                             .lineLimit(1)
                             .truncationMode(.middle)
                         Spacer(minLength: 12)
@@ -464,7 +464,7 @@ struct ScriptPage: View {
                     Divider()
                     ScrollView(.vertical) {
                         Text(store.transcript.isEmpty ? (store.running ? "" : "No output") : output)
-                            .font(.system(.callout, design: .monospaced))
+                            .wispFont(.callout, design: .monospaced)
                             .foregroundStyle(store.transcript.isEmpty ? Color.secondaryText : .ink)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -500,7 +500,7 @@ struct ScriptPage: View {
                 Text("Ran \(ranAt, style: .relative) ago")
             }
         }
-        .font(.subheadline)
+        .wispFont(.subheadline)
         .foregroundStyle(Color.secondaryText)
     }
 }

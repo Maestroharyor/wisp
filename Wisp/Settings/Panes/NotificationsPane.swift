@@ -23,11 +23,11 @@ struct NotificationSettings: View {
                     ForEach(NotificationDuration.allCases) { Text($0.title).tag($0) }
                 }
                 Text("Pointing at a card keeps it open. Close it with the × or a swipe up.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .wispFont(.caption).foregroundStyle(.secondary)
                 Text(
                     "macOS has no public way to read other apps' notifications, so Wisp reads the system's notification store. It needs Full Disk Access and could break after a macOS update. Focus changes are in Live Activities."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
             Section("Replies") {
                 LabeledContent("iMessage and SMS", value: "Always on")
@@ -40,7 +40,7 @@ struct NotificationSettings: View {
                     Button("Log in to Telegram Web…") { monitor.showLogin(for: .telegram) }
                 }
                 Text("WhatsApp and Telegram replies drive their web apps and can stop working when those sites change.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .wispFont(.caption).foregroundStyle(.secondary)
             }
             if !monitor.seenApps.isEmpty {
                 Section("Apps") {

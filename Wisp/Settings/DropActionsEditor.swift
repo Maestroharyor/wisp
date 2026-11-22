@@ -19,7 +19,7 @@ struct DropActionsEditor: View {
                 Image(systemName: action.symbol).frame(width: 20)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(action.name)
-                    Text(summary(action)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(summary(action)).wispFont(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
                 Button("Edit") { editing = action }
@@ -32,7 +32,7 @@ struct DropActionsEditor: View {
         Text(
             "Drop files on an action's tile to run it. Commands run directly, not in a shell: {file} runs once per file, {files} passes them all, otherwise the files go at the end. The first two actions appear as tiles."
         )
-        .font(.caption).foregroundStyle(.secondary)
+        .wispFont(.caption).foregroundStyle(.secondary)
         .sheet(item: $editing) { action in
             ActionSheet(
                 action: action, shortcuts: shortcuts, symbols: Self.symbols,
@@ -85,10 +85,10 @@ private struct ActionSheet: View {
                 }
             } else {
                 TextField("Command", text: $command, prompt: Text("sips -Z 1200 {file}"))
-                    .font(.system(.body, design: .monospaced))
+                    .wispFont(.body, design: .monospaced)
             }
             if let problem = draft.problem {
-                Text(problem).font(.caption).foregroundStyle(.red)
+                Text(problem).wispFont(.caption).foregroundStyle(.red)
             }
             HStack {
                 Spacer()
