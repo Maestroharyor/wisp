@@ -26,3 +26,13 @@ final class RingTipsTests: XCTestCase {
         XCTAssertTrue(try JSONDecoder().decode(RingTips.self, from: Data("{}".utf8)).done.isEmpty)
     }
 }
+
+final class RingTrailTests: XCTestCase {
+    func testTheTrailTurnsTheShortWayRound() {
+        XCTAssertEqual(RingGeometry.shortTurn(from: 350, to: 10), 20)
+        XCTAssertEqual(RingGeometry.shortTurn(from: 10, to: 350), -20)
+        XCTAssertEqual(RingGeometry.shortTurn(from: 720, to: 90), 90, "an unwrapped heading still turns the short way")
+        XCTAssertEqual(RingGeometry.shortTurn(from: 0, to: 180), 180)
+        XCTAssertEqual(RingGeometry.shortTurn(from: 30, to: 30), 0)
+    }
+}

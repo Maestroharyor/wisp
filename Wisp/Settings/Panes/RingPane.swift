@@ -263,14 +263,16 @@ private struct RingSetEditor: View {
         let centre = CGPoint(x: Self.side / 2, y: Self.side / 2)
         let slots = set.slots
         return ZStack {
-            Circle().fill(.regularMaterial)
-                .overlay(Circle().fill(Color.wispViolet.opacity(0.07)))
-                .overlay(Circle().strokeBorder(Color.primary.opacity(0.1)))
-                .frame(width: Self.side, height: Self.side)
-            Circle().fill(Color.wispViolet.opacity(0.08))
-                .overlay(Circle().strokeBorder(Color.primary.opacity(0.08)))
+            // The ring's orbit, as it's drawn on screen.
+            Circle()
+                .stroke(Color.wispViolet.opacity(0.3), lineWidth: 12)
+                .blur(radius: 8)
                 .frame(
-                    width: RingGeometry.innerRadius * 2 * Self.scale, height: RingGeometry.innerRadius * 2 * Self.scale)
+                    width: RingGeometry.ringRadius * 2 * Self.scale, height: RingGeometry.ringRadius * 2 * Self.scale)
+            Circle()
+                .stroke(Color.wispViolet.opacity(0.8), lineWidth: 1.5)
+                .frame(
+                    width: RingGeometry.ringRadius * 2 * Self.scale, height: RingGeometry.ringRadius * 2 * Self.scale)
             ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
                 let angle = RingGeometry.slotAngle(index, count: slots.count)
                 let radians = angle * .pi / 180

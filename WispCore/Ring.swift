@@ -599,3 +599,12 @@ public enum RingInteraction {
         }
     }
 }
+
+extension RingGeometry {
+    /// The change in degrees that turns the short way round from one heading to another, so the
+    /// ring's trail goes from 350° to 10° through 0°, not back round the whole ring.
+    public static func shortTurn(from current: Double, to target: Double) -> Double {
+        let delta = (target - current).truncatingRemainder(dividingBy: 360)
+        return delta > 180 ? delta - 360 : delta < -180 ? delta + 360 : delta
+    }
+}

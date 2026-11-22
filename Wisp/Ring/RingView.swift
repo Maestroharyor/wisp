@@ -25,11 +25,14 @@ struct RingView: View {
         let slots = model.set.slots
         let shown = model.visible
         ZStack {
-            RingDisc(centre: model.centre, dark: colorScheme == .dark)
-                .scaleEffect(shown || reduceMotion ? 1 : 0.85, anchor: unit(model.centre))
-                .opacity(shown ? 1 : 0)
-                .animation(
-                    shown ? .wispPopover : .wispDismiss, value: shown)
+            RingDisc(
+                centre: model.centre, dark: colorScheme == .dark, shown: shown, hoverAngle: hoverAngle,
+                reduceMotion: reduceMotion
+            )
+            .scaleEffect(shown || reduceMotion ? 1 : 0.85, anchor: unit(model.centre))
+            .opacity(shown ? 1 : 0)
+            .animation(
+                shown ? .wispPopover : .wispDismiss, value: shown)
             ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
                 let angle = RingGeometry.slotAngle(index, count: slots.count)
                 let isLifted = model.lifted == index
@@ -170,7 +173,15 @@ struct RingView: View {
         } else {
             Image("MenuGlyph").resizable().renderingMode(.template).scaledToFit()
                 .frame(width: 24, height: 24)
-                .foregroundStyle(Color.wispViolet.opacity(clearCentre ? 0.85 : 0.6))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.wispViolet.opacity(0.75), Color.wispViolet],
+                        startPoint: .bottom, endPoint: .top)
+                )
+                .shadow(color: Color.wispViolet.opacity(hoverAngle == nil ? 0.25 : 0.6), radius: 8)
+                // The flame leans toward what's pointed at, as a flame bends in a draught.
+                .rotationEffect(.degrees(lean), anchor: .bottom)
+                .animation(reduceMotion ? nil : .wispControl, value: lean)
                 .frame(width: 48, height: 48)
                 // Over an open centre the glyph sits on a small chip, so it reads on any wallpaper.
                 .background {
@@ -183,6 +194,23 @@ struct RingView: View {
     }
 
     private var clearCentre: Bool { Preferences.shared.ringLook.centre == .clear }
+
+    /// Where round the ring the pointed-at segment is, for the trail and the flame's lean.
+    private var hoverAngle: CGFloat? {
+        let index: Int? =
+            switch model.hover {
+            case .slot(let slot): slot
+            case .sub: model.expanded
+            case .centre, .none: nil
+            }
+        guard let index, model.set.slots.indices.contains(index) else { return nil }
+        return RingGeometry.slotAngle(index, count: model.set.slots.count)
+    }
+
+    private var lean: Double {
+        guard let hoverAngle, !reduceMotion else { return 0 }
+        return sin(Double(hoverAngle) * .pi / 180) * 16
+    }
 
     private func windowBadge(_ index: Int) -> String? {
         model.windowCounts[index].flatMap(AppWindows.badge(count:))
@@ -256,93 +284,115 @@ struct RingView: View {
 /// toward the middle, one wide shadow and no hard edge. The middle is a hole onto the desktop,
 /// plain glass or a soft violet disc, as chosen in Settings › Ring. Follows Light and Dark mode
 /// (smoky glass in Dark rather than a flat grey).
+/// What the ring stands on: no band, just a thin glowing orbit that the icons ride, drawn on
+/// as the ring opens, with a comet trail running along it to whatever is pointed at. The
+/// middle is open, frosted or a violet glow (Settings › Ring › Centre).
 struct RingDisc: View {
     let centre: CGPoint
     let dark: Bool
+    let shown: Bool
+    /// The pointed-at segment's angle, clockwise from 12 o'clock.
+    let hoverAngle: CGFloat?
+    let reduceMotion: Bool
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    /// The trail's heading, unwrapped so it always turns the short way round.
+    @State private var heading: Double = 0
 
     /// The glass, tint and centre chosen in Settings › Ring.
     private var look: RingLook { Preferences.shared.ringLook.clamped() }
 
+    /// How much of the orbit the trail covers.
+    private static let trail: CGFloat = 0.22
+
     var body: some View {
-        let outer = (RingGeometry.ringOuter + 10) * 2
-        let inner = RingGeometry.innerRadius * 2
+        let radius = RingGeometry.ringRadius
         let tint = look.tintFactor
-        let band = RingBand(innerRadius: RingGeometry.innerRadius)
-        let rim = Color.white.opacity(contrast == .increased ? 0.95 : dark ? 0.16 : 0.85)
+        let side = (RingGeometry.ringOuter + 10) * 2
         ZStack {
-            Color.clear.wispSurface(band, glass: look.glass)
-            // The band: a glow that rises toward the middle and is gone by the rim.
-            band.fill(
-                RadialGradient(
-                    colors: [
-                        Color.wispViolet.opacity((dark ? 0.20 : 0.12) * tint),
-                        Color.wispViolet.opacity((dark ? 0.07 : 0.035) * tint),
-                        .clear,
-                    ],
-                    center: .center, startRadius: RingGeometry.innerRadius, endRadius: outer / 2))
-            Circle().strokeBorder(Color.white.opacity(dark ? 0.12 : 0.55), lineWidth: 1)
             middle(tint: tint)
-                .overlay(Circle().strokeBorder(rim, lineWidth: 1))
-                .frame(width: inner, height: inner)
+                .frame(width: RingGeometry.innerRadius * 2, height: RingGeometry.innerRadius * 2)
+            // A wide soft glow under the line, so the orbit reads on any wallpaper.
+            Circle()
+                .stroke(Color.wispViolet.opacity((dark ? 0.45 : 0.35) * tint), lineWidth: 18)
+                .blur(radius: reduceTransparency ? 0 : 12)
+                .frame(width: radius * 2, height: radius * 2)
+                .opacity(reduceTransparency ? 0 : 1)
+            Circle()
+                .trim(from: 0, to: shown || reduceMotion ? 1 : 0)
+                .stroke(orbitStyle, style: StrokeStyle(lineWidth: contrast == .increased ? 3 : 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .frame(width: radius * 2, height: radius * 2)
+                .animation(reduceMotion ? nil : shown ? .wispPopover.speed(0.8) : .easeIn(duration: 0.12), value: shown)
+            comet(radius: radius)
         }
-        .frame(width: outer, height: outer)
-        .compositingGroup()
-        .shadow(color: .black.opacity(dark ? 0.30 : 0.08), radius: 40, y: 12)
+        .frame(width: side, height: side)
         .position(centre)
+        .onChange(of: hoverAngle) { _, angle in
+            guard let angle else { return }
+            heading += RingGeometry.shortTurn(from: heading, to: Double(angle))
+        }
+        .onAppear { heading = Double(hoverAngle ?? 0) }
+    }
+
+    private var orbitStyle: AngularGradient {
+        let strong = Color.wispViolet.opacity(contrast == .increased ? 1 : 0.85)
+        let soft = Color.white.opacity(contrast == .increased ? 0.9 : 0.6)
+        return AngularGradient(colors: [strong, soft, strong, soft, strong], center: .center)
+    }
+
+    /// The trail: a bright head on the hovered icon fading back along the orbit behind it.
+    private func comet(radius: CGFloat) -> some View {
+        let span = Double(Self.trail) * 360
+        let fade = AngularGradient(
+            stops: [
+                .init(color: Color.wispViolet.opacity(0), location: 0),
+                .init(color: Color.wispViolet.opacity(0.9), location: 0.85),
+                .init(color: .white, location: 1),
+            ],
+            center: .center, startAngle: .zero, endAngle: .degrees(span))
+        // Trimmed arcs start at 3 o'clock; turned so the head lands on the heading.
+        let turn = Angle.degrees(heading - 90 - span)
+        return ZStack {
+            Circle().trim(from: 0, to: Self.trail)
+                .stroke(fade, style: StrokeStyle(lineWidth: 16, lineCap: .round))
+                .blur(radius: reduceTransparency ? 0 : 8)
+                .opacity(reduceTransparency ? 0 : 0.9)
+            Circle().trim(from: 0, to: Self.trail)
+                .stroke(fade, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+        }
+        .rotationEffect(turn)
+        .frame(width: radius * 2, height: radius * 2)
+        .opacity(hoverAngle == nil || !shown ? 0 : 1)
+        .animation(reduceMotion ? nil : .wispControl, value: heading)
+        .animation(reduceMotion ? nil : .wispSmooth, value: hoverAngle == nil)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder private func middle(tint: Double) -> some View {
         switch look.centre {
         case .clear:
-            // Open: the desktop shows through, and only the rim marks the edge.
+            // Open: the desktop shows through.
             Color.clear
         case .frosted:
             Color.clear.wispSurface(Circle(), glass: .frosted)
         case .tinted:
-            // Soft and even: a pale violet wash, a touch lighter in the middle.
+            // A violet glow that's brightest round the flame and fades out before the orbit.
             Circle()
                 .fill(
                     RadialGradient(
-                        colors: dark
-                            ? [Color.wispViolet.opacity(0.20 * tint), Color.wispViolet.opacity(0.12 * tint)]
-                            : [Color.wispViolet.opacity(0.08 * tint), Color.wispViolet.opacity(0.14 * tint)],
-                        center: .center, startRadius: 0, endRadius: RingGeometry.innerRadius)
-                )
-                .background(Color.clear.wispSurface(Circle(), glass: .clear))
+                        colors: [
+                            Color.wispViolet.opacity((dark ? 0.32 : 0.22) * tint),
+                            Color.wispViolet.opacity((dark ? 0.10 : 0.06) * tint), .clear,
+                        ],
+                        center: .center, startRadius: 0, endRadius: RingGeometry.innerRadius))
         }
     }
 }
 
-/// The ring's band: the disc with its middle cut out, so a clear centre is a real hole.
-struct RingBand: InsettableShape {
-    let innerRadius: CGFloat
-    var inset: CGFloat = 0
-
-    func path(in rect: CGRect) -> Path {
-        let centre = CGPoint(x: rect.midX, y: rect.midY)
-        let outer = min(rect.width, rect.height) / 2 - inset
-        // Insetting moves both edges into the band, so the hole grows.
-        let hole = innerRadius + inset
-        var path = Path()
-        path.addArc(center: centre, radius: outer, startAngle: .zero, endAngle: .degrees(360), clockwise: false)
-        path.closeSubpath()
-        guard hole < outer else { return path }
-        // Drawn the other way round, so the default fill leaves it empty.
-        path.addArc(center: centre, radius: hole, startAngle: .degrees(360), endAngle: .zero, clockwise: true)
-        path.closeSubpath()
-        return path
-    }
-
-    func inset(by amount: CGFloat) -> RingBand {
-        var copy = self
-        copy.inset += amount
-        return copy
-    }
-}
-
-/// One icon on the ring: lifted, with a frosted halo and a violet glow, when it's under the
-/// pointer; a dot below for a running app; a small mark on the outside when it opens choices.
+/// One icon on the ring's orbit: ringed in violet when it's under the pointer, a dot below for
+/// a running app, and a small mark on the outside when it opens choices.
 struct RingIconCell: View {
     let icon: RingIcon
     let tileHex: String
@@ -361,16 +411,18 @@ struct RingIconCell: View {
         let radians = angle * .pi / 180
         ZStack {
             if lit {
-                // A frosted halo with a violet bloom that spills into the disc.
+                // Lit on the orbit: a violet ring with a glow, the trail's head arriving.
                 Circle()
-                    .fill(.thinMaterial)
-                    .overlay(Circle().fill(Color.white.opacity(dark ? 0.08 : 0.55)))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(dark ? 0.25 : 0.9), lineWidth: 1))
-                    .frame(width: side * 1.45, height: side * 1.45)
-                    .shadow(color: Color.wispViolet.opacity(0.35), radius: 28)
+                    .fill(Color.wispViolet.opacity(dark ? 0.22 : 0.14))
+                    .overlay(Circle().strokeBorder(Color.wispViolet, lineWidth: 2))
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.7), lineWidth: 0.5).padding(2))
+                    .frame(width: side * 1.42, height: side * 1.42)
+                    .shadow(color: Color.wispViolet.opacity(0.6), radius: 14)
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
             RingTileIcon(icon: icon, tileHex: tileHex, side: side)
+                // With no band behind it, a soft shadow keeps it off a busy wallpaper.
+                .shadow(color: .black.opacity(dark ? 0.45 : 0.22), radius: 7, y: 3)
                 .scaleEffect(lit ? 1.08 : 1)
             if dot != .none {
                 // Like the Dock: a dot under a running app, violet for the one in front.
@@ -458,21 +510,19 @@ private struct SubRing: View {
         let parentHex = model.set.slots.indices.contains(parent) ? model.set.slots[parent].action.tileHex : "#8E8E93"
         ZStack {
             if !items.isEmpty {
-                // Every choice starts folded on the parent's angle and swings to its own.
-                SectorShape(
-                    start: open ? first.start - 2 : parentAngle - half, end: open ? last.end + 2 : parentAngle + half,
-                    inner: RingGeometry.subInner, outer: RingGeometry.subOuter, centre: model.centre
+                // An outer orbit the choices ride, swinging open from the parent's angle.
+                let arc = OrbitArc(
+                    start: open ? first.start + half * 0.4 : parentAngle,
+                    end: open ? last.end - half * 0.4 : parentAngle,
+                    radius: RingGeometry.subRadius, centre: model.centre)
+                arc.stroke(Color.wispViolet.opacity(0.4), style: StrokeStyle(lineWidth: 16, lineCap: .round))
+                    .blur(radius: 10)
+                arc.stroke(
+                    LinearGradient(
+                        colors: [Color.wispViolet, Color.white.opacity(0.7), Color.wispViolet],
+                        startPoint: .leading, endPoint: .trailing),
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round)
                 )
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    SectorShape(
-                        start: open ? first.start - 2 : parentAngle - half,
-                        end: open ? last.end + 2 : parentAngle + half,
-                        inner: RingGeometry.subInner, outer: RingGeometry.subOuter, centre: model.centre
-                    )
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
                 .opacity(fanned || reduceMotion ? 1 : 0)
             }
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -520,6 +570,34 @@ private struct SubRing: View {
         return CGPoint(
             x: model.centre.x + RingGeometry.subRadius * sin(radians),
             y: model.centre.y - RingGeometry.subRadius * cos(radians))
+    }
+}
+
+/// Part of a circle round the ring's centre, between two angles clockwise from 12 o'clock;
+/// animatable, so a sub-ring's orbit swings open.
+struct OrbitArc: Shape {
+    var start: CGFloat
+    var end: CGFloat
+    let radius: CGFloat
+    let centre: CGPoint
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(start, end) }
+        set {
+            start = newValue.first
+            end = newValue.second
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let steps = max(Int(abs(end - start) / 2), 1)
+        for step in 0...steps {
+            let angle = (start + (end - start) * CGFloat(step) / CGFloat(steps)) * .pi / 180
+            let point = CGPoint(x: centre.x + radius * sin(angle), y: centre.y - radius * cos(angle))
+            if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        return path
     }
 }
 
@@ -588,34 +666,6 @@ private struct FileDragOut: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-/// An annular sector, angles clockwise from 12 o'clock, in a view whose y runs down.
-struct SectorShape: Shape {
-    var start: CGFloat
-    var end: CGFloat
-    let inner: CGFloat
-    let outer: CGFloat
-    let centre: CGPoint
-
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(start, end) }
-        set {
-            start = newValue.first
-            end = newValue.second
-        }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        // SwiftUI's angles start at 3 o'clock and run clockwise in a y-down view.
-        let from = Angle.degrees(Double(start) - 90)
-        let to = Angle.degrees(Double(end) - 90)
-        var path = Path()
-        path.addArc(center: centre, radius: outer, startAngle: from, endAngle: to, clockwise: false)
-        path.addArc(center: centre, radius: inner, startAngle: to, endAngle: from, clockwise: true)
-        path.closeSubpath()
-        return path
     }
 }
 
