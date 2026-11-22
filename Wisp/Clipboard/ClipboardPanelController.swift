@@ -207,8 +207,8 @@ final class ClipboardPanelController {
     private func handleKey(_ keyCode: UInt16, command: Bool, commandOnly: Bool) -> Bool {
         guard isVisible else { return false }
         switch keyCode {
-        case 53:  // Esc
-            hide()
+        case 53:  // Esc: clears a search first, then closes
+            if model.query.isEmpty { hide() } else { model.query = "" }
         case 123:  // Left
             model.move(by: -1)
         case 124:  // Right

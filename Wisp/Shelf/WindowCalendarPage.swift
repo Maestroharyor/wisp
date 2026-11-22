@@ -17,6 +17,9 @@ struct CalendarPage: View {
                 symbol: "calendar", tint: .red, title: "Calendar", subtitle: "Today and the next six days",
                 count: store.access == .fullAccess && store.loaded ? countText : nil
             ) {
+                if preferences.calendarLayout == .day, store.access == .fullAccess {
+                    dayButtons
+                }
                 Picker("Layout", selection: Bindable(preferences).calendarLayout) {
                     ForEach(CalendarLayout.allCases) { Text($0.title).tag($0) }
                 }
@@ -33,6 +36,32 @@ struct CalendarPage: View {
             content
         }
         .onAppear { store.refreshIfStale() }
+    }
+
+    /// Previous day, Today and next day for the Day layout, with ⌘←, ⌘T and ⌘→.
+    @ViewBuilder private var dayButtons: some View {
+        let days = WeekStrip.days(from: .now, calendar: .current)
+        let index = day.flatMap { day in days.firstIndex { Calendar.current.isDate($0, inSameDayAs: day) } } ?? 0
+        ControlGroup {
+            Button("Previous day", systemImage: "chevron.left") { step(-1) }
+                .keyboardShortcut(.leftArrow, modifiers: .command)
+                .disabled(index == 0)
+                .help("Previous day")
+            Button("Next day", systemImage: "chevron.right") { step(1) }
+                .keyboardShortcut(.rightArrow, modifiers: .command)
+                .disabled(index >= days.count - 1)
+                .help("Next day")
+        }
+        .labelStyle(.iconOnly)
+        .fixedSize()
+        Button("Today") { day = nil }
+            .keyboardShortcut("t", modifiers: .command)
+            .disabled(day == nil)
+    }
+
+    private func step(_ offset: Int) {
+        let calendar = Calendar.current
+        day = WeekStrip.stepped(day, by: offset, in: WeekStrip.days(from: .now, calendar: calendar), calendar: calendar)
     }
 
     private var countText: String {

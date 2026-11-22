@@ -70,6 +70,15 @@ public enum WeekStrip {
         let today = calendar.startOfDay(for: now)
         return (0..<max(count, 0)).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
     }
+
+    /// The day `step` days from `day` in `days`, kept within the strip. Nil stands for the
+    /// first day (today), both given and returned.
+    public static func stepped(_ day: Date?, by step: Int, in days: [Date], calendar: Calendar) -> Date? {
+        guard !days.isEmpty else { return nil }
+        let current = day.flatMap { day in days.firstIndex { calendar.isDate($0, inSameDayAs: day) } } ?? 0
+        let next = min(max(current + step, 0), days.count - 1)
+        return next == 0 ? nil : days[next]
+    }
 }
 
 /// The cards on the window's Home, in the order chosen.
