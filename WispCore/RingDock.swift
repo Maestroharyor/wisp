@@ -186,6 +186,8 @@ public struct RingLook: Codable, Equatable, Sendable {
     public var tint: Double = 0.5
     /// What fills the middle of the ring.
     public var centre: RingCentre = .clear
+    /// What the icons sit on: the glass band, or the bare orbit.
+    public var backdrop: RingBackdrop = .band
 
     public static let sizeRange: ClosedRange<Double> = 0.8...1.25
     public static let standard = RingLook()
@@ -209,7 +211,7 @@ public struct RingLook: Codable, Equatable, Sendable {
         return CGPoint(x: centre.x + (point.x - centre.x) / scale, y: centre.y + (point.y - centre.y) / scale)
     }
 
-    private enum CodingKeys: String, CodingKey { case glass, size, tint, centre }
+    private enum CodingKeys: String, CodingKey { case glass, size, tint, centre, backdrop }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -217,6 +219,7 @@ public struct RingLook: Codable, Equatable, Sendable {
         size = ((try? container.decodeIfPresent(Double.self, forKey: .size)) ?? nil) ?? 1
         tint = ((try? container.decodeIfPresent(Double.self, forKey: .tint)) ?? nil) ?? 0.5
         centre = ((try? container.decodeIfPresent(RingCentre.self, forKey: .centre)) ?? nil) ?? .clear
+        backdrop = ((try? container.decodeIfPresent(RingBackdrop.self, forKey: .backdrop)) ?? nil) ?? .band
         self = clamped()
     }
 }
@@ -229,4 +232,20 @@ public enum RingCentre: String, CaseIterable, Identifiable, Sendable, Codable {
 
     public var id: Self { self }
     public var title: String { rawValue.capitalized }
+}
+
+/// What the ring's icons sit on: a glass band (its glass and tint set in Settings), or only the
+/// glowing orbit, for the barest ring.
+public enum RingBackdrop: String, CaseIterable, Identifiable, Sendable, Codable {
+    case band
+    case orbit
+
+    public var id: Self { self }
+
+    public var title: String {
+        switch self {
+        case .band: "Glass band"
+        case .orbit: "Orbit only"
+        }
+    }
 }

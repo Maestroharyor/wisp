@@ -41,10 +41,15 @@ struct RingSettings: View {
                 .font(.caption).foregroundStyle(.secondary)
             }
             Section("Look") {
+                Picker("Background", selection: $preferences.ringLook.backdrop) {
+                    ForEach(RingBackdrop.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
                 Picker("Glass", selection: $preferences.ringLook.glass) {
                     ForEach(PanelGlass.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                .disabled(preferences.ringLook.backdrop == .orbit)
                 Picker("Centre", selection: $preferences.ringLook.centre) {
                     ForEach(RingCentre.allCases) { Text($0.title).tag($0) }
                 }
@@ -65,7 +70,7 @@ struct RingSettings: View {
                         .disabled(preferences.ringLook == .standard)
                 }
                 Text(
-                    "Clear shows the most through, Frosted is easiest to read. A clear centre is open onto the desktop; Tinted is a soft violet disc. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
+                    "The icons sit on a glass band, or on the bare orbit with Orbit only. Clear glass shows the most through, Frosted is easiest to read over busy windows. A clear centre is open onto the desktop; Tinted is a soft violet glow. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }

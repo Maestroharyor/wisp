@@ -43,4 +43,15 @@ final class RingLookTests: XCTestCase {
         let unknown = try JSONDecoder().decode(RingLook.self, from: Data(#"{"centre": "neon"}"#.utf8))
         XCTAssertEqual(unknown.centre, .clear)
     }
+
+    func testTheRingHasItsGlassBandUnlessChosen() throws {
+        XCTAssertEqual(RingLook.standard.backdrop, .band)
+        var look = RingLook()
+        look.backdrop = .orbit
+        let data = try JSONEncoder().encode(look)
+        XCTAssertEqual(try JSONDecoder().decode(RingLook.self, from: data).backdrop, .orbit)
+        let old = try JSONDecoder().decode(RingLook.self, from: Data(#"{"centre": "frosted"}"#.utf8))
+        XCTAssertEqual(old.backdrop, .band)
+        XCTAssertEqual(old.centre, .frosted)
+    }
 }

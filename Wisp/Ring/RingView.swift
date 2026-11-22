@@ -311,6 +311,7 @@ struct RingDisc: View {
         let tint = look.tintFactor
         let side = (RingGeometry.ringOuter + 10) * 2
         ZStack {
+            if look.backdrop == .band { band(tint: tint, side: side) }
             middle(tint: tint)
                 .frame(width: RingGeometry.innerRadius * 2, height: RingGeometry.innerRadius * 2)
             // A wide soft glow under the line, so the orbit reads on any wallpaper.
@@ -334,6 +335,30 @@ struct RingDisc: View {
             heading += RingGeometry.shortTurn(from: heading, to: Double(angle))
         }
         .onAppear { heading = Double(hoverAngle ?? 0) }
+    }
+
+    /// The glass band the icons sit on, in the glass and tint chosen in Settings, with the
+    /// middle cut out so a clear centre stays open. It opens with the ring.
+    private func band(tint: Double, side: CGFloat) -> some View {
+        let shape = RingBand(innerRadius: RingGeometry.innerRadius)
+        let rim = Color.white.opacity(contrast == .increased ? 0.95 : dark ? 0.16 : 0.85)
+        return ZStack {
+            Color.clear.wispSurface(shape, glass: look.glass)
+            // A violet glow that rises toward the middle and is gone by the rim.
+            shape.fill(
+                RadialGradient(
+                    colors: [
+                        Color.wispViolet.opacity((dark ? 0.20 : 0.12) * tint),
+                        Color.wispViolet.opacity((dark ? 0.07 : 0.035) * tint), .clear,
+                    ],
+                    center: .center, startRadius: RingGeometry.innerRadius, endRadius: side / 2))
+            Circle().strokeBorder(Color.white.opacity(dark ? 0.12 : 0.55), lineWidth: 1)
+            Circle().strokeBorder(rim, lineWidth: 1)
+                .frame(width: RingGeometry.innerRadius * 2, height: RingGeometry.innerRadius * 2)
+        }
+        .frame(width: side, height: side)
+        .compositingGroup()
+        .shadow(color: .black.opacity(dark ? 0.30 : 0.08), radius: 40, y: 12)
     }
 
     private var orbitStyle: AngularGradient {
@@ -388,6 +413,33 @@ struct RingDisc: View {
                         ],
                         center: .center, startRadius: 0, endRadius: RingGeometry.innerRadius))
         }
+    }
+}
+
+/// The ring's band: the disc with its middle cut out, so a clear centre is a real hole.
+struct RingBand: InsettableShape {
+    let innerRadius: CGFloat
+    var inset: CGFloat = 0
+
+    func path(in rect: CGRect) -> Path {
+        let centre = CGPoint(x: rect.midX, y: rect.midY)
+        let outer = min(rect.width, rect.height) / 2 - inset
+        // Insetting moves both edges into the band, so the hole grows.
+        let hole = innerRadius + inset
+        var path = Path()
+        path.addArc(center: centre, radius: outer, startAngle: .zero, endAngle: .degrees(360), clockwise: false)
+        path.closeSubpath()
+        guard hole < outer else { return path }
+        // Drawn the other way round, so the default fill leaves it empty.
+        path.addArc(center: centre, radius: hole, startAngle: .degrees(360), endAngle: .zero, clockwise: true)
+        path.closeSubpath()
+        return path
+    }
+
+    func inset(by amount: CGFloat) -> RingBand {
+        var copy = self
+        copy.inset += amount
+        return copy
     }
 }
 
@@ -517,6 +569,15 @@ private struct SubRing: View {
                     start: open ? first.start + half * 0.4 : parentAngle,
                     end: open ? last.end - half * 0.4 : parentAngle,
                     radius: RingGeometry.subRadius, centre: model.centre)
+                if Preferences.shared.ringLook.backdrop == .band {
+                    // On the band's glass, as the ring is: a rounded strip under the choices.
+                    arc.stroke(
+                        .ultraThinMaterial,
+                        style: StrokeStyle(lineWidth: RingGeometry.subOuter - RingGeometry.subInner, lineCap: .round)
+                    )
+                    .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
+                    .opacity(fanned || reduceMotion ? 1 : 0)
+                }
                 arc.stroke(Color.wispViolet.opacity(0.4), style: StrokeStyle(lineWidth: 16, lineCap: .round))
                     .blur(radius: 10)
                 arc.stroke(
