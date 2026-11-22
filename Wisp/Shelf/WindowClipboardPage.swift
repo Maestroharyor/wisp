@@ -235,9 +235,7 @@ struct ClipboardPage: View {
     }
 
     private static func icon(_ bundleID: String) -> NSImage? {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).map {
-            NSWorkspace.shared.icon(forFile: $0.path)
-        }
+        RingIconCache.shared.image(for: .app(bundleID: bundleID))
     }
 
     // MARK: Grid

@@ -177,10 +177,9 @@ struct ClipTile: View {
         }
     }
 
+    /// Cached, since every card asks on every redraw.
     private var appIcon: NSImage? {
-        guard let id = item.sourceBundleID, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
-        else { return nil }
-        return NSWorkspace.shared.icon(forFile: url.path)
+        item.sourceBundleID.flatMap { RingIconCache.shared.image(for: .app(bundleID: $0)) }
     }
 
     private var accessibilityText: String {
