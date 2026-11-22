@@ -1,3 +1,4 @@
+import EventKit
 import Observation
 import SwiftUI
 import WispCore
@@ -271,15 +272,20 @@ private struct WindowSidebarList: View {
     let navigation: WindowNavigation
     let selection: WindowDestination
 
+    @State private var query = ""
+
     private var services: AppServices { model.services }
 
     var body: some View {
+        let sections = WindowSidebar.filtered(navigation.sections(services: services), query: query) {
+            WindowRow.title(of: $0, services: services)
+        }
         List(
             selection: Binding<WindowDestination?>(
                 get: { selection },
                 set: { if let row = $0 { navigation.select(row) } })
         ) {
-            ForEach(navigation.sections(services: services)) { section in
+            ForEach(sections) { section in
                 Section(section.title) {
                     ForEach(section.rows, id: \.self) { row in
                         WindowSidebarRow(row: row, services: services)
@@ -289,15 +295,28 @@ private struct WindowSidebarList: View {
                 }
             }
         }
+        .searchable(text: $query, placement: .sidebar, prompt: "Search")
         .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
+        // For the overdue badge; a stale list would miss reminders that fell due meanwhile.
+        .onAppear { services.reminders.refreshIfStale() }
     }
 
     private func badge(of row: WindowDestination) -> Int {
         switch row {
         case .page(.tray): services.tray.count
         case .widget(WidgetKind.agents.rawValue): services.agents.approvals.count
+        case .widget(WidgetKind.clipboard.rawValue): services.clipboard.history.items.filter(\.pinned).count
+        case .widget(WidgetKind.reminders.rawValue): overdueReminders
         default: 0
         }
+    }
+
+    /// Open reminders past their due time, once Reminders has been read with full access.
+    private var overdueReminders: Int {
+        let reminders = services.reminders
+        guard reminders.loaded, reminders.access == .fullAccess else { return 0 }
+        let now = Date.now
+        return reminders.items.filter { ReminderList.isOverdue($0, now: now) }.count
     }
 }
 

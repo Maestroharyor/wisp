@@ -93,6 +93,21 @@ public enum WindowSidebar {
         return sections
     }
 
+    /// The rows whose title contains `query`, ignoring case and accents, with empty sections
+    /// left out. A blank query lists everything.
+    public static func filtered(
+        _ sections: [WindowSidebarSection], query: String, title: (WindowDestination) -> String
+    ) -> [WindowSidebarSection] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return sections }
+        return sections.compactMap { section in
+            let rows = section.rows.filter {
+                title($0).range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+            }
+            return rows.isEmpty ? nil : WindowSidebarSection(kind: section.kind, rows: rows)
+        }
+    }
+
     /// The selection while its row is listed; Home once its widget is switched off or its
     /// activity ends.
     public static func resolve(_ selection: WindowDestination?, in sections: [WindowSidebarSection])
