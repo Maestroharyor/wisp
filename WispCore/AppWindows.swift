@@ -1,13 +1,17 @@
+import CoreGraphics
 import Foundation
 
 /// One window of an app, as Accessibility reports it.
 public struct WindowSummary: Equatable, Sendable {
     public let title: String?
     public let isMinimised: Bool
+    /// Where it is on screen, top-left origin like Core Graphics; nil when the app didn't say.
+    public let frame: CGRect?
 
-    public init(title: String?, isMinimised: Bool) {
+    public init(title: String?, isMinimised: Bool, frame: CGRect? = nil) {
         self.title = title
         self.isMinimised = isMinimised
+        self.frame = frame
     }
 }
 
@@ -46,6 +50,12 @@ public enum AppWindows {
             choices.append(RingChoice(id: "windows:more", title: "\(windows.count - shown) more", symbol: "ellipsis"))
         }
         return choices
+    }
+
+    /// The count on an app segment: only when there's more than one window to choose from.
+    public static func badge(count: Int) -> String? {
+        guard count > 1 else { return nil }
+        return count > 9 ? "9+" : "\(count)"
     }
 
     public static func target(of choice: RingChoice) -> Target? {
