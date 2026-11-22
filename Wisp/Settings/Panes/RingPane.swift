@@ -390,6 +390,7 @@ private struct SubRingEditor: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Remove from the sub-ring")
+                    .accessibilityLabel("Remove from the sub-ring")
                 }
             }
             Button(slot.group.isEmpty ? "Add a sub-ring" : "Add to the sub-ring") {

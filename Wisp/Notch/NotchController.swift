@@ -71,6 +71,7 @@ final class NotchController {
             if self.clickOpensRing { self.openRing() } else { self.openShell() }
         }
         model.onAccessibilityRing = { [weak self] in self?.openRing() }
+        model.onAccessibilityClose = { [weak self] in _ = self?.dismissActivity() }
         model.onKeyDone = { [weak self] in
             // An open shelf keeps its key status for its own fields.
             guard let self, self.machine.phase != .open else { return }

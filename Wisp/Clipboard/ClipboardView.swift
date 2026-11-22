@@ -171,6 +171,12 @@ struct ClipboardView: View {
                                         model.selectedID = item.id
                                     }
                                 }
+                                .accessibilityAction { paste(item) }
+                                .accessibilityAction(named: "Copy") { model.store.copy(item) }
+                                .accessibilityAction(named: item.pinned ? "Unpin" : "Pin") {
+                                    model.store.togglePin(item)
+                                }
+                                .accessibilityAction(named: "Delete") { model.store.remove(item) }
                                 .contextMenu {
                                     let picked = model.pickedItems
                                     // Images are left out of a paste together, so only text counts.

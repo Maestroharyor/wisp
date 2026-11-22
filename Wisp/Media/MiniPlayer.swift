@@ -209,5 +209,7 @@ private struct MiniPlayerView: View {
             if !isDragging { dragEnded() }
         }
         .onHover { hovering = $0 }
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: "Close", close)
     }
 }

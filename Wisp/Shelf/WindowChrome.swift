@@ -48,8 +48,10 @@ struct WindowCard<Content: View>: View {
                 .help("Open \(title)")
                 .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
                 .accessibilityHint("Opens its page")
+                .accessibilityAddTraits(.isHeader)
         } else {
             label.accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
         }
     }
 }

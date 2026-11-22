@@ -126,7 +126,7 @@ private struct GooBubbles: View, Animatable {
         }
         ZStack(alignment: .topLeading) {
             if !reduceMotion {
-                goo(drops)
+                goo(drops).accessibilityHidden(true)
             }
             ForEach(drops, id: \.side) { drop in
                 // Flat black like the closed shell, which casts no shadow either.
@@ -140,6 +140,11 @@ private struct GooBubbles: View, Animatable {
                     }
                     .overlay { RimGlow(model: model, shape: Circle()).opacity(min(max(drop.progress, 0), 1)) }
                     .opacity(reduceMotion ? drop.progress : 1)
+                    // One element per bubble, read as the activity it stands for.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        drop.bubble.activity.spokenLabel(now: .now, thresholds: model.preferences.contextThresholds)
+                    )
                     .position(drop.center)
             }
         }

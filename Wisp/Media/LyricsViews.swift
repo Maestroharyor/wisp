@@ -13,7 +13,8 @@ struct LyricLines: View {
             if let found = lyrics.lyrics {
                 TimelineView(.periodic(from: .now, by: 0.25)) { context in
                     let index = found.index(at: monitor.position(at: context.date))
-                    let current = index.map { found.lines[$0].text } ?? (found.isSynced ? "♪" : found.lines[0].text)
+                    let current =
+                        index.map { found.lines[$0].text } ?? (found.isSynced ? "♪" : found.lines.first?.text ?? "")
                     let nextIndex = (index ?? -1) + 1
                     let next = found.isSynced && nextIndex < found.lines.count ? found.lines[nextIndex].text : ""
                     VStack(alignment: .leading, spacing: 3) {
@@ -22,6 +23,8 @@ struct LyricLines: View {
                             .lineLimit(2)
                             .contentTransition(.opacity)
                             .wispAnimation(.easeOut(duration: 0.25), value: current)
+                            .accessibilityLabel(Self.spoken(current))
+                            .accessibilityAddTraits(.updatesFrequently)
                         if showsNext, found.isSynced, !next.isEmpty {
                             Text(next).font(.system(size: size * 0.8, weight: .semibold))
                                 .foregroundStyle(Color.secondaryText).lineLimit(1)
@@ -35,6 +38,11 @@ struct LyricLines: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: monitor.info?.trackID) { await lyrics.load(for: monitor.info) }
+    }
+
+    /// The music note stands for a break between lines; VoiceOver says so in words.
+    static func spoken(_ line: String) -> String {
+        line.isEmpty || line == "♪" ? "Instrumental" : line
     }
 }
 
@@ -121,8 +129,8 @@ struct LyricsScroller: View {
         .buttonStyle(.plain)
         .disabled(line.time == nil)
         .help(line.time == nil ? "" : "Play from here")
-        .accessibilityLabel(text)
-        .accessibilityAddTraits(isCurrent ? .isSelected : [])
+        .accessibilityLabel(LyricLines.spoken(line.text))
+        .accessibilityAddTraits(isCurrent ? [.isSelected, .updatesFrequently] : [])
         .accessibilityHint(line.time == nil ? "" : "Plays from this line")
     }
 }

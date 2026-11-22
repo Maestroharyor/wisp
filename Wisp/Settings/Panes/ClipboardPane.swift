@@ -36,6 +36,7 @@ struct ClipboardSettings: View {
                             }
                             .buttonStyle(.borderless)
                             .help("Keep copies from this app again")
+                            .accessibilityLabel("Remove \(Self.name(of: id))")
                         }
                     }
                     Button("Add app…") { addApp() }

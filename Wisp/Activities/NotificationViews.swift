@@ -60,7 +60,7 @@ struct NotificationCardView: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.ink)
-        .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
+        .cardClose(model)
         .onChange(of: replying) { _, now in fieldFocused = now }
         // Rebuilt after another alert took its place: focus the field again.
         .onAppear { if replying { fieldFocused = true } }
@@ -170,7 +170,19 @@ struct CardCloseGlyph: View {
                 .padding(.top, model.cardTopInset + 9)
                 .padding(.trailing, 12)
                 .transition(.opacity)
-                .accessibilityLabel("Close")
+                .accessibilityHidden(true)
         }
+    }
+}
+
+extension View {
+    /// A card's hover close button, plus a "Close" action so VoiceOver can reach it without hovering.
+    func cardClose(_ model: NotchModel) -> some View {
+        overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
+            .accessibilityActions {
+                if model.cardClosable {
+                    Button("Close") { model.onAccessibilityClose() }
+                }
+            }
     }
 }

@@ -30,7 +30,7 @@ struct AgentCalloutCard: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.ink)
-        .overlay(alignment: .topTrailing) { CardCloseGlyph(model: model) }
+        .cardClose(model)
     }
 
     @ViewBuilder private var buttons: some View {

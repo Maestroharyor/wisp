@@ -202,6 +202,8 @@ final class NotchModel {
     @ObservationIgnored var onAccessibilityOpen: () -> Void = {}
     /// VoiceOver's "Open ring" on the orb.
     @ObservationIgnored var onAccessibilityRing: () -> Void = {}
+    /// VoiceOver's "Close" on a card: what the hover close button does.
+    @ObservationIgnored var onAccessibilityClose: () -> Void = {}
     /// The approval card opened to show its preview.
     var expandedApproval: UUID?
     /// Requests folded into the agent pill. A new request isn't in it, so it shows full size.
@@ -522,8 +524,10 @@ final class NotchModel {
     var cardTopInset: CGFloat { isNotchStyle ? notchHeight : 8 }
     /// Notification and two-line cards get a close button; cards with their own buttons
     /// (approvals, Join) and pills don't.
-    var showsCloseButton: Bool {
-        guard cardHovered, replyingTo == nil, let activity, services.activities.currentSlot?.isDismissable == true
+    var showsCloseButton: Bool { cardHovered && cardClosable }
+    /// The card can be closed, by its hover button or VoiceOver's Close action.
+    var cardClosable: Bool {
+        guard replyingTo == nil, let activity, services.activities.currentSlot?.isDismissable == true
         else { return false }
         if case .notification = activity { return true }
         if case .aiResult = activity { return true }

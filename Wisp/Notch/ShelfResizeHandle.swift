@@ -50,6 +50,7 @@ struct ShelfResizeHandle: View {
             .help("Drag to resize, double-click to reset")
             .accessibilityElement()
             .accessibilityLabel("Shelf height")
+            .accessibilityValue(heightValue)
             .accessibilityHint("Drag to make the shelf taller or shorter. Double-click to reset.")
             .accessibilityAdjustableAction { direction in
                 switch direction {
@@ -61,6 +62,11 @@ struct ShelfResizeHandle: View {
     }
 
     private static let accessibilityStep: CGFloat = 40
+
+    private var heightValue: String {
+        let extra = Int(model.shelfExtra.rounded())
+        return extra <= 0 ? "Usual height" : "\(extra) points taller than usual"
+    }
 }
 
 /// The up-down cursor over the handle and through a drag of it. The panel doesn't activate

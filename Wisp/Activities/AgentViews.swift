@@ -1006,6 +1006,7 @@ private struct MonitoredSessionRow: View {
         .help("Show the terminal")
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { open() }
     }
 }
 
@@ -1306,6 +1307,7 @@ private struct SessionBar: View {
         .onHover { hovering = $0 }
         .onTapGesture(perform: open)
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { open() }
     }
 
     private enum Part: Hashable {
@@ -1408,6 +1410,10 @@ struct AgentsDetail: View {
                                     summary: hub.summaries[session.id]
                                 )
                                 .onTapGesture {
+                                    selection = session.id
+                                    showingHistory = false
+                                }
+                                .accessibilityAction {
                                     selection = session.id
                                     showingHistory = false
                                 }
@@ -1598,6 +1604,8 @@ private struct DetailSessionRow: View {
                 .fill(Color.project(session.project).opacity(selected ? 0.28 : 0.1))
         )
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
 

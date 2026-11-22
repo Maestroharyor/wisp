@@ -479,6 +479,7 @@ private struct RingSearchCard: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(index == model.selectedResult ? .isSelected : [])
             }
         }
         .padding(8)
