@@ -153,10 +153,8 @@ final class RingController {
         model.frontmost = front
         listFolders()
         listWindows()
-        model.convertChoices =
-            dropping
-            ? ConvertTargets.choices(
-                for: ConvertTargets.formats(forExtensions: Self.draggedFiles().map(\.pathExtension))) : []
+        model.convertChoices = []
+        if dropping { offerFormats(for: Self.draggedFiles()) }
         resetPreviews()
         canPreview = !dropping && services.preferences.ringAppWindows && CGPreflightScreenCaptureAccess()
         markTip(.open)
@@ -969,6 +967,25 @@ extension RingController {
     fileprivate static func draggedFiles() -> [URL] {
         let items = NSPasteboard(name: .drag).pasteboardItems ?? []
         return items.compactMap { $0.string(forType: .fileURL).flatMap(URL.init(string:)) }.filter(\.isFileURL)
+    }
+
+    /// The formats around Transform for the dragged files. A video with no sound can't become
+    /// M4A; that takes a moment to find out, so the list is corrected once it's known, unless the
+    /// formats are already fanned out under the pointer.
+    fileprivate func offerFormats(for files: [URL]) {
+        let exts = files.map(\.pathExtension)
+        model.convertChoices = ConvertTargets.choices(for: ConvertTargets.formats(forExtensions: exts))
+        let videos = files.filter { ConvertTargets.kind(ofExtension: $0.pathExtension) == .video }
+        guard !videos.isEmpty else { return }
+        Task { [weak self] in
+            let sound = await MediaConvert.haveSound(videos, within: .milliseconds(300))
+            guard let self, self.model.dropping, sound == false else { return }
+            if let expanded = self.model.expanded, self.model.set.slots[safe: expanded]?.action.kind == .transform {
+                return
+            }
+            self.model.convertChoices = ConvertTargets.choices(
+                for: ConvertTargets.formats(forExtensions: exts, videosHaveSound: false))
+        }
     }
 
     /// A number pressed mid drag while the formats are fanned out converts the dragged files.

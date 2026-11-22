@@ -54,6 +54,16 @@ public enum ConvertTargets {
         }
     }
 
+    /// As `formats(forExtensions:)`, leaving out M4A when a dragged video is known to have no
+    /// sound. Nil means it isn't known (the check was slow), so M4A stays.
+    public static func formats(forExtensions exts: [String], videosHaveSound: Bool?) -> [ConvertFormat] {
+        let formats = formats(forExtensions: exts)
+        guard videosHaveSound == false, exts.contains(where: { kind(ofExtension: $0) == .video }) else {
+            return formats
+        }
+        return formats.filter { $0 != .m4a }
+    }
+
     /// Formats every file can become, in a fixed order; none when one of them can't convert.
     public static func formats(forExtensions exts: [String]) -> [ConvertFormat] {
         guard !exts.isEmpty else { return [] }

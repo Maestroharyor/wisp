@@ -37,4 +37,13 @@ final class ConvertTargetsTests: XCTestCase {
         XCTAssertTrue(GIFPlan.frames(duration: .nan).isEmpty)
         XCTAssertEqual(GIFPlan.delay(), 0.1, accuracy: 0.0001)
     }
+
+    func testSilentVideosDontOfferM4A() {
+        XCTAssertFalse(ConvertTargets.formats(forExtensions: ["mov"], videosHaveSound: false).contains(.m4a))
+        XCTAssertTrue(ConvertTargets.formats(forExtensions: ["mov"], videosHaveSound: true).contains(.m4a))
+        XCTAssertTrue(ConvertTargets.formats(forExtensions: ["mov"], videosHaveSound: nil).contains(.m4a))
+        XCTAssertTrue(
+            ConvertTargets.formats(forExtensions: ["mp3"], videosHaveSound: false).contains(.m4a),
+            "audio keeps M4A")
+    }
 }
