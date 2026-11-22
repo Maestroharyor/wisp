@@ -35,6 +35,10 @@ struct RingSettings: View {
                     ForEach(PanelGlass.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                Picker("Centre", selection: $preferences.ringLook.centre) {
+                    ForEach(RingCentre.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
                 LabeledContent("Size") {
                     HStack {
                         Slider(value: $preferences.ringLook.size, in: RingLook.sizeRange, step: 0.05)
@@ -51,7 +55,7 @@ struct RingSettings: View {
                         .disabled(preferences.ringLook == .standard)
                 }
                 Text(
-                    "Clear shows the most through, Frosted is easiest to read. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
+                    "Clear shows the most through, Frosted is easiest to read. A clear centre is open onto the desktop; Tinted is a soft violet disc. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
