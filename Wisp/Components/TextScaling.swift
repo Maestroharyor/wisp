@@ -75,7 +75,7 @@ extension TextStyleSize {
 struct SettingsHeader: View {
     let title: String
 
-    init(_ title: String) {
+    nonisolated init(_ title: String) {
         self.title = title
     }
 

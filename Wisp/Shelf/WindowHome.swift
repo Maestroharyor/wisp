@@ -177,9 +177,32 @@ private struct HeroAction: View {
             }
         }
         .help(title)
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.large)
+        .buttonStyle(HeroButtonStyle())
+    }
+}
+
+/// White on frosted glass: the hero's wash changes colour through the day, so a tinted label
+/// would vanish into it at some hours.
+private struct HeroButtonStyle: ButtonStyle {
+    @Environment(\.colorSchemeContrast) private var contrast
+    @State private var hovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        let strong = contrast == .increased
+        configuration.label
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                Capsule().fill(
+                    Color.black.opacity(
+                        (strong ? 0.45 : 0.22) + (hovering ? 0.08 : 0) + (configuration.isPressed ? 0.1 : 0)))
+            )
+            .background(Capsule().fill(.ultraThinMaterial))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(strong ? 0.6 : 0.25), lineWidth: 1))
+            .contentShape(Capsule())
+            .onHover { hovering = $0 }
+            .wispAnimation(.wispControl, value: hovering)
     }
 }
 
