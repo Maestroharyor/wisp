@@ -153,6 +153,7 @@ struct NotchView: View {
 private struct SurfaceView: View {
     let model: NotchModel
     let radii: (top: CGFloat, bottom: CGFloat)
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         let isOpen = model.phase == .open
@@ -210,6 +211,12 @@ private struct SurfaceView: View {
                     lineWidth: look.outline.lineWidth
                 )
                 .opacity(isOpen ? 1 : 0)
+            }
+        }
+        .overlay {
+            // Increase Contrast gets a clear edge on the open shelf, as Wisp's panels do.
+            if contrast == .increased, isOpen {
+                shape.stroke(.white.opacity(0.35), lineWidth: 1)
             }
         }
         .overlay {
@@ -396,6 +403,7 @@ struct SurfaceBackground: View {
     var shimmer: Double?
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         switch style {
@@ -412,12 +420,12 @@ struct SurfaceBackground: View {
             Rectangle()
                 .fill(.clear)
                 .glassEffect(.regular.tint(accent.opacity(0.18)), in: Rectangle())
-                .overlay(Color.black.opacity(0.42))
+                .overlay(Color.black.opacity(contrast == .increased ? 0.6 : 0.42))
                 .overlay(notchShade)
         } else {
             ZStack {
                 VisualEffectBlur()
-                Color.black.opacity(0.55)
+                Color.black.opacity(contrast == .increased ? 0.7 : 0.55)
                 accent.opacity(0.08)
                 notchShade
             }
