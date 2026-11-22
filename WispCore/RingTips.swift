@@ -14,7 +14,7 @@ public struct RingTips: Codable, Equatable, Sendable {
         public var title: String {
             switch self {
             case .open: "Open the ring with its shortcut or mouse button"
-            case .windows: "Hover an app to see its windows"
+            case .windows: "Point at an app on the ring that has a few windows open"
             case .search: "Type to search apps and actions"
             case .number: "Press a number to pick a segment"
             case .convert: "Drag a file, press the ring shortcut and drop it on a format"

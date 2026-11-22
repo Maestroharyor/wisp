@@ -951,6 +951,7 @@ extension RingController {
             guard !Task.isCancelled, let self, let image else { return }
             self.previewImages[request.key] = image
             self.model.preview = RingPreview(image: image, title: request.title, key: request.key)
+            self.markTip(.windows)
         }
     }
 

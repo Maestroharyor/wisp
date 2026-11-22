@@ -186,8 +186,12 @@ public struct RingLook: Codable, Equatable, Sendable {
     public var tint: Double = 0.5
     /// What fills the middle of the ring.
     public var centre: RingCentre = .clear
-    /// What the icons sit on: the glass band, or the bare orbit.
+    /// What the icons sit on: the glass band, or nothing.
     public var backdrop: RingBackdrop = .band
+    /// A colour laid over the band and a frosted or tinted centre; nil keeps the plain glass.
+    public var colour: RGB?
+    /// How strongly the colour covers the glass, from a hint (0) to nearly solid (1).
+    public var colourAmount: Double = 0.5
 
     public static let sizeRange: ClosedRange<Double> = 0.8...1.25
     public static let standard = RingLook()
@@ -201,6 +205,7 @@ public struct RingLook: Codable, Equatable, Sendable {
         var copy = self
         copy.size = size.isFinite ? min(max(size, Self.sizeRange.lowerBound), Self.sizeRange.upperBound) : 1
         copy.tint = tint.isFinite ? min(max(tint, 0), 1) : 0.5
+        copy.colourAmount = colourAmount.isFinite ? min(max(colourAmount, 0), 1) : 0.5
         return copy
     }
 
@@ -211,7 +216,10 @@ public struct RingLook: Codable, Equatable, Sendable {
         return CGPoint(x: centre.x + (point.x - centre.x) / scale, y: centre.y + (point.y - centre.y) / scale)
     }
 
-    private enum CodingKeys: String, CodingKey { case glass, size, tint, centre, backdrop }
+    /// The colour's opacity over the glass: never fully clear, never fully solid.
+    public var colourOpacity: Double { 0.15 + clamped().colourAmount * 0.75 }
+
+    private enum CodingKeys: String, CodingKey { case glass, size, tint, centre, backdrop, colour, colourAmount }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -220,6 +228,8 @@ public struct RingLook: Codable, Equatable, Sendable {
         tint = ((try? container.decodeIfPresent(Double.self, forKey: .tint)) ?? nil) ?? 0.5
         centre = ((try? container.decodeIfPresent(RingCentre.self, forKey: .centre)) ?? nil) ?? .clear
         backdrop = ((try? container.decodeIfPresent(RingBackdrop.self, forKey: .backdrop)) ?? nil) ?? .band
+        colour = (try? container.decodeIfPresent(RGB.self, forKey: .colour)) ?? nil
+        colourAmount = ((try? container.decodeIfPresent(Double.self, forKey: .colourAmount)) ?? nil) ?? 0.5
         self = clamped()
     }
 }
@@ -234,8 +244,8 @@ public enum RingCentre: String, CaseIterable, Identifiable, Sendable, Codable {
     public var title: String { rawValue.capitalized }
 }
 
-/// What the ring's icons sit on: a glass band (its glass and tint set in Settings), or only the
-/// glowing orbit, for the barest ring.
+/// What the ring's icons sit on: a glass band (its glass, colour and tint set in Settings), or
+/// nothing, for the barest ring.
 public enum RingBackdrop: String, CaseIterable, Identifiable, Sendable, Codable {
     case band
     case orbit
@@ -245,7 +255,7 @@ public enum RingBackdrop: String, CaseIterable, Identifiable, Sendable, Codable 
     public var title: String {
         switch self {
         case .band: "Glass band"
-        case .orbit: "Orbit only"
+        case .orbit: "None"
         }
     }
 }

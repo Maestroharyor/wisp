@@ -11,6 +11,13 @@ struct RingSettings: View {
     let openShortcuts: () -> Void
 
     @State private var editorShown = false
+    /// The ring's colour, starting from a dark violet the first time one is picked.
+    private var ringColour: Binding<RGB> {
+        Binding(
+            get: { preferences.ringLook.colour ?? RGB(red: 0.16, green: 0.13, blue: 0.3) },
+            set: { preferences.ringLook.colour = $0 })
+    }
+
     /// Read when the pane shows; macOS doesn't announce a change.
     @State private var canPreview = CGPreflightScreenCaptureAccess()
 
@@ -50,6 +57,20 @@ struct RingSettings: View {
                 }
                 .pickerStyle(.segmented)
                 .disabled(preferences.ringLook.backdrop == .orbit)
+                LabeledContent("Colour") {
+                    HStack {
+                        if preferences.ringLook.colour != nil {
+                            Button("Default glass") { preferences.ringLook.colour = nil }
+                        }
+                        ColorPicker("Colour", selection: ringColour.color, supportsOpacity: false)
+                            .labelsHidden()
+                    }
+                }
+                if preferences.ringLook.colour != nil {
+                    LabeledContent("Colour strength") {
+                        Slider(value: $preferences.ringLook.colourAmount, in: 0...1)
+                    }
+                }
                 Picker("Centre", selection: $preferences.ringLook.centre) {
                     ForEach(RingCentre.allCases) { Text($0.title).tag($0) }
                 }
@@ -70,7 +91,7 @@ struct RingSettings: View {
                         .disabled(preferences.ringLook == .standard)
                 }
                 Text(
-                    "The icons sit on a glass band, or on the bare orbit with Orbit only. Clear glass shows the most through, Frosted is easiest to read over busy windows. A clear centre is open onto the desktop; Tinted is a soft violet glow. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
+                    "The icons sit on a glass band, or on nothing with None. Clear glass shows the most through, Frosted is easiest to read over busy windows. Colour tints the band and a Frosted or Tinted centre; Default glass takes it off. A clear centre is open onto the desktop; Tinted is a soft violet glow. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -108,6 +129,15 @@ struct RingSettings: View {
 private struct RingTipsSection: View {
     @Bindable var preferences: Preferences
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var canPreview = CGPreflightScreenCaptureAccess()
+
+    /// What showing windows needs that this Mac doesn't have yet.
+    private var windowsNeed: String? {
+        if !preferences.ringAppWindows { return "Turn on \u{201C}Show an app's windows\u{201D} below." }
+        if !AccessibilityPermission.isTrusted { return "Needs Accessibility, to list the app's windows." }
+        if !canPreview { return "The app's windows fan out; live previews also need Screen Recording." }
+        return nil
+    }
 
     var body: some View {
         let tips = preferences.ringTips
@@ -119,9 +149,19 @@ private struct RingTipsSection: View {
                         .font(.system(size: 16))
                         .foregroundStyle(done ? Color.wispViolet : Color.secondary)
                         .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
-                    Text(step.title)
-                        .foregroundStyle(done ? .secondary : .primary)
-                        .strikethrough(done, color: .secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(step.title)
+                            .foregroundStyle(done ? .secondary : .primary)
+                            .strikethrough(done, color: .secondary)
+                        if step == .windows, !done, let need = windowsNeed {
+                            Text(need).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    if step == .windows, !done, !canPreview {
+                        Button("Screen Recording…") { Permission.screenRecording.openSettings() }
+                            .controlSize(.small)
+                    }
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityValue(done ? "Done" : "Not yet")
@@ -268,14 +308,9 @@ private struct RingSetEditor: View {
         let centre = CGPoint(x: Self.side / 2, y: Self.side / 2)
         let slots = set.slots
         return ZStack {
-            // The ring's orbit, as it's drawn on screen.
+            // The ring's band, as it's drawn on screen.
             Circle()
-                .stroke(Color.wispViolet.opacity(0.3), lineWidth: 12)
-                .blur(radius: 8)
-                .frame(
-                    width: RingGeometry.ringRadius * 2 * Self.scale, height: RingGeometry.ringRadius * 2 * Self.scale)
-            Circle()
-                .stroke(Color.wispViolet.opacity(0.8), lineWidth: 1.5)
+                .stroke(.quaternary, lineWidth: (RingGeometry.ringOuter - RingGeometry.innerRadius) * Self.scale)
                 .frame(
                     width: RingGeometry.ringRadius * 2 * Self.scale, height: RingGeometry.ringRadius * 2 * Self.scale)
             ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in

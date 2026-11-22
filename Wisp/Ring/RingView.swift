@@ -280,13 +280,9 @@ struct RingView: View {
     }
 }
 
-/// The disc under the icons, kept airy: a nearly clear band of glass with a soft violet glow
-/// toward the middle, one wide shadow and no hard edge. The middle is a hole onto the desktop,
-/// plain glass or a soft violet disc, as chosen in Settings › Ring. Follows Light and Dark mode
-/// (smoky glass in Dark rather than a flat grey).
-/// What the ring stands on: no band, just a thin glowing orbit that the icons ride, drawn on
-/// as the ring opens, with a comet trail running along it to whatever is pointed at. The
-/// middle is open, frosted or a violet glow (Settings › Ring › Centre).
+/// What the ring stands on: the glass band (in the glass, colour and tint chosen in Settings),
+/// or nothing, and a comet trail along the icons' circle to whatever is pointed at. The middle is
+/// open, frosted or a soft glow (Settings › Ring › Centre).
 struct RingDisc: View {
     let centre: CGPoint
     let dark: Bool
@@ -294,7 +290,6 @@ struct RingDisc: View {
     /// The pointed-at segment's angle, clockwise from 12 o'clock.
     let hoverAngle: CGFloat?
     let reduceMotion: Bool
-    @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     /// The trail's heading, unwrapped so it always turns the short way round.
@@ -314,18 +309,6 @@ struct RingDisc: View {
             if look.backdrop == .band { band(tint: tint, side: side) }
             middle(tint: tint)
                 .frame(width: RingGeometry.innerRadius * 2, height: RingGeometry.innerRadius * 2)
-            // A wide soft glow under the line, so the orbit reads on any wallpaper.
-            Circle()
-                .stroke(Color.wispViolet.opacity((dark ? 0.45 : 0.35) * tint), lineWidth: 18)
-                .blur(radius: reduceTransparency ? 0 : 12)
-                .frame(width: radius * 2, height: radius * 2)
-                .opacity(reduceTransparency ? 0 : 1)
-            Circle()
-                .trim(from: 0, to: shown || reduceMotion ? 1 : 0)
-                .stroke(orbitStyle, style: StrokeStyle(lineWidth: contrast == .increased ? 3 : 2, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .frame(width: radius * 2, height: radius * 2)
-                .animation(reduceMotion ? nil : shown ? .wispPopover.speed(0.8) : .easeIn(duration: 0.12), value: shown)
             comet(radius: radius)
         }
         .frame(width: side, height: side)
@@ -341,9 +324,11 @@ struct RingDisc: View {
     /// middle cut out so a clear centre stays open. It opens with the ring.
     private func band(tint: Double, side: CGFloat) -> some View {
         let shape = RingBand(innerRadius: RingGeometry.innerRadius)
-        let rim = Color.white.opacity(contrast == .increased ? 0.95 : dark ? 0.16 : 0.85)
         return ZStack {
             Color.clear.wispSurface(shape, glass: look.glass)
+            if let colour = look.colour {
+                shape.fill(Color(rgb: colour).opacity(look.colourOpacity))
+            }
             // A violet glow that rises toward the middle and is gone by the rim.
             shape.fill(
                 RadialGradient(
@@ -352,19 +337,10 @@ struct RingDisc: View {
                         Color.wispViolet.opacity((dark ? 0.07 : 0.035) * tint), .clear,
                     ],
                     center: .center, startRadius: RingGeometry.innerRadius, endRadius: side / 2))
-            Circle().strokeBorder(Color.white.opacity(dark ? 0.12 : 0.55), lineWidth: 1)
-            Circle().strokeBorder(rim, lineWidth: 1)
-                .frame(width: RingGeometry.innerRadius * 2, height: RingGeometry.innerRadius * 2)
         }
         .frame(width: side, height: side)
         .compositingGroup()
         .shadow(color: .black.opacity(dark ? 0.30 : 0.08), radius: 40, y: 12)
-    }
-
-    private var orbitStyle: AngularGradient {
-        let strong = Color.wispViolet.opacity(contrast == .increased ? 1 : 0.85)
-        let soft = Color.white.opacity(contrast == .increased ? 0.9 : 0.6)
-        return AngularGradient(colors: [strong, soft, strong, soft, strong], center: .center)
     }
 
     /// The trail: a bright head on the hovered icon fading back along the orbit behind it.
@@ -395,6 +371,9 @@ struct RingDisc: View {
         .allowsHitTesting(false)
     }
 
+    /// A tinted centre glows in the chosen colour, or Wisp violet.
+    private var centreTint: Color { look.colour.map { Color(rgb: $0) } ?? Color.wispViolet }
+
     @ViewBuilder private func middle(tint: Double) -> some View {
         switch look.centre {
         case .clear:
@@ -402,14 +381,17 @@ struct RingDisc: View {
             Color.clear
         case .frosted:
             Color.clear.wispSurface(Circle(), glass: .frosted)
+                .overlay {
+                    if let colour = look.colour { Circle().fill(Color(rgb: colour).opacity(look.colourOpacity)) }
+                }
         case .tinted:
             // A violet glow that's brightest round the flame and fades out before the orbit.
             Circle()
                 .fill(
                     RadialGradient(
                         colors: [
-                            Color.wispViolet.opacity((dark ? 0.32 : 0.22) * tint),
-                            Color.wispViolet.opacity((dark ? 0.10 : 0.06) * tint), .clear,
+                            centreTint.opacity((dark ? 0.32 : 0.22) * tint),
+                            centreTint.opacity((dark ? 0.10 : 0.06) * tint), .clear,
                         ],
                         center: .center, startRadius: 0, endRadius: RingGeometry.innerRadius))
         }
@@ -564,29 +546,29 @@ private struct SubRing: View {
         let parentHex = model.set.slots.indices.contains(parent) ? model.set.slots[parent].action.tileHex : "#8E8E93"
         ZStack {
             if !items.isEmpty {
-                // An outer orbit the choices ride, swinging open from the parent's angle.
+                // The choices' arc, swinging open from the parent's angle.
                 let arc = OrbitArc(
                     start: open ? first.start + half * 0.4 : parentAngle,
                     end: open ? last.end - half * 0.4 : parentAngle,
                     radius: RingGeometry.subRadius, centre: model.centre)
-                if Preferences.shared.ringLook.backdrop == .band {
+                let look = Preferences.shared.ringLook.clamped()
+                if look.backdrop == .band {
                     // On the band's glass, as the ring is: a rounded strip under the choices.
                     arc.stroke(
                         .ultraThinMaterial,
                         style: StrokeStyle(lineWidth: RingGeometry.subOuter - RingGeometry.subInner, lineCap: .round)
                     )
+                    .overlay {
+                        if let colour = look.colour {
+                            arc.stroke(
+                                Color(rgb: colour).opacity(look.colourOpacity),
+                                style: StrokeStyle(
+                                    lineWidth: RingGeometry.subOuter - RingGeometry.subInner, lineCap: .round))
+                        }
+                    }
                     .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
                     .opacity(fanned || reduceMotion ? 1 : 0)
                 }
-                arc.stroke(Color.wispViolet.opacity(0.4), style: StrokeStyle(lineWidth: 16, lineCap: .round))
-                    .blur(radius: 10)
-                arc.stroke(
-                    LinearGradient(
-                        colors: [Color.wispViolet, Color.white.opacity(0.7), Color.wispViolet],
-                        startPoint: .leading, endPoint: .trailing),
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round)
-                )
-                .opacity(fanned || reduceMotion ? 1 : 0)
             }
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 let angle = open ? RingGeometry.subAngle(index, count: items.count, around: parentAngle) : parentAngle
