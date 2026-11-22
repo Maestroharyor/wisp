@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let services: AppServices
     let hotkeys: HotkeyCenter
     private let coordinator: NotchCoordinator
+    #if DEBUG
+        private let dropProbe = DropProbe()
+    #endif
     private let settings: SettingsWindowController
     private let clipboardPanel: ClipboardPanelController
     private let onboarding: OnboardingWindowController
@@ -110,6 +113,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let index = (note.object as? String).flatMap(Int.init) ?? 0
                 MainActor.assumeIsolated {
                     self?.services.ring.hovered(.slot(index), distance: RingGeometry.ringRadius)
+                }
+            }
+            // Drags a file onto a drop tile with posted mouse events: "1|/path/to/file|x,y[|shake]" (1 is
+            // Transform; x,y is a drag source in another app, else Wisp shows its own).
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.dropProbe"), object: nil, queue: .main
+            ) { [weak self] note in
+                let parts = (note.object as? String ?? "").split(separator: "|").map(String.init)
+                guard parts.count >= 2, let index = Int(parts[0]) else { return }
+                let numbers = parts.count > 2 ? parts[2].split(separator: ",").compactMap { Double($0) } : []
+                let origin = numbers.count == 2 ? CGPoint(x: numbers[0], y: numbers[1]) : nil
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.coordinator.debugDropProbe(
+                        index: index, path: parts[1], from: origin, shakes: parts.count > 3,
+                        probe: self.dropProbe)
                 }
             }
             // Hovers the numbered entry of the open sub-ring, for checking window previews.

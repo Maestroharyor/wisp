@@ -311,17 +311,26 @@ final class NotchCoordinator {
         case .dragged:
             if !fileDragActive {
                 fileDragActive = isFileDrag()
-                if fileDragActive, preferences.pocketTrigger == .dragStart { services.pocket.show(at: location) }
+                if fileDragActive, preferences.pocketTrigger == .dragStart,
+                    !controllers.values.contains(where: \.showsDropTiles)
+                {
+                    services.pocket.show(at: location)
+                }
             }
             if fileDragActive {
-                if preferences.pocketTrigger == .shake,
+                // A new drag reaching a ring left open by the last one keeps it open.
+                services.ring.dragMoved()
+                controllers.values.forEach { $0.fileDragMoved(to: location) }
+                // Over a shell's drop tiles the pocket would only sit on top of them and take the
+                // drop, so it stays away there (waving the file about over the tiles is a shake).
+                let onTiles = controllers.values.contains(where: \.showsDropTiles)
+                if onTiles {
+                    services.pocket.hide()
+                } else if preferences.pocketTrigger == .shake,
                     shake.add(location, at: Date.now.timeIntervalSince(dragStarted))
                 {
                     services.pocket.show(at: location)
                 }
-                // A new drag reaching a ring left open by the last one keeps it open.
-                services.ring.dragMoved()
-                controllers.values.forEach { $0.fileDragMoved(to: location) }
             } else if shellDrag != nil {
                 dragShell(to: location)
             } else {
@@ -582,3 +591,19 @@ private struct ShellDrag {
         case shelf
     }
 }
+
+#if DEBUG
+    extension NotchCoordinator {
+        /// Drags the file at `path` onto drop tile number `index` of the shell under the pointer.
+        func debugDropProbe(index: Int, path: String, from origin: CGPoint?, shakes: Bool, probe: DropProbe) {
+            guard let controller = targetController() else { return }
+            let closed = controller.layout.closedRect
+            probe.run(
+                file: URL(fileURLWithPath: path), from: origin, shakes: shakes,
+                shell: CGPoint(x: closed.midX, y: closed.midY)
+            ) {
+                controller.debugTilePoint(index: index)
+            }
+        }
+    }
+#endif

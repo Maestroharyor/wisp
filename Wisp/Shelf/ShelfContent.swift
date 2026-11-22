@@ -65,6 +65,9 @@ private struct ShelfZoom: ViewModifier {
 enum FileDrop {
     static func handler(_ action: @escaping @MainActor @Sendable ([URL]) -> Void) -> ([NSItemProvider]) -> Bool {
         { providers in
+            #if DEBUG
+                DropProbe.log.debug("probe: drop handler ran with \(providers.count, privacy: .public) items")
+            #endif
             let loadable = providers.filter { $0.canLoadObject(ofClass: URL.self) }
             guard !loadable.isEmpty else { return false }
             let collector = URLCollector(expected: loadable.count) { urls in
