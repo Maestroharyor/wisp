@@ -33,7 +33,7 @@ struct CalendarPage: View {
                 .help("Open Calendar")
             }
         } content: {
-            content
+            content.wispAnimation(.wispSmooth, value: preferences.calendarLayout)
         }
         .onAppear { store.refreshIfStale() }
     }
@@ -87,9 +87,27 @@ struct CalendarPage: View {
         } else if !store.loaded {
             LoadingLabel("Loading…").windowCardBackground()
         } else {
+            layout
+                .id(preferences.calendarLayout)
+                .wispTransition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
+    @ViewBuilder private var layout: some View {
+        Group {
             switch preferences.calendarLayout {
             case .week:
-                HourGrid(store: store, days: WeekStrip.days(from: .now, calendar: .current), preferences: preferences)
+                if store.wholeWeek.isEmpty {
+                    WindowEmptyState(
+                        symbol: "calendar.badge.checkmark", title: "A clear week",
+                        message: "Nothing on your calendars for the next seven days."
+                    )
+                    .frame(maxHeight: .infinity)
+                    .windowCardBackground()
+                } else {
+                    HourGrid(
+                        store: store, days: WeekStrip.days(from: .now, calendar: .current), preferences: preferences)
+                }
             case .day:
                 VStack(spacing: 12) {
                     DayPicker(selection: $day)

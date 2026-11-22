@@ -6,6 +6,7 @@ import WispCore
 struct ClipboardSettings: View {
     @Bindable var preferences: Preferences
     let store: ClipboardStore
+    @State private var confirmingClear = false
 
     var body: some View {
         Form {
@@ -23,7 +24,12 @@ struct ClipboardSettings: View {
     private var history: some View {
         Section("History") {
             Toggle("Keep clipboard history", isOn: $preferences.clipboardEnabled)
-            Button("Clear history (keeps pinned items)", role: .destructive) { store.clear() }
+            Button("Clear history (keeps pinned items)…", role: .destructive) { confirmingClear = true }
+                .confirmationDialog("Clear clipboard history?", isPresented: $confirmingClear) {
+                    Button("Clear history", role: .destructive) { store.clear() }
+                } message: {
+                    Text("Pinned items are kept.")
+                }
             LabeledContent("Never keep copies from") {
                 VStack(alignment: .trailing, spacing: 4) {
                     ForEach(preferences.clipboardExcludedApps, id: \.self) { id in

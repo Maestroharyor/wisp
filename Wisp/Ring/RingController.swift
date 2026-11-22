@@ -776,6 +776,7 @@ final class RingController {
     func pickResult(_ index: Int) {
         guard model.results.indices.contains(index) else { return }
         let action = model.results[index].action
+        Feedback.selection()
         hide()
         run(action, files: [])
     }

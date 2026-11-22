@@ -287,8 +287,12 @@ private struct RemindersCard: View {
                     Button("Allow Reminders") { store.requestAccess() }
                 }
             } else if store.items.isEmpty {
-                if store.loaded || store.failed {
-                    CardMessage(text: store.failed ? "Couldn't read Reminders." : "All done.")
+                if store.failed {
+                    CardMessage(text: "Couldn't read Reminders.") {
+                        Button("Try again") { store.refresh() }
+                    }
+                } else if store.loaded {
+                    CardMessage(text: "All done.")
                 } else {
                     LoadingLabel("Loading…")
                 }

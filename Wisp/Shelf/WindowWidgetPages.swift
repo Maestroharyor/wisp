@@ -309,7 +309,12 @@ struct RemindersPage: View {
                     message: store.failed
                         ? "Try again in a moment, or open the Reminders app."
                         : filter == .all && list == nil
-                            ? "Nothing open. Add one with New reminder." : "Nothing here right now.")
+                            ? "Nothing open. Add one with New reminder." : "Nothing here right now."
+                ) {
+                    if store.failed {
+                        WindowPrimaryButton(title: "Try again", symbol: "arrow.clockwise") { store.refresh() }
+                    }
+                }
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(shown.enumerated()), id: \.element.id) { index, item in

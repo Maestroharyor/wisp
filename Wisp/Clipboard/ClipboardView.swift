@@ -12,6 +12,7 @@ struct ClipboardView: View {
     let close: () -> Void
 
     @FocusState private var searchFocused: Bool
+    @State private var confirmingClear = false
 
     init(
         model: ClipboardPanelModel, ai: AITextActions, paste: @escaping (ClipItem) -> Void,
@@ -36,6 +37,11 @@ struct ClipboardView: View {
         .wispSurface(cornerRadius: SurfaceRadius.largePanel)
         .tint(.wispViolet)
         .onAppear { searchFocused = true }
+        .confirmationDialog("Clear clipboard history?", isPresented: $confirmingClear) {
+            Button("Clear history", role: .destructive) { model.store.clear() }
+        } message: {
+            Text("Pinned items are kept.")
+        }
     }
 
     private var header: some View {
@@ -64,7 +70,7 @@ struct ClipboardView: View {
             .padding(.vertical, 7)
             .background(Capsule().fill(.primary.opacity(0.08)))
             Menu {
-                Button("Clear History (keeps pinned)") { model.store.clear() }
+                Button("Clear History (keeps pinned)…") { confirmingClear = true }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
@@ -128,6 +134,13 @@ struct ClipboardView: View {
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
+    /// Why no cards show: nothing copied yet, or nothing left by the search or filter.
+    private var emptyMessage: String {
+        if model.store.history.items.isEmpty { return "Copy something and it shows up here" }
+        if !model.query.isEmpty { return "No clips match \u{201C}\(model.query)\u{201D}" }
+        return "No clips match this filter"
+    }
+
     /// Picking a kind starts on its first item.
     private var kindSelection: Binding<ClipKind?> {
         Binding(
@@ -145,7 +158,7 @@ struct ClipboardView: View {
             if items.isEmpty {
                 VStack(spacing: 6) {
                     Image(systemName: "doc.on.clipboard").font(.system(size: 26))
-                    Text(model.query.isEmpty ? "Copy something and it shows up here" : "No matches")
+                    Text(emptyMessage)
                         .font(.body).foregroundStyle(Color.secondaryText)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

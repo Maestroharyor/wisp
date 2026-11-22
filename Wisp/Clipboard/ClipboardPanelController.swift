@@ -129,6 +129,7 @@ final class ClipboardPanelController {
     /// Copies the item, closes the panel and sends ⌘V to the app in front.
     func paste(_ item: ClipItem) {
         services.clipboard.copy(item)
+        Feedback.selection()
         hide()
         guard AccessibilityPermission.isTrusted else { return }
         Task {
@@ -144,6 +145,7 @@ final class ClipboardPanelController {
                 .notice(symbol: "doc.on.clipboard", text: "Nothing to paste together"), slot: .notice, duration: 2)
             return
         }
+        Feedback.selection()
         hide()
         guard AccessibilityPermission.isTrusted else { return }
         Task {

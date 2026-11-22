@@ -336,9 +336,15 @@ struct RemindersWidget: View {
             }
             if store.access == .fullAccess {
                 if store.items.isEmpty {
-                    Text(store.failed ? "Couldn't read Reminders" : store.loaded ? "All done" : "Loading…")
-                        .font(.callout).foregroundStyle(Color.secondaryText)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 6) {
+                        Text(store.failed ? "Couldn't read Reminders" : store.loaded ? "All done" : "Loading…")
+                            .font(.callout).foregroundStyle(Color.secondaryText)
+                        if store.failed {
+                            Button("Try again") { store.refresh() }
+                                .controlSize(.small)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
                         LazyVStack(alignment: .leading, spacing: 5) {
