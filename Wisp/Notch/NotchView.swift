@@ -115,14 +115,26 @@ struct NotchView: View {
         }
     }
 
+    /// A pull opens from peeking, so the corners blend from the peek's to the shelf's with the
+    /// frame instead of jumping to the open rounding while the shell is still small.
+    private var radii: (top: CGFloat, bottom: CGFloat) {
+        let target = radii(for: model.spec)
+        guard let progress = model.pullProgress else { return target }
+        let start = radii(for: .peek)
+        return (
+            SurfaceSizing.blend(start.top, target.top, progress: progress),
+            SurfaceSizing.blend(start.bottom, target.bottom, progress: progress)
+        )
+    }
+
     /// Roundness scales every corner except the closed notch's, which has to match the
     /// camera housing.
-    private var radii: (top: CGFloat, bottom: CGFloat) {
+    private func radii(for spec: SurfaceSpec) -> (top: CGFloat, bottom: CGFloat) {
         let height = model.notchHeight
         let round = CGFloat(model.preferences.appearance.roundness)
         guard model.drawsNotch else {
             let orb = model.layout.placement == .floating
-            switch model.spec {
+            switch spec {
             case .closed, .peek:
                 return (0, orb ? model.layout.peekRect.height / 2 : ShellMetrics.closedIslandRadius * round)
             case .compact:
@@ -133,7 +145,7 @@ struct NotchView: View {
                 return (0, (orb ? ShellMetrics.floatingShelfRadius : ShellMetrics.expandedIslandRadius) * round)
             }
         }
-        switch model.spec {
+        switch spec {
         case .closed, .peek, .compact:
             return (ShellMetrics.closedTopRadius(height: height), ShellMetrics.closedBottomRadius(height: height))
         case .medium, .notification:
