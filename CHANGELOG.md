@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.15](https://github.com/Maestroharyor/wisp/compare/v0.2.14...v0.2.15) (2026-11-26)
+
+
+### Features
+
+* give the ring an orbit, window previews and convert, and polish accessibility and motion ([#140](https://github.com/Maestroharyor/wisp/issues/140)) ([cbc93dc](https://github.com/Maestroharyor/wisp/commit/cbc93dc342d61f796cb55740888dd7d9ae3a16df))
+* polish round 2, a redesigned window, and drops on the orb fixed ([#141](https://github.com/Maestroharyor/wisp/issues/141)) ([7c76905](https://github.com/Maestroharyor/wisp/commit/7c7690597c2729e3179f9d9af7d0c4ac77327a66))
+* setup you can try as you go, with agents found on your Mac ([#146](https://github.com/Maestroharyor/wisp/issues/146)) ([ca69507](https://github.com/Maestroharyor/wisp/commit/ca69507821694b9b0c93b54cde6fd41203ffd711))
+* smoother notch morph between forms ([#145](https://github.com/Maestroharyor/wisp/issues/145)) ([a1f5676](https://github.com/Maestroharyor/wisp/commit/a1f5676df08a579689a87a7e726eecf778196103))
+
+
+### Bug fixes
+
+* an idle agent's reminder no longer restarts its turn timer ([#143](https://github.com/Maestroharyor/wisp/issues/143)) ([422f564](https://github.com/Maestroharyor/wisp/commit/422f56490a461c7c37338848bf202cdf47ba13a8))
+* ask for Screen Recording for ring previews and offer to reopen Wisp ([#144](https://github.com/Maestroharyor/wisp/issues/144)) ([ec09248](https://github.com/Maestroharyor/wisp/commit/ec09248d9d27259ba4ccdc5bbed5fc3862b44447))
+* drag files to the orb's tray and see through the ring's centre ([#138](https://github.com/Maestroharyor/wisp/issues/138)) ([8efbcd9](https://github.com/Maestroharyor/wisp/commit/8efbcd9b2710e79a716bdb95bbffdc9c744fcb9e))
+
 ## [0.2.14](https://github.com/Maestroharyor/wisp/compare/v0.2.13...v0.2.14) (2026-11-21)
 
 
