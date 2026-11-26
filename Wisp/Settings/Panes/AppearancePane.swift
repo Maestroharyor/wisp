@@ -173,8 +173,11 @@ struct AppearanceSettings: View {
                 ForEach(TextScale.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
+            Toggle("Show a daily line in the window", isOn: $preferences.windowTagline)
         } footer: {
-            Text("For the window and Settings. The notch keeps its size so it fits.")
+            Text(
+                "Text size is for the window and Settings; the notch keeps its size so it fits. The daily line sits in the window's top bar, with one for each page under the sidebar's scene."
+            )
         }
     }
 

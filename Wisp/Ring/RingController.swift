@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import Observation
 import SwiftUI
 import WispCore
@@ -113,6 +114,7 @@ final class RingController {
     /// The square a preview is fitted into, in points: inside the ring's middle with room for
     /// the title under it.
     static let previewSide: CGFloat = 132
+    private static let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "ring")
     /// Where the press that opened the ring was, for telling a flick from a press.
     private var pressPoint: CGPoint = .zero
 
@@ -948,8 +950,17 @@ extension RingController {
         previewTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(120))
             guard !Task.isCancelled else { return }
-            let image = try? await ScreenSnapshot.firstOf(timeout: .seconds(2)) {
-                try await previews.image(pid: pid, window: window, side: Self.previewSide)
+            let image: CGImage?
+            do {
+                image = try await ScreenSnapshot.firstOf(timeout: .seconds(2)) {
+                    try await previews.image(pid: pid, window: window, side: Self.previewSide)
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                // Without this a missing grant or a capture error looks the same as no window.
+                Self.log.error("Window preview failed: \(error.localizedDescription, privacy: .public)")
+                return
             }
             guard !Task.isCancelled, let self, let image else { return }
             self.previewImages[request.key] = image

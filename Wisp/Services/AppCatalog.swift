@@ -1,17 +1,19 @@
 import AppKit
+import Observation
 import WispCore
 
 /// The apps on this Mac, for typing on the ring. Listed off the main thread from the usual
 /// Applications folders when the ring opens, at most every few minutes; only names, bundle
 /// identifiers and paths are kept, and only in memory.
 @MainActor
+@Observable
 final class AppCatalog {
     private(set) var apps: [InstalledApp] = []
     /// Runs when a new list arrives, so a search typed meanwhile can be run again.
-    var onChange: () -> Void = {}
+    @ObservationIgnored var onChange: () -> Void = {}
 
-    private var loadedAt: Date?
-    private var loading = false
+    @ObservationIgnored private var loadedAt: Date?
+    @ObservationIgnored private var loading = false
     private static let freshFor: TimeInterval = 300
 
     func refreshIfStale() {

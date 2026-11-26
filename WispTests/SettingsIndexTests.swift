@@ -52,7 +52,8 @@ final class SettingsIndexTests: XCTestCase {
         for query in [
             "edge highlight", "glass edge", "effects", "finish", "shell", "number style", "numbers in",
             "accent follows", "playing album", "change colour through the day", "through the day",
-            "beside the closed notch", "while idle", "match the desktop picture", "confetti",
+            "beside the closed notch", "while idle", "match the desktop picture", "confetti", "daily line",
+            "tagline",
         ] {
             XCTAssertEqual(SettingsIndex.panes(matching: query).first, .appearance, query)
         }

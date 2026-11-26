@@ -75,12 +75,45 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     #if DEBUG
         /// Selects a sidebar row by its saved name ("widget:calendar"), for checking pages.
         func debugSelect(_ raw: String) {
+            if raw == "toggleSidebar" { return navigation.perform(.toggleSidebar) }
             if let destination = WindowDestination(rawValue: raw) { navigation.open(destination) }
         }
 
         /// Resizes the window's content, for checking pages at other sizes.
         func debugResize(_ size: CGSize) {
             window?.setContentSize(size)
+        }
+
+        /// Opens the command bar with `query` typed, for checking its results.
+        func debugCommandBar(_ query: String) {
+            navigation.showsCommandBar = true
+            navigation.commandQuery = query
+        }
+
+        /// Clicks at a point measured from the window's top-left corner with posted mouse events,
+        /// as a hand would, to check what the bars under the clear titlebar receive.
+        func debugClick(_ point: CGPoint) {
+            guard let window, let screen = NSScreen.screens.first else { return }
+            let global = CGPoint(x: window.frame.minX + point.x, y: screen.frame.height - window.frame.maxY + point.y)
+            Task { @MainActor in
+                for type in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
+                    CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: global, mouseButton: .left)?
+                        .post(tap: .cghidEventTap)
+                    try? await Task.sleep(for: .milliseconds(80))
+                }
+            }
+        }
+
+        /// Types text into whatever has the keyboard, with posted key events.
+        func debugType(_ text: String) {
+            for character in text.utf16 {
+                for down in [true, false] {
+                    let event = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: down)
+                    var unit = character
+                    event?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &unit)
+                    event?.post(tap: .cghidEventTap)
+                }
+            }
         }
     #endif
 
@@ -358,12 +391,13 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
         window.onMinimise = { [weak self] in self?.run(.putAway) }
         let host = NSHostingController(rootView: ShelfWindowView(model: model, navigation: navigation))
         host.sizingOptions = []
-        host.sceneBridgingOptions = [.toolbars, .title]
+        host.sceneBridgingOptions = [.title]
         window.contentViewController = host
-        // The sidebar runs to the top edge under a unified toolbar. The titlebar isn't made
-        // transparent: that would drop the toolbar's scroll edge, and scrolled pages would show
-        // through its title and buttons.
-        window.toolbarStyle = .unified
+        // The panels draw their own bars, so the titlebar only keeps the window's buttons, moved
+        // into the sidebar panel.
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.trafficLightCentre = WindowShell.trafficLightCentre
         window.contentMinSize = ShelfWindowFrame.minimumSize
         return window
     }
@@ -379,11 +413,53 @@ final class ShelfWindowController: NSObject, NSWindowDelegate {
     func windowDidMove(_ notification: Notification) { saveFrame() }
 
     func windowDidEndLiveResize(_ notification: Notification) { saveFrame() }
+
+    func windowDidResize(_ notification: Notification) { window?.placeTrafficLights() }
+
+    func windowDidExitFullScreen(_ notification: Notification) { window?.placeTrafficLights() }
 }
 
-/// A window whose minimise button goes back to the shell instead of the Dock.
+/// A window whose minimise button goes back to the shell instead of the Dock, and whose
+/// close, minimise and zoom buttons sit inside its sidebar panel.
 final class ShelfWindow: NSWindow {
     var onMinimise: @MainActor () -> Void = {}
+    /// Where the close button's centre goes, from the window's top-left corner.
+    var trafficLightCentre: CGPoint? {
+        didSet { placeTrafficLights() }
+    }
+
+    override func layoutIfNeeded() {
+        super.layoutIfNeeded()
+        placeTrafficLights()
+    }
+
+    /// Moves the three buttons down and in. Their titlebar is grown to hold them, since a
+    /// button outside its superview's bounds can't be clicked. Full screen keeps the system's
+    /// own titlebar, which slides in from the top.
+    func placeTrafficLights() {
+        guard let centre = trafficLightCentre, !styleMask.contains(.fullScreen),
+            let close = standardWindowButton(.closeButton), let titlebar = close.superview,
+            let container = titlebar.superview, let frameView = container.superview
+        else { return }
+        let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap {
+            standardWindowButton($0)
+        }
+        let size = close.frame.size
+        let height = centre.y + size.height / 2 + 8
+        let containerFrame = CGRect(
+            x: 0, y: frameView.isFlipped ? 0 : frameView.bounds.height - height, width: frameView.bounds.width,
+            height: height)
+        if container.frame != containerFrame { container.frame = containerFrame }
+        // The system's spacing between the buttons, measured before they're moved.
+        let gap = buttons.count > 1 ? buttons[1].frame.minX - buttons[0].frame.minX : size.width + 6
+        for (index, button) in buttons.enumerated() {
+            let left = centre.x - size.width / 2 + CGFloat(index) * gap
+            let top = centre.y - size.height / 2
+            let y = titlebar.isFlipped ? top : titlebar.bounds.height - top - size.height
+            let origin = CGPoint(x: left, y: y)
+            if button.frame.origin != origin { button.setFrameOrigin(origin) }
+        }
+    }
 
     override func performMiniaturize(_ sender: Any?) { onMinimise() }
 

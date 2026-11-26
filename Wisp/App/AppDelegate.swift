@@ -195,6 +195,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.services.shelfWindow.debugResize(CGSize(width: parts[0], height: parts[1]))
                 }
             }
+            // Clicks at "x,y" from the shelf window's top-left, or types text, with posted events.
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.windowClick"), object: nil, queue: .main
+            ) { [weak self] note in
+                let parts = ((note.object as? String) ?? "").split(separator: ",").compactMap { Double($0) }
+                guard parts.count == 2 else { return }
+                MainActor.assumeIsolated { self?.services.shelfWindow.debugClick(CGPoint(x: parts[0], y: parts[1])) }
+            }
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.commandBar"), object: nil, queue: .main
+            ) { [weak self] note in
+                let query = (note.object as? String) ?? ""
+                MainActor.assumeIsolated { self?.services.shelfWindow.debugCommandBar(query) }
+            }
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.ayomideodewale.wisp.debug.windowType"), object: nil, queue: .main
+            ) { [weak self] note in
+                let text = (note.object as? String) ?? ""
+                MainActor.assumeIsolated { self?.services.shelfWindow.debugType(text) }
+            }
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("com.ayomideodewale.wisp.debug.appearance"), object: nil, queue: .main
             ) { note in

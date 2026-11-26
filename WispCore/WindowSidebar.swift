@@ -126,11 +126,12 @@ public enum WindowSidebar {
 }
 
 /// The shelf window's own keys: ⌘1 to ⌘3 pick Home, Tray and Media, ⌘0 shows or hides the
-/// sidebar.
+/// sidebar, ⌘K opens the command bar.
 public enum WindowKeys {
     public enum Action: Equatable, Sendable {
         case select(WindowPage)
         case toggleSidebar
+        case commandBar
     }
 
     /// `keyCode` is the physical key (number row keys, so AZERTY's "&" key is ⌘1 too);
@@ -142,6 +143,7 @@ public enum WindowKeys {
         case 0x13: return .select(.tray)  // kVK_ANSI_2
         case 0x14: return .select(.media)  // kVK_ANSI_3
         case 0x1D: return .toggleSidebar  // kVK_ANSI_0
+        case 0x28: return .commandBar  // kVK_ANSI_K
         default: return nil
         }
     }

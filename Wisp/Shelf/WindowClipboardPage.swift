@@ -49,7 +49,7 @@ struct ClipboardPage: View {
         WindowPageFrame {
             WindowPageHeader(
                 symbol: "doc.on.clipboard", tint: .gray, title: "Clipboard",
-                subtitle: "Copy once, paste any time. Everything stays on this Mac.",
+                subtitle: "Everything you copied, ready to paste again.",
                 count: all.count == 1 ? "1 clip" : "\(all.count) clips"
             ) { headerActions(picked: picked) }
         } content: {
@@ -65,9 +65,6 @@ struct ClipboardPage: View {
                     } else {
                         grid(items)
                     }
-                    Label("Everything here is stored only on this Mac.", systemImage: "lock.fill")
-                        .wispFont(.caption)
-                        .foregroundStyle(Color.secondaryText)
                 }
             }
             .onGeometryChange(for: CGFloat.self) {
@@ -123,16 +120,21 @@ struct ClipboardPage: View {
     private func filterBar(_ all: [ClipItem]) -> some View {
         let counts = ClipCounts(all)
         let pinned = all.filter(\.pinned).count
-        return HStack(spacing: 4) {
-            chip("All", count: counts.all, value: .all)
-            chip("Pinned", count: pinned, value: .pinned)
-            chip("Text", count: counts[.text], value: .kind(.text))
-            chip("Links", count: counts[.link], value: .kind(.link))
-            chip("Images", count: counts[.image], value: .kind(.image))
-            chip("Colours", count: counts[.color], value: .kind(.color))
+        // Scrolls sideways on a narrow page rather than breaking the chips' words.
+        return ScrollView(.horizontal) {
+            HStack(spacing: 4) {
+                chip("All", count: counts.all, value: .all)
+                chip("Pinned", count: pinned, value: .pinned)
+                chip("Text", count: counts[.text], value: .kind(.text))
+                chip("Links", count: counts[.link], value: .kind(.link))
+                chip("Images", count: counts[.image], value: .kind(.image))
+                chip("Colours", count: counts[.color], value: .kind(.color))
+            }
+            .padding(4)
+            .background(Capsule().fill(.primary.opacity(0.08)))
         }
-        .padding(4)
-        .background(Capsule().fill(.primary.opacity(0.08)))
+        .scrollIndicators(.never)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
     }
 
     private func chip(_ title: String, count: Int, value: Show) -> some View {
@@ -145,6 +147,8 @@ struct ClipboardPage: View {
                 Text("\(count)").foregroundStyle(on ? Color.primary.opacity(0.7) : Color.secondaryText)
             }
             .wispFont(.callout).monospacedDigit()
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .wispHover(shape: Capsule())

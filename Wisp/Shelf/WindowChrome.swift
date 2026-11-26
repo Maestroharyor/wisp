@@ -130,16 +130,40 @@ struct WindowPageHeader<Actions: View>: View {
     @ViewBuilder let actions: Actions
 
     var body: some View {
+        // Side by side when there's room; on a narrow page the count and actions go under the
+        // title instead of squeezing it.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 14) {
+                titleBlock
+                Spacer(minLength: 12)
+                trailing
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                titleBlock
+                HStack(spacing: 8) {
+                    trailing
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private var titleBlock: some View {
         HStack(alignment: .center, spacing: 14) {
             IconTile(symbol: symbol, tint: tint, size: 40)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).wispFont(.largeTitle, weight: .bold).lineLimit(1)
+                Text(title).wispFont(.largeTitle, weight: .bold).lineLimit(1).fixedSize()
                 Text(subtitle).wispFont(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(2)
+                    .frame(minWidth: 200, alignment: .leading)
             }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 12)
+        }
+    }
+
+    private var trailing: some View {
+        HStack(spacing: 8) {
             if let count {
                 Text(count)
                     .wispFont(.subheadline, weight: .medium).monospacedDigit()
@@ -147,9 +171,11 @@ struct WindowPageHeader<Actions: View>: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(Capsule().fill(.primary.opacity(0.08)))
+                    .fixedSize()
             }
             HStack(spacing: 8) { actions }
                 .controlSize(.large)
+                .fixedSize()
         }
     }
 }
