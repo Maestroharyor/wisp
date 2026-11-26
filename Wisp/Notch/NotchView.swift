@@ -6,6 +6,7 @@ import WispCore
 /// The panel never resizes; only the shape inside it does.
 struct NotchView: View {
     let model: NotchModel
+    @Namespace private var morphSpace
 
     var body: some View {
         let panel = model.layout.panelFrame
@@ -94,6 +95,7 @@ struct NotchView: View {
         .frame(width: panel.width, height: panel.height, alignment: .topLeading)
         // The one surface animation for the shell and everything that moves with it.
         .animation(model.surfaceAnimation, value: model.spec)
+        .environment(\.morphSpace, model.reduceMotion ? nil : morphSpace)
         .environment(\.colorScheme, .dark)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
         .environment(\.contextThresholds, model.preferences.contextThresholds)
