@@ -78,7 +78,7 @@ struct NotchView: View {
                 NavPill(model: model)
                     .frame(width: pill.width, height: pill.height)
                     .position(x: pill.midX, y: pill.midY)
-                    .transition(.navDrop(model.motion, ride: navRide(pill), drift: navDrift))
+                    .transition(.navDrop(model.motion, ride: navRide(pill)))
             }
         }
         // The orb (or the pill on it) steps aside while the ring is open over it, so its icon
@@ -104,7 +104,7 @@ struct NotchView: View {
         return model.layout.closedRect.insetBy(dx: -8, dy: -8).contains(origin)
     }
 
-    /// How far the nav pill travels on close to fold back into the closed shape, in panel
+    /// How far the nav pill travels to come out of, and fold back into, the closed shape, in panel
     /// coordinates (y down).
     private func navRide(_ pill: CGRect) -> CGSize {
         let closed = model.local(model.layout.closedRect)
@@ -113,11 +113,6 @@ struct NotchView: View {
         case .bottom: return CGSize(width: 0, height: closed.minY - pill.minY)
         case .left, .right: return CGSize(width: closed.midX - pill.midX, height: closed.midY - pill.midY)
         }
-    }
-
-    /// The pill settles in from the shelf's side: down from under it, or up on the bottom edge.
-    private var navDrift: CGSize {
-        CGSize(width: 0, height: model.layout.edge == .bottom ? 12 : -12)
     }
 
     /// Roundness scales every corner except the closed notch's, which has to match the

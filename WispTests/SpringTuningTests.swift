@@ -80,6 +80,25 @@ final class SpringTuningTests: XCTestCase {
         XCTAssertEqual(spec.bounce, SpringTuning.popover.bounce, accuracy: 1e-9)
     }
 
+    /// Content inside the shell moves with it: the same response, so it neither races ahead of
+    /// the edges nor lags behind them, and no bounce of its own.
+    func testContentRidesTheShellsSpring() {
+        let shell = SpringTuning.surface(move: .grow, speedScale: 1.2, reduceMotion: false)
+        let content = SpringTuning.contentRiding(shell)
+        XCTAssertEqual(content.response, shell.response, accuracy: 1e-9)
+        XCTAssertEqual(content.bounce, 0, accuracy: 1e-9)
+    }
+
+    /// Leaving content clears while the shell is still folding, but not in a blink: it's gone
+    /// well before the shell lands, and lasts long enough to read as part of the same motion.
+    func testContentClearsPartWayThroughTheFold() {
+        let shell = SpringTuning.surface(move: .shrink, speedScale: 1, reduceMotion: false)
+        let content = SpringTuning.contentClearing(shell)
+        XCTAssertLessThan(content.response, shell.response * 0.75)
+        XCTAssertGreaterThan(content.response, shell.response * 0.45)
+        XCTAssertEqual(content.bounce, 0, accuracy: 1e-9)
+    }
+
     func testPhysicalForm() {
         let spec = SpringSpec(response: 0.5, dampingFraction: 1)
         XCTAssertEqual(spec.stiffness, pow(4 * .pi, 2), accuracy: 1e-9)
