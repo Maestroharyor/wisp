@@ -56,6 +56,7 @@ struct CompactActivityView: View {
             }
         case .media:
             ArtworkView(image: model.services.nowPlaying.artwork, size: model.isNotchStyle ? 22 : 20, radius: 5)
+                .morphMatch(.artwork)
         case .tray:
             Image(systemName: "tray.fill")
         case .notice(let symbol, _):
@@ -68,7 +69,9 @@ struct CompactActivityView: View {
             HStack(spacing: ActivityMetrics.contentSpacing) {
                 AgentGlyph(
                     state: status.state, source: status.source, project: status.project, context: status.contextPercent,
-                    others: status.others)
+                    others: status.others
+                )
+                .morphMatch(.agent(session: status.sessionID))
                 TerminalIcon(bundleID: status.terminal, size: 14)
                 Text(status.project).lineLimit(1)
             }

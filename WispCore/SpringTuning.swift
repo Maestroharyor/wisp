@@ -73,4 +73,16 @@ public enum SpringTuning {
         if reduceMotion { return reducedMotion }
         return (move == .grow ? surfaceOpen : surfaceClose).scaled(speedScale)
     }
+
+    /// Content arriving inside the shell: the shell's own response without its bounce, so the
+    /// content is carried by the edges rather than settling before them or after them.
+    public static func contentRiding(_ shell: SpringSpec) -> SpringSpec {
+        SpringSpec(duration: shell.response, bounce: 0)
+    }
+
+    /// Content leaving as the shell folds: gone a little past half way, so the shell is seen
+    /// closing over it as one motion rather than folding back empty.
+    public static func contentClearing(_ shell: SpringSpec) -> SpringSpec {
+        SpringSpec(duration: shell.response * 0.6, bounce: 0)
+    }
 }

@@ -64,6 +64,7 @@ struct NowPlayingWidget: View {
                 // Artwork, title and artist; waveform at the top right.
                 HStack(alignment: .center, spacing: 12) {
                     ArtworkView(image: monitor.artwork, size: 50, radius: 11)
+                        .morphMatch(.artwork)
                         .onTapGesture { monitor.openPlayer() }
                         .accessibilityLabel("Open the player")
                         .accessibilityAddTraits(.isButton)

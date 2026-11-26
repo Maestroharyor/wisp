@@ -228,6 +228,9 @@ struct WidgetsPage: View {
         }
         .animation(model.surfaceAnimation, value: model.soloWidget)
         .animation(model.surfaceAnimation, value: model.activityDetail)
+        // The grid zooms tiles into cards with its own matching; a solo card and its tile show
+        // together for a moment, so the notch's form-to-form matching stays out of it.
+        .environment(\.morphSpace, nil)
     }
 
     /// No zoom from tile to card with Reduce Motion; the pages just cross-fade.
@@ -487,6 +490,7 @@ struct MediaPage: View {
                 } else if showsLyrics, services.nowPlaying.info != nil {
                     HStack(spacing: 12) {
                         ArtworkView(image: services.nowPlaying.artwork, size: 50, radius: 11)
+                            .morphMatch(.artwork)
                         LyricLines(monitor: services.nowPlaying, lyrics: services.lyrics)
                     }
                     .transition(.opacity)

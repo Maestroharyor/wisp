@@ -96,6 +96,9 @@ public struct AgentSession: Equatable, Identifiable, Sendable {
     public var stateSince: Date?
     /// When a reminder last put this wait back in the pill; only counts after `stateSince`.
     public var nudged: Date?
+    /// The state a wait began in. A reminder that comes while idle or done isn't part of a
+    /// turn, so new spend or a tool afterwards mustn't bring that old turn's timer back.
+    var waitedFrom: State?
     /// The last hook of any kind, tool activity included, so the busiest session wins the
     /// pill; `updated` leaves tool activity out to keep the sessions list steady.
     public var lastActivity: Date?
@@ -215,6 +218,9 @@ extension AgentSession {
 
     /// Permission prompts are skipped (`--dangerously-skip-permissions`), so nothing will ask.
     public var bypassesPermissions: Bool { permissionMode == "bypassPermissions" }
+
+    /// The wait broke into a turn, so its end means the agent is working again.
+    var waitInterruptsTurn: Bool { waitedFrom != .idle && waitedFrom != .finished }
 
     /// How long the last finished turn took.
     public var lastTurnDuration: TimeInterval? {
@@ -341,6 +347,7 @@ public struct AgentSessions: Sendable {
             Self.append(.prompt, "Prompt sent", to: &session, at: date)
         case .permissionRequest where event.prompt == .question:
             // Needs you until answered, from the notch's card or in the terminal.
+            session.waitedFrom = .running
             session.state = .waiting
             session.clearTools()
             Self.append(.waiting, "Needs you", to: &session, at: date)
@@ -351,6 +358,7 @@ public struct AgentSessions: Sendable {
             Self.append(.request, tool, detail: event.summary, to: &session, at: date)
         case .notification:
             if let type = event.notificationType, Self.waits(on: type, source: event.source) {
+                if session.state != .waiting { session.waitedFrom = session.state }
                 session.state = .waiting
                 session.clearTools()
                 Self.append(.waiting, "Needs you", to: &session, at: date)
@@ -378,7 +386,7 @@ public struct AgentSessions: Sendable {
             }
             // A tool that ran was answered in the terminal (Gemini's tool confirmation, a request
             // handed back): the agent is working again.
-            if session.state == .waiting { session.state = .running }
+            if session.state == .waiting, session.waitInterruptsTurn { session.state = .running }
         case .subagentStop:
             session.subagents = max(0, session.subagents - 1)
         case .interrupt:
@@ -406,7 +414,7 @@ public struct AgentSessions: Sendable {
         case .running, .needsApproval: break
         case .idle, .waiting, .finished:
             // A tool means work: a turn Wisp missed the start of, or an answer given in the terminal.
-            if session.state != .waiting {
+            if session.state != .waiting || !session.waitInterruptsTurn {
                 session.turnStarted = date
                 session.turnEnded = nil
             }
@@ -503,7 +511,9 @@ public struct AgentSessions: Sendable {
         // Claude Code also re-runs the bar on timers; only a change counts as activity, so an
         // idle session doesn't jump to the top or escape pruning.
         if figuresBefore != session.liveFigures { session.updated = date }
-        let resumed = session.state == .waiting && realCostBefore.map { (session.cost ?? 0) > $0 } == true
+        let resumed =
+            session.state == .waiting && session.waitInterruptsTurn
+            && realCostBefore.map { (session.cost ?? 0) > $0 } == true
         if resumed {
             session.state = .running
             session.stateSince = date
@@ -600,6 +610,7 @@ public struct AgentSessions: Sendable {
     /// A request nobody answered in the notch went back to the terminal, which now asks.
     public mutating func handedBack(session id: String, at date: Date) {
         guard var session = sessions[id], session.state == .needsApproval else { return }
+        session.waitedFrom = .needsApproval
         session.state = .waiting
         session.stateSince = date
         session.updated = date
