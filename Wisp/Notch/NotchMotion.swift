@@ -2,9 +2,11 @@ import SwiftUI
 import WispCore
 
 /// Timing for the notch morph. The black shell grows out of the notch on a spring and the
-/// content comes with it from the first frame, on short springs that never overshoot, so the
-/// two read as one motion; closing, the content clears quickly and the shell folds back into
-/// the notch. Springs only, so any of it can be interrupted and turn around smoothly.
+/// content comes with it from the first frame on the shell's own response, without its bounce,
+/// so the two read as one motion; closing, the content blurs away part way through and the
+/// shell folds back over it. Parts both forms show (the album art, an agent's icon) travel
+/// between them instead (`morphMatch`). Springs only, so any of it can be interrupted and
+/// turn around smoothly.
 struct NotchMotion {
     /// Surface spring when growing (peek, activity or open).
     let surfaceOpen: Animation
@@ -24,6 +26,9 @@ struct NotchMotion {
     let wingOut: Animation
     /// How much content scales up as it arrives (it starts at this share of its size).
     let contentScale: CGFloat
+    /// How soft content is as it arrives and leaves, so a swap reads as one shape changing
+    /// rather than two layers crossing.
+    let contentBlur: CGFloat
     /// Off for Reduce Motion: no drift, scale or slide.
     let expands: Bool
 
@@ -41,22 +46,24 @@ struct NotchMotion {
                 wingIn: .easeInOut(duration: 0.2),
                 wingOut: .easeOut(duration: 0.1),
                 contentScale: 1,
+                contentBlur: 0,
                 expands: false
             )
         }
-        let contentIn = SpringTuning.contentIn.scaled(speed.scale).animation
-        let contentOut = SpringTuning.contentOut.scaled(speed.scale).animation
+        let contentOut = SpringTuning.contentClearing(close).animation
         return NotchMotion(
             surfaceOpen: open.animation,
             surfaceClose: close.animation,
             formMorph: SpringTuning.formMorph.scaled(speed.scale).animation,
-            shelfIn: contentIn,
+            shelfIn: SpringTuning.contentRiding(open).animation,
             contentOut: contentOut,
-            // Chrome under the shelf, so it may trail the shell by a beat.
-            navIn: SpringTuning.contentIn.scaled(speed.scale * 1.2).animation.delay(0.05 * speed.scale),
-            wingIn: contentIn,
+            // Chrome under the shelf, carried out by its edge on the same spring.
+            navIn: open.animation,
+            // A pill usually lands as the shell shrinks onto it, so it rides the closing spring.
+            wingIn: SpringTuning.contentRiding(close).animation,
             wingOut: contentOut,
             contentScale: 0.94,
+            contentBlur: 4,
             expands: true
         )
     }
@@ -113,7 +120,7 @@ extension AnyTransition {
     /// the shell is seen folding back into the notch.
     static func unfold(_ motion: NotchMotion) -> AnyTransition {
         let scale = CGSize(width: motion.contentScale, height: motion.contentScale)
-        let hidden = MistModifier(blur: 0, opacity: 0, scale: scale)
+        let hidden = MistModifier(blur: motion.contentBlur, opacity: 0, scale: scale)
         let shown = MistModifier(blur: 0, opacity: 1)
         return .asymmetric(
             insertion: .modifier(active: hidden, identity: shown).animation(motion.shelfIn),
@@ -139,7 +146,7 @@ extension AnyTransition {
     /// way out, clearing before the shell retracts over it.
     static func wingReveal(_ motion: NotchMotion) -> AnyTransition {
         let scale = motion.expands ? CGSize(width: 0.8, height: 0.8) : CGSize(width: 1, height: 1)
-        let hidden = MistModifier(blur: 0, opacity: 0, scale: scale, anchor: .center)
+        let hidden = MistModifier(blur: motion.contentBlur * 0.75, opacity: 0, scale: scale, anchor: .center)
         let shown = MistModifier(blur: 0, opacity: 1, anchor: .center)
         return .asymmetric(
             insertion: .modifier(active: hidden, identity: shown).animation(motion.wingIn),
@@ -159,15 +166,14 @@ extension AnyTransition {
         )
     }
 
-    /// Nav pill drifts out from under the shelf (`drift`) after the content settles. On close
-    /// it rides back with the surface (`ride`) and fades into the notch.
-    /// With Reduce Motion it only fades in place.
-    static func navDrop(_ motion: NotchMotion, ride: CGSize, drift: CGSize) -> AnyTransition {
-        let drift = motion.expands ? drift : .zero
+    /// Nav pill comes out of the closed shape with the shelf's edge and rides back into it on
+    /// close (`ride`, both on the surface's springs), so it never waits below a shell that
+    /// hasn't reached it yet. With Reduce Motion it only fades in place.
+    static func navDrop(_ motion: NotchMotion, ride: CGSize) -> AnyTransition {
         let ride = motion.expands ? ride : .zero
         return .asymmetric(
             insertion: .modifier(
-                active: MistModifier(blur: 0, opacity: 0, offsetY: drift.height, offsetX: drift.width),
+                active: MistModifier(blur: 0, opacity: 0, offsetY: ride.height, offsetX: ride.width),
                 identity: MistModifier(blur: 0, opacity: 1)
             )
             .animation(motion.navIn),

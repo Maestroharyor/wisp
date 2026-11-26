@@ -203,6 +203,7 @@ struct AgentApprovalCard: View {
                     .foregroundStyle(Color.project(approval.project))
                     .frame(width: 38, height: 38)
                     .background(Circle().fill(Color.project(approval.project).opacity(0.18)))
+                    .morphMatch(.agent(session: approval.sessionID))
                 VStack(alignment: .leading, spacing: 3) {
                     header(hub: hub)
                     ApprovalSummary(
