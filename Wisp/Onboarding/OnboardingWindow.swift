@@ -2,8 +2,9 @@ import AppKit
 import SwiftUI
 import WispCore
 
-/// The first-launch setup in its own small window: Accessibility, how the shelf opens,
-/// and coding agents. Shown once; About has "Run Setup Again".
+/// The first-launch setup in its own small window: Accessibility, how the shelf opens (and
+/// trying it), the ring, coding agents, and launch at login. Shown once; About has "Run Setup
+/// Again", which starts it over from the first step.
 @MainActor
 final class OnboardingWindowController {
     private var window: NSWindow?
@@ -21,18 +22,23 @@ final class OnboardingWindowController {
     }
 
     func show(at first: OnboardingStep = .accessibility) {
-        let window = window ?? makeWindow(at: first)
+        let window = window ?? makeWindow()
         self.window = window
+        // A fresh view each time, so running setup again starts at `first`, not where it was left.
+        window.contentViewController = NSHostingController(rootView: makeView(at: first))
         NSApp.activate()
         window.center()
         window.makeKeyAndOrderFront(nil)
     }
 
-    private func makeWindow(at first: OnboardingStep) -> NSWindow {
-        let view = OnboardingView(
+    private func makeView(at first: OnboardingStep) -> OnboardingView {
+        OnboardingView(
             services: services, granted: { [weak self] in self?.bringForward() },
             done: { [weak self] in self?.finish() }, step: first)
-        let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+    }
+
+    private func makeWindow() -> NSWindow {
+        let window = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: true)
         window.title = "Welcome to Wisp"
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
@@ -53,8 +59,6 @@ final class OnboardingWindowController {
         services.preferences.onboarded = true
         // orderOut rather than close, which would post willClose and call this again.
         window?.orderOut(nil)
-        // The hotkey waits for Accessibility; ask now if setup was skipped.
-        if !AccessibilityPermission.isTrusted { AccessibilityPermission.requestAccess() }
         // Show where Wisp lives, once the window has gone.
         Task { [services] in
             try? await Task.sleep(for: Self.shelfDelay)
@@ -84,10 +88,12 @@ private struct OnboardingView: View {
             header
             Group {
                 switch step {
-                case .accessibility: AccessibilityStep(trusted: trusted)
-                case .opening: OpeningStep(preferences: services.preferences, accent: services.accent)
+                case .accessibility:
+                    AccessibilityStep(trusted: trusted, shortcut: services.preferences.hotkey.description)
+                case .opening: OpeningStep(preferences: services.preferences, accent: services.accent, trusted: trusted)
                 case .ring: RingStep(preferences: services.preferences)
                 case .agents: AgentsStep(hub: services.agents)
+                case .finish: FinishStep(preferences: services.preferences)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -128,17 +134,18 @@ private struct OnboardingView: View {
         case .opening: "How should the shelf open?"
         case .ring: "Meet the ring"
         case .agents: "Bring your coding agents"
+        case .finish: "You're set"
         }
     }
 
     private var subtitle: String {
         switch step {
-        case .accessibility: "Your notch, for people who build. Four quick steps and you're set."
+        case .accessibility:
+            "A shelf, live activities and your coding agents, in the notch. A few short steps to set it up."
         case .opening: "You can change this any time in Settings."
         case .ring: "Your apps and actions in a circle at the pointer. Pick one with a flick, a click or a number."
-        case .agents:
-            "Watch your coding agents work. Approve Claude Code, Codex, OpenCode, Qwen Code and Qoder CLI "
-                + "requests from the notch."
+        case .agents: "See your coding agents work, and answer their requests from the notch."
+        case .finish: "Two last things, both optional."
         }
     }
 
@@ -168,6 +175,10 @@ private struct OnboardingView: View {
 
 private struct AccessibilityStep: View {
     let trusted: Bool
+    let shortcut: String
+    /// The first press shows the macOS prompt; later ones open System Settings, in case the
+    /// prompt was dismissed.
+    @State private var asked = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -175,7 +186,7 @@ private struct AccessibilityStep: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Accessibility").font(.headline)
                     Text(
-                        "Wisp reads Caps Lock + Space to open the shelf and shows its own volume and brightness. macOS asks you to allow that once."
+                        "Wisp reads \(shortcut) to open the shelf and shows its own volume and brightness. macOS asks you to allow that once."
                     )
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -186,17 +197,20 @@ private struct AccessibilityStep: View {
             HStack(spacing: 10) {
                 if trusted {
                     Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                } else {
-                    Button("Open System Settings") {
-                        AccessibilityPermission.requestAccess()
-                        AccessibilityPermission.openSettings()
-                    }
+                } else if asked {
+                    Button("Open System Settings") { AccessibilityPermission.openSettings() }
                     ProgressView().controlSize(.small)
                     Text("Waiting for access…").foregroundStyle(.secondary)
+                } else {
+                    Button("Allow Accessibility…") {
+                        AccessibilityPermission.requestAccess()
+                        asked = true
+                    }
                 }
             }
             .padding(.leading, 44)
             .wispAnimation(.easeOut(duration: 0.2), value: trusted)
+            .wispAnimation(.easeOut(duration: 0.2), value: asked)
         }
     }
 }
@@ -204,6 +218,9 @@ private struct AccessibilityStep: View {
 private struct OpeningStep: View {
     @Bindable var preferences: Preferences
     let accent: Color
+    let trusted: Bool
+    /// The shelf opened for real while this step showed.
+    @State private var tried = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -212,6 +229,22 @@ private struct OpeningStep: View {
                 choice(.click, symbol: "cursorarrow.click", title: "Click", detail: "Hover peeks; a click opens.")
                 choice(.hover, symbol: "cursorarrow.motionlines", title: "Hover", detail: "Opens when you rest on it.")
             }
+            tryIt
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .notchShelfOpened)) { _ in tried = true }
+        .wispAnimation(.easeOut(duration: 0.2), value: tried)
+    }
+
+    /// The step's hands-on part: open the real shelf the way just chosen.
+    @ViewBuilder private var tryIt: some View {
+        if tried {
+            Label("That's it. The shelf opens the same way from now on.", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        } else {
+            let gesture = preferences.openTrigger == .hover ? "Rest the pointer on the notch" : "Click the notch"
+            let key = trusted ? ", or press \(preferences.hotkey.description)" : ""
+            Label("Try it: \(gesture)\(key).", systemImage: "hand.point.up.left")
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -246,6 +279,8 @@ private struct RingStep: View {
     @Bindable var preferences: Preferences
     @Environment(\.colorScheme) private var colorScheme
     @State private var canPreview = CGPreflightScreenCaptureAccess()
+    /// macOS may only hand the grant to a fresh launch, so once asked, say so rather than wait.
+    @State private var askedForPreviews = Permission.askedScreenRecording
 
     private static let scale: CGFloat = 0.4
 
@@ -270,10 +305,15 @@ private struct RingStep: View {
                     } else {
                         Button("Show window previews…") {
                             Permission.screenRecording.request()
+                            askedForPreviews = true
                         }
-                        Text("Optional: a live picture of a window when you point at it. Needs Screen Recording.")
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        Text(
+                            askedForPreviews
+                                ? "Turned on Screen Recording? Previews start the next time Wisp opens."
+                                : "Optional: a live picture of a window when you point at it. Needs Screen Recording."
+                        )
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -319,6 +359,9 @@ private struct RingStep: View {
 
 private struct AgentsStep: View {
     let hub: AgentHub
+    /// Agents whose settings folder is on this Mac, listed first.
+    @State private var present: Set<AgentSource> = []
+    @State private var showsAll = false
 
     var body: some View {
         VStack(spacing: 10) {
@@ -327,31 +370,140 @@ private struct AgentsStep: View {
                 rows
                 ScrollView { rows }
             }
+            if !present.isEmpty, present.count < all.count {
+                Button(showsAll ? "Show only agents on this Mac" : "Show all agents") { showsAll.toggle() }
+                    .buttonStyle(.link)
+            }
             Text("Skip this if you don't use them. Settings › Agents has it too.")
                 .font(.caption).foregroundStyle(.secondary)
         }
-        .onAppear { hub.refreshInstalled() }
+        .onAppear {
+            hub.refreshInstalled()
+            present = Self.agentsOnThisMac()
+        }
+    }
+
+    private var all: [AgentSource] { AgentAdapters.all.map(\.source) }
+
+    /// The agents on this Mac, or every agent when none is (or when asked).
+    private var shown: [AgentSource] {
+        showsAll || present.isEmpty
+            ? all.sorted { present.contains($0) && !present.contains($1) } : all.filter(present.contains)
+    }
+
+    private static func agentsOnThisMac() -> Set<AgentSource> {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return Set(
+            AgentAdapters.all.compactMap { adapter in
+                guard let folder = adapter.hookFile.agentFolder else { return nil }
+                let exists = FileManager.default.fileExists(atPath: home.appendingPathComponent(folder).path)
+                return exists ? adapter.source : nil
+            })
     }
 
     private var rows: some View {
         VStack(spacing: 8) {
-            ForEach(AgentAdapters.all.map(\.source), id: \.self) { source in
+            ForEach(shown, id: \.self) { source in
+                let status = hub.integrationStatus(source)
+                let connected = status == .connected || status == .ready
                 HStack(spacing: 12) {
                     IconTile(symbol: source.symbol, tint: .wispViolet, size: 28)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(source.displayName).font(.headline)
-                        Text(hub.isConnected(source) ? "Connected" : "Optional").font(.caption)
-                            .foregroundStyle(hub.isConnected(source) ? .green : .secondary)
+                        Text(Self.label(status)).font(.caption).foregroundStyle(connected ? .green : .secondary)
                     }
                     Spacer()
-                    if !hub.isConnected(source) {
-                        Button("Connect") { hub.installHooks(source) }
+                    if let action = Self.action(status) {
+                        Button(action) { hub.installHooks(source) }
                     }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.secondary.opacity(0.08)))
             }
+        }
+    }
+
+    private static func label(_ status: IntegrationStatus) -> String {
+        switch status {
+        case .connected, .ready: "Connected"
+        case .needsUpdate: "Connected, from an older version of Wisp"
+        case .otherCopy: "Connected to another copy of Wisp"
+        case .monitor: "Watched while it runs"
+        case .notInstalled: "Not connected"
+        }
+    }
+
+    /// Every button goes through the same install, which asks before it changes a file.
+    private static func action(_ status: IntegrationStatus) -> String? {
+        switch status {
+        case .connected, .ready, .monitor: nil
+        case .needsUpdate: "Update"
+        case .otherCopy: "Use this Wisp"
+        case .notInstalled: "Connect"
+        }
+    }
+}
+
+/// Launch at login, and the one permission a feature that's on from the start needs.
+private struct FinishStep: View {
+    let preferences: Preferences
+    @State private var launchAtLogin = LaunchAtLogin.isEnabled
+    @State private var fullDiskAccess = Permission.hasFullDiskAccess
+    @State private var loginError: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Label {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Open Wisp when you log in", isOn: $launchAtLogin)
+                        .toggleStyle(.switch)
+                        .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
+                    if let loginError {
+                        Text(loginError).font(.caption).foregroundStyle(.orange)
+                    }
+                }
+            } icon: {
+                IconTile(symbol: "power", tint: .wispViolet, size: 32)
+            }
+            if preferences.notificationsEnabled {
+                Label {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Notifications in the notch").font(.headline)
+                        Text(
+                            "Wisp shows your Mac's notifications as cards. Reading them needs Full Disk Access, "
+                                + "which you can also allow later in Settings › Permissions."
+                        )
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        if fullDiskAccess {
+                            Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                        } else {
+                            Button("Allow Full Disk Access…") { Permission.fullDiskAccess.request() }
+                        }
+                    }
+                } icon: {
+                    IconTile(symbol: "bell.badge.fill", tint: .wispViolet, size: 32)
+                }
+            }
+        }
+        .task {
+            // Full Disk Access is switched on in System Settings; look again now and then.
+            while !Task.isCancelled, !fullDiskAccess {
+                try? await Task.sleep(for: .seconds(1))
+                fullDiskAccess = Permission.hasFullDiskAccess
+            }
+        }
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            try LaunchAtLogin.set(enabled)
+            loginError = nil
+            if LaunchAtLogin.needsApproval { LaunchAtLogin.openSystemSettings() }
+        } catch {
+            loginError = "Couldn't change it here. Try Settings › General."
+            launchAtLogin = LaunchAtLogin.isEnabled
         }
     }
 }

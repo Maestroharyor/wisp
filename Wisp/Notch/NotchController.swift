@@ -1037,6 +1037,7 @@ final class NotchController {
         if !wasOpen, machine.phase == .open {
             services.tray.pruneMissing()
             services.sounds.play(.open)
+            NotificationCenter.default.post(name: .notchShelfOpened, object: nil)
         }
         if wasOpen, machine.phase != .open { services.sounds.play(.close) }
         if machine.phase == .open, machine.pinned {
@@ -1107,3 +1108,8 @@ final class NotchController {
         }
     }
 #endif
+
+extension Notification.Name {
+    /// The shelf opened in a notch, however it was opened; setup's "Try it" listens for it.
+    static let notchShelfOpened = Notification.Name("com.ayomideodewale.wisp.notchShelfOpened")
+}
