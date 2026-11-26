@@ -18,6 +18,45 @@ struct RingSettings: View {
             set: { preferences.ringLook.colour = $0 })
     }
 
+    /// The orb dock's own apps, in order, with Add (up to eight) and remove.
+    @ViewBuilder private var chosenApps: some View {
+        let names = AppNames.names(for: preferences.orbDockApps)
+        ForEach(preferences.orbDockApps, id: \.self) { id in
+            HStack(spacing: 8) {
+                RingTileIcon(icon: .app(bundleID: id), tileHex: "#8E8E93", side: 20)
+                Text(names[id] ?? id).lineLimit(1)
+                Spacer()
+                Button {
+                    preferences.orbDockApps.removeAll { $0 == id }
+                } label: {
+                    Image(systemName: "minus.circle")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Remove \(names[id] ?? id)")
+            }
+        }
+        HStack {
+            Spacer()
+            Button("Add app…", action: addDockApp)
+                .disabled(preferences.orbDockApps.count >= RingDock.size)
+        }
+    }
+
+    private func addDockApp() {
+        let panel = NSOpenPanel()
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Add"
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            guard let id = Bundle(url: url)?.bundleIdentifier, !preferences.orbDockApps.contains(id),
+                preferences.orbDockApps.count < RingDock.size
+            else { continue }
+            preferences.orbDockApps.append(id)
+        }
+    }
+
     /// Read when the pane shows; macOS doesn't announce a change.
     @State private var canPreview = CGPreflightScreenCaptureAccess()
     /// A grant in System Settings may reach Wisp only after it's reopened, so once asked, offer that.
@@ -28,7 +67,7 @@ struct RingSettings: View {
             if !preferences.ringTipsHidden {
                 RingTipsSection(preferences: preferences)
             }
-            Section("Opening") {
+            Section {
                 Picker("Mouse button", selection: $preferences.ringButton) {
                     ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
@@ -44,12 +83,14 @@ struct RingSettings: View {
                         Button("Show checklist") { preferences.ringTipsHidden = false }
                     }
                 }
+            } header: {
+                SettingsHeader("Opening")
+            } footer: {
                 Text(
-                    "Hold the mouse button, move to an action and let go, or click it quickly to leave the ring open. Other apps stop seeing the button you choose, and it needs Accessibility. Files dragged onto the orb open the tray. To use the ring's file actions, press the ring shortcut while dragging and drop the files on one."
+                    "Hold the mouse button, move to an action and let go, or click to leave the ring open (needs Accessibility). Dragging files? Press the ring shortcut and drop them on an action."
                 )
-                .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Look") {
+            Section {
                 Picker("Background", selection: $preferences.ringLook.backdrop) {
                     ForEach(RingBackdrop.allCases) { Text($0.title).tag($0) }
                 }
@@ -92,12 +133,14 @@ struct RingSettings: View {
                     Button("Reset look") { preferences.ringLook = .standard }
                         .disabled(preferences.ringLook == .standard)
                 }
+            } header: {
+                SettingsHeader("Look")
+            } footer: {
                 Text(
-                    "The icons sit on a glass band, or on nothing with None. Clear glass shows the most through, Frosted is easiest to read over busy windows. Colour tints the band and a Frosted or Tinted centre; Default glass takes it off. A clear centre is open onto the desktop; Tinted is a soft violet glow. Size changes the whole ring, icons and gaps together. Reduce Transparency makes it solid."
+                    "Frosted glass is easiest to read over busy windows. Colour tints the band and a Frosted or Tinted centre. Reduce Transparency makes the ring solid."
                 )
-                .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Apps and actions") {
+            Section {
                 LabeledContent("Add to the ring") {
                     RingAddMenu(set: $preferences.ringConfig.standard)
                 }
@@ -131,11 +174,26 @@ struct RingSettings: View {
                     }
                 }
                 Toggle("Fill free places with running apps", isOn: $preferences.ringShowsRunning)
-                Toggle("Show the ring's apps beside the orb", isOn: $preferences.orbDock)
+            } header: {
+                SettingsHeader("Apps and actions")
+            } footer: {
                 Text(
-                    "On the open ring, drag an icon to move it, drag it off the ring to remove it (⌘Z puts it back), and drop an app from Finder to add it. With the orb dock on, hovering the orb shows up to eight apps from the ring, in the ring's order."
+                    "On the open ring, drag an icon to move it, off the ring to remove it (⌘Z puts it back), or drop an app from Finder to add it."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle("Show apps beside the orb", isOn: $preferences.orbDock)
+                if preferences.orbDock {
+                    Picker("Apps", selection: $preferences.orbDockSource) {
+                        ForEach(OrbDockSource.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    if preferences.orbDockSource == .chosen { chosenApps }
+                }
+            } header: {
+                SettingsHeader("Orb dock")
+            } footer: {
+                Text("Hovering the orb shows up to eight apps beside it, to click or drop files on.")
             }
         }
         .formStyle(.grouped)
@@ -204,7 +262,7 @@ private struct RingTipsSection: View {
                 Button("Hide") { preferences.ringTipsHidden = true }
             }
         } header: {
-            Text("Try the ring")
+            SettingsHeader("Try the ring")
         }
         .animation(reduceMotion ? nil : .wispSmooth, value: tips)
     }
@@ -249,7 +307,7 @@ private struct RingEditorSheet: View {
                         RingAddMenu(set: editedSet)
                     }
                 } header: {
-                    Text("Ring actions")
+                    SettingsHeader("Ring actions")
                 } footer: {
                     Text(
                         "Click a segment to change it. The centre of the ring opens the shelf. An app's ring opens instead of the default while that app is in front."
@@ -309,6 +367,7 @@ private struct RingSetEditor: View {
     let dropActions: [DropAction]
 
     @State private var selected = 0
+    @Environment(\.colorScheme) private var colorScheme
 
     private static let scale: CGFloat = 0.62
     private static let side: CGFloat = (RingGeometry.ringOuter + 8) * 2 * scale
@@ -332,11 +391,18 @@ private struct RingSetEditor: View {
         let centre = CGPoint(x: Self.side / 2, y: Self.side / 2)
         let slots = set.slots
         return ZStack {
-            // The ring's band, as it's drawn on screen.
-            Circle()
-                .stroke(.quaternary, lineWidth: (RingGeometry.ringOuter - RingGeometry.innerRadius) * Self.scale)
-                .frame(
-                    width: RingGeometry.ringRadius * 2 * Self.scale, height: RingGeometry.ringRadius * 2 * Self.scale)
+            // The ring's own background, drawn at full size and scaled, so it follows the Look
+            // settings as they change; the trail points at the selected segment.
+            let full = Self.side / Self.scale
+            RingDisc(
+                centre: CGPoint(x: full / 2, y: full / 2), dark: colorScheme == .dark, shown: true,
+                hoverAngle: slots.isEmpty ? nil : RingGeometry.slotAngle(selected, count: slots.count),
+                reduceMotion: true
+            )
+            .frame(width: full, height: full)
+            .scaleEffect(Self.scale)
+            .frame(width: Self.side, height: Self.side)
+            .allowsHitTesting(false)
             ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
                 let angle = RingGeometry.slotAngle(index, count: slots.count)
                 let radians = angle * .pi / 180

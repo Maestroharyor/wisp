@@ -776,6 +776,9 @@ final class NotchController {
         }
     }
 
+    /// A file drag has the shelf showing its drop tiles.
+    var showsDropTiles: Bool { model.dragging }
+
     func fileDragEnded() {
         guard model.dragging else { return }
         dragEndTask?.cancel()
@@ -1088,3 +1091,19 @@ final class NotchController {
         updateClickThrough()
     }
 }
+
+#if DEBUG
+    extension NotchController {
+        /// Where drop tile `index` is drawn while the tiles show, in global coordinates.
+        func debugTilePoint(index: Int) -> CGPoint? {
+            guard model.dragging else { return nil }
+            let surface = model.surfaceRect
+            let count = CGFloat(4 + min(model.preferences.dropActions.count, SurfaceSizing.maxDropActionTiles))
+            let width = count * SurfaceSizing.tileSize + (count - 1) * SurfaceSizing.tileSpacing
+            let x =
+                surface.midX - width / 2 + SurfaceSizing.tileSize / 2
+                + CGFloat(index) * (SurfaceSizing.tileSize + SurfaceSizing.tileSpacing)
+            return CGPoint(x: x, y: surface.midY)
+        }
+    }
+#endif

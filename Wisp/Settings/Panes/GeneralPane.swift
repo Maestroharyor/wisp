@@ -23,13 +23,13 @@ struct GeneralSettings: View {
                     HealthBanner(missing: missing, fix: fixPermissions)
                 }
             }
-            Section("Keyboard") {
+            Section(header: "Keyboard") {
                 LabeledContent("Shortcuts") {
                     Button("Keyboard Shortcuts…", action: openShortcuts)
                 }
             }
 
-            Section("Dictation") {
+            Section {
                 Toggle("Dictate by holding a key", isOn: $preferences.dictationEnabled)
                     .onChange(of: preferences.dictationEnabled) { _, on in
                         // Asked only now, when the feature is turned on.
@@ -52,18 +52,20 @@ struct GeneralSettings: View {
                         }
                     }
                 }
+            } header: {
+                SettingsHeader("Dictation")
+            } footer: {
                 Text(
-                    "Speak while you hold the key and let go to type it: into the prompt draft when a session is open in the Agents view, into a question card's answer, or else into the app in front. If the key also opens the shelf, a quick press still does. Speech is turned into text on this Mac; the audio never leaves it and nothing is kept."
+                    "Hold the key, speak and let go to type it into the open Agents session's prompt draft, a question card's answer or the app in front; a quick press still opens the shelf if the key does that too. Speech becomes text on this Mac, and the audio never leaves it or is kept."
                 )
-                .font(.caption).foregroundStyle(.secondary)
             }
             .onAppear { dictation.refreshReadiness() }
 
-            Section("Startup") {
+            Section(header: "Startup") {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
                 if let launchError {
-                    Text(launchError).font(.caption).foregroundStyle(.red)
+                    Text(launchError).wispFont(.caption).foregroundStyle(.red)
                 }
             }
 
@@ -71,7 +73,7 @@ struct GeneralSettings: View {
                 Toggle("Show Wisp in the menu bar", isOn: $preferences.showMenuBarIcon)
                 if !preferences.showMenuBarIcon {
                     Text("Open Wisp again from Finder or Spotlight to get back to Settings.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .wispFont(.caption).foregroundStyle(.secondary)
                 }
                 if preferences.hotkey.usesHyper {
                     Toggle(

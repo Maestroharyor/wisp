@@ -80,6 +80,57 @@ final class WindowDashboardTests: XCTestCase {
         XCTAssertEqual(WeekStrip.stepped(stale, by: 1, in: days, calendar: calendar), days[1])
     }
 
+    private func utcCalendar(firstWeekday: Int) throws -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        calendar.locale = Locale(identifier: "en_GB")
+        calendar.firstWeekday = firstWeekday
+        return calendar
+    }
+
+    func testTheWeekStartFollowsTheFirstWeekday() throws {
+        // Saturday 21 November 2026.
+        let monday = try utcCalendar(firstWeekday: 2)
+        let saturday = try XCTUnwrap(monday.date(from: DateComponents(year: 2026, month: 11, day: 21, hour: 15)))
+        let fromMonday = WeekStrip.weekStart(of: saturday, calendar: monday)
+        XCTAssertEqual(
+            monday.dateComponents([.month, .day, .hour], from: fromMonday), DateComponents(month: 11, day: 16, hour: 0))
+        let sunday = try utcCalendar(firstWeekday: 1)
+        let fromSunday = WeekStrip.weekStart(of: saturday, calendar: sunday)
+        XCTAssertEqual(sunday.dateComponents([.month, .day], from: fromSunday), DateComponents(month: 11, day: 15))
+    }
+
+    func testSteppingAWeekCrossesMonthsAndYears() throws {
+        let calendar = try utcCalendar(firstWeekday: 2)
+        let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 12, day: 28)))
+        let next = WeekStrip.steppedWeek(start, by: 1, calendar: calendar)
+        XCTAssertEqual(
+            calendar.dateComponents([.year, .month, .day], from: next), DateComponents(year: 2027, month: 1, day: 4))
+        let back = WeekStrip.steppedWeek(start, by: -2, calendar: calendar)
+        XCTAssertEqual(calendar.dateComponents([.month, .day], from: back), DateComponents(month: 12, day: 14))
+    }
+
+    func testTheComingWeekIsTodayAndTheNextSixDays() throws {
+        let calendar = try utcCalendar(firstWeekday: 2)
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 21, hour: 22)))
+        let day = { (offset: Int) in calendar.date(byAdding: .day, value: offset, to: now) ?? now }
+        XCTAssertTrue(WeekStrip.isInComingWeek(day(0), now: now, calendar: calendar))
+        XCTAssertTrue(WeekStrip.isInComingWeek(day(6), now: now, calendar: calendar))
+        XCTAssertFalse(WeekStrip.isInComingWeek(day(7), now: now, calendar: calendar))
+        XCTAssertFalse(WeekStrip.isInComingWeek(day(-1), now: now, calendar: calendar))
+    }
+
+    func testTheWeekTitleNamesOtherWeeksByTheirStart() throws {
+        let calendar = try utcCalendar(firstWeekday: 2)
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 21, hour: 9)))
+        let thisWeek = WeekStrip.weekStart(of: now, calendar: calendar)
+        XCTAssertEqual(WeekStrip.title(weekStart: thisWeek, now: now, calendar: calendar), "This week")
+        let later = WeekStrip.steppedWeek(thisWeek, by: 15, calendar: calendar)
+        XCTAssertEqual(WeekStrip.title(weekStart: later, now: now, calendar: calendar), "Week of 1 March 2027")
+        let soon = WeekStrip.steppedWeek(thisWeek, by: 2, calendar: calendar)
+        XCTAssertEqual(WeekStrip.title(weekStart: soon, now: now, calendar: calendar), "Week of 30 November")
+    }
+
     // MARK: Cards
 
     func testHomeCardsReadWhatWasSaved() {

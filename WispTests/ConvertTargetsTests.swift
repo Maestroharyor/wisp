@@ -37,4 +37,28 @@ final class ConvertTargetsTests: XCTestCase {
         XCTAssertTrue(GIFPlan.frames(duration: .nan).isEmpty)
         XCTAssertEqual(GIFPlan.delay(), 0.1, accuracy: 0.0001)
     }
+
+    func testSilentVideosDontOfferM4A() {
+        XCTAssertFalse(ConvertTargets.formats(forExtensions: ["mov"], videosHaveSound: false).contains(.m4a))
+        XCTAssertTrue(ConvertTargets.formats(forExtensions: ["mov"], videosHaveSound: true).contains(.m4a))
+        XCTAssertTrue(ConvertTargets.formats(forExtensions: ["mov"], videosHaveSound: nil).contains(.m4a))
+        XCTAssertTrue(
+            ConvertTargets.formats(forExtensions: ["mp3"], videosHaveSound: false).contains(.m4a),
+            "audio keeps M4A")
+    }
+
+    func testADragAddsTransformToARingWithoutIt() {
+        let plain = RingSet(name: "Default", slots: [RingSlot(RingAction(.home))])
+        XCTAssertEqual(RingDropSet.withTransform(plain).slots.map(\.action.kind), [.home, .transform])
+        let has = RingSet(name: "Default", slots: [RingSlot(RingAction(.transform)), RingSlot(RingAction(.tray))])
+        XCTAssertEqual(RingDropSet.withTransform(has).slots.count, 2)
+        let full = RingSet(
+            name: "Full",
+            slots: (0..<RingSet.maxSlots - 1).map { _ in RingSlot(RingAction(.tray)) } + [RingSlot(RingAction(.home))])
+        let lent = RingDropSet.withTransform(full)
+        XCTAssertEqual(lent.slots.count, RingSet.maxSlots)
+        XCTAssertEqual(lent.slots.last?.action.kind, .transform, "takes the place of one that can't take files")
+        let allFiles = RingSet(name: "Files", slots: (0..<RingSet.maxSlots).map { _ in RingSlot(RingAction(.tray)) })
+        XCTAssertEqual(RingDropSet.withTransform(allFiles).slots.map(\.action.kind), allFiles.slots.map(\.action.kind))
+    }
 }

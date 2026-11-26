@@ -31,20 +31,23 @@ struct WindowCard<Content: View>: View {
     @ViewBuilder private var header: some View {
         let label = HStack(spacing: 10) {
             IconTile(symbol: symbol, tint: tint, size: 24)
-            Text(title).font(.headline).foregroundStyle(.primary)
+            Text(title).wispFont(.headline).foregroundStyle(.primary)
             Spacer(minLength: 8)
             if let count {
-                Text("\(count)").font(.subheadline.monospacedDigit()).foregroundStyle(Color.secondaryText)
+                Text("\(count)").wispFont(.subheadline).monospacedDigit().foregroundStyle(Color.secondaryText)
             }
             if open != nil {
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                Image(systemName: "chevron.right").wispFont(.caption, weight: .semibold)
                     .foregroundStyle(Color.secondaryText)
                     .accessibilityHidden(true)
             }
         }
         if let open {
-            Button(action: open) { label.contentShape(Rectangle()) }
+            // The highlight reaches a little past the label without moving it.
+            Button(action: open) { label.padding(4).contentShape(Rectangle()) }
                 .buttonStyle(.plain)
+                .wispHover()
+                .padding(-4)
                 .help("Open \(title)")
                 .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
                 .accessibilityHint("Opens its page")
@@ -127,26 +130,52 @@ struct WindowPageHeader<Actions: View>: View {
     @ViewBuilder let actions: Actions
 
     var body: some View {
+        // Side by side when there's room; on a narrow page the count and actions go under the
+        // title instead of squeezing it.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 14) {
+                titleBlock
+                Spacer(minLength: 12)
+                trailing
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                titleBlock
+                HStack(spacing: 8) {
+                    trailing
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private var titleBlock: some View {
         HStack(alignment: .center, spacing: 14) {
             IconTile(symbol: symbol, tint: tint, size: 40)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.largeTitle.bold()).lineLimit(1)
-                Text(subtitle).font(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(2)
+                Text(title).wispFont(.largeTitle, weight: .bold).lineLimit(1).fixedSize()
+                Text(subtitle).wispFont(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(2)
+                    .frame(minWidth: 200, alignment: .leading)
             }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 12)
+        }
+    }
+
+    private var trailing: some View {
+        HStack(spacing: 8) {
             if let count {
                 Text(count)
-                    .font(.subheadline.weight(.medium).monospacedDigit())
+                    .wispFont(.subheadline, weight: .medium).monospacedDigit()
                     .foregroundStyle(Color.secondaryText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(Capsule().fill(.primary.opacity(0.08)))
+                    .fixedSize()
             }
             HStack(spacing: 8) { actions }
                 .controlSize(.large)
+                .fixedSize()
         }
     }
 }
@@ -247,18 +276,19 @@ struct WindowStatTile: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
+                    .wispFont(.body, weight: .semibold)
                     .foregroundStyle(.white)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(tint.gradient))
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("\(value)").font(.title2.weight(.semibold).monospacedDigit())
-                    Text(label).font(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(1)
+                    Text("\(value)").wispFont(.title2, weight: .semibold).monospacedDigit()
+                    Text(label).wispFont(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
             .padding(12)
             .frame(maxWidth: .infinity)
+            .wispHover(cornerRadius: SurfaceRadius.card)
             .windowCardBackground()
             .overlay(
                 RoundedRectangle(cornerRadius: SurfaceRadius.card, style: .continuous)
@@ -283,12 +313,12 @@ struct WindowEmptyState<Actions: View>: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: symbol)
-                .font(.system(.largeTitle).weight(.light))
+                .wispFont(.largeTitle, weight: .light)
                 .foregroundStyle(Color.secondaryText)
                 .accessibilityHidden(true)
-            Text(title).font(.title3.weight(.semibold))
+            Text(title).wispFont(.title3, weight: .semibold)
             Text(message)
-                .font(.callout)
+                .wispFont(.callout)
                 .foregroundStyle(Color.secondaryText)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 360)
@@ -321,7 +351,7 @@ struct WindowListRow<Accessory: View>: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.body.weight(.medium))
+                .wispFont(.body, weight: .medium)
                 .foregroundStyle(tint)
                 .frame(width: 34, height: 34)
                 .background(
@@ -329,9 +359,9 @@ struct WindowListRow<Accessory: View>: View {
                 )
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.body.weight(.semibold)).lineLimit(1)
+                Text(title).wispFont(.body, weight: .semibold).lineLimit(1)
                 if let subtitle {
-                    Text(subtitle).font(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(1)
+                    Text(subtitle).wispFont(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(1)
                 }
             }
             Spacer(minLength: 8)

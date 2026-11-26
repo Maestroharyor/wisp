@@ -52,7 +52,8 @@ final class SettingsIndexTests: XCTestCase {
         for query in [
             "edge highlight", "glass edge", "effects", "finish", "shell", "number style", "numbers in",
             "accent follows", "playing album", "change colour through the day", "through the day",
-            "beside the closed notch", "while idle", "match the desktop picture", "confetti",
+            "beside the closed notch", "while idle", "match the desktop picture", "confetti", "daily line",
+            "tagline",
         ] {
             XCTAssertEqual(SettingsIndex.panes(matching: query).first, .appearance, query)
         }
@@ -278,6 +279,12 @@ final class SetupHealthTests: XCTestCase {
         XCTAssertEqual(SettingsIndex.panes(matching: "app volume").first, .activities)
         XCTAssertEqual(SettingsIndex.panes(matching: "up next").first, .activities)
         XCTAssertEqual(SettingsIndex.panes(matching: "system audio recording").first, .activities)
+    }
+
+    func testFindsTextSize() {
+        for query in ["text size", "font size", "bigger text", "larger text"] {
+            XCTAssertEqual(SettingsIndex.panes(matching: query).first, .appearance, query)
+        }
     }
 
     func testFindsTheNewAppearanceAndHUDOptions() {

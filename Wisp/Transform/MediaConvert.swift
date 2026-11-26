@@ -21,6 +21,26 @@ enum MediaConvert {
         }
     }
 
+    /// Whether every video has a sound track; nil when that isn't known within `limit`.
+    static func haveSound(_ videos: [URL], within limit: Duration) async -> Bool? {
+        await withTaskGroup(of: Bool?.self) { group in
+            group.addTask {
+                for video in videos {
+                    let tracks = (try? await AVURLAsset(url: video).loadTracks(withMediaType: .audio)) ?? []
+                    if tracks.isEmpty { return false }
+                }
+                return true
+            }
+            group.addTask {
+                try? await Task.sleep(for: limit)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
+
     static func run(_ format: ConvertFormat, urls: [URL]) async -> TransformEngine.Outcome {
         var result = TransformEngine.Outcome(outputs: [])
         for url in urls {

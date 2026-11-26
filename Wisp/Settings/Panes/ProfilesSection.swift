@@ -10,7 +10,7 @@ struct ProfilesSection: View {
     @State private var newName = ""
 
     var body: some View {
-        Section("Profiles") {
+        Section {
             ForEach(Array(preferences.profiles.enumerated()), id: \.element.name) { index, profile in
                 HStack {
                     Image(
@@ -19,7 +19,7 @@ struct ProfilesSection: View {
                     .foregroundStyle(profile.name == preferences.activeProfile ? Color.wispViolet : .secondary)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(profile.name)
-                        Text(summary(profile)).font(.caption).foregroundStyle(.secondary)
+                        Text(summary(profile)).wispFont(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Picker("Opens on", selection: page(for: profile.name)) {
@@ -31,7 +31,7 @@ struct ProfilesSection: View {
                     .labelsHidden()
                     .frame(width: 100)
                     if index < 9 {
-                        Text("Hyper+\(index + 1)").font(.caption).foregroundStyle(.secondary).frame(width: 56)
+                        Text("Hyper+\(index + 1)").wispFont(.caption).foregroundStyle(.secondary).frame(width: 56)
                     }
                     Button("Use") { context.choose(profile) }
                         .disabled(profile.name == preferences.activeProfile)
@@ -60,24 +60,28 @@ struct ProfilesSection: View {
                     newName = ""
                 }
             }
+        } header: {
+            SettingsHeader("Profiles")
+        } footer: {
             Text(
-                "A profile is a Home layout, the page the shelf opens on, and the surface style. Changes you make to Home while a profile is active are saved into it. A profile with a look applies it when it switches; one without a look brings yours back."
+                "A profile is a Home layout, the page the shelf opens on and the surface style; Home changes made while it's active are saved into it. A profile with a look applies it when it switches, and one without brings yours back."
             )
-            .font(.caption).foregroundStyle(.secondary)
         }
-        Section("Switch profiles automatically") {
+        Section {
             Toggle("Change profile to fit what you're doing", isOn: $preferences.contextAware)
             ForEach($preferences.contextRules) { $rule in
                 Toggle(isOn: $rule.enabled) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(title(rule.trigger))
-                        Text("Switches to \(rule.profile)").font(.caption).foregroundStyle(.secondary)
+                        Text("Switches to \(rule.profile)").wispFont(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .disabled(!preferences.contextAware)
             }
+        } header: {
+            SettingsHeader("Switch profiles automatically")
+        } footer: {
             Text("A profile you pick yourself stays for 30 minutes before rules take over again.")
-                .font(.caption).foregroundStyle(.secondary)
         }
     }
 

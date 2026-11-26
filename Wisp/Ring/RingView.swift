@@ -234,6 +234,8 @@ struct RingView: View {
             return (model.removing ? "Remove \(title)" : title, nil)
         }
         if model.hover == .none, let hint = model.hint { return (hint, model.canUndo ? "⌘Z" : nil) }
+        // Mid drag, the middle says what to do with the files.
+        if model.dropping, let hint = dropHint { return (hint, nil) }
         switch model.hover {
         case .slot(let index):
             guard model.set.slots.indices.contains(index) else { return nil }
@@ -245,6 +247,21 @@ struct RingView: View {
             return model.canUndo ? ("Undo", "⌘Z") : ("Shelf", nil)
         case .none:
             return nil
+        }
+    }
+
+    /// While files are dragged over the ring: where to let go, until something is pointed at.
+    private var dropHint: String? {
+        if let expanded = model.expanded, model.set.slots.indices.contains(expanded),
+            model.set.slots[expanded].action.kind == .transform, !model.convertChoices.isEmpty
+        {
+            if case .sub(let item) = model.hover, model.expandedItems.indices.contains(item) { return nil }
+            return "Drop on a format"
+        }
+        switch model.hover {
+        case .none: return "Drop on an action"
+        case .centre: return "Drop to keep in the tray"
+        case .slot, .sub: return nil
         }
     }
 

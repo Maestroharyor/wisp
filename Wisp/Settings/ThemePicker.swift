@@ -27,12 +27,15 @@ struct ThemePicker: View {
                             .overlay(
                                 Circle().strokeBorder(selected ? Color(rgb: palette.accent) : .clear, lineWidth: 2))
                         Text(ThemeCatalog.title(for: id))
-                            .font(.caption)
+                            .wispFont(.caption)
                             .foregroundStyle(selected ? .primary : .secondary)
                     }
+                    .padding(4)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .wispHover()
+                .padding(-4)
                 .accessibilityLabel(ThemeCatalog.title(for: id))
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }

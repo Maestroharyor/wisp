@@ -17,30 +17,34 @@ struct NotchSettings: View {
             Section {
                 NotchPreview(preferences: preferences, accent: accent, glow: glow)
             }
-            Section("Position") {
+            Section {
                 Picker("Sit at", selection: $preferences.placement) {
                     ForEach(Placement.allCases) { Text($0.title).tag($0) }
                 }
-                Text(
-                    "Top uses the notch. The bottom is the notch upside down, resting on the Dock. The left and right edges get a notch on its side. The corners float an island below the menu bar; drag one to move it, and it stays where you drop it on that display. The floating orb goes anywhere: drag it, or pull the notch down to tear it off, and drop it at the top centre to dock it. The shelf grows out from wherever it sits."
-                )
-                .font(.caption).foregroundStyle(.secondary)
                 if hasSystemIsland {
                     Text("Apple's Dynamic Island sits at the top of this Mac, so Top moves to the top right.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .wispFont(.caption).foregroundStyle(.secondary)
                 }
                 Picker("On displays without a notch", selection: $preferences.notchlessDisplays) {
                     ForEach(NotchlessDisplayChoice.allCases) { Text($0.title).tag($0) }
                 }
-            }
-            Section("Window") {
-                Toggle("Open the shelf in a window", isOn: windowForm)
+            } header: {
+                SettingsHeader("Position")
+            } footer: {
                 Text(
-                    "The Window form: Wisp's pages open in a normal window you can move and resize. Minimise or close it and Wisp goes back to the notch, island or orb it was; click that, or press the shortcut, to bring the window back. Pick another form to leave it. For a one-off window, choose Form › Open as Window from the right-click menu, or pull the open shelf away by its edge."
+                    "Top uses the notch, Bottom turns it upside down on the Dock, and Left and Right lay it on its side. Corner islands and the orb go where you drag them (pull the notch down to tear off the orb, drop it at the top centre to dock it), and the shelf grows out from wherever Wisp sits."
                 )
-                .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Opening") {
+            Section {
+                Toggle("Open the shelf in a window", isOn: windowForm)
+            } header: {
+                SettingsHeader("Window")
+            } footer: {
+                Text(
+                    "Wisp's pages open in a window you can move and resize; minimise or close it to go back to the notch, island or orb, and click that or press the shortcut to return. For a one-off window, choose Form › Open as Window from the right-click menu or pull the open shelf away by its edge."
+                )
+            }
+            Section(header: "Opening") {
                 Picker("Open the shelf on", selection: $preferences.openTrigger) {
                     ForEach(OpenTrigger.allCases) { Text($0.title).tag($0) }
                 }
@@ -64,13 +68,13 @@ struct NotchSettings: View {
                     Text(
                         "Close it with Esc or the shortcut. A shelf opened by dragging a file still closes when the drag leaves."
                     )
-                    .font(.caption).foregroundStyle(.secondary)
+                    .wispFont(.caption).foregroundStyle(.secondary)
                 }
                 Toggle("Trackpad swipes on the notch", isOn: $preferences.swipeGestures)
                 Text(
                     "Two fingers away from the edge on the closed notch opens the shelf. Along the edge on the music pill skips tracks."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
                 LabeledContent("Shelf height") {
                     Button("Reset all pages") { preferences.shelfHeights = [:] }
                         .disabled(preferences.shelfHeights.isEmpty)
@@ -78,16 +82,18 @@ struct NotchSettings: View {
                 Text(
                     "Drag the handle on the open shelf's bottom edge to make Agents, Clipboard, Calendar and other lists taller. Double-click it to reset one page. At the top of the screen only."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
-            Section("Dragging files") {
+            Section {
                 Picker("Show the drop pocket", selection: $preferences.pocketTrigger) {
                     ForEach(PocketTrigger.allCases) { Text($0.title).tag($0) }
                 }
+            } header: {
+                SettingsHeader("Dragging files")
+            } footer: {
                 Text("The pocket appears next to the pointer with Drop, Transform, Zip and AirDrop.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Drop actions") {
+            Section(header: "Drop actions") {
                 DropActionsEditor(preferences: preferences, shortcuts: shortcuts)
             }
             AdvancedSection {
@@ -97,8 +103,8 @@ struct NotchSettings: View {
                 Text(
                     "On a MacBook Pro with a Dynamic Island, Wisp stays clear of it. Choose Has a Dynamic Island if Wisp draws over it, and paste About › Copy diagnostics into a bug report."
                 )
-                .font(.caption).foregroundStyle(.secondary)
-                Text("Displays").font(.headline).padding(.top, 6)
+                .wispFont(.caption).foregroundStyle(.secondary)
+                Text("Displays").wispFont(.headline).padding(.top, 6)
                 ForEach(screens, id: \.displayUUID) { screen in
                     if let uuid = screen.displayUUID {
                         displayRows(screen, uuid: uuid)
@@ -107,7 +113,7 @@ struct NotchSettings: View {
                 Text(
                     "Automatic follows the choice for displays without a notch. Notch and island apply at the top. Choices are remembered per display."
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .wispFont(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

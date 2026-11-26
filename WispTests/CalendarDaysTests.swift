@@ -29,4 +29,17 @@ final class CalendarDaysTests: XCTestCase {
         XCTAssertEqual(days.map(\.label), ["Today", "Tomorrow", "Mon 2"])
         XCTAssertEqual(days.first?.items.count, 2)
     }
+
+    func testAWeekFromAStartKeepsEarlierItemsOut() {
+        // Monday 2 November, the week after `now`.
+        let start = Date(timeIntervalSince1970: 1_793_577_600)
+        let dates = [
+            start.addingTimeInterval(-3_600), start.addingTimeInterval(3_600), start.addingTimeInterval(2 * 86_400),
+            start.addingTimeInterval(7 * 86_400),
+        ]
+        let days = CalendarDays.week(dates, date: { $0 }, start: start, now: now, calendar: calendar)
+        XCTAssertEqual(days.count, 7)
+        XCTAssertEqual(days.first?.label, "Mon 2")
+        XCTAssertEqual(days.map(\.items.count), [1, 0, 1, 0, 0, 0, 0])
+    }
 }

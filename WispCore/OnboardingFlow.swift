@@ -1,9 +1,11 @@
 import Foundation
 
-/// The first-launch setup: grant Accessibility, choose how the shelf opens, connect agents.
+/// The first-launch setup: grant Accessibility, choose how the shelf opens, meet the ring,
+/// connect agents.
 public enum OnboardingStep: Int, CaseIterable, Sendable {
     case accessibility
     case opening
+    case ring
     case agents
 
     public var next: OnboardingStep? { OnboardingStep(rawValue: rawValue + 1) }
@@ -13,7 +15,7 @@ public enum OnboardingStep: Int, CaseIterable, Sendable {
     public func primaryAction(accessibilityGranted: Bool) -> String {
         switch self {
         case .accessibility: accessibilityGranted ? "Continue" : "Skip for Now"
-        case .opening: "Continue"
+        case .opening, .ring: "Continue"
         case .agents: "Done"
         }
     }

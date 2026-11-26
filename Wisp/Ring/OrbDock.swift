@@ -84,9 +84,22 @@ final class OrbDockController {
         }
     }
 
+    /// The apps the dock shows, from the source chosen in Settings › Ring.
+    static func apps(preferences: Preferences, front: String?) -> [RingAction] {
+        let own = Bundle.main.bundleIdentifier
+        let running = NSWorkspace.shared.runningApplications.compactMap { app -> RunningApp? in
+            guard app.activationPolicy == .regular, let id = app.bundleIdentifier, id != own else { return nil }
+            return RunningApp(bundleID: id, name: app.localizedName ?? id)
+        }
+        return RingDock.apps(
+            source: preferences.orbDockSource,
+            ring: RingController.shownSet(preferences: preferences, front: front).set,
+            running: running, chosen: preferences.orbDockApps, names: AppNames.names(for: preferences.orbDockApps))
+    }
+
     private func show(beside orb: CGRect) {
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        let apps = RingDock.apps(in: RingController.shownSet(preferences: services.preferences, front: front).set)
+        let apps = Self.apps(preferences: services.preferences, front: front)
         let screen = NSScreen.screens.first { $0.frame.intersects(orb) } ?? NSScreen.main
         guard services.preferences.orbDock, !services.ring.isVisible, !apps.isEmpty, let screen else {
             if apps.isEmpty { emptyFor = orb }
@@ -253,5 +266,18 @@ private struct OrbDockView: View {
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             FileDrop.handler { urls in onPick(app, urls) }(providers)
         }
+    }
+}
+
+/// Apps' names as Finder shows them, for bundle ids saved without one.
+@MainActor
+enum AppNames {
+    static func names(for ids: [String]) -> [String: String] {
+        var names: [String: String] = [:]
+        for id in ids {
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { continue }
+            names[id] = (FileManager.default.displayName(atPath: url.path) as NSString).deletingPathExtension
+        }
+        return names
     }
 }

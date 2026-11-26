@@ -49,7 +49,7 @@ struct ClipboardPage: View {
         WindowPageFrame {
             WindowPageHeader(
                 symbol: "doc.on.clipboard", tint: .gray, title: "Clipboard",
-                subtitle: "Copy once, paste any time. Everything stays on this Mac.",
+                subtitle: "Everything you copied, ready to paste again.",
                 count: all.count == 1 ? "1 clip" : "\(all.count) clips"
             ) { headerActions(picked: picked) }
         } content: {
@@ -65,9 +65,6 @@ struct ClipboardPage: View {
                     } else {
                         grid(items)
                     }
-                    Label("Everything here is stored only on this Mac.", systemImage: "lock.fill")
-                        .font(.caption)
-                        .foregroundStyle(Color.secondaryText)
                 }
             }
             .onGeometryChange(for: CGFloat.self) {
@@ -123,16 +120,21 @@ struct ClipboardPage: View {
     private func filterBar(_ all: [ClipItem]) -> some View {
         let counts = ClipCounts(all)
         let pinned = all.filter(\.pinned).count
-        return HStack(spacing: 4) {
-            chip("All", count: counts.all, value: .all)
-            chip("Pinned", count: pinned, value: .pinned)
-            chip("Text", count: counts[.text], value: .kind(.text))
-            chip("Links", count: counts[.link], value: .kind(.link))
-            chip("Images", count: counts[.image], value: .kind(.image))
-            chip("Colours", count: counts[.color], value: .kind(.color))
+        // Scrolls sideways on a narrow page rather than breaking the chips' words.
+        return ScrollView(.horizontal) {
+            HStack(spacing: 4) {
+                chip("All", count: counts.all, value: .all)
+                chip("Pinned", count: pinned, value: .pinned)
+                chip("Text", count: counts[.text], value: .kind(.text))
+                chip("Links", count: counts[.link], value: .kind(.link))
+                chip("Images", count: counts[.image], value: .kind(.image))
+                chip("Colours", count: counts[.color], value: .kind(.color))
+            }
+            .padding(4)
+            .background(Capsule().fill(.primary.opacity(0.08)))
         }
-        .padding(4)
-        .background(Capsule().fill(.primary.opacity(0.08)))
+        .scrollIndicators(.never)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
     }
 
     private func chip(_ title: String, count: Int, value: Show) -> some View {
@@ -144,9 +146,12 @@ struct ClipboardPage: View {
                 Text(title).fontWeight(on ? .semibold : .regular)
                 Text("\(count)").foregroundStyle(on ? Color.primary.opacity(0.7) : Color.secondaryText)
             }
-            .font(.callout.monospacedDigit())
+            .wispFont(.callout).monospacedDigit()
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+            .wispHover(shape: Capsule())
             .background(Capsule().fill(on ? Color.primary.opacity(0.12) : .clear))
             .contentShape(Capsule())
         }
@@ -167,9 +172,12 @@ struct ClipboardPage: View {
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.secondaryText)
+                    .padding(2)
+                    .wispHover(shape: Circle())
+                    .padding(-2)
             }
         }
-        .font(.body)
+        .wispFont(.body)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Capsule().fill(.primary.opacity(0.08)))
@@ -213,16 +221,17 @@ struct ClipboardPage: View {
                     Image(nsImage: icon).resizable().frame(width: 20, height: 20)
                 } else {
                     Image(systemName: bundleID == nil && name == "All apps" ? "asterisk" : "app")
-                        .font(.callout.weight(.semibold))
+                        .wispFont(.callout, weight: .semibold)
                         .foregroundStyle(Color.wispViolet)
                         .frame(width: 20, height: 20)
                 }
-                Text(name).font(.body).lineLimit(1)
+                Text(name).wispFont(.body).lineLimit(1)
                 Spacer(minLength: 4)
-                Text("\(count)").font(.subheadline.monospacedDigit()).foregroundStyle(Color.secondaryText)
+                Text("\(count)").wispFont(.subheadline).monospacedDigit().foregroundStyle(Color.secondaryText)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
+            .wispHover(cornerRadius: SurfaceRadius.row)
             .background(
                 RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
                     .fill(selected ? Color.wispViolet.opacity(0.22) : .clear)
@@ -432,7 +441,7 @@ private struct ClipPreview: View {
                     detail("Copied", item.date.formatted(date: .abbreviated, time: .shortened))
                     if let size = ClipText.size(item) { detail("Size", size) }
                 }
-                .font(.system(size: 12))
+                .wispFont(.callout)
             }
             .padding(16)
         } else {
@@ -451,13 +460,13 @@ private struct ClipPreview: View {
                     .fill(ClipText.color(item) ?? .clear)
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator))
                     .frame(height: 120)
-                Text(item.text ?? "").font(.system(size: 15, weight: .semibold, design: .monospaced))
+                Text(item.text ?? "").wispFont(.title3, weight: .semibold, design: .monospaced)
                     .textSelection(.enabled)
             }
         case .text, .link:
             ScrollView(.vertical) {
                 Text(item.text ?? "")
-                    .font(.system(size: 13))
+                    .wispFont(.body)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }

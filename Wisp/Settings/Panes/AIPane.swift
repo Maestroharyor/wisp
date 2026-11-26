@@ -61,7 +61,7 @@ struct AISettings: View {
                         "Use an address on this Mac, such as \(OllamaEndpoint.defaultAddress).",
                         systemImage: "exclamationmark.triangle"
                     )
-                    .font(.caption).foregroundStyle(.orange)
+                    .wispFont(.caption).foregroundStyle(.orange)
                 }
                 Picker("Model", selection: $preferences.ollamaModel) {
                     Text("First available").tag("")
@@ -77,7 +77,7 @@ struct AISettings: View {
                 }
             }
         } header: {
-            Text("Engine")
+            SettingsHeader("Engine")
         } footer: {
             Text(engineFooter)
         }
@@ -116,7 +116,7 @@ struct AISettings: View {
                     .frame(maxWidth: 220)
             }
         } header: {
-            Text("Text actions")
+            SettingsHeader("Text actions")
         } footer: {
             Text(
                 "Right-click a text item in the clipboard panel and choose AI, or press ⌘1 to ⌘8. Add an AI action to the ring to work on the text selected in any app, or else on the clipboard. Reading the selection needs Accessibility."
@@ -143,14 +143,14 @@ struct AISettings: View {
                 Text(answer.text).textSelection(.enabled)
                 if answer.truncated {
                     Text("The text was too long, so only its start and end were used.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .wispFont(.caption).foregroundStyle(.secondary)
                 }
             }
             if let failure {
-                Label(failure, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                Label(failure, systemImage: "exclamationmark.triangle").wispFont(.caption).foregroundStyle(.orange)
             }
         } header: {
-            Text("Try it")
+            SettingsHeader("Try it")
         }
     }
 

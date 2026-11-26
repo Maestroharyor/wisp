@@ -26,6 +26,33 @@ final class WindowSidebarTests: XCTestCase {
 
     // MARK: Sections
 
+    // MARK: Search
+
+    private func title(_ row: WindowDestination) -> String {
+        switch row {
+        case .page(let page): page.rawValue.capitalized
+        case .widget("cafe"): "Café"
+        case .widget(let id): id.capitalized
+        case .live(let live): live.rawValue
+        }
+    }
+
+    func testSearchMatchesTitlesIgnoringCaseAndAccents() {
+        let sections = WindowSidebar.sections(
+            enabledWidgets: ["calendar", "cafe", "clipboard"], gridOrder: [], live: [.downloads])
+        let found = WindowSidebar.filtered(sections, query: "CAFE", title: title)
+        XCTAssertEqual(found.map(\.kind), [.widgets])
+        XCTAssertEqual(found.first?.rows, [.widget("cafe")])
+        let both = WindowSidebar.filtered(sections, query: " me ", title: title)
+        XCTAssertEqual(both.flatMap(\.rows), [.page(.home), .page(.media)])
+    }
+
+    func testAnEmptySearchListsEverythingAndNoMatchListsNothing() {
+        let sections = WindowSidebar.sections(enabledWidgets: ["calendar"], gridOrder: [], live: [])
+        XCTAssertEqual(WindowSidebar.filtered(sections, query: "  ", title: title), sections)
+        XCTAssertEqual(WindowSidebar.filtered(sections, query: "zzz", title: title), [])
+    }
+
     func testTheWispSectionAlwaysHoldsHomeTrayAndMedia() {
         let sections = WindowSidebar.sections(enabledWidgets: [], gridOrder: [], live: [])
         XCTAssertEqual(sections.map(\.kind), [.wisp])
@@ -133,5 +160,12 @@ final class ShelfWindowFrameSizeTests: XCTestCase {
         XCTAssertEqual(frame.size, ShelfWindowFrame.minimumSize)
         let roomy = CGRect(x: 100, y: 100, width: 800, height: 520)
         XCTAssertEqual(ShelfWindowFrame.fitted(roomy, screens: [main], main: main), roomy)
+    }
+
+    // MARK: Command bar
+
+    func testCommandKOpensTheCommandBar() {
+        XCTAssertEqual(WindowKeys.action(keyCode: 0x28, commandOnly: true), .commandBar)
+        XCTAssertNil(WindowKeys.action(keyCode: 0x28, commandOnly: false))
     }
 }

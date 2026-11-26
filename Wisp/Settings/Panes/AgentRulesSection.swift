@@ -43,10 +43,10 @@ struct AgentRulesSection: View {
                 }
             }
             if let problem {
-                Label(problem, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                Label(problem, systemImage: "exclamationmark.triangle").wispFont(.caption).foregroundStyle(.orange)
             }
         } header: {
-            Text("Rules")
+            SettingsHeader("Rules")
         } footer: {
             Text(
                 "Always allow on a Claude Code request saves a rule in Claude Code's settings; Edit changes an allow rule in place. Claude Code checks deny rules first, then ask, then allow. Change ask and deny rules in the files themselves."
@@ -69,15 +69,15 @@ struct AgentRulesSection: View {
 
     @ViewBuilder private func fileRows(_ file: AgentHub.RulesFile) -> some View {
         LabeledContent {
-            Text(file.displayPath).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1)
+            Text(file.displayPath).wispFont(.caption, design: .monospaced).foregroundStyle(.secondary).lineLimit(1)
                 .truncationMode(.middle).textSelection(.enabled)
         } label: {
             Text(file.title).fontWeight(.semibold)
         }
         if let problem = file.problem {
-            Label(problem, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+            Label(problem, systemImage: "exclamationmark.triangle").wispFont(.caption).foregroundStyle(.orange)
         } else if file.lists.isEmpty {
-            Text("No rules").font(.caption).foregroundStyle(.secondary).padding(.leading, 12)
+            Text("No rules").wispFont(.caption).foregroundStyle(.secondary).padding(.leading, 12)
         } else {
             ForEach(file.lists.allow, id: \.self) { rule in
                 if let editing, editing.rule == rule, editing.file == file {
@@ -98,10 +98,10 @@ struct AgentRulesSection: View {
     private func ruleRow(_ rule: String, kind: String, @ViewBuilder action: () -> some View) -> some View {
         HStack(spacing: 8) {
             Text(kind)
-                .font(.caption.weight(.semibold))
+                .wispFont(.caption, weight: .semibold)
                 .foregroundStyle(kind == "Allow" ? Color.wispViolet : Color.secondary)
                 .frame(width: 40, alignment: .leading)
-            Text(rule).font(.system(size: 12, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+            Text(rule).wispFont(.callout, design: .monospaced).lineLimit(1).truncationMode(.middle)
                 .textSelection(.enabled)
             Spacer()
             action()
@@ -118,7 +118,7 @@ struct AgentRulesSection: View {
             HStack(spacing: 8) {
                 TextField("Rule", text: text)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
+                    .wispFont(.callout, design: .monospaced)
                     .labelsHidden()
                     .onSubmit { save(item) }
                 Button("Cancel") { editing = nil }.controlSize(.small)
@@ -126,7 +126,7 @@ struct AgentRulesSection: View {
                     .disabled(issue != nil || edited.isEmpty)
             }
             if let issue {
-                Text(issue).font(.caption).foregroundStyle(.orange)
+                Text(issue).wispFont(.caption).foregroundStyle(.orange)
             }
         }
         .padding(.leading, 12)

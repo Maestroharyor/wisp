@@ -342,6 +342,8 @@ final class Preferences {
         static let windowForm = "windowForm"
         static let shelfWindowFrame = "shelfWindowFrame"
         static let windowSelection = "windowSelection"
+        static let windowTagline = "windowTagline"
+        static let windowFoldedSections = "windowFoldedSections"
         static let activityDisplay = "activityDisplay"
         static let clipboardEnabled = "clipboardEnabled"
         static let clipboardLimit = "clipboardLimit"
@@ -370,6 +372,9 @@ final class Preferences {
         static let ringConfig = "ringConfig"
         static let ringOnOrbClick = "ringOnOrbClick"
         static let orbDock = "orbDock"
+        static let orbDockSource = "orbDockSource"
+        static let orbDockApps = "orbDockApps"
+        static let textScale = "textScale"
         static let ringAppWindows = "ringAppWindows"
         static let ringShowsRunning = "ringShowsRunning"
         static let ringButton = "ringButton"
@@ -670,6 +675,14 @@ final class Preferences {
     var ringOnOrbClick: Bool { didSet { defaults.set(ringOnOrbClick, forKey: Key.ringOnOrbClick) } }
     /// Hovering the orb shows the ring's apps beside it, as a small dock.
     var orbDock: Bool { didSet { defaults.set(orbDock, forKey: Key.orbDock) } }
+    /// Which apps the orb's dock shows.
+    var orbDockSource: OrbDockSource {
+        didSet { defaults.set(orbDockSource.rawValue, forKey: Key.orbDockSource) }
+    }
+    /// The dock's apps when it shows chosen ones, as bundle ids.
+    var orbDockApps: [String] { didSet { defaults.set(orbDockApps, forKey: Key.orbDockApps) } }
+    /// Text size in the window and Settings.
+    var textScale: TextScale { didSet { defaults.set(textScale.rawValue, forKey: Key.textScale) } }
     /// A running app's segment fans out its windows, to bring one forward.
     var ringAppWindows: Bool { didSet { defaults.set(ringAppWindows, forKey: Key.ringAppWindows) } }
     /// Apps that are open but not on the ring fill its free places, as the Dock shows them.
@@ -1136,6 +1149,12 @@ final class Preferences {
     var shelfWindowFrame: String? { didSet { defaults.set(shelfWindowFrame, forKey: Key.shelfWindowFrame) } }
     /// The shelf window's last sidebar row, as `WindowDestination.rawValue`.
     var windowSelection: String? { didSet { defaults.set(windowSelection, forKey: Key.windowSelection) } }
+    /// The window's daily line in its top bar and the phrase over its sidebar scene.
+    var windowTagline: Bool { didSet { defaults.set(windowTagline, forKey: Key.windowTagline) } }
+    /// Sidebar sections folded shut in the window, by kind ("widgets").
+    var windowFoldedSections: [String] {
+        didSet { defaults.set(windowFoldedSections, forKey: Key.windowFoldedSections) }
+    }
 
     /// Where live activities (Now Playing, HUDs, timers) appear.
     var activityDisplay: ActivityDisplayTarget {
@@ -1180,6 +1199,7 @@ final class Preferences {
             Key.showOnExternalDisplays: true,
             Key.ringOnOrbClick: true,
             Key.ringAppWindows: true,
+            Key.windowTagline: true,
             Key.hoverDelay: 0.15,
             // Hover only peeks; a click opens, so the shelf never appears by accident.
             Key.openTrigger: OpenTrigger.click.rawValue,
@@ -1437,6 +1457,8 @@ final class Preferences {
         windowForm = defaults.bool(forKey: Key.windowForm)
         shelfWindowFrame = defaults.string(forKey: Key.shelfWindowFrame)
         windowSelection = defaults.string(forKey: Key.windowSelection)
+        windowTagline = defaults.bool(forKey: Key.windowTagline)
+        windowFoldedSections = defaults.stringArray(forKey: Key.windowFoldedSections) ?? []
         activityDisplay =
             defaults.string(forKey: Key.activityDisplay).flatMap(ActivityDisplayTarget.init(rawValue:)) ?? .pointer
         clipboardEnabled = defaults.bool(forKey: Key.clipboardEnabled)
@@ -1476,6 +1498,9 @@ final class Preferences {
             ?? RingConfig.defaults
         ringOnOrbClick = defaults.bool(forKey: Key.ringOnOrbClick)
         orbDock = defaults.bool(forKey: Key.orbDock)
+        orbDockSource = defaults.string(forKey: Key.orbDockSource).flatMap(OrbDockSource.init(rawValue:)) ?? .ring
+        orbDockApps = defaults.stringArray(forKey: Key.orbDockApps) ?? []
+        textScale = TextScale(storedValue: defaults.string(forKey: Key.textScale))
         ringAppWindows = defaults.bool(forKey: Key.ringAppWindows)
         ringShowsRunning = defaults.bool(forKey: Key.ringShowsRunning)
         ringButton = defaults.string(forKey: Key.ringButton).flatMap(RingButton.init(rawValue:)) ?? .off

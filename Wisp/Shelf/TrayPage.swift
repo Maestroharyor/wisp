@@ -378,5 +378,8 @@ struct DropTile: View {
         .scaleEffect(targeted && !reduceMotion ? 1.05 : 1)
         .animation(reduceMotion ? nil : .wispControl, value: targeted)
         .onDrop(of: [.fileURL], isTargeted: $targeted, perform: FileDrop.handler(action))
+        #if DEBUG
+            .onChange(of: targeted) { _, now in DropProbe.log.debug("probe: tile targeted \(now, privacy: .public)") }
+        #endif
     }
 }

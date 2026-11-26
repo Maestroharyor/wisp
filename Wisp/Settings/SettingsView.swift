@@ -110,6 +110,8 @@ struct SettingsView: View {
                 .wispAnimation(.easeOut(duration: 0.12), value: model.selection)
         }
         .frame(minWidth: 700, minHeight: 480)
+        .wispBaseFont()
+        .environment(\.wispTextScale, model.preferences.textScale.factor)
         // A "Settings for …" button elsewhere picks the pane while this window is already open.
         .onChange(of: model.preferences.lastSettingsPane) { _, pane in
             guard model.selection != pane else { return }

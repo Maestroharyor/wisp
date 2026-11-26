@@ -15,7 +15,7 @@ struct AgentSoundsSection: View {
             }
             Toggle("Mute during calls or Focus", isOn: $preferences.agentSounds.muteDuringCallsOrFocus)
         } header: {
-            Text("Sounds")
+            SettingsHeader("Sounds")
         } footer: {
             Text(
                 "A burst of requests from one session chimes once. Failed is an agent that quit without ending its session. A call is the microphone in use by a call app; Focus is read only with Full Disk Access, as notifications need. The sound pack in Appearance doesn't change these."

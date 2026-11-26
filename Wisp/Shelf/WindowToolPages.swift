@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import WispCore
 
@@ -10,8 +11,10 @@ struct NotesPage: View {
     @Bindable var store: NotesStore
     @State private var query = ""
     @State private var width: CGFloat = 0
-    /// The last note deleted, for Undo.
-    @State private var deleted: Note?
+    /// The window's undo stack, which holds note deletes and pins as well as typing.
+    @Environment(\.undoManager) private var undoManager
+    /// The name of the note action Undo would reverse next, if it's one of this page's.
+    @State private var undoName: String?
     @FocusState private var editing: Bool
     @FocusState private var searching: Bool
 
@@ -23,13 +26,10 @@ struct NotesPage: View {
                 subtitle: "Jot it down, find it later. Kept on this Mac.",
                 count: store.book.notes.count == 1 ? "1 note" : "\(store.book.notes.count) notes"
             ) {
-                if let deleted {
-                    Button("Undo delete") {
-                        store.restore(deleted)
-                        self.deleted = nil
-                    }
-                    // While typing, ⌘Z stays the text field's own undo.
-                    .keyboardShortcut(editing || searching ? nil : KeyboardShortcut("z", modifiers: .command))
+                if let undoName {
+                    Button("Undo \(undoName.lowercased())") { undoManager?.undo() }
+                        // While typing, ⌘Z stays the text field's own undo.
+                        .keyboardShortcut(editing || searching ? nil : KeyboardShortcut("z", modifiers: .command))
                 }
                 WindowPrimaryButton(title: "New note", symbol: "square.and.pencil") {
                     store.newNote()
@@ -53,6 +53,26 @@ struct NotesPage: View {
                 width = $0
             }
         }
+        .onReceive(undoChanges) { _ in readUndoName() }
+        .onAppear(perform: readUndoName)
+    }
+
+    /// Every change to the undo stack, so the Undo button follows what ⌘Z would do.
+    private var undoChanges: some Publisher<Notification, Never> {
+        let center = NotificationCenter.default
+        return Publishers.Merge3(
+            center.publisher(for: .NSUndoManagerDidCloseUndoGroup, object: undoManager),
+            center.publisher(for: .NSUndoManagerDidUndoChange, object: undoManager),
+            center.publisher(for: .NSUndoManagerDidRedoChange, object: undoManager))
+    }
+
+    private func readUndoName() {
+        guard let undoManager, undoManager.canUndo else {
+            undoName = nil
+            return
+        }
+        let name = undoManager.undoActionName
+        undoName = NoteUndo.names.contains(name) ? name : nil
     }
 
     private func list(_ notes: [Note]) -> some View {
@@ -110,11 +130,11 @@ struct NotesPage: View {
                     }
                     TimelineView(.everyMinute) { context in
                         Text("Edited \(RelativeAge.long(from: note.updated, to: context.date))")
-                            .font(.subheadline).foregroundStyle(Color.secondaryText)
+                            .wispFont(.subheadline).foregroundStyle(Color.secondaryText)
                     }
                     Spacer()
                     Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
-                        store.togglePin(note.id)
+                        togglePin(note)
                     }
                     .labelStyle(.iconOnly)
                     .help(note.pinned ? "Unpin" : "Pin to the top")
@@ -132,14 +152,16 @@ struct NotesPage: View {
                 }
                 .buttonStyle(.borderless)
                 TextEditor(text: $store.text)
-                    .font(.title3)
+                    // A fresh text view per note, so undoing typing can't change a different note.
+                    .id(note.id)
+                    .wispFont(.title3)
                     .lineSpacing(4)
                     .scrollContentBackground(.hidden)
                     .focused($editing)
                     .overlay(alignment: .topLeading) {
                         if store.text.isEmpty {
                             Text("Start typing. The first line is the title.")
-                                .font(.title3).foregroundStyle(Color.secondaryText)
+                                .wispFont(.title3).foregroundStyle(Color.secondaryText)
                                 .padding(.leading, 5)
                                 .allowsHitTesting(false)
                         }
@@ -161,7 +183,7 @@ struct NotesPage: View {
     }
 
     @ViewBuilder private func menu(_ note: Note) -> some View {
-        Button(note.pinned ? "Unpin" : "Pin") { store.togglePin(note.id) }
+        Button(note.pinned ? "Unpin" : "Pin") { togglePin(note) }
         Button("Copy") {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(note.body, forType: .string)
@@ -171,7 +193,42 @@ struct NotesPage: View {
     }
 
     private func delete(_ note: Note) {
-        deleted = store.remove(note.id)
+        NoteUndo.delete(note.id, in: store, undoManager: undoManager)
+    }
+
+    private func togglePin(_ note: Note) {
+        NoteUndo.togglePin(note.id, in: store, undoManager: undoManager)
+    }
+}
+
+/// Note deletes and pins that Undo and Redo can reverse in turn, however many there are.
+@MainActor
+private enum NoteUndo {
+    static let names: Set<String> = ["Delete", "Pin", "Unpin"]
+
+    static func delete(_ id: UUID, in store: NotesStore, undoManager: UndoManager?) {
+        guard let note = store.remove(id) else { return }
+        undoManager?.registerUndo(withTarget: store) { store in
+            restore(note, in: store, undoManager: undoManager)
+        }
+        undoManager?.setActionName("Delete")
+    }
+
+    private static func restore(_ note: Note, in store: NotesStore, undoManager: UndoManager?) {
+        store.restore(note)
+        undoManager?.registerUndo(withTarget: store) { store in
+            delete(note.id, in: store, undoManager: undoManager)
+        }
+        undoManager?.setActionName("Delete")
+    }
+
+    static func togglePin(_ id: UUID, in store: NotesStore, undoManager: UndoManager?) {
+        let wasPinned = store.book.note(id)?.pinned ?? false
+        store.togglePin(id)
+        undoManager?.registerUndo(withTarget: store) { store in
+            togglePin(id, in: store, undoManager: undoManager)
+        }
+        undoManager?.setActionName(wasPinned ? "Unpin" : "Pin")
     }
 }
 
@@ -184,7 +241,7 @@ private struct NoteRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: note.pinned ? "pin.fill" : "note.text")
-                .font(.callout.weight(.semibold))
+                .wispFont(.callout, weight: .semibold)
                 .foregroundStyle(note.pinned ? Color.orange : Color.yellow)
                 .frame(width: 34, height: 34)
                 .background(
@@ -192,15 +249,15 @@ private struct NoteRow: View {
                         .fill((note.pinned ? Color.orange : Color.yellow).opacity(0.15)))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(note.title).font(.body.weight(.semibold)).lineLimit(1)
+                    Text(note.title).wispFont(.body, weight: .semibold).lineLimit(1)
                     Spacer(minLength: 4)
                     TimelineView(.everyMinute) { context in
                         Text(RelativeAge.short(from: note.updated, to: context.date))
-                            .font(.caption).foregroundStyle(Color.secondaryText)
+                            .wispFont(.caption).foregroundStyle(Color.secondaryText)
                     }
                 }
                 Text(note.preview.isEmpty ? "No more text" : note.preview)
-                    .font(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(2)
+                    .wispFont(.subheadline).foregroundStyle(Color.secondaryText).lineLimit(2)
             }
         }
         .padding(10)
@@ -322,14 +379,14 @@ private struct ShortcutTile: View {
                         ProgressView().controlSize(.small)
                     } else {
                         Image(systemName: "bolt.fill")
-                            .font(.body.weight(.semibold))
+                            .wispFont(.body, weight: .semibold)
                             .foregroundStyle(.white)
                     }
                 }
                 .frame(width: 30, height: 30)
                 .background(Circle().fill(running ? AnyShapeStyle(.ink.opacity(0.1)) : AnyShapeStyle(Color.pink)))
                 Text(name)
-                    .font(.body.weight(.medium))
+                    .wispFont(.body, weight: .medium)
                     .foregroundStyle(.ink)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -453,9 +510,9 @@ struct ScriptPage: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
-                        Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.green)
+                        Image(systemName: "chevron.right").wispFont(.caption, weight: .bold).foregroundStyle(.green)
                         Text(preferences.scriptCommand)
-                            .font(.system(.callout, design: .monospaced))
+                            .wispFont(.callout, design: .monospaced)
                             .lineLimit(1)
                             .truncationMode(.middle)
                         Spacer(minLength: 12)
@@ -464,7 +521,7 @@ struct ScriptPage: View {
                     Divider()
                     ScrollView(.vertical) {
                         Text(store.transcript.isEmpty ? (store.running ? "" : "No output") : output)
-                            .font(.system(.callout, design: .monospaced))
+                            .wispFont(.callout, design: .monospaced)
                             .foregroundStyle(store.transcript.isEmpty ? Color.secondaryText : .ink)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -500,7 +557,7 @@ struct ScriptPage: View {
                 Text("Ran \(ranAt, style: .relative) ago")
             }
         }
-        .font(.subheadline)
+        .wispFont(.subheadline)
         .foregroundStyle(Color.secondaryText)
     }
 }

@@ -16,9 +16,9 @@ struct PermissionSettings: View {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(permission.title)
-                            Text(permission.purpose).font(.caption).foregroundStyle(.secondary)
+                            Text(permission.purpose).wispFont(.caption).foregroundStyle(.secondary)
                             if offersReopen(permission, status: status) {
-                                Text(reopenHint).font(.caption).foregroundStyle(.orange)
+                                Text(reopenHint).wispFont(.caption).foregroundStyle(.orange)
                             }
                         }
                         Spacer()

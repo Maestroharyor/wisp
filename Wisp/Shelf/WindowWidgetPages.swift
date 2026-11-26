@@ -127,9 +127,10 @@ private struct FlowChips: View {
                     pick(item)
                 } label: {
                     Text(item)
-                        .font(.callout)
+                        .wispFont(.callout)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
+                        .wispHover(shape: Capsule())
                         .background(Capsule().fill(.primary.opacity(0.08)))
                         .contentShape(Capsule())
                 }
@@ -270,12 +271,13 @@ struct RemindersPage: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Circle().fill(color).frame(width: 14, height: 14)
-                Text(name).font(.body).lineLimit(1)
+                Text(name).wispFont(.body).lineLimit(1)
                 Spacer(minLength: 4)
-                Text("\(count)").font(.subheadline.monospacedDigit()).foregroundStyle(Color.secondaryText)
+                Text("\(count)").wispFont(.subheadline).monospacedDigit().foregroundStyle(Color.secondaryText)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
+            .wispHover(cornerRadius: SurfaceRadius.row)
             .background(
                 RoundedRectangle(cornerRadius: SurfaceRadius.row, style: .continuous)
                     .fill(selected ? Color.wispViolet.opacity(0.22) : .clear)
@@ -323,7 +325,7 @@ struct RemindersPage: View {
                             ReminderRow(item: item, done: store.justDone.contains(item.id), store: store)
                             if !item.list.isEmpty, list == nil {
                                 Text(item.list)
-                                    .font(.caption.weight(.medium))
+                                    .wispFont(.caption, weight: .medium)
                                     .foregroundStyle(item.listColor.map(Color.init(rgb:)) ?? Color.secondaryText)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 3)
@@ -368,7 +370,7 @@ struct WindowSectionTitle: View {
 
     var body: some View {
         Text(title)
-            .font(.subheadline.weight(.semibold))
+            .wispFont(.subheadline, weight: .semibold)
             .foregroundStyle(Color.secondaryText)
             .accessibilityAddTraits(.isHeader)
     }
@@ -507,16 +509,16 @@ private struct StateTile<Accessory: View>: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
+                    .wispFont(.body, weight: .semibold)
                     .foregroundStyle(on ? Color.wispViolet : .ink.opacity(0.85))
                     .frame(width: 36, height: 36)
                     .background(Circle().fill(on ? Color.white : .ink.opacity(0.1)))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.body.weight(.semibold))
+                        .wispFont(.body, weight: .semibold)
                         .foregroundStyle(on ? Color.white : .ink)
                     Text(state)
-                        .font(.subheadline)
+                        .wispFont(.subheadline)
                         .foregroundStyle(on ? Color.white.opacity(0.85) : Color.secondaryText)
                         .lineLimit(2)
                 }
@@ -560,12 +562,12 @@ private struct ActionTile: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: symbol)
-                    .font(.callout.weight(.semibold))
+                    .wispFont(.callout, weight: .semibold)
                     .foregroundStyle(.ink.opacity(0.85))
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(.ink.opacity(0.1)))
                 Text(title)
-                    .font(.body.weight(.medium))
+                    .wispFont(.body, weight: .medium)
                     .foregroundStyle(.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)

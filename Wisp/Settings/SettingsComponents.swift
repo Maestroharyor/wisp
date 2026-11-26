@@ -140,9 +140,14 @@ private struct WispDisclosure: View {
                     configuration.label
                     Spacer(minLength: 0)
                 }
+                .padding(.vertical, 3)
+                .padding(.horizontal, 5)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .wispHover()
+            .padding(.vertical, -3)
+            .padding(.horizontal, -5)
             .accessibilityValue(expanded ? "Expanded" : "Collapsed")
             if expanded {
                 configuration.content
@@ -178,9 +183,9 @@ struct PaneHeader: View {
         HStack(spacing: 12) {
             IconTile(symbol: pane.symbol, tint: pane.tint, size: 40)
             VStack(alignment: .leading, spacing: 2) {
-                Text(pane.title).font(.title.weight(.bold))
+                Text(pane.title).wispFont(.title, weight: .bold)
                     .accessibilityAddTraits(.isHeader)
-                Text(pane.subtitle).font(.callout).foregroundStyle(.secondary)
+                Text(pane.subtitle).wispFont(.callout).foregroundStyle(.secondary)
             }
             Spacer()
         }
@@ -201,9 +206,9 @@ struct HealthBanner: View {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(missing.count == 1 ? "Wisp needs 1 permission" : "Wisp needs \(missing.count) permissions")
-                        .font(.system(size: 13, weight: .semibold))
+                        .wispFont(.body, weight: .semibold)
                     Text(missing.map(\.title).joined(separator: ", "))
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .wispFont(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button("Fix", action: fix).controlSize(.small)

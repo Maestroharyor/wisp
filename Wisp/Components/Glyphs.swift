@@ -195,8 +195,20 @@ extension ValueFont {
 }
 
 /// An app's icon by bundle identifier, standing in for system services that have no app of
-/// their own (AirDrop's requests come from a background service).
+/// their own (AirDrop's requests come from a background service). Icons are cached, since
+/// notification cards ask on every redraw.
+@MainActor
 enum AppIcon {
+    private static let cache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 64
+        return cache
+    }()
+    /// A miss is looked up again after a minute, so an app installed while Wisp runs gets its
+    /// icon without a Launch Services query on every redraw meanwhile.
+    private static var misses: [String: Date] = [:]
+    private static let missRetry: TimeInterval = 60
+
     static func image(forAppID appID: String) -> NSImage? {
         switch SystemSenders.identity(for: appID)?.icon {
         case .airDrop: airDrop
@@ -207,11 +219,24 @@ enum AppIcon {
 
     /// AirDrop's own coloured icon, for cards about an AirDrop.
     static var airDrop: NSImage? {
-        NSSharingService(named: .sendViaAirDrop)?.image ?? app(SystemSenders.airDropApp)
+        // The colon keeps this key apart from every bundle identifier.
+        let key = ":airdrop" as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+        guard let image = NSSharingService(named: .sendViaAirDrop)?.image else { return app(SystemSenders.airDropApp) }
+        cache.setObject(image, forKey: key)
+        return image
     }
 
     static func app(_ bundleID: String) -> NSImage? {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
-            .map { NSWorkspace.shared.icon(forFile: $0.path) }
+        if let cached = cache.object(forKey: bundleID as NSString) { return cached }
+        if let missed = misses[bundleID], Date.now.timeIntervalSince(missed) < missRetry { return nil }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            misses[bundleID] = .now
+            return nil
+        }
+        misses[bundleID] = nil
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        cache.setObject(icon, forKey: bundleID as NSString)
+        return icon
     }
 }

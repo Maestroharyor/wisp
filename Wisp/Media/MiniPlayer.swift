@@ -16,6 +16,7 @@ final class MiniPlayerController {
     /// Put away while another account is in front, to come back with this one.
     private var suspended = false
 
+    /// The width is fixed; the height follows the content, such as a two-line title.
     private static let size = CGSize(width: 320, height: 118)
 
     init(services: AppServices) {
@@ -37,6 +38,8 @@ final class MiniPlayerController {
         self.panel = panel
         hiding = false
         suspended = false
+        // The view may have measured itself before the panel was stored, so fit once here.
+        if let height = panel.contentView?.fittingSize.height { fit(height: height) }
         panel.setFrameOrigin(savedOrigin() ?? defaultOrigin())
         panel.alphaValue = 0
         panel.orderFrontRegardless()
@@ -86,12 +89,16 @@ final class MiniPlayerController {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.contentView = NSHostingView(
+        let host = NSHostingView(
             rootView: MiniPlayerView(
                 monitor: services.nowPlaying, lyrics: services.lyrics,
                 close: { [weak self] in self?.hide() },
                 dragMoved: { [weak self] in self?.dragMoved() },
-                dragEnded: { [weak self] in self?.dragEnded() }))
+                dragEnded: { [weak self] in self?.dragEnded() },
+                heightChanged: { [weak self] in self?.fit(height: $0) }))
+        // The panel follows the view's height itself, so it can keep its top edge in place.
+        host.sizingOptions = []
+        panel.contentView = host
         // Moves by the system (a display change) still save; drags save once they end.
         if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
         moveObserver = NotificationCenter.default.addObserver(
@@ -103,6 +110,14 @@ final class MiniPlayerController {
             }
         }
         return panel
+    }
+
+    /// Grows or shrinks the panel to the content, keeping its top left corner where it is.
+    private func fit(height: CGFloat) {
+        guard let panel, height > 0, abs(panel.frame.height - height) > 0.5 else { return }
+        let frame = panel.frame
+        panel.setFrame(
+            CGRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height), display: true)
     }
 
     /// Follows the pointer in screen coordinates, so the panel can go anywhere, including
@@ -149,6 +164,7 @@ private struct MiniPlayerView: View {
     let close: () -> Void
     let dragMoved: () -> Void
     let dragEnded: () -> Void
+    let heightChanged: (CGFloat) -> Void
 
     @State private var hovering = false
     /// True while the background is being dragged. Gesture state resets on cancel too,
@@ -163,7 +179,8 @@ private struct MiniPlayerView: View {
                     radius: SurfaceRadius.concentric(outer: SurfaceRadius.panel, padding: 12))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(monitor.info?.title ?? "Nothing playing").font(.body.weight(.semibold))
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(monitor.info?.artist ?? "Play something").font(.subheadline)
                         .foregroundStyle(Color.secondaryText).lineLimit(1)
                 }
@@ -183,7 +200,12 @@ private struct MiniPlayerView: View {
                         tint: .wispViolet, height: 4
                     ) { monitor.seek(to: $0 * info.duration) }
                 }
-                LyricLines(monitor: monitor, lyrics: lyrics, size: 12, showsNext: false)
+                // Room for two lines always, so the panel doesn't jump as lines change length.
+                ZStack(alignment: .topLeading) {
+                    Text(" \n ").font(.system(size: 12, weight: .bold)).hidden().accessibilityHidden(true)
+                    LyricLines(monitor: monitor, lyrics: lyrics, size: 12, showsNext: false)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 Text("Music from any app or browser shows here, with lyrics as it plays.")
                     .font(.subheadline).foregroundStyle(Color.secondaryText)
@@ -191,10 +213,17 @@ private struct MiniPlayerView: View {
             }
         }
         .padding(12)
-        .frame(width: 320, height: 118, alignment: .top)
+        .frame(width: 320, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) {
+            $0.size.height
+        } action: {
+            heightChanged($0)
+        }
         .wispSurface(cornerRadius: SurfaceRadius.panel)
         .overlay(alignment: .topTrailing) {
-            if hovering {
+            // Full Keyboard Access users may not hover, so the button stays for them.
+            if hovering || NSApp.isFullKeyboardAccessEnabled {
                 ShelfButton(symbol: "xmark", size: 8, action: close).offset(x: 6, y: -6)
             }
         }

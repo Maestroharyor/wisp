@@ -9,7 +9,7 @@ struct ShortcutsSettings: View {
 
     var body: some View {
         Form {
-            Section("Caps Lock") {
+            Section {
                 Toggle("Use Caps Lock as Hyper", isOn: usesCapsLock)
                 LabeledContent("Status") {
                     HStack {
@@ -19,13 +19,15 @@ struct ShortcutsSettings: View {
                         }
                     }
                 }
+            } header: {
+                SettingsHeader("Caps Lock")
+            } footer: {
                 Text(
-                    "Held, Caps Lock becomes Hyper (⇪), a modifier no other app uses, so ⇪ shortcuts never clash. A quick press can still turn Caps Lock on; see General › Advanced. Needs Accessibility."
+                    "Held, Caps Lock becomes Hyper (⇪), a modifier no other app uses, so ⇪ shortcuts never clash. A quick press can still turn Caps Lock on (General › Advanced); needs Accessibility."
                 )
-                .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section("Shortcuts") {
+            Section {
                 LabeledContent("Open or close the shelf") {
                     if preferences.hotkey.usesHyper {
                         KeyCap(Hotkey.hyperSpace.description)
@@ -42,13 +44,15 @@ struct ShortcutsSettings: View {
                     preferences.shortcuts = ShortcutMap()
                 }
                 .disabled(preferences.shortcuts == ShortcutMap())
+            } header: {
+                SettingsHeader("Shortcuts")
+            } footer: {
                 Text(
-                    "Click a shortcut and press the new keys; Esc cancels. Keys already in use are refused and the button says what uses them. ⇪ shortcuts need Caps Lock as Hyper."
+                    "Click a shortcut and press the new keys; Esc cancels. Keys already in use are refused with what uses them, and ⇪ shortcuts need Caps Lock as Hyper."
                 )
-                .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section("Fixed keys") {
+            Section(header: "Fixed keys") {
                 let approve = preferences.hotkey.usesHyper ? "⇪ Y or ⇪ N" : "⌃⌥⌘Y or ⌃⌥⌘N"
                 let digits = preferences.hotkey.usesHyper ? "⇪ 1–9" : "⌃⌥⌘1–9"
                 FixedShortcut(keys: approve, action: "Allow or deny the request on screen")
@@ -101,7 +105,7 @@ struct ShortcutsSettings: View {
                     ? "\(current.description) needs Caps Lock as Hyper. Turn it on above, or choose another shortcut."
                     : "Another app uses \(current.description). Choose another shortcut."
             )
-            .font(.caption).foregroundStyle(.orange)
+            .wispFont(.caption).foregroundStyle(.orange)
         }
     }
 
@@ -150,7 +154,7 @@ struct KeyCap: View {
 
     var body: some View {
         Text(keys)
-            .font(.callout.weight(.medium))
+            .wispFont(.callout, weight: .medium)
             .fontDesign(.rounded)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)

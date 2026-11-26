@@ -16,7 +16,12 @@ extension View {
 
     /// A soft rounded highlight under the pointer, for rows and tiles that act on a click.
     func wispHover(cornerRadius: CGFloat = SurfaceRadius.control) -> some View {
-        modifier(HoverHighlight(cornerRadius: cornerRadius))
+        wispHover(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    /// The same highlight in any shape, such as a `Capsule` for chips.
+    func wispHover<S: Shape>(shape: S) -> some View {
+        modifier(HoverHighlight(shape: shape))
     }
 }
 
@@ -49,17 +54,14 @@ private struct ReduceMotionTransition: ViewModifier {
     }
 }
 
-private struct HoverHighlight: ViewModifier {
-    let cornerRadius: CGFloat
+private struct HoverHighlight<S: Shape>: ViewModifier {
+    let shape: S
     @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.primary.opacity(hovering ? 0.06 : 0))
-            )
+            .background(shape.fill(Color.primary.opacity(hovering ? 0.06 : 0)))
             .onHover { hovering = $0 }
             .animation(reduceMotion ? nil : .wispControl, value: hovering)
     }

@@ -30,6 +30,7 @@ struct AppearanceSettings: View {
         Form {
             presets
             theme
+            textSize
             shape
             panels
             effects
@@ -70,7 +71,7 @@ struct AppearanceSettings: View {
     // MARK: Presets
 
     private var presets: some View {
-        Section("Presets") {
+        Section {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 10)], spacing: 10) {
                 ForEach(preferences.allLookPresets) { preset in
                     PresetChip(preset: preset, selected: preferences.isCurrentLook(preset.appearance)) {
@@ -92,8 +93,11 @@ struct AppearanceSettings: View {
                 Button("Import…", action: importLook)
                 Button("Export…") { export(preferences.appearance, name: "My look") }
             }
-            caption(
-                "A preset sets everything below at once. Right-click one to export it or delete it. To give a profile its own look, see Settings › Widgets."
+        } header: {
+            SettingsHeader("Presets")
+        } footer: {
+            Text(
+                "A preset sets everything below at once; right-click one to export or delete it. To give a profile its own look, see Settings › Widgets."
             )
         }
     }
@@ -101,7 +105,7 @@ struct AppearanceSettings: View {
     // MARK: Theme
 
     private var theme: some View {
-        Section("Theme") {
+        Section {
             ThemePicker(preferences: preferences)
             if preferences.theme == .custom {
                 ColorPicker("Accent", selection: $preferences.customAccent.color, supportsOpacity: false)
@@ -113,7 +117,10 @@ struct AppearanceSettings: View {
             Picker("Change colour through the day", selection: look.timeOfDay) {
                 ForEach(TimeOfDayMode.allCases) { Text($0.title).tag($0) }
             }
-            caption(themeCaption)
+        } header: {
+            SettingsHeader("Theme")
+        } footer: {
+            Text(themeCaption)
         }
     }
 
@@ -128,7 +135,7 @@ struct AppearanceSettings: View {
     // MARK: Shape
 
     private var shape: some View {
-        Section("Shape") {
+        Section {
             Picker("Surface", selection: $preferences.surfaceStyle) {
                 ForEach(SurfaceStyle.allCases) { Text($0.title).tag($0) }
             }
@@ -151,21 +158,43 @@ struct AppearanceSettings: View {
                 ForEach(ShelfSize.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            caption("The closed notch keeps its shape and stays black, so it still matches the camera.")
+        } header: {
+            SettingsHeader("Shape")
+        } footer: {
+            Text("The closed notch keeps its shape and stays black, so it still matches the camera.")
+        }
+    }
+
+    // MARK: Text size
+
+    private var textSize: some View {
+        Section {
+            Picker("Text size", selection: $preferences.textScale) {
+                ForEach(TextScale.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            Toggle("Show a daily line in the window", isOn: $preferences.windowTagline)
+        } footer: {
+            Text(
+                "Text size is for the window and Settings; the notch keeps its size so it fits. The daily line sits in the window's top bar, with one for each page under the sidebar's scene."
+            )
         }
     }
 
     // MARK: Panels
 
     private var panels: some View {
-        Section("Panels") {
+        Section {
             Picker("Glass", selection: look.panelGlass) {
                 ForEach(PanelGlass.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             slider("Violet tint", value: look.panelTint, in: Appearance.panelTintRange)
-            caption(
-                "For the mini player, clipboard, quick pocket and other floating panels. They follow Light and Dark; Frosted is easiest to read, Clear shows the most through. Reduce Transparency makes them solid."
+        } header: {
+            SettingsHeader("Panels")
+        } footer: {
+            Text(
+                "For the mini player, clipboard, quick pocket and other floating panels, which follow Light and Dark. Frosted is easiest to read and Clear shows the most through; Reduce Transparency makes them solid."
             )
         }
     }
@@ -173,7 +202,7 @@ struct AppearanceSettings: View {
     // MARK: Effects
 
     private var effects: some View {
-        Section("Effects") {
+        Section {
             slider("Glow strength", value: look.glowIntensity, in: Appearance.glowRange)
             Picker("Grain", selection: look.grain) {
                 ForEach(GrainLevel.allCases) { Text($0.title).tag($0) }
@@ -190,7 +219,10 @@ struct AppearanceSettings: View {
                 ForEach(NavPillStyle.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            caption(
+        } header: {
+            SettingsHeader("Effects")
+        } footer: {
+            Text(
                 preferences.appearance.navPill == .hidden
                     ? "Switch pages from the Open menu when you right-click the notch."
                     : "Glow strength sets the Tinted glow and the rim glows. Shimmer applies to the Tinted surface."
@@ -201,11 +233,11 @@ struct AppearanceSettings: View {
     // MARK: Pills
 
     private var pills: some View {
-        Section("Live activity pills") {
+        Section(header: "Live activity pills") {
             Toggle("Minimal pill (an icon and a dot, no labels)", isOn: look.minimalPill)
             Picker("Number style", selection: look.valueFont) {
                 ForEach(ValueFont.allCases) { font in
-                    Text(font.title).font(.system(.body, design: font.design)).tag(font)
+                    Text(font.title).wispFont(.body, design: font.design).tag(font)
                 }
             }
             .pickerStyle(.segmented)
@@ -215,7 +247,7 @@ struct AppearanceSettings: View {
     // MARK: Motion
 
     private var motion: some View {
-        Section("Motion") {
+        Section {
             Picker("Animation", selection: look.animationSpeed) {
                 ForEach(AnimationSpeed.allCases) { Text($0.title).tag($0) }
             }
@@ -224,14 +256,17 @@ struct AppearanceSettings: View {
                 ForEach(HoverFeedback.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            caption("Reduce Motion in System Settings turns off the wobble, the shimmer and confetti.")
+        } header: {
+            SettingsHeader("Motion")
+        } footer: {
+            Text("Reduce Motion in System Settings turns off the wobble, the shimmer and confetti.")
         }
     }
 
     // MARK: Idle
 
     private var idle: some View {
-        Section("Beside the closed notch") {
+        Section {
             Picker("Left of the notch", selection: look.leftEar) {
                 ForEach(EarSlot.allCases) { Text($0.title).tag($0) }
             }
@@ -248,7 +283,10 @@ struct AppearanceSettings: View {
             }
             Toggle("Breathing glow while an agent works, music plays or a timer runs", isOn: look.breathingGlow)
             Toggle("Glow pulses to the music", isOn: look.musicGlow)
-            caption(
+        } header: {
+            SettingsHeader("Beside the closed notch")
+        } footer: {
+            Text(
                 "Ears show beside the closed notch when nothing else is there; not on the left or right edge. The music pulse keeps a steady beat; Wisp doesn't listen to the audio."
             )
         }
@@ -257,7 +295,7 @@ struct AppearanceSettings: View {
     // MARK: Sounds
 
     private var sounds: some View {
-        Section("Sounds") {
+        Section {
             Picker("Sound pack", selection: look.soundPack) {
                 ForEach(SoundPackID.allCases) { Text($0.title).tag($0) }
             }
@@ -273,23 +311,30 @@ struct AppearanceSettings: View {
                     soundRow(event)
                 }
             }
-            caption(
+        } header: {
+            SettingsHeader("Sounds")
+        } footer: {
+            Text(
                 "Interface sounds are quiet clicks when you copy a clip, drop files or allow or deny an agent."
-                    + " Agent sounds, permission requests included, have their own settings in Agents › Sounds.")
+                    + " Agent sounds, permission requests included, have their own settings in Agents › Sounds."
+            )
         }
     }
 
     // MARK: Fun
 
     private var fun: some View {
-        Section("Fun") {
+        Section {
             Toggle("Confetti", isOn: look.confetti)
             HStack {
                 Button("Try confetti") { services.celebrateNow() }
                 Spacer()
             }
             Toggle("Notch pet", isOn: look.pet)
-            caption(funCaption)
+        } header: {
+            SettingsHeader("Fun")
+        } footer: {
+            Text(funCaption)
         }
     }
 
@@ -364,7 +409,7 @@ struct AppearanceSettings: View {
     }
 
     private func caption(_ text: String) -> some View {
-        Text(text).font(.caption).foregroundStyle(.secondary)
+        Text(text).wispFont(.caption).foregroundStyle(.secondary)
     }
 
     private static var lookType: UTType { UTType(filenameExtension: LookFile.fileExtension) ?? .json }
@@ -431,10 +476,13 @@ private struct PresetChip: View {
                 .clipShape(shape)
                 .frame(height: 40)
                 .overlay(shape.strokeBorder(selected ? accent : .white.opacity(0.12), lineWidth: 2))
-                Text(preset.name).font(.caption).lineLimit(1)
+                Text(preset.name).wispFont(.caption).lineLimit(1)
             }
+            .padding(4)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .wispHover(cornerRadius: 10 * preset.appearance.roundness + 4)
+        .padding(-4)
     }
 }

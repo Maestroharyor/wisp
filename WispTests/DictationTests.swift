@@ -527,9 +527,11 @@ final class DictationTextTests: XCTestCase {
     }
 
     func testFinishUsesCleanup() async {
-        let text = await DictationText.finish("um so hello") { raw in
-            raw.replacingOccurrences(of: "um so ", with: "").capitalized + "."
-        }
+        // A long timeout: a busy test runner mustn't let the timer beat an instant clean-up.
+        let text = await DictationText.finish(
+            "um so hello",
+            cleanup: { raw in raw.replacingOccurrences(of: "um so ", with: "").capitalized + "." },
+            timeout: .seconds(30))
         XCTAssertEqual(text, "Hello.")
     }
 
@@ -556,9 +558,10 @@ final class DictationTextTests: XCTestCase {
 
     func testFastCleanupIsNotHeldUpByTheTimeout() async {
         let started = Date.now
-        let text = await DictationText.finish("hi", cleanup: { _ in "Hi." }, timeout: .seconds(5))
+        let text = await DictationText.finish("hi", cleanup: { _ in "Hi." }, timeout: .seconds(30))
         XCTAssertEqual(text, "Hi.")
-        XCTAssertLessThan(Date.now.timeIntervalSince(started), 1)
+        // Far below the 30 s timeout, with room for a slow runner.
+        XCTAssertLessThan(Date.now.timeIntervalSince(started), 5)
     }
 
     func testFinishSkipsCleanupForSilence() async {
