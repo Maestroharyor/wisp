@@ -260,7 +260,7 @@ These secrets live in the repository settings (Settings › Secrets and variable
 | Reminders | The Reminders widget, and reminders you add with Quick add (asked the first time you need it) |
 | Contacts | Photos and names on notifications |
 | Camera | Mirror widget |
-| Screen Recording | Watching a window region and Capture text (asked the first time you use either); window previews on the ring use it only when it's already on |
+| Screen Recording | Watching a window region and Capture text (asked the first time you use either); window previews on the ring (asked from Settings › Ring) |
 | Microphone | Dictation, only while you hold the key |
 | Speech Recognition | Dictation, recognised on your Mac |
 | System Audio Recording | Per-app volume, for the apps you turn down (asked the first time you do) |
