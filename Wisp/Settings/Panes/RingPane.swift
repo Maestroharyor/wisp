@@ -20,6 +20,8 @@ struct RingSettings: View {
 
     /// Read when the pane shows; macOS doesn't announce a change.
     @State private var canPreview = CGPreflightScreenCaptureAccess()
+    /// A grant in System Settings may reach Wisp only after it's reopened, so once asked, offer that.
+    @State private var askedScreenRecording = Permission.askedScreenRecording
 
     var body: some View {
         Form {
@@ -107,9 +109,25 @@ struct RingSettings: View {
                         }
                 }
                 Toggle("Show an app's windows around its segment", isOn: $preferences.ringAppWindows)
+                if preferences.ringAppWindows, !AccessibilityPermission.isTrusted {
+                    LabeledContent("Listing an app's windows needs Accessibility") {
+                        Button("Allow…") { Permission.accessibility.request() }
+                    }
+                }
                 if preferences.ringAppWindows, !canPreview {
-                    LabeledContent("Window previews need Screen Recording") {
-                        Button("Open Settings…") { Permission.screenRecording.openSettings() }
+                    LabeledContent {
+                        HStack {
+                            if askedScreenRecording, Relaunch.isAvailable {
+                                Button("Reopen Wisp") { Relaunch.now() }
+                            }
+                            Button("Allow…") {
+                                Permission.screenRecording.request()
+                                askedScreenRecording = true
+                            }
+                        }
+                    } label: {
+                        Text("Window previews need Screen Recording")
+                        if askedScreenRecording { Text("If you switched it on, reopen Wisp to apply it") }
                     }
                 }
                 Toggle("Fill free places with running apps", isOn: $preferences.ringShowsRunning)
@@ -130,6 +148,8 @@ private struct RingTipsSection: View {
     @Bindable var preferences: Preferences
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var canPreview = CGPreflightScreenCaptureAccess()
+    /// A grant in System Settings may reach Wisp only after it's reopened, so once asked, offer that.
+    @State private var askedScreenRecording = Permission.askedScreenRecording
 
     /// What showing windows needs that this Mac doesn't have yet.
     private var windowsNeed: String? {
@@ -159,8 +179,12 @@ private struct RingTipsSection: View {
                     }
                     Spacer(minLength: 0)
                     if step == .windows, !done, !canPreview {
-                        Button("Screen Recording…") { Permission.screenRecording.openSettings() }
-                            .controlSize(.small)
+                        Button(askedScreenRecording && Relaunch.isAvailable ? "Reopen Wisp" : "Screen Recording…") {
+                            if askedScreenRecording, Relaunch.isAvailable { return Relaunch.now() }
+                            Permission.screenRecording.request()
+                            askedScreenRecording = true
+                        }
+                        .controlSize(.small)
                     }
                 }
                 .accessibilityElement(children: .combine)
