@@ -225,4 +225,13 @@ final class SurfaceBlendTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(blended.width, 0)
         XCTAssertGreaterThanOrEqual(blended.height, 0)
     }
+
+    /// Corners follow a pull with the frame, so the shell doesn't jump to the open shelf's
+    /// rounding while it's still peek-sized.
+    func testCornersBlendWithThePull() {
+        XCTAssertEqual(SurfaceSizing.blend(10, 46, progress: 0), 10)
+        XCTAssertEqual(SurfaceSizing.blend(10, 46, progress: 1), 46)
+        XCTAssertEqual(SurfaceSizing.blend(10, 46, progress: 0.5), 28)
+        XCTAssertEqual(SurfaceSizing.blend(10, 46, progress: -1), 0)
+    }
 }

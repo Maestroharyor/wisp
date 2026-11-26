@@ -6,6 +6,7 @@ import WispCore
 /// The panel never resizes; only the shape inside it does.
 struct NotchView: View {
     let model: NotchModel
+    @Namespace private var morphSpace
 
     var body: some View {
         let panel = model.layout.panelFrame
@@ -78,7 +79,7 @@ struct NotchView: View {
                 NavPill(model: model)
                     .frame(width: pill.width, height: pill.height)
                     .position(x: pill.midX, y: pill.midY)
-                    .transition(.navDrop(model.motion, ride: navRide(pill), drift: navDrift))
+                    .transition(.navDrop(model.motion, ride: navRide(pill)))
             }
         }
         // The orb (or the pill on it) steps aside while the ring is open over it, so its icon
@@ -94,6 +95,7 @@ struct NotchView: View {
         .frame(width: panel.width, height: panel.height, alignment: .topLeading)
         // The one surface animation for the shell and everything that moves with it.
         .animation(model.surfaceAnimation, value: model.spec)
+        .environment(\.morphSpace, model.reduceMotion ? nil : morphSpace)
         .environment(\.colorScheme, .dark)
         .environment(\.valueFont, model.preferences.appearance.valueFont)
         .environment(\.contextThresholds, model.preferences.contextThresholds)
@@ -104,7 +106,7 @@ struct NotchView: View {
         return model.layout.closedRect.insetBy(dx: -8, dy: -8).contains(origin)
     }
 
-    /// How far the nav pill travels on close to fold back into the closed shape, in panel
+    /// How far the nav pill travels to come out of, and fold back into, the closed shape, in panel
     /// coordinates (y down).
     private func navRide(_ pill: CGRect) -> CGSize {
         let closed = model.local(model.layout.closedRect)
@@ -115,19 +117,26 @@ struct NotchView: View {
         }
     }
 
-    /// The pill settles in from the shelf's side: down from under it, or up on the bottom edge.
-    private var navDrift: CGSize {
-        CGSize(width: 0, height: model.layout.edge == .bottom ? 12 : -12)
+    /// A pull opens from peeking, so the corners blend from the peek's to the shelf's with the
+    /// frame instead of jumping to the open rounding while the shell is still small.
+    private var radii: (top: CGFloat, bottom: CGFloat) {
+        let target = radii(for: model.spec)
+        guard let progress = model.pullProgress else { return target }
+        let start = radii(for: .peek)
+        return (
+            SurfaceSizing.blend(start.top, target.top, progress: progress),
+            SurfaceSizing.blend(start.bottom, target.bottom, progress: progress)
+        )
     }
 
     /// Roundness scales every corner except the closed notch's, which has to match the
     /// camera housing.
-    private var radii: (top: CGFloat, bottom: CGFloat) {
+    private func radii(for spec: SurfaceSpec) -> (top: CGFloat, bottom: CGFloat) {
         let height = model.notchHeight
         let round = CGFloat(model.preferences.appearance.roundness)
         guard model.drawsNotch else {
             let orb = model.layout.placement == .floating
-            switch model.spec {
+            switch spec {
             case .closed, .peek:
                 return (0, orb ? model.layout.peekRect.height / 2 : ShellMetrics.closedIslandRadius * round)
             case .compact:
@@ -138,7 +147,7 @@ struct NotchView: View {
                 return (0, (orb ? ShellMetrics.floatingShelfRadius : ShellMetrics.expandedIslandRadius) * round)
             }
         }
-        switch model.spec {
+        switch spec {
         case .closed, .peek, .compact:
             return (ShellMetrics.closedTopRadius(height: height), ShellMetrics.closedBottomRadius(height: height))
         case .medium, .notification:

@@ -98,6 +98,51 @@ final class AgentSessionsTests: XCTestCase {
         XCTAssertTrue(sessions.anyNeedsUser)
     }
 
+    private func snapshot(cost: Double, session: String = "s1") -> StatusLineSnapshot {
+        StatusLineSnapshot(
+            json: .object([
+                "session_id": .string(session), "cwd": .string("/p/app"),
+                "cost": .object(["total_cost_usd": .number(cost)]),
+            ]))
+    }
+
+    /// Claude Code open with no prompt: an idle reminder then a background model call mustn't
+    /// look like a turn, or the pill's timer counts from when the session opened.
+    func testAnIdleSessionsWaitDoesNotTurnIntoWork() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("SessionStart", extra: #","source":"startup""#), at: start)
+        sessions.apply(snapshot(cost: 0.01), source: .claude, terminal: nil, branch: nil, at: start + 1)
+        sessions.apply(try event("Notification", extra: #","notification_type":"idle_prompt""#), at: start + 60)
+        XCTAssertFalse(
+            sessions.apply(snapshot(cost: 0.02), source: .claude, terminal: nil, branch: nil, at: start + 90))
+        XCTAssertNotEqual(sessions.session("s1")?.state, .running)
+        sessions.apply(try event("PostToolUse"), at: start + 95)
+        XCTAssertNotEqual(sessions.session("s1")?.state, .running)
+    }
+
+    /// The same after a turn ends: the reminder that follows Stop doesn't restart the old turn.
+    func testAFinishedSessionsWaitDoesNotRestartItsTurn() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start)
+        sessions.apply(snapshot(cost: 0.1), source: .claude, terminal: nil, branch: nil, at: start + 1)
+        sessions.apply(try event("Stop"), at: start + 10)
+        sessions.apply(try event("Notification", extra: #","notification_type":"idle_prompt""#), at: start + 70)
+        sessions.apply(snapshot(cost: 0.2), source: .claude, terminal: nil, branch: nil, at: start + 80)
+        XCTAssertNotEqual(sessions.session("s1")?.state, .running)
+        XCTAssertEqual(sessions.session("s1")?.lastTurnDuration, 10)
+    }
+
+    /// A wait inside a turn still ends in work, with the turn's own start kept for the timer.
+    func testAWaitInsideATurnResumesTheSameTurn() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("UserPromptSubmit"), at: start + 5)
+        sessions.apply(snapshot(cost: 0.1), source: .claude, terminal: nil, branch: nil, at: start + 6)
+        sessions.apply(try event("Notification", extra: #","notification_type":"idle_prompt""#), at: start + 20)
+        XCTAssertTrue(sessions.apply(snapshot(cost: 0.2), source: .claude, terminal: nil, branch: nil, at: start + 30))
+        XCTAssertEqual(sessions.session("s1")?.state, .running)
+        XCTAssertEqual(sessions.session("s1")?.turnStarted, start + 5)
+    }
+
     func testUnknownSessionIsCreatedOnFirstEventAndListIsNewestFirst() throws {
         var sessions = AgentSessions()
         sessions.apply(try event("UserPromptSubmit", session: "a"), at: start)

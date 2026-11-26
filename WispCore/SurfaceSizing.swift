@@ -339,6 +339,12 @@ extension SurfaceSizing {
     /// The surface part way through a pull, from where it started (`progress` 0) to the open
     /// shelf (1). Both shapes hang from the same edge, so blending their frames keeps that edge
     /// in place. A pull stretched past either end carries on a little beyond it.
+    /// One length part way through a pull, such as a corner radius, by the same rule as the
+    /// frame. Never negative.
+    public static func blend(_ from: CGFloat, _ to: CGFloat, progress: CGFloat) -> CGFloat {
+        max(from + (to - from) * progress, 0)
+    }
+
     public static func blend(_ from: CGRect, _ to: CGRect, progress: CGFloat) -> CGRect {
         func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * progress }
         return CGRect(
