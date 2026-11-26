@@ -248,4 +248,18 @@ final class HookFileInstallTests: XCTestCase {
                 .this)
         }
     }
+
+    /// An agent counts as on this Mac when its own folder is there: the first folder of its hook
+    /// file, or the one inside `.config` for agents that keep their settings there.
+    func testAnAgentsFolderComesFromItsHookFile() {
+        XCTAssertEqual(AgentSource.claude.adapter.hookFile.agentFolder, ".claude")
+        XCTAssertEqual(AgentSource.codex.adapter.hookFile.agentFolder, ".codex")
+        XCTAssertEqual(AgentSource.opencode.adapter.hookFile.agentFolder, ".config/opencode")
+    }
+
+    func testEveryAgentHasAFolderOfItsOwn() {
+        let folders = AgentAdapters.all.compactMap(\.hookFile.agentFolder)
+        XCTAssertEqual(folders.count, AgentAdapters.all.count)
+        XCTAssertFalse(folders.contains(".config"))
+    }
 }

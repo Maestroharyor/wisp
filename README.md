@@ -23,7 +23,7 @@ Builds are not notarised yet, so the first launch is blocked:
 1. Open Wisp once. macOS says it can't verify the developer.
 2. Go to System Settings › Privacy & Security and click **Open Anyway** next to Wisp.
 
-Or run `xattr -dr com.apple.quarantine /Applications/Wisp.app` once. A first-launch setup then walks you through Accessibility, how the shelf opens and connecting your agents.
+Or run `xattr -dr com.apple.quarantine /Applications/Wisp.app` once. A first-launch setup then walks you through Accessibility, how the shelf opens (and trying it on the real notch), the ring, connecting the agents it finds on your Mac, and launch at login, with Full Disk Access offered for notification cards. About › Run Setup Again starts it over.
 
 With Homebrew, each release also carries a cask file (`wisp.rb`) for a personal tap.
 

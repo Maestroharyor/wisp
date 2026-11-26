@@ -146,6 +146,16 @@ public struct HookFile: Equatable, Sendable {
 
     /// Relative to the home folder.
     public let path: String
+
+    /// The agent's own settings folder, relative to the home folder: the first folder of the hook
+    /// file, or the next one in for agents that keep their settings inside `.config`. When it's
+    /// there, the agent has been used on this Mac.
+    public var agentFolder: String? {
+        let folders = path.split(separator: "/").dropLast()
+        guard let first = folders.first else { return nil }
+        guard first == ".config" else { return String(first) }
+        return folders.dropFirst().first.map { "\(first)/\($0)" }
+    }
     public let format: Format
     public let events: [String]
     /// Report-only events, installed with `"async": true`.

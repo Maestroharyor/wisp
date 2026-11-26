@@ -4,21 +4,23 @@ import XCTest
 
 final class OnboardingFlowTests: XCTestCase {
     func testStepsRunInOrder() {
-        XCTAssertEqual(OnboardingStep.allCases, [.accessibility, .opening, .ring, .agents])
+        XCTAssertEqual(OnboardingStep.allCases, [.accessibility, .opening, .ring, .agents, .finish])
         XCTAssertEqual(OnboardingStep.accessibility.next, .opening)
         XCTAssertEqual(OnboardingStep.opening.next, .ring)
         XCTAssertEqual(OnboardingStep.ring.next, .agents)
-        XCTAssertNil(OnboardingStep.agents.next)
+        XCTAssertEqual(OnboardingStep.agents.next, .finish)
+        XCTAssertNil(OnboardingStep.finish.next)
         XCTAssertNil(OnboardingStep.accessibility.previous)
-        XCTAssertEqual(OnboardingStep.agents.previous, .ring)
+        XCTAssertEqual(OnboardingStep.finish.previous, .agents)
     }
 
     func testOnlyAccessibilityWaitsForTheGrant() {
-        XCTAssertEqual(OnboardingStep.accessibility.primaryAction(accessibilityGranted: false), "Skip for Now")
+        XCTAssertEqual(OnboardingStep.accessibility.primaryAction(accessibilityGranted: false), "Skip for now")
         XCTAssertEqual(OnboardingStep.accessibility.primaryAction(accessibilityGranted: true), "Continue")
         XCTAssertEqual(OnboardingStep.opening.primaryAction(accessibilityGranted: false), "Continue")
         XCTAssertEqual(OnboardingStep.ring.primaryAction(accessibilityGranted: false), "Continue")
-        XCTAssertEqual(OnboardingStep.agents.primaryAction(accessibilityGranted: true), "Done")
+        XCTAssertEqual(OnboardingStep.agents.primaryAction(accessibilityGranted: true), "Continue")
+        XCTAssertEqual(OnboardingStep.finish.primaryAction(accessibilityGranted: true), "Done")
     }
 
     func testExistingInstallsSkipSetup() {
