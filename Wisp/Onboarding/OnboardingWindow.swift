@@ -57,8 +57,11 @@ final class OnboardingWindowController {
 
     private func finish() {
         services.preferences.onboarded = true
+        services.preferences.onboardingStep = nil
         // orderOut rather than close, which would post willClose and call this again.
         window?.orderOut(nil)
+        // The steps watch for permissions every second; with the view gone, they stop.
+        window?.contentViewController = nil
         // Show where Wisp lives, once the window has gone.
         Task { [services] in
             try? await Task.sleep(for: Self.shelfDelay)
@@ -91,7 +94,7 @@ private struct OnboardingView: View {
                 case .accessibility:
                     AccessibilityStep(trusted: trusted, shortcut: services.preferences.hotkey.description)
                 case .opening: OpeningStep(preferences: services.preferences, accent: services.accent, trusted: trusted)
-                case .ring: RingStep(preferences: services.preferences)
+                case .ring: RingStep(preferences: services.preferences, trusted: trusted)
                 case .agents: AgentsStep(hub: services.agents)
                 case .finish: FinishStep(preferences: services.preferences)
                 }
@@ -104,6 +107,8 @@ private struct OnboardingView: View {
         }
         .frame(width: 520, height: 520)
         .wispAnimation(.wispSmooth, value: step)
+        .onAppear { services.preferences.onboardingStep = step.rawValue }
+        .onChange(of: step) { _, now in services.preferences.onboardingStep = now.rawValue }
         .task {
             // Accessibility is granted in System Settings; watch for it.
             while !Task.isCancelled {
@@ -277,6 +282,8 @@ private struct OpeningStep: View {
 /// The ring: what it looks like, how to open it, and (optionally) window previews.
 private struct RingStep: View {
     @Bindable var preferences: Preferences
+    /// Accessibility is on: the ring can list an app's windows to preview.
+    let trusted: Bool
     @Environment(\.colorScheme) private var colorScheme
     @State private var canPreview = CGPreflightScreenCaptureAccess()
     /// macOS may only hand the grant to a fresh launch, so once asked, say so rather than wait.
@@ -299,22 +306,7 @@ private struct RingStep: View {
                     ForEach(RingButton.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    if canPreview {
-                        Label("Window previews are on", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(Color.wispViolet)
-                    } else {
-                        Button("Show window previews…") {
-                            Permission.screenRecording.request()
-                            askedForPreviews = true
-                        }
-                        Text(
-                            askedForPreviews
-                                ? "Turned on Screen Recording? Previews start the next time Wisp opens."
-                                : "Optional: a live picture of a window when you point at it. Needs Screen Recording."
-                        )
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    }
+                    previews
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -326,6 +318,43 @@ private struct RingStep: View {
                 canPreview = CGPreflightScreenCaptureAccess()
             }
         }
+    }
+
+    /// Window previews: on, or the one thing they still need.
+    @ViewBuilder private var previews: some View {
+        switch RingPreviews.need(
+            showsWindows: preferences.ringAppWindows, accessibility: trusted, screenRecording: canPreview)
+        {
+        case nil:
+            Label("Window previews are on", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(Color.wispViolet)
+        case .windowsOff:
+            Toggle("Show an app's windows", isOn: $preferences.ringAppWindows)
+            note("Optional: an app's windows fan out around its segment, with live previews.")
+        case .accessibility:
+            Button("Allow Accessibility…") { Permission.accessibility.request() }
+            note("Window previews list an app's windows, which needs Accessibility.")
+        case .screenRecording:
+            HStack {
+                Button("Show window previews…") {
+                    Permission.screenRecording.request()
+                    askedForPreviews = true
+                }
+                if askedForPreviews, Relaunch.isAvailable {
+                    Button("Reopen Wisp") { Relaunch.now() }
+                }
+            }
+            note(
+                askedForPreviews
+                    ? "Turned on Screen Recording? Previews start once Wisp opens again; setup picks up here."
+                    : "Optional: a live picture of a window when you point at it. Needs Screen Recording.")
+        }
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text)
+            .font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// The ring as it looks, drawn at full size and scaled down.
@@ -458,7 +487,11 @@ private struct FinishStep: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Open Wisp when you log in", isOn: $launchAtLogin)
                         .toggleStyle(.switch)
-                        .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
+                        .onChange(of: launchAtLogin) { _, enabled in
+                            // A failed change puts the switch back, which mustn't try again.
+                            guard enabled != LaunchAtLogin.isEnabled else { return }
+                            setLaunchAtLogin(enabled)
+                        }
                     if let loginError {
                         Text(loginError).font(.caption).foregroundStyle(.orange)
                     }

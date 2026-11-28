@@ -240,6 +240,7 @@ final class Preferences {
         static let surfaceStyle = "surfaceStyle"
         static let lastSettingsPane = "lastSettingsPane"
         static let onboarded = "onboarded"
+        static let onboardingStep = "onboardingStep"
         static let profiles = "profiles"
         static let profilesVersion = "profilesVersion"
         static let activeProfile = "activeProfile"
@@ -472,12 +473,17 @@ final class Preferences {
         }
     }
 
-    /// The Settings pane shown last, reopened next time.
     /// First-launch setup is done (or was never needed).
     var onboarded: Bool {
         didSet { defaults.set(onboarded, forKey: Key.onboarded) }
     }
 
+    /// The setup step on screen, so a relaunch partway through comes back to it.
+    var onboardingStep: Int? {
+        didSet { defaults.set(onboardingStep, forKey: Key.onboardingStep) }
+    }
+
+    /// The Settings pane shown last, reopened next time.
     var lastSettingsPane: SettingsPaneID {
         didSet { defaults.set(lastSettingsPane.rawValue, forKey: Key.lastSettingsPane) }
     }
@@ -1193,6 +1199,8 @@ final class Preferences {
         onboarded = !OnboardingStep.needsSetup(
             storedFlag: defaults.object(forKey: Key.onboarded) == nil ? nil : defaults.bool(forKey: Key.onboarded),
             hasEarlierSettings: defaults.object(forKey: Key.profiles) != nil)
+        onboardingStep =
+            defaults.object(forKey: Key.onboardingStep) == nil ? nil : defaults.integer(forKey: Key.onboardingStep)
         defaults.register(defaults: [
             Key.hotkey: Hotkey.hyperSpace.stringValue,
             Key.quickPressTogglesCapsLock: true,

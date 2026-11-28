@@ -81,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.start()
         services.ringTrigger.start()
         handleTerminationSignal()
-        if !preferences.onboarded { onboarding.show() }
+        if !preferences.onboarded { onboarding.show(at: OnboardingStep.resume(stored: preferences.onboardingStep)) }
         #if DEBUG
             // Lets scripts drive Wisp for visual checks without synthetic input.
             DistributedNotificationCenter.default().addObserver(
