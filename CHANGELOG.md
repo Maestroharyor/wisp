@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.16](https://github.com/Maestroharyor/wisp/compare/v0.2.15...v0.2.16) (2026-11-28)
+
+
+### Bug fixes
+
+* agent pills no longer stay on Working after an agent goes quiet ([#148](https://github.com/Maestroharyor/wisp/issues/148)) ([0b89eca](https://github.com/Maestroharyor/wisp/commit/0b89eca688ec8e1daa3211e6550cc0f8e84acacf))
+* setup resumes after a relaunch and reports window previews truthfully ([#151](https://github.com/Maestroharyor/wisp/issues/151)) ([7379323](https://github.com/Maestroharyor/wisp/commit/73793234e7213fe0a2fdd552e2d75bcbf1bc1308))
+* the mic pill counts real recordings and real meetings only ([#147](https://github.com/Maestroharyor/wisp/issues/147)) ([4c7b7af](https://github.com/Maestroharyor/wisp/commit/4c7b7af55262b5d6a65a4f08a85db5c91b55ec83))
+* the shelf fades as it closes and the shell reshapes smoothly between forms ([#150](https://github.com/Maestroharyor/wisp/issues/150)) ([8622336](https://github.com/Maestroharyor/wisp/commit/86223360452cd58464ebd7c48dcdcdb291bf1d2a))
+
 ## [0.2.15](https://github.com/Maestroharyor/wisp/compare/v0.2.14...v0.2.15) (2026-11-26)
 
 
