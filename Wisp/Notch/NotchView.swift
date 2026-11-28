@@ -198,6 +198,9 @@ private struct SurfaceView: View {
             }
             .opacity(see)
             content
+                // The ZStack draws a view being removed below the ones that stay; without this,
+                // leaving content would fade out under the opaque black instead of over it.
+                .zIndex(1)
                 // While a pull opens the shelf, the content shows as the shell makes room for it.
                 .opacity(model.pullProgress.map { min(max(($0 - 0.15) * 1.6, 0), 1) } ?? 1)
                 // Hover labels stay inside the shell, clear of the flares, since the clip below would cut them.
