@@ -271,6 +271,8 @@ final class NotchModel {
     /// Where the shell was drawn before it changed form, in screen coordinates. Set for one
     /// frame, then cleared in an animation, so the shell glides from the old form to the new.
     var morphFrom: CGRect?
+    /// The old form's corners, for the same frame and glide as `morphFrom`.
+    var morphCorners: ShellCorners?
     /// Counts orbs torn off the notch; each one springs up from smaller under the pointer.
     var pops = 0
     /// The orb is shrinking away before it docks.
@@ -352,6 +354,22 @@ final class NotchModel {
         let requested = preferences.appearance.shelfSize.scale
         guard let width = SurfaceSizing.shelfContentWidth(for: spec, in: layout) else { return requested }
         return SurfaceSizing.shelfScale(contentWidth: width, requested: requested, layout: layout)
+    }
+
+    /// The shell's corners now. A pull opens from peeking, so they blend from the peek's to the
+    /// shelf's with the frame instead of jumping to the open rounding while the shell is small.
+    var corners: ShellCorners {
+        if let morphCorners { return morphCorners }
+        let target = corners(for: spec)
+        guard let pullProgress else { return target }
+        return .blend(corners(for: .peek), target, progress: pullProgress)
+    }
+
+    func corners(for spec: SurfaceSpec) -> ShellCorners {
+        ShellMetrics.corners(
+            for: spec, drawsNotch: drawsNotch, floating: layout.placement == .floating,
+            peekHeight: layout.peekRect.height, notchHeight: notchHeight,
+            roundness: CGFloat(preferences.appearance.roundness))
     }
 
     var surfaceRect: CGRect {

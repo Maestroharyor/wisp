@@ -22,7 +22,7 @@ final class NotchCoordinator {
     private var suspended = false
     /// Where each display's shell was drawn when its form was changed, so the rebuild that
     /// follows glides from there (the open shelf, if it was open).
-    private var morphSources: [String: CGRect] = [:]
+    private var morphSources: [String: (rect: CGRect, corners: ShellCorners)] = [:]
     private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "notch")
 
     private var preferences: Preferences { services.preferences }
@@ -130,7 +130,7 @@ final class NotchCoordinator {
             // would forget a moved island's spot.
             guard shellForm != FormFactor(placement: controller.layout.placement) else { return }
             // From the open shelf if it's open: the close and the move are one glide.
-            self.morphSources[controller.screenUUID] = controller.drawnSurface
+            self.morphSources[controller.screenUUID] = (controller.drawnSurface, controller.drawnCorners)
             controller.dismiss()
             self.preferences.setForm(shellForm, for: controller.screenUUID)
         }
@@ -233,10 +233,10 @@ final class NotchCoordinator {
                 controllers[uuid] ?? NotchController(screenUUID: uuid, layout: layout, services: services)
             controller.systemIsland = systemIsland
             let newForm = controllers[uuid].map { $0.layout.placement != layout.placement } ?? false
-            let drawn = morphSources.removeValue(forKey: uuid) ?? controller.drawnSurface
+            let drawn = morphSources.removeValue(forKey: uuid) ?? (controller.drawnSurface, controller.drawnCorners)
             controller.update(layout: layout)
             // A new form glides over from where the old one was, rather than appearing in place.
-            if newForm { controller.morph(from: drawn) }
+            if newForm { controller.morph(from: drawn.rect, corners: drawn.corners) }
             controllers[uuid] = controller
         }
         for (uuid, controller) in controllers where !current.contains(uuid) {

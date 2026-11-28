@@ -331,6 +331,9 @@ final class NotchController {
 
     /// Where the shell is drawn now, in screen coordinates: the start of a form change. A
     /// dragged orb has moved its panel off the layout's frame, and the shell with it.
+    /// The shell's corners as drawn now, for a form change to start from.
+    var drawnCorners: ShellCorners { model.corners }
+
     var drawnSurface: CGRect {
         model.surfaceRect.offsetBy(
             dx: panel.frame.minX - layout.panelFrame.minX, dy: panel.frame.minY - layout.panelFrame.minY)
@@ -339,13 +342,19 @@ final class NotchController {
     /// Glides the shell from `rect` (where the old form drew it) to where the new layout puts
     /// it, in one critically damped motion: size, position and corners together, so changing
     /// form never reads as a close followed by a second spring.
-    func morph(from rect: CGRect) {
-        guard !model.reduceMotion, rect.width > 0, rect != model.targetSurfaceRect else { return }
+    func morph(from rect: CGRect, corners: ShellCorners) {
+        guard !model.reduceMotion, rect.width > 0,
+            rect != model.targetSurfaceRect || corners != model.corners
+        else { return }
         model.morphFrom = rect
+        model.morphCorners = corners
         // A frame at the old spot first, or there's nothing to glide from.
         Task { @MainActor [weak self] in
             guard let self, self.model.morphFrom == rect else { return }
-            withAnimation(self.model.motion.formMorph) { self.model.morphFrom = nil }
+            withAnimation(self.model.motion.formMorph) {
+                self.model.morphFrom = nil
+                self.model.morphCorners = nil
+            }
         }
     }
 
