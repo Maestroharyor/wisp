@@ -36,7 +36,7 @@ public enum AgentPrivacy {
     /// during dictation costs little and showing them during a call can't be undone.
     public static func onCall(micInUse: Bool, inputBundleIDs: [String], meetingInProgress: Bool) -> Bool {
         guard micInUse else { return false }
-        if inputBundleIDs.contains(where: browsers.contains) { return true }
+        if inputBundleIDs.contains(where: { BundleMatch.any(browsers, matches: $0) }) { return true }
         return MicUse.classify(inputBundleIDs: inputBundleIDs, meetingInProgress: meetingInProgress) == .call
     }
 

@@ -103,6 +103,8 @@ final class CalendarStore {
         let color: Color
         /// A video-call link from the event's URL, location or notes.
         let link: URL?
+        /// Declined, cancelled or marked free.
+        let isFree: Bool
     }
 
     /// Events from now through the next six days, soonest first (at most 30). Filtered
@@ -596,7 +598,9 @@ private actor CalendarReader {
             title: event.title ?? "Event", start: event.startDate,
             end: event.endDate, isAllDay: event.isAllDay,
             color: Color(nsColor: event.calendar.color ?? .systemPurple),
-            link: MeetingLink.find(in: [event.url?.absoluteString, event.location, event.notes]))
+            link: MeetingLink.find(in: [event.url?.absoluteString, event.location, event.notes]),
+            isFree: event.status == .canceled || event.availability == .free
+                || event.attendees?.first(where: \.isCurrentUser)?.participantStatus == .declined)
     }
 }
 
@@ -899,11 +903,11 @@ final class NotesStore {
                 Event(
                     id: "sample-\(index)", eventID: "sample-\(index)", title: sample.0, start: at(sample.1, sample.2),
                     end: at(sample.1, sample.3), isAllDay: false, color: sample.4,
-                    link: index == 1 ? URL(string: "https://example.com") : nil)
+                    link: index == 1 ? URL(string: "https://example.com") : nil, isFree: false)
             }
             let allDay = Event(
                 id: "sample-day", eventID: "sample-day", title: "Holiday", start: at(2, 0), end: at(3, 0),
-                isAllDay: true, color: .teal, link: nil)
+                isAllDay: true, color: .teal, link: nil, isFree: false)
             usesSample = true
             access = .fullAccess
             wholeWeek = events + [allDay]

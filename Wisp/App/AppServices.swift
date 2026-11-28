@@ -536,6 +536,7 @@ final class AppServices {
         meetingTask = Task { [weak self] in
             while !Task.isCancelled {
                 self?.offerUpcomingMeeting()
+                self?.updateMeeting()
                 self?.updateOnCall()
                 try? await Task.sleep(for: .seconds(30))
             }
@@ -876,9 +877,14 @@ final class AppServices {
         notifications.stop()
     }
 
+    /// The meeting pill as last posted.
+    private var postedMeeting: MeetingStatus?
+
     private var meetingEvents: [MeetingEvent] {
         calendar.events.map {
-            MeetingEvent(id: $0.id, title: $0.title, start: $0.start, end: $0.end, isAllDay: $0.isAllDay, link: $0.link)
+            MeetingEvent(
+                id: $0.id, title: $0.title, start: $0.start, end: $0.end, isAllDay: $0.isAllDay, link: $0.link,
+                isFree: $0.isFree)
         }
     }
 
@@ -886,16 +892,19 @@ final class AppServices {
     /// call app has the mic or a meeting is on, otherwise "Recording".
     private func updateMeeting() {
         guard preferences.meetingActivity, microphone.inUse else {
+            postedMeeting = nil
             activities.remove(.meeting)
             return
         }
         calendar.refreshIfStale()
-        let event = Meetings.current(meetingEvents, now: .now)
+        let event = Meetings.current(meetingEvents, now: .now, micSince: microphone.since)
         let kind = MicUse.classify(inputBundleIDs: microphone.inputApps, meetingInProgress: event != nil)
         let title = kind == .recording ? "Recording" : event?.title ?? "On a call"
-        activities.post(
-            .meeting(MeetingStatus(title: title, started: microphone.since ?? .now, kind: kind)), slot: .meeting,
-            duration: nil)
+        let status = MeetingStatus(title: title, started: microphone.since ?? .now, kind: kind)
+        // Rechecked twice a minute; posting an unchanged pill again would move it ahead of others.
+        guard status != postedMeeting else { return }
+        postedMeeting = status
+        activities.post(.meeting(status), slot: .meeting, duration: nil)
     }
 
     /// Reads the call app's controls, or clears them when they're off or no call is on.
@@ -931,7 +940,7 @@ final class AppServices {
         calendar.refreshIfStale()
         agents.onCall = AgentPrivacy.onCall(
             micInUse: true, inputBundleIDs: microphone.inputApps,
-            meetingInProgress: Meetings.current(meetingEvents, now: .now) != nil)
+            meetingInProgress: Meetings.current(meetingEvents, now: .now, micSince: microphone.since) != nil)
     }
 
     private func offerUpcomingMeeting() {

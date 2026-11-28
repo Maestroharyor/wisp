@@ -37,4 +37,40 @@ final class MicStateTests: XCTestCase {
     func testNamedAppsLeaveOutListenersAndUnnamedProcesses() {
         XCTAssertEqual(MicState.apps(["us.zoom.xos", "", "com.apple.CoreSpeech"]), ["us.zoom.xos"])
     }
+
+    func testMacOSListenersAndLevelMetersAreNotRecording() {
+        for id in [
+            "com.apple.Sound-Settings.extension", "com.apple.corespeechd", "com.apple.assistantd", "com.apple.Siri",
+            "com.apple.accessibility.heard",
+        ] {
+            XCTAssertFalse(MicState.inUse(hasInputDevice: true, deviceRunning: true, inputProcesses: [id]), id)
+        }
+        XCTAssertEqual(MicState.apps(["com.apple.Sound-Settings.extension", "us.zoom.xos"]), ["us.zoom.xos"])
+    }
+
+    private let start = Date(timeIntervalSince1970: 1_000)
+    private let later = Date(timeIntervalSince1970: 5_000)
+
+    func testTheTimerStartsWhenTheMicGoesLiveAndStopsWithIt() {
+        XCTAssertEqual(
+            MicState.since(previous: nil, previousApps: [], apps: ["us.zoom.xos"], inUse: true, now: start), start)
+        XCTAssertNil(MicState.since(previous: start, previousApps: ["us.zoom.xos"], apps: [], inUse: false, now: later))
+    }
+
+    func testTheTimerKeepsCountingWhileAnyEarlierAppStillHoldsTheMic() {
+        let since = MicState.since(
+            previous: start, previousApps: ["us.zoom.xos"], apps: ["us.zoom.xos", "com.apple.VoiceMemos"], inUse: true,
+            now: later)
+        XCTAssertEqual(since, start)
+    }
+
+    func testANewAppTakingOverTheMicStartsTheTimerAgain() {
+        let since = MicState.since(
+            previous: start, previousApps: ["com.apple.VoiceMemos"], apps: ["us.zoom.xos"], inUse: true, now: later)
+        XCTAssertEqual(since, later)
+    }
+
+    func testUnnamedHoldersKeepTheirStart() {
+        XCTAssertEqual(MicState.since(previous: start, previousApps: [], apps: [], inUse: true, now: later), start)
+    }
 }
