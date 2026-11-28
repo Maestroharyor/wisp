@@ -272,13 +272,18 @@ final class NotchController {
     private var settleFrom: CGPoint?
     /// A drag moved the panel without a new layout, so the panel is off its layout's frame.
     private var panelMoved = false
+    /// Settles a dropped orb's panel on a spring.
+    private let glide = PanelGlide()
 
     func update(layout: NotchLayout) {
         let from = settleFrom
         settleFrom = nil
         // A display change that kept this layout can still have left the panel elsewhere (the
         // system moving windows as displays come and go), so the frame counts too.
+        // A dropped orb still settling is already on its way to this layout.
+        if glide.isRunning, layout == model.layout, !panelMoved { return }
         guard layout != model.layout || panelMoved || panel.frame != layout.panelFrame else { return }
+        glide.stop()
         panelMoved = false
         // A pull's starting rect belongs to the old layout.
         dropPull(animated: false)
@@ -291,18 +296,19 @@ final class NotchController {
             panel.setFrame(layout.panelFrame, display: true)
             return
         }
-        // Panel-relative positions stay put, so moving the whole panel moves the orb.
+        // Panel-relative positions stay put, so moving the whole panel moves the orb. It
+        // settles on the form spring, as the shell moves when it changes form.
         let to = CGPoint(x: layout.closedRect.midX, y: layout.closedRect.midY)
-        panel.setFrame(layout.panelFrame.offsetBy(dx: from.x - to.x, dy: from.y - to.y), display: true)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.28
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().setFrame(layout.panelFrame, display: true)
-        }
+        let start = layout.panelFrame.offsetBy(dx: from.x - to.x, dy: from.y - to.y)
+        panel.setFrame(start, display: true)
+        glide.run(
+            panel, from: start.origin, to: layout.panelFrame.origin,
+            spring: SpringTuning.formMorph.scaled(model.speed.scale).spring)
     }
 
     /// Moves a dragged orb or island by moving its panel; the layout is rebuilt once it's dropped.
     func moveOrb(by delta: CGVector) {
+        glide.stop()
         panelMoved = true
         panel.setFrameOrigin(CGPoint(x: panel.frame.minX + delta.dx, y: panel.frame.minY + delta.dy))
     }
