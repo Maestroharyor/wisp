@@ -27,4 +27,9 @@ final class MicUseTests: XCTestCase {
         XCTAssertEqual(MicUse.classify(inputBundleIDs: [], meetingInProgress: true), .call)
         XCTAssertEqual(MicUse.classify(inputBundleIDs: ["com.apple.VoiceMemos"], meetingInProgress: true), .call)
     }
+
+    func testACallAppsHelperProcessIsACall() {
+        XCTAssertEqual(
+            MicUse.classify(inputBundleIDs: ["com.tinyspeck.slackmacgap.helper"], meetingInProgress: false), .call)
+    }
 }

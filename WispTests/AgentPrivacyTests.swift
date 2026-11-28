@@ -42,6 +42,14 @@ final class AgentPrivacyTests: XCTestCase {
             AgentPrivacy.onCall(micInUse: false, inputBundleIDs: ["com.apple.Safari"], meetingInProgress: false))
     }
 
+    /// Chromium and Electron apps record from a helper process named after the app.
+    func testHelperProcessesCountAsTheirApp() {
+        XCTAssertTrue(
+            AgentPrivacy.onCall(micInUse: true, inputBundleIDs: ["com.google.Chrome.helper"], meetingInProgress: false))
+        XCTAssertFalse(
+            AgentPrivacy.onCall(micInUse: true, inputBundleIDs: ["com.google.Chromecast"], meetingInProgress: false))
+    }
+
     func testReasonSaysWhyDetailsAreHidden() {
         XCTAssertEqual(AgentPrivacy.reason(mode: .never, onCall: true, manual: true), "until you show them")
         XCTAssertEqual(

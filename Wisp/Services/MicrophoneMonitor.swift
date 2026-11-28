@@ -1,3 +1,4 @@
+import AppKit
 import CoreAudio
 import Foundation
 import OSLog
@@ -22,6 +23,7 @@ final class MicrophoneMonitor {
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var inputListener: AudioObjectPropertyListenerBlock?
     @ObservationIgnored private var lastDevice: AudioObjectID?
+    @ObservationIgnored private var wakeObserver: NSObjectProtocol?
     @ObservationIgnored private let log = Logger(subsystem: "com.ayomideodewale.wisp", category: "microphone")
 
     func start() {
@@ -39,9 +41,17 @@ final class MicrophoneMonitor {
         inputListener = listener
         var address = Self.defaultInputAddress
         AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, listener)
+        // A mic held across sleep isn't one session: the timer starts again on wake.
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.restartTimer() }
+        }
     }
 
     func stop() {
+        if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
+        wakeObserver = nil
         task?.cancel()
         task = nil
         if let inputListener {
@@ -87,9 +97,17 @@ final class MicrophoneMonitor {
         update(inUse: now, apps: now ? MicState.apps(input ?? []) : [])
     }
 
+    private func restartTimer() {
+        guard inUse else { return }
+        since = .now
+        onChange(inUse)
+    }
+
     private func update(inUse now: Bool, apps: [String]) {
         guard now != inUse || apps != inputApps else { return }
-        if now != inUse { since = now ? .now : nil }
+        since = MicState.since(previous: since, previousApps: inputApps, apps: apps, inUse: now, now: .now)
+        // Bundle ids only, so a system process miscounted as recording can be named.
+        if apps != inputApps { log.debug("Input apps: \(apps.joined(separator: ", "), privacy: .public)") }
         inUse = now
         inputApps = apps
         onChange(now)
