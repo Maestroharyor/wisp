@@ -22,8 +22,18 @@ public enum AgentUrgency {
         sessions.filter { isMoment($0, now: now) }.map { since($0) + moment }.min()
     }
 
+    /// When the first busy session that's still heard from goes quiet (`AgentSessions.quietLimit`)
+    /// and leaves the pill, so it can be picked again then; nil when none will.
+    public static func quietEnds(_ sessions: [AgentSession], now: Date) -> Date? {
+        sessions.filter { isBusy($0) && !isQuiet($0, now: now) }
+            .map { $0.latestActivity + AgentSessions.quietLimit }.min()
+    }
+
     private static func rank(_ session: AgentSession, now: Date) -> Int {
         if isMoment(session, now: now) { return session.state == .waiting ? 4 : 3 }
+        // Nothing heard for a long time: the agent most likely died mid-turn, and a timer
+        // running for hours would say it's still at work.
+        if isBusy(session), isQuiet(session, now: now) { return 0 }
         switch session.state {
         case .running: return 2
         case .idle: return session.compacting ? 2 : 0
@@ -34,6 +44,14 @@ public enum AgentUrgency {
 
     private static func isMoment(_ session: AgentSession, now: Date) -> Bool {
         (session.state == .finished || session.state == .waiting) && now.timeIntervalSince(since(session)) < moment
+    }
+
+    private static func isBusy(_ session: AgentSession) -> Bool {
+        session.state == .running || session.compacting
+    }
+
+    private static func isQuiet(_ session: AgentSession, now: Date) -> Bool {
+        now.timeIntervalSince(session.latestActivity) >= AgentSessions.quietLimit
     }
 
     private static func isLive(_ session: AgentSession) -> Bool {

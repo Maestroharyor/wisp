@@ -161,6 +161,26 @@ final class AgentReminderTests: XCTestCase {
         XCTAssertEqual(AgentUrgency.pick(sessions.list, now: start + 185).primary?.id, "busy")
     }
 
+    /// An agent that died mid-turn (Esc, a crash with no process to watch) sends nothing more;
+    /// its Working pill must not count for hours.
+    func testATurnThatWentQuietLeavesThePill() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("gone", "UserPromptSubmit"), at: start)
+        let quiet = start + AgentSessions.quietLimit
+        XCTAssertEqual(AgentUrgency.pick(sessions.list, now: quiet - 1).primary?.id, "gone")
+        XCTAssertEqual(AgentUrgency.quietEnds(sessions.list, now: start), quiet)
+        XCTAssertNil(AgentUrgency.pick(sessions.list, now: quiet).primary)
+        XCTAssertNil(AgentUrgency.quietEnds(sessions.list, now: quiet))
+    }
+
+    func testAQuietTurnIsBackInThePillWhenItIsHeardFrom() throws {
+        var sessions = AgentSessions()
+        sessions.apply(try event("slow", "UserPromptSubmit"), at: start)
+        let later = start + AgentSessions.quietLimit + 60
+        sessions.apply(try event("slow", "PreToolUse", extra: #","tool_name":"Bash""#), at: later)
+        XCTAssertEqual(AgentUrgency.pick(sessions.list, now: later).primary?.id, "slow")
+    }
+
     func testThePillIsPickedAgainWhenTheFirstMomentEnds() throws {
         var sessions = AgentSessions()
         sessions.apply(try event("ask", "UserPromptSubmit"), at: start)
