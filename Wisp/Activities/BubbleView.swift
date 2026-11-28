@@ -17,6 +17,8 @@ struct BubbleLayer: View {
     @State private var pill: CGRect = .zero
     /// Bumped by every new split or merge, so a completion that a newer one overtook does nothing.
     @State private var generation = 0
+    /// The last move was to a form change's starting point, so the next one is its glide.
+    @State private var followedMorph = false
 
     var body: some View {
         GooBubbles(
@@ -76,14 +78,18 @@ struct BubbleLayer: View {
         shown = BubbleMotion.settled(shown: shown, live: model.bubbles, split: split)
     }
 
-    /// Moves the bubbles with the shell on its own spring, rather than jumping ahead of it.
+    /// Moves the bubbles with the shell on its own spring, rather than jumping ahead of it. A
+    /// form change starts where the old form was drawn and glides on the form spring.
     private func follow(_ rect: CGRect, animated: Bool) {
         guard rect != pill else { return }
-        guard animated, pill != .zero else {
+        let morphing = model.morphFrom != nil
+        defer { followedMorph = morphing }
+        guard animated, pill != .zero, !morphing else {
             pill = rect
             return
         }
-        withAnimation(model.surfaceAnimation(from: pill.size, to: rect.size)) { pill = rect }
+        let animation = followedMorph ? model.motion.formMorph : model.surfaceAnimation(from: pill.size, to: rect.size)
+        withAnimation(animation) { pill = rect }
     }
 
     private var pinch: Animation {

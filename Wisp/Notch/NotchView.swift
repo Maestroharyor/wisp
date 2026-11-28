@@ -11,7 +11,8 @@ struct NotchView: View {
     var body: some View {
         let panel = model.layout.panelFrame
         let surface = model.local(model.surfaceRect)
-        let flare = model.drawsNotch ? radii.top : 0
+        let corners = model.corners
+        let flare = corners.flare
         let side = model.layout.edge.isSide
         // A pulled notch stretches its shape down from the edge it hangs from; the content
         // inside keeps its size rather than being smeared with it.
@@ -27,7 +28,7 @@ struct NotchView: View {
                 .frame(width: panel.width, height: panel.height)
             NotchPetLayer(model: model)
                 .frame(width: panel.width, height: panel.height)
-            SurfaceView(model: model, radii: radii)
+            SurfaceView(model: model, corners: corners)
                 // The flares run along the edge: sideways at the top, up and down on the sides.
                 .frame(
                     width: surface.width + (side ? 0 : flare * 2) + stretch.width,
@@ -116,59 +117,18 @@ struct NotchView: View {
         case .left, .right: return CGSize(width: closed.midX - pill.midX, height: closed.midY - pill.midY)
         }
     }
-
-    /// A pull opens from peeking, so the corners blend from the peek's to the shelf's with the
-    /// frame instead of jumping to the open rounding while the shell is still small.
-    private var radii: (top: CGFloat, bottom: CGFloat) {
-        let target = radii(for: model.spec)
-        guard let progress = model.pullProgress else { return target }
-        let start = radii(for: .peek)
-        return (
-            SurfaceSizing.blend(start.top, target.top, progress: progress),
-            SurfaceSizing.blend(start.bottom, target.bottom, progress: progress)
-        )
-    }
-
-    /// Roundness scales every corner except the closed notch's, which has to match the
-    /// camera housing.
-    private func radii(for spec: SurfaceSpec) -> (top: CGFloat, bottom: CGFloat) {
-        let height = model.notchHeight
-        let round = CGFloat(model.preferences.appearance.roundness)
-        guard model.drawsNotch else {
-            let orb = model.layout.placement == .floating
-            switch spec {
-            case .closed, .peek:
-                return (0, orb ? model.layout.peekRect.height / 2 : ShellMetrics.closedIslandRadius * round)
-            case .compact:
-                return (0, (orb ? ShellMetrics.floatingPillRadius : ShellMetrics.closedIslandRadius) * round)
-            case .medium, .notification:
-                return (0, (orb ? ShellMetrics.floatingCardRadius : ShellMetrics.expandedHUDBottomRadius) * round)
-            case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
-                return (0, (orb ? ShellMetrics.floatingShelfRadius : ShellMetrics.expandedIslandRadius) * round)
-            }
-        }
-        switch spec {
-        case .closed, .peek, .compact:
-            return (ShellMetrics.closedTopRadius(height: height), ShellMetrics.closedBottomRadius(height: height))
-        case .medium, .notification:
-            return (ShellMetrics.closedTopRadius(height: height), ShellMetrics.expandedHUDBottomRadius * round)
-        case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
-            return (ShellMetrics.expandedTopRadius * round, ShellMetrics.expandedShelfBottomRadius * round)
-        }
-    }
 }
 
 /// The black shell plus whatever it currently shows.
 private struct SurfaceView: View {
     let model: NotchModel
-    let radii: (top: CGFloat, bottom: CGFloat)
+    let corners: ShellCorners
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         let isOpen = model.phase == .open
-        let shape = ShellShape(
-            notchStyle: model.drawsNotch, edge: model.layout.edge, topRadius: radii.top, bottomRadius: radii.bottom)
-        let flare = model.drawsNotch ? radii.top : 0
+        let shape = ShellShape(edge: model.layout.edge, corners: corners)
+        let flare = corners.flare
         let side = model.layout.edge.isSide
         let look = model.preferences.appearance
         let see = isOpen && look.surface != .glass ? look.opacity : 1
@@ -198,6 +158,9 @@ private struct SurfaceView: View {
             }
             .opacity(see)
             content
+                // The ZStack draws a view being removed below the ones that stay; without this,
+                // leaving content would fade out under the opaque black instead of over it.
+                .zIndex(1)
                 // While a pull opens the shelf, the content shows as the shell makes room for it.
                 .opacity(model.pullProgress.map { min(max(($0 - 0.15) * 1.6, 0), 1) } ?? 1)
                 // Hover labels stay inside the shell, clear of the flares, since the clip below would cut them.
@@ -356,42 +319,97 @@ private struct SurfaceView: View {
 }
 
 /// Notch silhouette (flares into the menu bar, or into the screen edge on the sides) or a
-/// plain rounded island.
+/// rounded island. At rest each is drawn exactly; while the form changes, one outline with
+/// cubic corners goes from the one to the other, so flares become rounded corners smoothly.
 private struct ShellShape: Shape {
-    let notchStyle: Bool
     let edge: ScreenEdge
-    var topRadius: CGFloat
-    var bottomRadius: CGFloat
+    var corners: ShellCorners
 
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(topRadius, bottomRadius) }
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>> {
+        get {
+            AnimatablePair(
+                AnimatablePair(corners.flare, corners.topCorner), AnimatablePair(corners.bottom, corners.island))
+        }
         set {
-            topRadius = newValue.first
-            bottomRadius = newValue.second
+            corners = ShellCorners(
+                flare: newValue.first.first, topCorner: newValue.first.second, bottom: newValue.second.first,
+                island: newValue.second.second)
         }
     }
 
     func path(in rect: CGRect) -> Path {
-        if notchStyle, edge.isSide {
-            // The top notch drawn on its side: its flat top edge becomes the screen edge.
+        if corners.island >= 1 {
+            let radius = min(corners.bottom, rect.height / 2, rect.width / 2)
+            return RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect)
+        }
+        if edge.isSide {
+            // Drawn upright, then turned: its flat top edge becomes the screen edge.
             let upright = CGRect(x: 0, y: 0, width: rect.height, height: rect.width)
-            let path = NotchShape(topRadius: topRadius, bottomRadius: bottomRadius).path(in: upright)
             let transform =
                 edge == .left
                 ? CGAffineTransform(a: 0, b: 1, c: 1, d: 0, tx: rect.minX, ty: rect.minY)
                 : CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: rect.maxX, ty: rect.minY)
-            return path.applying(transform)
+            return outline(in: upright).applying(transform)
         }
-        if notchStyle, edge == .bottom {
-            // The top notch upside down: its flat edge sits on the Dock or the screen's edge.
-            let path = NotchShape(topRadius: topRadius, bottomRadius: bottomRadius).path(in: rect)
-            return path.applying(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: rect.minY + rect.maxY))
+        if edge == .bottom {
+            // Upside down: its flat edge sits on the Dock or the screen's edge.
+            return outline(in: rect).applying(
+                CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: rect.minY + rect.maxY))
         }
-        if notchStyle {
-            return NotchShape(topRadius: topRadius, bottomRadius: bottomRadius).path(in: rect)
+        return outline(in: rect)
+    }
+
+    /// The upright outline, hanging from its top edge.
+    private func outline(in rect: CGRect) -> Path {
+        guard corners.island > 0 else {
+            return NotchShape(topRadius: corners.flare, bottomRadius: corners.bottom).path(in: rect)
         }
-        let radius = min(bottomRadius, rect.height / 2, rect.width / 2)
-        return RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect)
+        let inset = min(corners.flare, rect.width / 4, rect.height / 2)
+        let left = rect.minX + inset
+        let right = rect.maxX - inset
+        let body = right - left
+        let flare = min(max(-corners.signedTop, 0), inset)
+        let round = min(max(corners.signedTop, 0), body / 2, rect.height / 2)
+        let top = max(flare, round)
+        let bottom = min(corners.bottom, body / 2, rect.height - top)
+        // How far along each corner's sides its curve pulls toward the corner: a quad curve
+        // (the notch) is 2/3, a circular arc (the island) about 0.55.
+        let pull = 2.0 / 3 + (0.5523 - 2.0 / 3) * corners.island
+
+        var path = Path()
+        if flare > 0 {
+            path.move(to: CGPoint(x: left - flare, y: rect.minY))
+            path.corner(
+                to: CGPoint(x: left, y: rect.minY + flare), around: CGPoint(x: left, y: rect.minY), pull: 2.0 / 3)
+        } else {
+            path.move(to: CGPoint(x: left + round, y: rect.minY))
+            path.corner(to: CGPoint(x: left, y: rect.minY + round), around: CGPoint(x: left, y: rect.minY), pull: pull)
+        }
+        path.addLine(to: CGPoint(x: left, y: rect.maxY - bottom))
+        path.corner(to: CGPoint(x: left + bottom, y: rect.maxY), around: CGPoint(x: left, y: rect.maxY), pull: pull)
+        path.addLine(to: CGPoint(x: right - bottom, y: rect.maxY))
+        path.corner(to: CGPoint(x: right, y: rect.maxY - bottom), around: CGPoint(x: right, y: rect.maxY), pull: pull)
+        path.addLine(to: CGPoint(x: right, y: rect.minY + top))
+        if flare > 0 {
+            path.corner(
+                to: CGPoint(x: right + flare, y: rect.minY), around: CGPoint(x: right, y: rect.minY), pull: 2.0 / 3)
+        } else {
+            path.corner(
+                to: CGPoint(x: right - round, y: rect.minY), around: CGPoint(x: right, y: rect.minY), pull: pull)
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+extension Path {
+    /// A corner from the current point to `end`, bending around `corner`.
+    fileprivate mutating func corner(to end: CGPoint, around corner: CGPoint, pull: CGFloat) {
+        guard let start = currentPoint else { return }
+        addCurve(
+            to: end,
+            control1: CGPoint(x: start.x + (corner.x - start.x) * pull, y: start.y + (corner.y - start.y) * pull),
+            control2: CGPoint(x: end.x + (corner.x - end.x) * pull, y: end.y + (corner.y - end.y) * pull))
     }
 }
 

@@ -121,3 +121,68 @@ public enum SurfaceRadius {
         max(outer - padding, minimum)
     }
 }
+
+/// The shell's corners, as one value that animates: a form change (notch, island, orb)
+/// turns flares into rounded corners on the same spring as the frame, rather than snapping.
+public struct ShellCorners: Equatable, Sendable {
+    /// Concave flares at the top, into the menu bar or the screen edge. Notch only.
+    public var flare: CGFloat
+    /// Convex rounding of the top corners. Islands and the orb only.
+    public var topCorner: CGFloat
+    public var bottom: CGFloat
+    /// How far the outline has gone from the notch's corner curves (0) to the island's (1).
+    public var island: CGFloat
+
+    public init(flare: CGFloat, topCorner: CGFloat, bottom: CGFloat, island: CGFloat) {
+        self.flare = flare
+        self.topCorner = topCorner
+        self.bottom = bottom
+        self.island = island
+    }
+
+    /// The top corner as one size: flaring out when negative, rounding in when positive.
+    public var signedTop: CGFloat { topCorner - flare }
+
+    public static func blend(_ from: ShellCorners, _ to: ShellCorners, progress: CGFloat) -> ShellCorners {
+        ShellCorners(
+            flare: SurfaceSizing.blend(from.flare, to.flare, progress: progress),
+            topCorner: SurfaceSizing.blend(from.topCorner, to.topCorner, progress: progress),
+            bottom: SurfaceSizing.blend(from.bottom, to.bottom, progress: progress),
+            island: SurfaceSizing.blend(from.island, to.island, progress: progress))
+    }
+}
+
+extension ShellMetrics {
+    /// The corners for what the shell shows. Roundness scales every corner except the closed
+    /// notch's, which has to match the camera housing.
+    public static func corners(
+        for spec: SurfaceSpec, drawsNotch: Bool, floating: Bool, peekHeight: CGFloat, notchHeight: CGFloat,
+        roundness: CGFloat
+    ) -> ShellCorners {
+        guard drawsNotch else {
+            let radius: CGFloat
+            switch spec {
+            case .closed, .peek:
+                radius = floating ? peekHeight / 2 : closedIslandRadius * roundness
+            case .compact:
+                radius = (floating ? floatingPillRadius : closedIslandRadius) * roundness
+            case .medium, .notification:
+                radius = (floating ? floatingCardRadius : expandedHUDBottomRadius) * roundness
+            case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
+                radius = (floating ? floatingShelfRadius : expandedIslandRadius) * roundness
+            }
+            return ShellCorners(flare: 0, topCorner: radius, bottom: radius, island: 1)
+        }
+        let top: CGFloat
+        let bottom: CGFloat
+        switch spec {
+        case .closed, .peek, .compact:
+            (top, bottom) = (closedTopRadius(height: notchHeight), closedBottomRadius(height: notchHeight))
+        case .medium, .notification:
+            (top, bottom) = (closedTopRadius(height: notchHeight), expandedHUDBottomRadius * roundness)
+        case .home, .tray, .dropTiles, .widgetGrid, .widgetSolo, .media:
+            (top, bottom) = (expandedTopRadius * roundness, expandedShelfBottomRadius * roundness)
+        }
+        return ShellCorners(flare: top, topCorner: 0, bottom: bottom, island: 0)
+    }
+}
