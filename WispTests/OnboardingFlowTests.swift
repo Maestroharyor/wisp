@@ -29,4 +29,20 @@ final class OnboardingFlowTests: XCTestCase {
         XCTAssertFalse(OnboardingStep.needsSetup(storedFlag: true, hasEarlierSettings: false))
         XCTAssertTrue(OnboardingStep.needsSetup(storedFlag: false, hasEarlierSettings: true))
     }
+
+    /// Turning on Screen Recording often means reopening Wisp; setup picks up where it was.
+    func testSetupResumesAtTheStepItWasOn() {
+        XCTAssertEqual(OnboardingStep.resume(stored: nil), .accessibility)
+        XCTAssertEqual(OnboardingStep.resume(stored: OnboardingStep.ring.rawValue), .ring)
+        XCTAssertEqual(OnboardingStep.resume(stored: 99), .accessibility)
+    }
+
+    func testWindowPreviewsNeedEverythingInTurn() {
+        XCTAssertEqual(RingPreviews.need(showsWindows: false, accessibility: true, screenRecording: true), .windowsOff)
+        XCTAssertEqual(
+            RingPreviews.need(showsWindows: true, accessibility: false, screenRecording: true), .accessibility)
+        XCTAssertEqual(
+            RingPreviews.need(showsWindows: true, accessibility: true, screenRecording: false), .screenRecording)
+        XCTAssertNil(RingPreviews.need(showsWindows: true, accessibility: true, screenRecording: true))
+    }
 }
