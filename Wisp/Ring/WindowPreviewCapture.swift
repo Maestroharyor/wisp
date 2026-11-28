@@ -4,8 +4,8 @@ import ScreenCaptureKit
 import WispCore
 
 /// Small live pictures of an app's windows for the ring's centre. Only used when Screen
-/// Recording is already on; it never asks. The pictures stay in memory while the ring is open
-/// and are never saved or logged.
+/// Recording is on; setup and Settings › Ring ask for it, never this. The pictures stay in
+/// memory while the ring is open and are never saved or logged.
 actor WindowPreviewCapture {
     private var listed: [SCWindow]?
 
