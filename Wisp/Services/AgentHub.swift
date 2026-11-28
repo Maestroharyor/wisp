@@ -74,6 +74,8 @@ struct AgentStatus: Sendable, Equatable {
     let source: AgentSource
     let state: AgentSession.State
     let started: Date
+    /// How long the turn that just finished took; nil when Wisp didn't see it start.
+    var turnDuration: TimeInterval? = nil
     var contextPercent: Double? = nil
     var compacting = false
     /// The tool running now, already in its private form when details are hidden.
@@ -337,6 +339,7 @@ final class AgentHub {
     /// Picks the pill again when a Done or Needs you stops outranking other work, or a
     /// finished tool's label stops lingering.
     @ObservationIgnored private var repickTask: Task<Void, Never>?
+    @ObservationIgnored private var pruneTask: Task<Void, Never>?
     /// Checks for agents that quit without a SessionEnd, while any session knows its process.
     @ObservationIgnored private var exitTask: Task<Void, Never>?
     private let exitInterval: Duration = .seconds(15)
@@ -415,6 +418,7 @@ final class AgentHub {
 
     func start() {
         refreshInstalled()
+        startPruning()
         guard listener == nil else { return }
         let path = Self.socketURL.path
         try? FileManager.default.createDirectory(
@@ -462,6 +466,8 @@ final class AgentHub {
         for id in transcriptWatches.keys { stopTranscriptWatch(id) }
         bashTask?.cancel()
         bashTask = nil
+        pruneTask?.cancel()
+        pruneTask = nil
     }
 
     /// A guard against runaway input, not a size hooks keep to: a permission request to write a
@@ -571,17 +577,7 @@ final class AgentHub {
         // Tool activity comes several times a second; the branch and pruning can wait for the
         // next prompt, stop or status bar snapshot.
         if !event.kind.isToolActivity {
-            sessions.prune(now: .now, olderThan: 6 * 3600)
-            let live = Set(sessions.list.map(\.id))
-            recorder.keep(only: live)
-            // A session pruned without ending keeps no file watch or read position behind.
-            for id in rolloutWatches.keys where !live.contains(id) { stopRolloutWatch(id) }
-            transcripts = transcripts.filter { live.contains($0.key) }
-            if summaries.keys.contains(where: { !live.contains($0) }) {
-                summaries = summaries.filter { live.contains($0.key) }
-            }
-            // A spend cap card for a session that's gone has nothing left to stop or keep going.
-            for id in capPrompts.map(\.sessionID) where !live.contains(id) { forgetSpendCap(id) }
+            pruneStale()
             if !event.cwd.isEmpty { sessions.setBranch(Self.branch(cwd: event.cwd), session: event.sessionID) }
         }
 
@@ -1222,6 +1218,37 @@ final class AgentHub {
             completion: .contentProcessed { _ in connection.cancel() })
     }
 
+    /// Drops sessions not heard from in 6 hours, and everything kept for them. Returns whether
+    /// any went.
+    @discardableResult
+    private func pruneStale() -> Bool {
+        let before = sessions.list.count
+        sessions.prune(now: .now, olderThan: 6 * 3600)
+        let live = Set(sessions.list.map(\.id))
+        recorder.keep(only: live)
+        // A session pruned without ending keeps no file watch or read position behind.
+        for id in rolloutWatches.keys where !live.contains(id) { stopRolloutWatch(id) }
+        transcripts = transcripts.filter { live.contains($0.key) }
+        if summaries.keys.contains(where: { !live.contains($0) }) {
+            summaries = summaries.filter { live.contains($0.key) }
+        }
+        // A spend cap card for a session that's gone has nothing left to stop or keep going.
+        for id in capPrompts.map(\.sessionID) where !live.contains(id) { forgetSpendCap(id) }
+        return sessions.list.count != before
+    }
+
+    /// Hooks prune as they come; this covers the time none come at all.
+    private func startPruning() {
+        guard pruneTask == nil else { return }
+        pruneTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(10 * 60))
+                guard let self, !Task.isCancelled else { return }
+                if self.pruneStale() { self.publishStatus() }
+            }
+        }
+    }
+
     /// Shows the most urgent session (see `AgentUrgency`), with a count of the others.
     private func publishStatus() {
         // Every change to what's held ends here, so the rows and the pill say Paused at spend cap.
@@ -1231,7 +1258,10 @@ final class AgentHub {
         let pick = AgentUrgency.pick(all, now: now)
         repickTask?.cancel()
         repickTask = nil
-        let wake = [AgentUrgency.momentEnds(all, now: now), pick.primary?.toolLingerEnds(now: now)].compactMap { $0 }
+        let wake = [
+            AgentUrgency.momentEnds(all, now: now), AgentUrgency.quietEnds(all, now: now),
+            pick.primary?.toolLingerEnds(now: now),
+        ].compactMap { $0 }
         if let ends = wake.min() {
             repickTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(max(0, ends.timeIntervalSince(.now)) + 0.1))
@@ -1337,7 +1367,8 @@ final class AgentHub {
     private func status(for session: AgentSession, others: Int, now: Date) -> AgentStatus {
         AgentStatus(
             sessionID: session.id, project: session.project, source: session.source, state: session.state,
-            started: session.turnStarted, contextPercent: session.contextPercent?.rounded(),
+            started: session.turnStarted, turnDuration: session.lastTurnDuration,
+            contextPercent: session.contextPercent?.rounded(),
             compacting: session.compacting,
             tool: session.state == .running ? session.pillTool(now: now)?.description(hidden: detailsHidden) : nil,
             others: others, terminal: session.terminal, held: session.heldAtCap)

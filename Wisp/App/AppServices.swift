@@ -448,7 +448,8 @@ final class AppServices {
             guard !looking else { return self.activities.remove(.agent) }
             self.doneShown.insert(status.sessionID)
             self.finishes += 1
-            self.celebrate(.agentDone(duration: Date.now.timeIntervalSince(status.started)))
+            // A turn Wisp didn't see start has no length, so it never counts as a long run.
+            self.celebrate(.agentDone(duration: status.turnDuration ?? 0))
             self.activities.post(.agent(status), slot: .agent, duration: 4)
         }
     }
