@@ -197,7 +197,13 @@ struct RingSettings: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { canPreview = CGPreflightScreenCaptureAccess() }
+        .task {
+            // Screen Recording is switched on in System Settings; look again now and then.
+            while !Task.isCancelled {
+                canPreview = CGPreflightScreenCaptureAccess()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
     }
 }
 
@@ -211,10 +217,15 @@ private struct RingTipsSection: View {
 
     /// What showing windows needs that this Mac doesn't have yet.
     private var windowsNeed: String? {
-        if !preferences.ringAppWindows { return "Turn on \u{201C}Show an app's windows\u{201D} below." }
-        if !AccessibilityPermission.isTrusted { return "Needs Accessibility, to list the app's windows." }
-        if !canPreview { return "The app's windows fan out; live previews also need Screen Recording." }
-        return nil
+        switch RingPreviews.need(
+            showsWindows: preferences.ringAppWindows, accessibility: AccessibilityPermission.isTrusted,
+            screenRecording: canPreview)
+        {
+        case .windowsOff: "Turn on \u{201C}Show an app's windows\u{201D} below."
+        case .accessibility: "Needs Accessibility, to list the app's windows."
+        case .screenRecording: "The app's windows fan out; live previews also need Screen Recording."
+        case nil: nil
+        }
     }
 
     var body: some View {
@@ -265,6 +276,12 @@ private struct RingTipsSection: View {
             SettingsHeader("Try the ring")
         }
         .animation(reduceMotion ? nil : .wispSmooth, value: tips)
+        .task {
+            while !Task.isCancelled {
+                canPreview = CGPreflightScreenCaptureAccess()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
     }
 }
 
