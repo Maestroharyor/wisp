@@ -27,14 +27,17 @@ public struct MeetingEvent: Equatable, Sendable {
     public let end: Date
     public let isAllDay: Bool
     public let link: URL?
+    /// Declined, cancelled or marked free: on the calendar, but not somewhere the user is.
+    public let isFree: Bool
 
-    public init(id: String, title: String, start: Date, end: Date, isAllDay: Bool, link: URL?) {
+    public init(id: String, title: String, start: Date, end: Date, isAllDay: Bool, link: URL?, isFree: Bool = false) {
         self.id = id
         self.title = title
         self.start = start
         self.end = end
         self.isAllDay = isAllDay
         self.link = link
+        self.isFree = isFree
     }
 }
 
@@ -44,9 +47,25 @@ public enum Meetings {
         "\(eventID)@\(Int(start.timeIntervalSince1970))"
     }
 
-    /// The timed event happening now, to name a call while the microphone is live.
-    public static func current(_ events: [MeetingEvent], now: Date) -> MeetingEvent? {
-        events.filter { !$0.isAllDay && $0.start <= now && now < $0.end }.max { $0.start < $1.start }
+    /// Longer than this, an event is a block of time (a workday, a course), not a call.
+    static let longestMeeting: TimeInterval = 4 * 3_600
+    /// How far from an event's start the mic may go live for a call without a link to be it.
+    static let joinWindow: TimeInterval = 15 * 60
+
+    /// The meeting happening now, to name a call while the microphone is live (`micSince`).
+    /// Only a timed event the user is in, of meeting length. One with a call link counts
+    /// whenever the mic is on; any other only when the mic went live near its start, so a
+    /// recording in the middle of a calendar block isn't taken for that block's call.
+    public static func current(_ events: [MeetingEvent], now: Date, micSince: Date?) -> MeetingEvent? {
+        events.filter { event in
+            guard !event.isAllDay, !event.isFree, event.start <= now, now < event.end,
+                event.end.timeIntervalSince(event.start) <= longestMeeting
+            else { return false }
+            if event.link != nil { return true }
+            guard let micSince else { return false }
+            return abs(micSince.timeIntervalSince(event.start)) <= joinWindow
+        }
+        .max { $0.start < $1.start }
     }
 
     /// The next event with a call link that starts within `within` seconds.
